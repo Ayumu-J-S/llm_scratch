@@ -4,6 +4,7 @@ import torch.nn as nn
 import os
 import math
 from tqdm import tqdm
+from torch.optim.lr_scheduler import StepLR
 from model import SimpleGPTPredictor, device
 
 # ============ CREATE VOCAB ONCE ============
@@ -45,7 +46,9 @@ model = SimpleGPTPredictor(vocab_size=len(chars), embed_size=32, num_heads=4, ma
 model.to(device)
 
 # 学習設定
-optimizer = optim.Adam(model.parameters(), lr=0.001)
+optimizer = optim.AdamW(model.parameters(), lr=0.001, weight_decay=0.01)
+# 学習率スケジューラ
+scheduler = StepLR(optimizer, step_size=100, gamma=0.5)
 # 損失関数の種類
 criterion = nn.CrossEntropyLoss()
 
@@ -104,7 +107,9 @@ for epoch in range(1000):
         total_loss += loss.item()
 
     avg_loss = total_loss / num_batches
-    print(f"Epoch {epoch}, Loss: {avg_loss:.6f}")
+    current_lr = optimizer.param_groups[0]["lr"]
+    print(f"Epoch {epoch}, Loss: {avg_loss:.6f}, LR: {current_lr:.6e}")
+    scheduler.step()
 
     save_dir = "model"
 
