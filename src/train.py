@@ -9,7 +9,7 @@ from omegaconf import DictConfig
 from tqdm import tqdm
 
 from datasets.text_dataset import create_training_data
-from models.simple_transformer import SimpleGPTPredictor, device
+from models.simple_encoder_decoder_transformer import SimpleEncoderDecoderTransformer, device
 from tokenizer.bpe import BPETokenizer
 
 
@@ -27,41 +27,74 @@ def save_checkpoint(model, tokenizer, checkpoint_dir: Path, epoch: int) -> None:
     tokenizer.save(str(version_dir / "tokenizer.json"))
 
 
-def test_prediction(model, tokenizer, input_text, seq_len, temperature=0.0):
-    input_ids = tokenizer.encode(input_text)
-    if len(input_ids) < 1:
+def build_target_tokens(next_token_targets: torch.Tensor, bos_token_id: int, eos_token_id: int) -> torch.Tensor:
+    bos_column = torch.full(
+        (next_token_targets.size(0), 1),
+        bos_token_id,
+        device=next_token_targets.device,
+        dtype=next_token_targets.dtype,
+    )
+    eos_column = torch.full(
+        (next_token_targets.size(0), 1),
+        eos_token_id,
+        device=next_token_targets.device,
+        dtype=next_token_targets.dtype,
+    )
+    return torch.cat((bos_column, next_token_targets, eos_column), dim=1)
+
+
+def split_decoder_inputs_and_labels(target_tokens: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    decoder_inputs = target_tokens[:, :-1]
+    labels = target_tokens[:, 1:]
+    return decoder_inputs, labels
+
+
+def predict_next_token(model, tokenizer, input_text, seq_len, temperature=0.0):
+    source_ids = tokenizer.encode(input_text)
+    if len(source_ids) < 1:
         raise ValueError("At least 1 token is required for inference with the current model.")
 
-    if len(input_ids) > seq_len:
-        input_ids = input_ids[-seq_len:]
+    if len(source_ids) > seq_len:
+        source_ids = source_ids[-seq_len:]
 
-    input_tensor = torch.tensor([input_ids], device=device)
+    source_tensor = torch.tensor([source_ids], device=device)
+    source_padding_mask = model.make_padding_mask(source_tensor)
+    decoder_input = torch.tensor([[tokenizer.bos_token_id]], device=device)
+    decoder_padding_mask = model.make_padding_mask(decoder_input)
 
     with torch.no_grad():
-        output = model(input_tensor)
-        last_token_probs = output[0, -1, :]
+        memory = model.encode(source_tensor, src_key_padding_mask=source_padding_mask)
+        output = model.decode(
+            memory,
+            decoder_input,
+            memory_key_padding_mask=source_padding_mask,
+            tgt_key_padding_mask=decoder_padding_mask,
+        )
+        next_token_logits = output[0, -1, :]
 
         if temperature <= 0:
-            predicted_token_id = int(torch.argmax(last_token_probs).item())
+            predicted_token_id = int(torch.argmax(next_token_logits).item())
         else:
-            probs = torch.softmax(last_token_probs / temperature, dim=-1)
+            probs = torch.softmax(next_token_logits / temperature, dim=-1)
             predicted_token_id = int(torch.multinomial(probs, num_samples=1).item())
 
+        if predicted_token_id in {tokenizer.eos_token_id, tokenizer.pad_token_id}:
+            return ""
         return tokenizer.decode([predicted_token_id])
 
 
 def generate_seq(model, tokenizer, text, seq_len, count=0, temperature=0.0):
-    next_token = test_prediction(model, tokenizer, text, seq_len, temperature=temperature)
-    if count < 20:
-        return generate_seq(model, tokenizer, text + next_token, seq_len, count + 1, temperature)
-    return text + next_token
+    next_token = predict_next_token(model, tokenizer, text, seq_len, temperature=temperature)
+    if not next_token or count >= 20:
+        return text + next_token
+    return generate_seq(model, tokenizer, text + next_token, seq_len, count + 1, temperature)
 
 
 @hydra.main(version_base=None, config_path="../config", config_name="train")
 def main(cfg: DictConfig) -> None:
     text = load_text(cfg.data.input_path)
 
-    tokenizer = BPETokenizer()
+    tokenizer = BPETokenizer(special_tokens=["<pad>", "<bos>", "<eos>"])
     tokenizer.train(text, vocab_size=cfg.tokenizer.vocab_size)
 
     print(f"Tokenizer vocab size: {tokenizer.vocab_size}")
@@ -69,23 +102,31 @@ def main(cfg: DictConfig) -> None:
         print(f"最初のマージ: {tokenizer.describe_merge(0)}")
 
     token_ids = tokenizer.encode(text)
-    train_inputs, train_targets = create_training_data(
+    train_inputs, next_token_targets = create_training_data(
         token_ids=token_ids,
         seq_len=cfg.training.sequence_length,
         device=device,
     )
+    target_tokens = build_target_tokens(
+        next_token_targets=next_token_targets,
+        bos_token_id=tokenizer.bos_token_id,
+        eos_token_id=tokenizer.eos_token_id,
+    )
+    decoder_inputs, labels = split_decoder_inputs_and_labels(target_tokens)
     sample_index = min(20, len(train_inputs) - 1)
 
     print(f"学習データ数: {len(train_inputs)}")
-    print(f"例 - 入力: '{tokenizer.decode(train_inputs[sample_index].tolist())}'")
-    print(f"例 - 正解: '{tokenizer.decode(train_targets[sample_index].tolist())}'")
+    print(f"例 - エンコーダ入力: '{tokenizer.decode(train_inputs[sample_index].tolist())}'")
+    print(f"例 - デコーダ入力: '{tokenizer.decode(decoder_inputs[sample_index].tolist())}'")
+    print(f"例 - ラベル: '{tokenizer.decode(labels[sample_index].tolist())}'")
 
-    model = SimpleGPTPredictor(
+    model = SimpleEncoderDecoderTransformer(
         vocab_size=tokenizer.vocab_size,
         embed_size=cfg.model.embed_size,
         num_heads=cfg.model.num_heads,
-        max_len=cfg.training.sequence_length,
+        max_len=cfg.training.sequence_length + 1,
         num_layers=cfg.model.num_layers,
+        pad_token_id=tokenizer.pad_token_id,
     )
     model.to(device)
 
@@ -99,7 +140,6 @@ def main(cfg: DictConfig) -> None:
         T_max=cfg.scheduler.t_max,
         eta_min=cfg.scheduler.eta_min,
     )
-    criterion = nn.CrossEntropyLoss()
 
     checkpoint_dir = ROOT_DIR / cfg.artifacts.checkpoints_dir
     tokenizer_dir = ROOT_DIR / cfg.artifacts.tokenizers_dir
@@ -118,10 +158,15 @@ def main(cfg: DictConfig) -> None:
             optimizer.zero_grad()
 
             input_batch = train_inputs[index : index + batch_size]
-            target_batch = train_targets[index : index + batch_size]
+            decoder_input_batch = decoder_inputs[index : index + batch_size]
+            label_batch = labels[index : index + batch_size]
 
-            output = model(input_batch)
-            loss = criterion(output.reshape(-1, tokenizer.vocab_size), target_batch.reshape(-1))
+            output = model(input_batch, decoder_input_batch)
+            loss = nn.functional.cross_entropy(
+                output.reshape(-1, output.size(-1)),
+                label_batch.reshape(-1),
+                ignore_index=model.pad_token_id,
+            )
             loss.backward()
 
             optimizer.step()

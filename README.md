@@ -1,6 +1,6 @@
 # llm_scratch
 
-A small scratch project for experimenting with a simple GPT-style language model and a character-level BPE tokenizer.
+A small scratch project for experimenting with a simple encoder-decoder Transformer language model and a character-level BPE tokenizer.
 
 ## Setup
 
@@ -54,7 +54,7 @@ uv run python src/train.py training.epochs=10 training.batch_size=64
 
 ## Project files
 - `src/train.py`: Hydra-based training script
-- `src/models/simple_transformer.py`: transformer model definition
+- `src/models/simple_encoder_decoder_transformer.py`: transformer model definition
 - `src/tokenizer/bpe.py`: character-level BPE tokenizer implementation
 - `src/datasets/text_dataset.py`: next-token training sample creation
 - `config/train.yaml`: runtime and training configuration
