@@ -37,6 +37,12 @@ def build_decoder_inputs(next_token_targets: torch.Tensor, bos_token_id: int) ->
     return torch.cat((bos_column, next_token_targets[:, :-1]), dim=1)
 
 
+def build_inference_decoder_input(source_ids: list[int], bos_token_id: int) -> list[int]:
+    if not source_ids:
+        raise ValueError("source_ids must contain at least one token")
+    return [bos_token_id, *source_ids[1:]]
+
+
 def predict_next_token(model, tokenizer, input_text, seq_len, temperature=0.0):
     source_ids = tokenizer.encode(input_text)
     if len(source_ids) < 1:
@@ -47,7 +53,8 @@ def predict_next_token(model, tokenizer, input_text, seq_len, temperature=0.0):
 
     source_tensor = torch.tensor([source_ids], device=device)
     source_padding_mask = model.make_padding_mask(source_tensor)
-    decoder_input = torch.tensor([[tokenizer.bos_token_id]], device=device)
+    decoder_input_ids = build_inference_decoder_input(source_ids, tokenizer.bos_token_id)
+    decoder_input = torch.tensor([decoder_input_ids], device=device)
     decoder_padding_mask = model.make_padding_mask(decoder_input)
 
     with torch.no_grad():
