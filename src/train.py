@@ -27,26 +27,14 @@ def save_checkpoint(model, tokenizer, checkpoint_dir: Path, epoch: int) -> None:
     tokenizer.save(str(version_dir / "tokenizer.json"))
 
 
-def build_target_tokens(next_token_targets: torch.Tensor, bos_token_id: int, eos_token_id: int) -> torch.Tensor:
+def build_decoder_inputs(next_token_targets: torch.Tensor, bos_token_id: int) -> torch.Tensor:
     bos_column = torch.full(
         (next_token_targets.size(0), 1),
         bos_token_id,
         device=next_token_targets.device,
         dtype=next_token_targets.dtype,
     )
-    eos_column = torch.full(
-        (next_token_targets.size(0), 1),
-        eos_token_id,
-        device=next_token_targets.device,
-        dtype=next_token_targets.dtype,
-    )
-    return torch.cat((bos_column, next_token_targets, eos_column), dim=1)
-
-
-def split_decoder_inputs_and_labels(target_tokens: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-    decoder_inputs = target_tokens[:, :-1]
-    labels = target_tokens[:, 1:]
-    return decoder_inputs, labels
+    return torch.cat((bos_column, next_token_targets[:, :-1]), dim=1)
 
 
 def predict_next_token(model, tokenizer, input_text, seq_len, temperature=0.0):
@@ -107,12 +95,11 @@ def main(cfg: DictConfig) -> None:
         seq_len=cfg.training.sequence_length,
         device=device,
     )
-    target_tokens = build_target_tokens(
+    decoder_inputs = build_decoder_inputs(
         next_token_targets=next_token_targets,
         bos_token_id=tokenizer.bos_token_id,
-        eos_token_id=tokenizer.eos_token_id,
     )
-    decoder_inputs, labels = split_decoder_inputs_and_labels(target_tokens)
+    labels = next_token_targets
     sample_index = min(20, len(train_inputs) - 1)
 
     print(f"学習データ数: {len(train_inputs)}")
@@ -124,7 +111,7 @@ def main(cfg: DictConfig) -> None:
         vocab_size=tokenizer.vocab_size,
         embed_size=cfg.model.embed_size,
         num_heads=cfg.model.num_heads,
-        max_len=cfg.training.sequence_length + 1,
+        max_len=cfg.training.sequence_length,
         num_layers=cfg.model.num_layers,
         pad_token_id=tokenizer.pad_token_id,
     )
