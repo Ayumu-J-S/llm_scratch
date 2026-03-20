@@ -9,24 +9,28 @@ tokenizer:
     - <eos>
 
 training:
-  sequence_length: 100
-  epochs: 1000
-  batch_size: 128
+  sequence_length: 64
+  epochs: 50
+  batch_size: 64
 
 model:
-  embed_size: 512
+  embed_size: 128
   num_heads: 4
-  num_layers: 10
+  num_layers: 4
+  dropout: 0.1
 
 optimizer:
-  lr: 0.1
+  lr: 0.001
   weight_decay: 0.0
-
-scheduler:
-  t_max: 100
-  eta_min: 0.0
 
 artifacts:
   checkpoints_dir: artifacts/checkpoints
   tokenizers_dir: artifacts/tokenizers
   tokenizer_filename: tokenizer.json
+
+hydra:
+  run:
+    dir: .
+  output_subdir: null
+  job:
+    chdir: false

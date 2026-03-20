@@ -154,10 +154,8 @@ class BPETokenizer:
             if token_id in self.id_to_special_token:
                 if skip_special_tokens:
                     continue
-                raise ValueError(
-                    f"Cannot decode special token {self.id_to_special_token[token_id]!r} "
-                    "when skip_special_tokens=False"
-                )
+                pieces.append(self.id_to_special_token[token_id])
+                continue
 
             token = self.id_to_token.get(token_id)
             if token is None:
