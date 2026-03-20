@@ -7,8 +7,8 @@ import torch.optim as optim
 from omegaconf import DictConfig
 from tqdm import tqdm
 
-from datasets.text_dataset import create_seq2seq_training_data
-from models.simple_encoder_decoder_transformer import SimpleEncoderDecoderTransformer
+from datasets.text_dataset import create_autoregressive_training_data
+from models.simple_decoder_transformer import SimpleDecoderTransformer
 from tokenizer.artifacts import load_text, load_tokenizer
 
 
@@ -25,13 +25,12 @@ def save_checkpoint(model, checkpoint_dir: Path) -> None:
     torch.save(model.state_dict(), checkpoint_dir / "model_last.pth")
 
 
-def log_sample_pair(tokenizer, encoder_inputs, decoder_inputs, labels) -> None:
-    sample_index = min(20, len(encoder_inputs) - 1)
-    log(f"Training samples: {len(encoder_inputs)}")
-    log(f"Example source: {tokenizer.decode(encoder_inputs[sample_index].tolist())!r}")
+def log_sample_pair(tokenizer, inputs, labels) -> None:
+    sample_index = min(20, len(inputs) - 1)
+    log(f"Training samples: {len(inputs)}")
     log(
         "Example decoder input: "
-        f"{tokenizer.decode(decoder_inputs[sample_index].tolist(), skip_special_tokens=False)!r}"
+        f"{tokenizer.decode(inputs[sample_index].tolist(), skip_special_tokens=False)!r}"
     )
     log(
         "Example label: "
@@ -56,22 +55,22 @@ def main(cfg: DictConfig) -> None:
     token_ids = tokenizer.encode(text)
     log(f"Tokenized corpus length: {len(token_ids)}")
 
-    log("Building seq2seq training tensors...")
-    encoder_inputs, decoder_inputs, labels = create_seq2seq_training_data(
+    log("Building decoder-only autoregressive training tensors...")
+    inputs, labels = create_autoregressive_training_data(
         token_ids=token_ids,
         seq_len=cfg.training.sequence_length,
         bos_token_id=tokenizer.bos_token_id,
         eos_token_id=tokenizer.eos_token_id,
         device=DEVICE,
     )
-    log_sample_pair(tokenizer, encoder_inputs, decoder_inputs, labels)
+    log_sample_pair(tokenizer, inputs, labels)
 
     log("Building model...")
-    model = SimpleEncoderDecoderTransformer(
+    model = SimpleDecoderTransformer(
         vocab_size=tokenizer.vocab_size,
         embed_size=cfg.model.embed_size,
         num_heads=cfg.model.num_heads,
-        max_len=cfg.training.sequence_length + 1,
+        max_len=cfg.training.sequence_length,
         num_layers=cfg.model.num_layers,
         dropout=cfg.model.dropout,
         pad_token_id=tokenizer.pad_token_id,
@@ -93,16 +92,15 @@ def main(cfg: DictConfig) -> None:
         num_batches = 0
 
         for start in tqdm(
-            range(0, len(encoder_inputs), cfg.training.batch_size),
+            range(0, len(inputs), cfg.training.batch_size),
             desc=f"epoch {epoch + 1}/{cfg.training.epochs}",
             leave=False,
         ):
-            source_batch = encoder_inputs[start : start + cfg.training.batch_size]
-            decoder_input_batch = decoder_inputs[start : start + cfg.training.batch_size]
+            input_batch = inputs[start : start + cfg.training.batch_size]
             label_batch = labels[start : start + cfg.training.batch_size]
 
             optimizer.zero_grad(set_to_none=True)
-            logits = model(source_batch, decoder_input_batch)
+            logits = model(input_batch)
             loss = F.cross_entropy(
                 logits.reshape(-1, logits.size(-1)),
                 label_batch.reshape(-1),
