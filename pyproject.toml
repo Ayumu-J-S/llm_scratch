@@ -1,7 +1,7 @@
 [project]
 name = "llm-scratch"
 version = "0.1.0"
-description = "Scratch experiments for a simple encoder-decoder Transformer and BPE tokenizer."
+description = "Scratch experiments for a decoder-only autoregressive Transformer and BPE tokenizer."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
