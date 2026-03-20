@@ -1,6 +1,6 @@
 # llm_scratch
 
-A small scratch project for experimenting with a simple GPT-style language model and a character-level BPE tokenizer.
+A small scratch project for experimenting with a simple encoder-decoder Transformer language model and a character-level BPE tokenizer.
 
 ## Setup
 

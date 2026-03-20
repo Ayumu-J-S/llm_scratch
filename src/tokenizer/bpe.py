@@ -45,6 +45,10 @@ class BPETokenizer:
     def eos_token_id(self) -> int:
         return self._get_special_token_id("<eos>")
 
+    @property
+    def pad_token_id(self) -> int:
+        return self._get_special_token_id("<pad>")
+
     def train(self, text: str, vocab_size: int) -> None:
         if not isinstance(text, str):
             raise TypeError("text must be a string")
