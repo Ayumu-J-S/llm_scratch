@@ -5,7 +5,7 @@ from tokenizer.artifacts import load_text, save_tokenizer
 from tokenizer.bpe import BPETokenizer
 
 
-@hydra.main(version_base=None, config_path="../config", config_name="train")
+@hydra.main(version_base=None, config_path="../config", config_name="train_tokenizer")
 def main(cfg: DictConfig) -> None:
     text = load_text(cfg.data.input_path)
 

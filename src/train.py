@@ -9,12 +9,7 @@ from tqdm import tqdm
 
 from datasets.text_dataset import create_seq2seq_training_data
 from models.simple_encoder_decoder_transformer import SimpleEncoderDecoderTransformer
-from tokenizer.artifacts import (
-    load_text,
-    load_tokenizer,
-    resolve_tokenizer_artifact_path,
-    validate_loaded_tokenizer,
-)
+from tokenizer.artifacts import load_text, load_tokenizer
 
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
@@ -54,19 +49,6 @@ def main(cfg: DictConfig) -> None:
     tokenizer = load_tokenizer(
         cfg.artifacts.tokenizers_dir,
         cfg.artifacts.tokenizer_filename,
-    )
-
-    log("Validating tokenizer artifact...")
-    validate_loaded_tokenizer(
-        tokenizer,
-        text,
-        cfg.tokenizer.vocab_size,
-        list(cfg.tokenizer.special_tokens),
-    )
-
-    log(
-        "Loaded tokenizer from: "
-        f"{resolve_tokenizer_artifact_path(cfg.artifacts.tokenizers_dir, cfg.artifacts.tokenizer_filename)}"
     )
     log(f"Tokenizer vocab size: {tokenizer.vocab_size}")
 

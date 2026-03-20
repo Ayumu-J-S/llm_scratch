@@ -72,7 +72,8 @@ uv run python src/train.py training.epochs=10 training.batch_size=64
 - `src/models/simple_encoder_decoder_transformer.py`: encoder-decoder Transformer definition
 - `src/tokenizer/bpe.py`: character-level BPE tokenizer implementation
 - `src/datasets/text_dataset.py`: seq2seq source/target training sample creation
-- `config/train.yaml`: runtime and training configuration
+- `config/train.yaml`: model training configuration
+- `config/train_tokenizer.yaml`: tokenizer training configuration
 - `data/inputLearnText.txt`: training corpus
 - `tests/`: unit tests
 

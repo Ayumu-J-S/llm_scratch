@@ -1,13 +1,6 @@
 data:
   input_path: data/inputLearnText.txt
 
-tokenizer:
-  vocab_size: 512
-  special_tokens:
-    - <pad>
-    - <bos>
-    - <eos>
-
 training:
   sequence_length: 64
   epochs: 50

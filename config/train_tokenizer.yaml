@@ -1,0 +1,20 @@
+data:
+  input_path: data/inputLearnText.txt
+
+tokenizer:
+  vocab_size: 512
+  special_tokens:
+    - <pad>
+    - <bos>
+    - <eos>
+
+artifacts:
+  tokenizers_dir: artifacts/tokenizers
+  tokenizer_filename: tokenizer.json
+
+hydra:
+  run:
+    dir: .
+  output_subdir: null
+  job:
+    chdir: false
