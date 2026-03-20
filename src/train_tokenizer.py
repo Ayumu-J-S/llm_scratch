@@ -9,7 +9,7 @@ from tokenizer.bpe import BPETokenizer
 def main(cfg: DictConfig) -> None:
     text = load_text(cfg.data.input_path)
 
-    tokenizer = BPETokenizer()
+    tokenizer = BPETokenizer(special_tokens=list(cfg.tokenizer.special_tokens))
     tokenizer.train(text, vocab_size=cfg.tokenizer.vocab_size)
 
     tokenizer_path = save_tokenizer(
@@ -20,8 +20,6 @@ def main(cfg: DictConfig) -> None:
 
     print(f"Tokenizer saved to: {tokenizer_path}")
     print(f"Tokenizer vocab size: {tokenizer.vocab_size}")
-    if tokenizer.merges:
-        print(f"最初のマージ: {tokenizer.describe_merge(0)}")
 
 
 if __name__ == "__main__":

@@ -3,6 +3,10 @@ data:
 
 tokenizer:
   vocab_size: 512
+  special_tokens:
+    - <pad>
+    - <bos>
+    - <eos>
 
 training:
   sequence_length: 100

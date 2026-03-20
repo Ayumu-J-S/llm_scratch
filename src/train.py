@@ -9,7 +9,7 @@ from omegaconf import DictConfig
 from tqdm import tqdm
 
 from datasets.text_dataset import create_training_data
-from models.simple_transformer import SimpleGPTPredictor, device
+from models.simple_encoder_decoder_transformer import SimpleEncoderDecoderTransformer
 from tokenizer.artifacts import (
     load_text,
     load_tokenizer,
@@ -19,6 +19,11 @@ from tokenizer.artifacts import (
 
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+def log(message: str) -> None:
+    print(message, flush=True)
 
 
 def save_checkpoint(model, tokenizer, checkpoint_dir: Path, epoch: int) -> None:
@@ -52,10 +57,10 @@ def predict_next_token(model, tokenizer, input_text, seq_len, temperature=0.0):
     if len(source_ids) > seq_len:
         source_ids = source_ids[-seq_len:]
 
-    source_tensor = torch.tensor([source_ids], device=device)
+    source_tensor = torch.tensor([source_ids], device=DEVICE)
     source_padding_mask = model.make_padding_mask(source_tensor)
     decoder_input_ids = build_inference_decoder_input(source_ids, tokenizer.bos_token_id)
-    decoder_input = torch.tensor([decoder_input_ids], device=device)
+    decoder_input = torch.tensor([decoder_input_ids], device=DEVICE)
     decoder_padding_mask = model.make_padding_mask(decoder_input)
 
     with torch.no_grad():
@@ -88,26 +93,34 @@ def generate_seq(model, tokenizer, text, seq_len, count=0, temperature=0.0):
 
 @hydra.main(version_base=None, config_path="../config", config_name="train")
 def main(cfg: DictConfig) -> None:
+    log(f"Using device: {DEVICE}")
+    log(f"Loading corpus from: {cfg.data.input_path}")
     text = load_text(cfg.data.input_path)
+    log("Loading tokenizer artifact...")
     tokenizer = load_tokenizer(
         cfg.artifacts.tokenizers_dir,
         cfg.artifacts.tokenizer_filename,
     )
-    validate_loaded_tokenizer(tokenizer, text, cfg.tokenizer.vocab_size)
-
-    print(
+    log("Validating tokenizer artifact...")
+    validate_loaded_tokenizer(
+        tokenizer,
+        text,
+        cfg.tokenizer.vocab_size,
+        list(cfg.tokenizer.special_tokens),
+    )
+    log(
         "Loaded tokenizer from: "
         f"{resolve_tokenizer_artifact_path(cfg.artifacts.tokenizers_dir, cfg.artifacts.tokenizer_filename)}"
     )
-    print(f"Tokenizer vocab size: {tokenizer.vocab_size}")
-    if tokenizer.merges:
-        print(f"最初のマージ: {tokenizer.describe_merge(0)}")
-
+    log(f"Tokenizer vocab size: {tokenizer.vocab_size}")
+    log("Tokenizing corpus...")
     token_ids = tokenizer.encode(text)
+    log(f"Tokenized corpus length: {len(token_ids)}")
+    log("Building training tensors...")
     train_inputs, next_token_targets = create_training_data(
         token_ids=token_ids,
         seq_len=cfg.training.sequence_length,
-        device=device,
+        device=DEVICE,
     )
     decoder_inputs = build_decoder_inputs(
         next_token_targets=next_token_targets,
@@ -116,11 +129,12 @@ def main(cfg: DictConfig) -> None:
     labels = next_token_targets
     sample_index = min(20, len(train_inputs) - 1)
 
-    print(f"学習データ数: {len(train_inputs)}")
-    print(f"例 - エンコーダ入力: '{tokenizer.decode(train_inputs[sample_index].tolist())}'")
-    print(f"例 - デコーダ入力: '{tokenizer.decode(decoder_inputs[sample_index].tolist())}'")
-    print(f"例 - ラベル: '{tokenizer.decode(labels[sample_index].tolist())}'")
+    log(f"学習データ数: {len(train_inputs)}")
+    log(f"例 - エンコーダ入力: '{tokenizer.decode(train_inputs[sample_index].tolist())}'")
+    log(f"例 - デコーダ入力: '{tokenizer.decode(decoder_inputs[sample_index].tolist())}'")
+    log(f"例 - ラベル: '{tokenizer.decode(labels[sample_index].tolist())}'")
 
+    log("Building model...")
     model = SimpleEncoderDecoderTransformer(
         vocab_size=tokenizer.vocab_size,
         embed_size=cfg.model.embed_size,
@@ -129,7 +143,7 @@ def main(cfg: DictConfig) -> None:
         num_layers=cfg.model.num_layers,
         pad_token_id=tokenizer.pad_token_id,
     )
-    model.to(device)
+    model.to(DEVICE)
 
     optimizer = optim.AdamW(
         model.parameters(),
@@ -145,7 +159,7 @@ def main(cfg: DictConfig) -> None:
     checkpoint_dir = ROOT_DIR / cfg.artifacts.checkpoints_dir
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
-    print("\n学習開始...")
+    log("学習開始...")
 
     for epoch in range(cfg.training.epochs):
         total_loss = 0.0
@@ -172,7 +186,7 @@ def main(cfg: DictConfig) -> None:
 
         avg_loss = total_loss / num_batches
         current_lr = optimizer.param_groups[0]["lr"]
-        print(f"Epoch {epoch}, Loss: {avg_loss:.6f}, LR: {current_lr:.6e}")
+        log(f"Epoch {epoch}, Loss: {avg_loss:.6f}, LR: {current_lr:.6e}")
         scheduler.step()
 
         save_checkpoint(model, tokenizer, checkpoint_dir, epoch)

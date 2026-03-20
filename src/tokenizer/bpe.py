@@ -131,7 +131,7 @@ class BPETokenizer:
 
             merged_token_id = self.merge_token_ids[best_pair]
             merged_token = self.id_to_token[merged_token_id]
-            sequence = sequence[:best_index] + [merged_token] + sequence[best_index + 2 :]
+            sequence = self._replace_pair(sequence, best_pair, merged_token)
 
         token_ids = [self.token_to_id[token] for token in sequence]
         if add_bos:

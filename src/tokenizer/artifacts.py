@@ -32,7 +32,12 @@ def save_tokenizer(tokenizer: BPETokenizer, directory: str, filename: str) -> Pa
     return tokenizer_path
 
 
-def validate_loaded_tokenizer(tokenizer: BPETokenizer, text: str, expected_vocab_size: int) -> None:
+def validate_loaded_tokenizer(
+    tokenizer: BPETokenizer,
+    text: str,
+    expected_vocab_size: int,
+    required_special_tokens: list[str],
+) -> None:
     if tokenizer.vocab_size != expected_vocab_size:
         raise ValueError(
             "Tokenizer artifact does not match the active Hydra config. "
@@ -41,10 +46,22 @@ def validate_loaded_tokenizer(tokenizer: BPETokenizer, text: str, expected_vocab
             "Run src/train_tokenizer.py with the current overrides before training."
         )
 
-    try:
-        tokenizer.encode(text)
-    except ValueError as exc:
+    missing_special_tokens = [
+        token for token in required_special_tokens if token not in tokenizer.special_tokens
+    ]
+    if missing_special_tokens:
+        missing_special_tokens_text = ", ".join(missing_special_tokens)
+        raise ValueError(
+            "Tokenizer artifact is missing required special tokens. "
+            f"Missing: {missing_special_tokens_text}. "
+            "Run src/train_tokenizer.py with the current data/tokenizer overrides before training."
+        )
+
+    unknown_characters = sorted(set(text).difference(tokenizer.base_vocab))
+    if unknown_characters:
+        preview = ", ".join(repr(character) for character in unknown_characters[:5])
         raise ValueError(
             "Tokenizer artifact cannot encode the configured training corpus. "
+            f"Unknown characters include: {preview}. "
             "Run src/train_tokenizer.py with the current data/tokenizer overrides before training."
-        ) from exc
+        )

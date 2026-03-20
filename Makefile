@@ -13,8 +13,8 @@ sync:
 	uv sync --dev
 
 activate:
-	@printf '%s\n' 'Run this command in your shell:'
-	@printf '%s\n' 'source .venv/bin/activate'
+	@test -f .venv/bin/activate || { printf '%s\n' 'No .venv yet; run: make sync' >&2; exit 1; }; \
+		. .venv/bin/activate && exec $${SHELL:-/bin/sh} -i
 
 test:
 	uv run python -m unittest test_train_tokenizer.py
