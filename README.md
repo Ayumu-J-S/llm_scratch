@@ -1,6 +1,6 @@
 # llm_scratch
 
-A small scratch project for experimenting with a simple encoder-decoder Transformer and a character-level BPE tokenizer.
+A small scratch project for experimenting with a decoder-only autoregressive Transformer and a character-level BPE tokenizer.
 
 ## Setup
 
@@ -53,11 +53,11 @@ This launches the Hydra-based training entrypoint, which expects an already-trai
 uv run python src/train.py
 ```
 
-Training uses a simple seq2seq setup built from one corpus:
-- the encoder sees one fixed-length chunk
-- the decoder learns to generate the following chunk
-- decoder inputs start with `<bos>`
-- labels end with `<eos>`
+Training uses a decoder-only autoregressive setup built from one corpus:
+- each sample is a left-to-right language modeling window
+- the tokenized corpus is treated as one continuous stream
+- each training input is a contiguous slice of that stream with fixed length
+- labels are the next-token-shifted slice for standard causal language modeling
 
 You can override runtime values with Hydra arguments, for example:
 
@@ -66,16 +66,16 @@ uv run python src/train.py training.epochs=10 training.batch_size=64
 ```
 
 ## Project files
-- `src/train.py`: Hydra-based seq2seq training script that loads a saved tokenizer
+- `src/train.py`: Hydra-based decoder-only training script that loads a saved tokenizer
 - `src/train_tokenizer.py`: Hydra-based tokenizer training script
 - `src/models/embedding.py`: token embedding and sinusoidal positional encoding
-- `src/models/simple_encoder_decoder_transformer.py`: encoder-decoder Transformer definition
+- `src/models/simple_decoder_transformer.py`: decoder-only Transformer definition with a causal mask
 - `src/tokenizer/bpe.py`: character-level BPE tokenizer implementation
-- `src/datasets/text_dataset.py`: seq2seq source/target training sample creation
+- `src/datasets/text_dataset.py`: decoder-only autoregressive training sample creation
 - `config/train.yaml`: model training configuration
 - `config/train_tokenizer.yaml`: tokenizer training configuration
 - `data/inputLearnText.txt`: training corpus
-- `tests/`: unit tests
+- `tests/test_decoder_only.py`: decoder-only data/model smoke tests
 
 ## References
 - 「[大規模言語モデル入門](https://www.amazon.co.jp/%E5%A4%A7%E8%A6%8F%E6%A8%A1%E8%A8%80%E8%AA%9E%E3%83%A2%E3%83%87%E3%83%AB%E5%85%A5%E9%96%80-%E5%B1%B1%E7%94%B0-%E8%82%B2%E7%9F%A2/dp/4297136333/ref=asc_df_4297136333?mcid=250d2916cf3a37869b7de666d8c23fb5&th=1&psc=1&tag=jpgo-22&linkCode=df0&hvadid=707442440817&hvpos=&hvnetw=g&hvrand=8178253711343895759&hvpone=&hvptwo=&hvqmt=&hvdev=c&hvdvcmdl=&hvlocint=&hvlocphy=1009213&hvtargid=pla-2198420664173&psc=1&hvocijid=8178253711343895759-4297136333-&hvexpln=0)」
