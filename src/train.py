@@ -59,8 +59,6 @@ def main(cfg: DictConfig) -> None:
     inputs, labels = create_autoregressive_training_data(
         token_ids=token_ids,
         seq_len=cfg.training.sequence_length,
-        bos_token_id=tokenizer.bos_token_id,
-        eos_token_id=tokenizer.eos_token_id,
         device=DEVICE,
     )
     log_sample_pair(tokenizer, inputs, labels)

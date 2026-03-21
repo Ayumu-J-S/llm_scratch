@@ -1,3 +1,4 @@
+import pytest
 import torch
 
 from src.datasets.text_dataset import create_autoregressive_training_data
@@ -6,23 +7,43 @@ from src.models.simple_decoder_transformer import SimpleDecoderTransformer
 
 def test_create_autoregressive_training_data_uses_shifted_next_token_targets():
     inputs, labels = create_autoregressive_training_data(
-        token_ids=[10, 11, 12, 13],
+        token_ids=[10, 11, 12, 13, 14],
         seq_len=3,
-        bos_token_id=1,
-        eos_token_id=2,
     )
 
     assert inputs.tolist() == [
-        [1, 10, 11],
         [10, 11, 12],
         [11, 12, 13],
     ]
     assert labels.tolist() == [
-        [10, 11, 12],
         [11, 12, 13],
-        [12, 13, 2],
+        [12, 13, 14],
     ]
 
+
+def test_create_autoregressive_training_data_emits_full_length_windows_without_bos_eos_insertion():
+    bos_token_id = 101
+    eos_token_id = 102
+
+    inputs, labels = create_autoregressive_training_data(
+        token_ids=[1, 2, 3, 4, 5],
+        seq_len=2,
+    )
+
+    assert inputs.shape == (3, 2)
+    assert labels.shape == (3, 2)
+    assert bos_token_id not in inputs.tolist()
+    assert bos_token_id not in labels.tolist()
+    assert eos_token_id not in inputs.tolist()
+    assert eos_token_id not in labels.tolist()
+
+
+def test_create_autoregressive_training_data_requires_enough_tokens_for_labels():
+    with pytest.raises(ValueError, match="Need at least 4 tokens"):
+        create_autoregressive_training_data(
+            token_ids=[10, 11, 12],
+            seq_len=3,
+        )
 
 
 def test_simple_decoder_transformer_returns_vocab_logits():

@@ -55,9 +55,9 @@ uv run python src/train.py
 
 Training uses a decoder-only autoregressive setup built from one corpus:
 - each sample is a left-to-right language modeling window
-- the token stream is wrapped once with `<bos>` at the start and `<eos>` at the end
-- each training input is a contiguous prefix window from that stream
-- labels are the same window shifted one token to the left for true next-token prediction
+- the tokenized corpus is treated as one continuous stream
+- each training input is a contiguous slice of that stream with fixed length
+- labels are the next-token-shifted slice for standard causal language modeling
 
 You can override runtime values with Hydra arguments, for example:
 
