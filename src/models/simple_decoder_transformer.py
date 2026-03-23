@@ -23,12 +23,13 @@ class DecoderBlock(nn.Module):
         self.feedforward_norm = nn.LayerNorm(embed_size)
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self, hidden, causal_mask):
+    def forward(self, hidden, causal_mask, key_padding_mask=None):
         attention_output, _ = self.self_attention(
             hidden,
             hidden,
             hidden,
             attn_mask=causal_mask,
+            key_padding_mask=key_padding_mask,
             need_weights=False,
         )
         hidden = self.attention_norm(hidden + self.dropout(attention_output))
@@ -46,6 +47,7 @@ class SimpleDecoderTransformer(nn.Module):
         num_layers=4,
         dropout=0.1,
         dim_feedforward=None,
+        pad_token_id=None,
     ):
         super().__init__()
 
@@ -53,10 +55,12 @@ class SimpleDecoderTransformer(nn.Module):
             dim_feedforward = embed_size * 4
 
         self.max_len = max_len
+        self.pad_token_id = pad_token_id
         self.embedding = TransformerEmbedding(
             vocab_size=vocab_size,
             embed_size=embed_size,
             max_len=max_len,
+            pad_token_id=pad_token_id,
         )
         self.layers = nn.ModuleList(
             [
@@ -71,12 +75,15 @@ class SimpleDecoderTransformer(nn.Module):
         )
         self.lm_head = nn.Linear(embed_size, vocab_size)
 
-    def forward(self, tokens):
+    def forward(self, tokens, key_padding_mask=None):
         sequence_length = tokens.size(1)
         if sequence_length > self.max_len:
             raise ValueError(
                 f"Sequence length exceeds max_len={self.max_len}: {sequence_length}"
             )
+
+        if key_padding_mask is None:
+            key_padding_mask = self.make_padding_mask(tokens)
 
         hidden = self.embedding(tokens)
         causal_mask = self.generate_square_subsequent_mask(
@@ -84,8 +91,17 @@ class SimpleDecoderTransformer(nn.Module):
             device=tokens.device,
         )
         for layer in self.layers:
-            hidden = layer(hidden, causal_mask=causal_mask)
+            hidden = layer(
+                hidden,
+                causal_mask=causal_mask,
+                key_padding_mask=key_padding_mask,
+            )
         return self.lm_head(hidden)
+
+    def make_padding_mask(self, tokens):
+        if self.pad_token_id is None:
+            return None
+        return tokens.eq(self.pad_token_id)
 
     @staticmethod
     def generate_square_subsequent_mask(size, device):

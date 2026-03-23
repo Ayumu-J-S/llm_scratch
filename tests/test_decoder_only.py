@@ -88,3 +88,51 @@ def test_simple_decoder_transformer_returns_vocab_logits():
     logits = model(tokens)
 
     assert logits.shape == (2, 4, 32)
+
+
+def test_simple_decoder_transformer_builds_padding_mask_from_pad_token():
+    model = SimpleDecoderTransformer(
+        vocab_size=32,
+        embed_size=16,
+        num_heads=4,
+        max_len=4,
+        num_layers=1,
+        dropout=0.0,
+        pad_token_id=0,
+    )
+    tokens = torch.tensor([[1, 5, 0, 0], [2, 3, 4, 0]])
+
+    padding_mask = model.make_padding_mask(tokens)
+
+    assert padding_mask.tolist() == [
+        [False, False, True, True],
+        [False, False, False, True],
+    ]
+
+
+def test_decoder_block_forwards_key_padding_mask_to_attention():
+    model = SimpleDecoderTransformer(
+        vocab_size=32,
+        embed_size=16,
+        num_heads=4,
+        max_len=4,
+        num_layers=1,
+        dropout=0.0,
+        pad_token_id=0,
+    )
+    tokens = torch.tensor([[1, 5, 0, 0]])
+    captured = {}
+
+    original_forward = model.layers[0].self_attention.forward
+
+    def wrapped_forward(*args, **kwargs):
+        captured["key_padding_mask"] = kwargs.get("key_padding_mask")
+        return original_forward(*args, **kwargs)
+
+    model.layers[0].self_attention.forward = wrapped_forward
+    try:
+        model(tokens)
+    finally:
+        model.layers[0].self_attention.forward = original_forward
+
+    assert captured["key_padding_mask"].tolist() == [[False, False, True, True]]

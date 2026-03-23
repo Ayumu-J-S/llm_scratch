@@ -75,6 +75,7 @@ def main(cfg: DictConfig) -> None:
         max_len=cfg.training.sequence_length,
         num_layers=cfg.model.num_layers,
         dropout=cfg.model.dropout,
+        pad_token_id=tokenizer.pad_token_id,
     )
     model.to(DEVICE)
     model.train()

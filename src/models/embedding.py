@@ -5,10 +5,14 @@ import torch.nn as nn
 
 
 class TokenEmbedding(nn.Module):
-    def __init__(self, vocab_size, embed_size):
+    def __init__(self, vocab_size, embed_size, pad_token_id=None):
         super().__init__()
         self.embed_size = embed_size
-        self.embedding = nn.Embedding(vocab_size, embed_size)
+        self.embedding = nn.Embedding(
+            vocab_size,
+            embed_size,
+            padding_idx=pad_token_id,
+        )
 
     def forward(self, tokens):
         return self.embedding(tokens) * math.sqrt(self.embed_size)
@@ -36,9 +40,9 @@ class SinusoidalPositionalEncoding(nn.Module):
 
 
 class TransformerEmbedding(nn.Module):
-    def __init__(self, vocab_size, embed_size, max_len):
+    def __init__(self, vocab_size, embed_size, max_len, pad_token_id=None):
         super().__init__()
-        self.token = TokenEmbedding(vocab_size, embed_size)
+        self.token = TokenEmbedding(vocab_size, embed_size, pad_token_id=pad_token_id)
         self.position = SinusoidalPositionalEncoding(max_len, embed_size)
 
     def forward(self, tokens):
