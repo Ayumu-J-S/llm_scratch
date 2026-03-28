@@ -2,11 +2,11 @@ from pathlib import Path
 
 import hydra
 import torch
-import torch.optim as optim
 from omegaconf import DictConfig
 
 from datasets.text_dataset import create_autoregressive_dataloader
 from models.simple_decoder_transformer import SimpleDecoderTransformer
+from training.optimization import build_optimizer, build_scheduler
 from training.trainer import Trainer
 from tokenizer.artifacts import load_text, load_tokenizer
 from utils.model import get_parameter_counts
@@ -111,16 +111,25 @@ def main(cfg: DictConfig) -> None:
         flush=True,
     )
 
-    optimizer = optim.AdamW(
-        model.parameters(),
-        lr=cfg.training.optimizer.lr,
-        weight_decay=cfg.training.optimizer.weight_decay,
-    )
+    optimizer = build_optimizer(model, cfg.training.optimizer)
+    print(f"Using optimizer: {optimizer.__class__.__name__}", flush=True)
+
+    scheduler = build_scheduler(optimizer, cfg.training.get("scheduler"))
+    if scheduler is None:
+        print("Learning rate scheduler: disabled", flush=True)
+    else:
+        scheduler_interval = cfg.training.scheduler.get("interval", "epoch")
+        print(
+            "Learning rate scheduler: "
+            f"{scheduler.__class__.__name__} ({scheduler_interval})",
+            flush=True,
+        )
 
     checkpoint_dir = ROOT_DIR / cfg.artifacts.checkpoints_dir
     trainer = Trainer(
         model=model,
         optimizer=optimizer,
+        scheduler=scheduler,
         train_loader=train_loader,
         validation_loader=validation_loader,
         checkpoint_dir=checkpoint_dir,

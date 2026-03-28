@@ -61,6 +61,8 @@ Training uses a decoder-only autoregressive setup built from one corpus:
 
 The default training config now defines `data.train` and `data.val`, with validation pointing to the same `data/inputLearnText.txt` file by default:
 - this is deliberate for short-run memorization checks and explicit overfitting experiments
+- optimizer class selection lives under `training.optimizer._target_`
+- learning-rate scheduler selection lives under `training.scheduler._target_`
 - training logs epoch-aggregated train/validation loss and perplexity to Weights & Biases
 - when W&B is enabled, training also logs the final `model_last.pth` checkpoint as a model artifact
 - you can additionally log model artifacts during training with `wandb.log_model_every_n_epoch=<n>`
@@ -85,6 +87,8 @@ Useful overrides:
 uv run python src/train.py wandb.mode=offline
 uv run python src/train.py wandb.enabled=false
 uv run python src/train.py data.val=data/inputLearnText.txt
+uv run python src/train.py training.optimizer._target_=torch.optim.SGD training.optimizer.lr=0.1 training.optimizer.momentum=0.9
+uv run python src/train.py training.scheduler.enabled=true training.scheduler._target_=torch.optim.lr_scheduler.CosineAnnealingLR training.scheduler.T_max=10
 ```
 
 ## Project files

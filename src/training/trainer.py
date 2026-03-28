@@ -1,11 +1,15 @@
 import math
+import re
 from pathlib import Path
 
 import torch
 import torch.nn.functional as F
 import wandb
 from omegaconf import DictConfig, OmegaConf
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 from tqdm import tqdm
+
+from training.optimization import get_learning_rate
 
 
 class Trainer:
@@ -14,6 +18,7 @@ class Trainer:
         *,
         model,
         optimizer,
+        scheduler,
         train_loader,
         validation_loader,
         checkpoint_dir: Path,
@@ -22,12 +27,14 @@ class Trainer:
     ) -> None:
         self.model = model
         self.optimizer = optimizer
+        self.scheduler = scheduler
         self.train_loader = train_loader
         self.validation_loader = validation_loader
         self.checkpoint_dir = checkpoint_dir
         self.cfg = cfg
         self.device = device
         self.log_model_every_n_epoch = self.cfg.wandb.log_model_every_n_epoch
+        self.scheduler_interval = self._get_scheduler_interval()
 
     def fit(self) -> None:
         run = self._init_wandb()
@@ -38,8 +45,11 @@ class Trainer:
                 epoch_number = epoch_index + 1
                 train_loss = self._train_epoch(epoch_index)
                 validation_loss = self._evaluate()
+                if self.scheduler is not None and self.scheduler_interval == "epoch":
+                    self._step_scheduler(validation_loss)
                 train_perplexity = math.exp(train_loss)
                 validation_perplexity = math.exp(validation_loss)
+                learning_rate = get_learning_rate(self.optimizer)
 
                 metrics = {
                     "epoch": epoch_number,
@@ -47,6 +57,7 @@ class Trainer:
                     "train/perplexity": train_perplexity,
                     "validation/loss": validation_loss,
                     "validation/perplexity": validation_perplexity,
+                    "optimizer/lr": learning_rate,
                 }
 
                 print(
@@ -54,7 +65,8 @@ class Trainer:
                     f"train_loss={train_loss:.6f} "
                     f"val_loss={validation_loss:.6f} "
                     f"train_ppl={train_perplexity:.3f} "
-                    f"val_ppl={validation_perplexity:.3f}",
+                    f"val_ppl={validation_perplexity:.3f} "
+                    f"lr={learning_rate:.6g}",
                     flush=True,
                 )
 
@@ -93,6 +105,8 @@ class Trainer:
             )
             loss.backward()
             self.optimizer.step()
+            if self.scheduler is not None and self.scheduler_interval == "step":
+                self._step_scheduler(loss.item())
 
             total_loss += loss.item()
             num_batches += 1
@@ -136,6 +150,7 @@ class Trainer:
         run.define_metric("train/perplexity", step_metric="epoch")
         run.define_metric("validation/loss", step_metric="epoch")
         run.define_metric("validation/perplexity", step_metric="epoch")
+        run.define_metric("optimizer/lr", step_metric="epoch")
 
         run_url = getattr(run, "url", None)
         if run_url:
@@ -166,7 +181,7 @@ class Trainer:
         epoch_number: int,
     ) -> None:
         artifact = wandb.Artifact(
-            name=self._model_artifact_name(run),
+            name=self._model_artifact_name(),
             type="model",
             metadata={"epoch": epoch_number},
         )
@@ -181,9 +196,38 @@ class Trainer:
             flush=True,
         )
 
-    @staticmethod
-    def _model_artifact_name(run) -> str:
-        run_id = getattr(run, "id", None)
-        if run_id is None:
+    def _model_artifact_name(self) -> str:
+        model_name = self.model.__class__.__name__.strip()
+        if not model_name:
             return "model"
-        return f"model-{run_id}"
+        normalized_name = re.sub(r"(?<!^)(?=[A-Z])", "-", model_name).lower()
+        return normalized_name
+
+    def _get_scheduler_interval(self) -> str:
+        if self.scheduler is None:
+            return "epoch"
+
+        interval = self.cfg.training.scheduler.get("interval", "epoch")
+        if interval not in {"epoch", "step"}:
+            raise ValueError(
+                "training.scheduler.interval must be either 'epoch' or 'step'."
+            )
+        if interval == "step" and isinstance(self.scheduler, ReduceLROnPlateau):
+            raise ValueError(
+                "ReduceLROnPlateau only supports training.scheduler.interval='epoch'."
+            )
+        return interval
+
+    def _step_scheduler(self, metric: float | None = None) -> None:
+        if self.scheduler is None:
+            return
+
+        if isinstance(self.scheduler, ReduceLROnPlateau):
+            if metric is None:
+                raise ValueError(
+                    "ReduceLROnPlateau requires a metric when stepping."
+                )
+            self.scheduler.step(metric)
+            return
+
+        self.scheduler.step()

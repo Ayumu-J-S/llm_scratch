@@ -8,8 +8,15 @@ training:
   batch_size: 64
   shuffle: true
   optimizer:
+    _target_: torch.optim.AdamW
     lr: 0.001
     weight_decay: 0.0
+  scheduler:
+    enabled: false
+    interval: epoch
+    _target_: torch.optim.lr_scheduler.CosineAnnealingLR
+    T_max: ${training.epochs}
+    eta_min: 0.0
 
 model:
   embed_size: 384
