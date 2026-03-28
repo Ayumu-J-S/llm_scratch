@@ -1,4 +1,4 @@
-.PHONY: help sync activate test run train-tokenizer
+.PHONY: help sync activate test train train-tokenizer
 
 help:
 	@printf '%s\n' \
@@ -7,7 +7,7 @@ help:
 		'  make activate  - Print the command to activate the local virtual environment' \
 		'  make test             - Run the unit tests inside uv' \
 		'  make train-tokenizer  - Train and save the tokenizer artifact inside uv' \
-		'  make run              - Run the Hydra model training entrypoint inside uv'
+		'  make train            - Run the Hydra model training entrypoint inside uv'
 
 sync:
 	uv sync --dev
@@ -22,5 +22,5 @@ test:
 train-tokenizer:
 	uv run python src/train_tokenizer.py
 
-run:
+train:
 	uv run python src/train.py

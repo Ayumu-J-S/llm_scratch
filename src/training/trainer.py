@@ -35,9 +35,11 @@ class Trainer:
         self.device = device
         self.log_model_every_n_epoch = self.cfg.wandb.log_model_every_n_epoch
         self.scheduler_interval = self._get_scheduler_interval()
+        self.train_step = 0
+        self.run = None
 
     def fit(self) -> None:
-        run = self._init_wandb()
+        self.run = self._init_wandb()
 
         print("Training...", flush=True)
         try:
@@ -70,19 +72,20 @@ class Trainer:
                     flush=True,
                 )
 
-                if run is not None:
-                    run.log(metrics)
+                if self.run is not None:
+                    self.run.log(metrics)
 
                 checkpoint_path = self._save_checkpoint()
-                if run is not None and self._should_log_model_artifact(epoch_number):
+                if self.run is not None and self._should_log_model_artifact(epoch_number):
                     self._log_model_artifact(
-                        run=run,
+                        run=self.run,
                         checkpoint_path=checkpoint_path,
                         epoch_number=epoch_number,
                     )
         finally:
-            if run is not None:
-                run.finish()
+            if self.run is not None:
+                self.run.finish()
+                self.run = None
 
     def _train_epoch(self, epoch_index: int) -> float:
         self.model.train()
@@ -108,7 +111,17 @@ class Trainer:
             if self.scheduler is not None and self.scheduler_interval == "step":
                 self._step_scheduler(loss.item())
 
-            total_loss += loss.item()
+            loss_value = loss.item()
+            self.train_step += 1
+            if self.run is not None:
+                self.run.log(
+                    {
+                        "train/step": self.train_step,
+                        "train/loss_step": loss_value,
+                    }
+                )
+
+            total_loss += loss_value
             num_batches += 1
 
         return total_loss / num_batches
@@ -146,6 +159,8 @@ class Trainer:
         )
 
         run.define_metric("epoch")
+        run.define_metric("train/step")
+        run.define_metric("train/loss_step", step_metric="train/step")
         run.define_metric("train/loss", step_metric="epoch")
         run.define_metric("train/perplexity", step_metric="epoch")
         run.define_metric("validation/loss", step_metric="epoch")

@@ -44,7 +44,7 @@ This produces the tokenizer artifact configured by `artifacts.tokenizers_dir` an
 
 ### Run the model training script
 ```bash
-make run
+make train
 ```
 
 This launches the Hydra-based training entrypoint, which expects an already-trained tokenizer artifact:
@@ -63,7 +63,7 @@ The default training config now defines `data.train` and `data.val`, with valida
 - this is deliberate for short-run memorization checks and explicit overfitting experiments
 - optimizer class selection lives under `training.optimizer._target_`
 - learning-rate scheduler selection lives under `training.scheduler._target_`
-- training logs epoch-aggregated train/validation loss and perplexity to Weights & Biases
+- training logs per-step `train/loss_step` plus epoch-aggregated train/validation loss and perplexity to Weights & Biases
 - when W&B is enabled, training also logs the final `model_last.pth` checkpoint as a model artifact
 - you can additionally log model artifacts during training with `wandb.log_model_every_n_epoch=<n>`
 
