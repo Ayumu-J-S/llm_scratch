@@ -1,0 +1,45 @@
+data:
+  train: data/inputLearnText.txt
+  val: data/inputLearnText.txt
+
+training:
+  sequence_length: 64
+  epochs: 50
+  batch_size: 64
+  shuffle: true
+  optimizer:
+    _target_: torch.optim.AdamW
+    lr: 0.001
+    weight_decay: 0.0
+  scheduler:
+    enabled: false
+    interval: epoch
+    _target_: torch.optim.lr_scheduler.CosineAnnealingLR
+    T_max: ${training.epochs}
+    eta_min: 0.0
+
+model:
+  embed_size: 384
+  num_heads: 6
+  num_layers: 6
+  dropout: 0.1
+
+artifacts:
+  checkpoints_dir: artifacts/checkpoints
+  tokenizers_dir: artifacts/tokenizers
+  tokenizer_filename: tokenizer.json
+
+wandb:
+  enabled: true
+  project: llm-scratch
+  entity: sunday-research
+  name: null
+  mode: online
+  log_model_every_n_epoch: null
+
+hydra:
+  run:
+    dir: .
+  output_subdir: null
+  job:
+    chdir: false

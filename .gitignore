@@ -2,3 +2,10 @@
 *.pth
 
 model/
+outputs/
+artifacts/tokenizers/tokenizer.json
+artifacts/checkpoints/model_last.pth
+train.log
+artifacts/checkpoints/model_*/
+train_tokenizer.log
+wandb/
