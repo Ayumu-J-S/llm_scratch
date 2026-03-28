@@ -27,6 +27,7 @@ class Trainer:
         self.checkpoint_dir = checkpoint_dir
         self.cfg = cfg
         self.device = device
+        self.log_model_every_n_epoch = self.cfg.wandb.log_model_every_n_epoch
 
     def fit(self) -> None:
         run = self._init_wandb()
@@ -34,13 +35,14 @@ class Trainer:
         print("Training...", flush=True)
         try:
             for epoch_index in range(self.cfg.training.epochs):
+                epoch_number = epoch_index + 1
                 train_loss = self._train_epoch(epoch_index)
                 validation_loss = self._evaluate()
                 train_perplexity = math.exp(train_loss)
                 validation_perplexity = math.exp(validation_loss)
 
                 metrics = {
-                    "epoch": epoch_index + 1,
+                    "epoch": epoch_number,
                     "train/loss": train_loss,
                     "train/perplexity": train_perplexity,
                     "validation/loss": validation_loss,
@@ -48,7 +50,7 @@ class Trainer:
                 }
 
                 print(
-                    f"Epoch {epoch_index + 1}: "
+                    f"Epoch {epoch_number}: "
                     f"train_loss={train_loss:.6f} "
                     f"val_loss={validation_loss:.6f} "
                     f"train_ppl={train_perplexity:.3f} "
@@ -59,7 +61,13 @@ class Trainer:
                 if run is not None:
                     run.log(metrics)
 
-                self._save_checkpoint()
+                checkpoint_path = self._save_checkpoint()
+                if run is not None and self._should_log_model_artifact(epoch_number):
+                    self._log_model_artifact(
+                        run=run,
+                        checkpoint_path=checkpoint_path,
+                        epoch_number=epoch_number,
+                    )
         finally:
             if run is not None:
                 run.finish()
@@ -137,6 +145,45 @@ class Trainer:
 
         return run
 
-    def _save_checkpoint(self) -> None:
+    def _save_checkpoint(self) -> Path:
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        torch.save(self.model.state_dict(), self.checkpoint_dir / "model_last.pth")
+        checkpoint_path = self.checkpoint_dir / "model_last.pth"
+        torch.save(self.model.state_dict(), checkpoint_path)
+        return checkpoint_path
+
+    def _should_log_model_artifact(self, epoch_number: int) -> bool:
+        if epoch_number == self.cfg.training.epochs:
+            return True
+        if self.log_model_every_n_epoch is None:
+            return False
+        return epoch_number % self.log_model_every_n_epoch == 0
+
+    def _log_model_artifact(
+        self,
+        *,
+        run,
+        checkpoint_path: Path,
+        epoch_number: int,
+    ) -> None:
+        artifact = wandb.Artifact(
+            name=self._model_artifact_name(run),
+            type="model",
+            metadata={"epoch": epoch_number},
+        )
+        artifact.add_file(str(checkpoint_path), name=checkpoint_path.name)
+        aliases = [f"epoch-{epoch_number}", "latest"]
+        if epoch_number == self.cfg.training.epochs:
+            aliases.append("final")
+        run.log_artifact(artifact, aliases=aliases)
+        print(
+            f"Logged model artifact for epoch {epoch_number}: "
+            f"{checkpoint_path.name} ({', '.join(aliases)})",
+            flush=True,
+        )
+
+    @staticmethod
+    def _model_artifact_name(run) -> str:
+        run_id = getattr(run, "id", None)
+        if run_id is None:
+            return "model"
+        return f"model-{run_id}"
