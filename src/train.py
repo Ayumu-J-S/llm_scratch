@@ -55,17 +55,17 @@ def main(cfg: DictConfig) -> None:
     print(f"Tokenizer vocab size: {tokenizer.vocab_size}", flush=True)
 
     train_token_ids = load_token_ids(
-        cfg.data.input_path,
+        cfg.data.train,
         tokenizer,
         "training",
     )
     validation_token_ids = load_token_ids(
-        cfg.validation.input_path,
+        cfg.data.val,
         tokenizer,
         "validation",
     )
 
-    if cfg.validation.input_path == cfg.data.input_path:
+    if cfg.data.val == cfg.data.train:
         print(
             "Validation uses the same corpus as training. "
             "This run is measuring memorization/overfitting.",
@@ -113,8 +113,8 @@ def main(cfg: DictConfig) -> None:
 
     optimizer = optim.AdamW(
         model.parameters(),
-        lr=cfg.optimizer.lr,
-        weight_decay=cfg.optimizer.weight_decay,
+        lr=cfg.training.optimizer.lr,
+        weight_decay=cfg.training.optimizer.weight_decay,
     )
 
     checkpoint_dir = ROOT_DIR / cfg.artifacts.checkpoints_dir

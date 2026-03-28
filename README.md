@@ -59,9 +59,11 @@ Training uses a decoder-only autoregressive setup built from one corpus:
 - each training input is a contiguous slice of that stream with fixed length
 - labels are the next-token-shifted slice for standard causal language modeling
 
-The default training config now also defines a validation corpus and points it to the same `data/inputLearnText.txt` file:
+The default training config now defines `data.train` and `data.val`, with validation pointing to the same `data/inputLearnText.txt` file by default:
 - this is deliberate for short-run memorization checks and explicit overfitting experiments
 - training logs epoch-aggregated train/validation loss and perplexity to Weights & Biases
+- when W&B is enabled, training also logs the final `model_last.pth` checkpoint as a model artifact
+- you can additionally log model artifacts during training with `wandb.log_model_every_n_epoch=<n>`
 
 At inference time, the model predicts one tokenizer token at a time, not one whole word at a time. Because the tokenizer is character-level BPE, a word like `give` may be produced over multiple decoding steps such as `g`, `iv`, then `e `.
 
@@ -82,7 +84,7 @@ Useful overrides:
 ```bash
 uv run python src/train.py wandb.mode=offline
 uv run python src/train.py wandb.enabled=false
-uv run python src/train.py validation.input_path=data/inputLearnText.txt
+uv run python src/train.py data.val=data/inputLearnText.txt
 ```
 
 ## Project files

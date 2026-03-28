@@ -1,24 +1,21 @@
 data:
-  input_path: data/inputLearnText.txt
+  train: data/inputLearnText.txt
+  val: data/inputLearnText.txt
 
 training:
   sequence_length: 64
   epochs: 50
   batch_size: 64
   shuffle: true
-
-validation:
-  input_path: ${data.input_path}
+  optimizer:
+    lr: 0.001
+    weight_decay: 0.0
 
 model:
   embed_size: 384
   num_heads: 6
   num_layers: 6
   dropout: 0.1
-
-optimizer:
-  lr: 0.001
-  weight_decay: 0.0
 
 artifacts:
   checkpoints_dir: artifacts/checkpoints
@@ -31,6 +28,7 @@ wandb:
   entity: sunday-research
   name: null
   mode: online
+  log_model_every_n_epoch: null
 
 hydra:
   run:
