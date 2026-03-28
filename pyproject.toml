@@ -14,13 +14,10 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = [
-  "pytest>=8.0",
-]
 notebook = [
   "ipykernel>=6.29",
   "matplotlib>=3.9",
 ]
 
 [tool.uv]
-default-groups = ["dev", "notebook"]
+default-groups = ["notebook"]

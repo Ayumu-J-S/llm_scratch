@@ -13,7 +13,7 @@ A small scratch project for experimenting with a decoder-only autoregressive Tra
 make sync
 ```
 
-This uses `uv sync --dev` to create or update the local `.venv` from `pyproject.toml`, and `uv` will generate or refresh `uv.lock` as needed.
+This uses `uv sync` to create or update the local `.venv` from `pyproject.toml`, and `uv` will generate or refresh `uv.lock` as needed.
 
 ### Activate the environment
 ```bash
@@ -29,11 +29,6 @@ source .venv/bin/activate
 A Make target cannot directly modify the parent shell, so the activation command must be run manually.
 
 ## Common commands
-
-### Run tests
-```bash
-make test
-```
 
 ### Train the tokenizer
 ```bash
@@ -104,7 +99,6 @@ uv run python src/train.py training.scheduler.enabled=true training.scheduler._t
 - `config/train.yaml`: model training configuration
 - `config/train_tokenizer.yaml`: tokenizer training configuration
 - `data/inputLearnText.txt`: training corpus
-- `tests/test_decoder_only.py`: decoder-only data/model smoke tests
 
 ## References
 - 「[大規模言語モデル入門](https://www.amazon.co.jp/%E5%A4%A7%E8%A6%8F%E6%A8%A1%E8%A8%80%E8%AA%9E%E3%83%A2%E3%83%87%E3%83%AB%E5%85%A5%E9%96%80-%E5%B1%B1%E7%94%B0-%E8%82%B2%E7%9F%A2/dp/4297136333/ref=asc_df_4297136333?mcid=250d2916cf3a37869b7de666d8c23fb5&th=1&psc=1&tag=jpgo-22&linkCode=df0&hvadid=707442440817&hvpos=&hvnetw=g&hvrand=8178253711343895759&hvpone=&hvptwo=&hvqmt=&hvdev=c&hvdvcmdl=&hvlocint=&hvlocphy=1009213&hvtargid=pla-2198420664173&psc=1&hvocijid=8178253711343895759-4297136333-&hvexpln=0)」
