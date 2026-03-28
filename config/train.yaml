@@ -11,9 +11,9 @@ validation:
   input_path: ${data.input_path}
 
 model:
-  embed_size: 128
-  num_heads: 4
-  num_layers: 4
+  embed_size: 384
+  num_heads: 6
+  num_layers: 6
   dropout: 0.1
 
 optimizer:
