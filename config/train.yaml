@@ -7,6 +7,9 @@ training:
   batch_size: 64
   shuffle: true
 
+validation:
+  input_path: ${data.input_path}
+
 model:
   embed_size: 128
   num_heads: 4
@@ -21,6 +24,13 @@ artifacts:
   checkpoints_dir: artifacts/checkpoints
   tokenizers_dir: artifacts/tokenizers
   tokenizer_filename: tokenizer.json
+
+wandb:
+  enabled: true
+  project: llm-scratch
+  entity: sunday-research
+  name: null
+  mode: online
 
 hydra:
   run:

@@ -59,6 +59,10 @@ Training uses a decoder-only autoregressive setup built from one corpus:
 - each training input is a contiguous slice of that stream with fixed length
 - labels are the next-token-shifted slice for standard causal language modeling
 
+The default training config now also defines a validation corpus and points it to the same `data/inputLearnText.txt` file:
+- this is deliberate for short-run memorization checks and explicit overfitting experiments
+- training logs epoch-aggregated train/validation loss and perplexity to Weights & Biases
+
 At inference time, the model predicts one tokenizer token at a time, not one whole word at a time. Because the tokenizer is character-level BPE, a word like `give` may be produced over multiple decoding steps such as `g`, `iv`, then `e `.
 
 You can override runtime values with Hydra arguments, for example:
@@ -67,8 +71,23 @@ You can override runtime values with Hydra arguments, for example:
 uv run python src/train.py training.epochs=10 training.batch_size=64
 ```
 
+W&B is enabled by default. After syncing dependencies and authenticating with W&B, you can run:
+
+```bash
+uv run python src/train.py
+```
+
+Useful overrides:
+
+```bash
+uv run python src/train.py wandb.mode=offline
+uv run python src/train.py wandb.enabled=false
+uv run python src/train.py validation.input_path=data/inputLearnText.txt
+```
+
 ## Project files
 - `src/train.py`: Hydra-based decoder-only training script that loads a saved tokenizer
+- `src/training/trainer.py`: decoder-only trainer loop, validation, checkpointing, and W&B logging
 - `src/train_tokenizer.py`: Hydra-based tokenizer training script
 - `src/models/embedding.py`: token embedding and sinusoidal positional encoding
 - `src/models/simple_decoder_transformer.py`: GPT-style decoder-only Transformer blocks with causal self-attention
