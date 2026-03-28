@@ -64,6 +64,8 @@ The default training config now defines `data.train` and `data.val`, with valida
 - optimizer class selection lives under `training.optimizer._target_`
 - learning-rate scheduler selection lives under `training.scheduler._target_`
 - training logs per-step `train/loss_step` plus epoch-aggregated train/validation loss and perplexity to Weights & Biases
+- when W&B is enabled, training automatically enables W&B model watching with default settings so gradient panels can be collected
+- this does not add a custom scalar grad-norm line, and short runs may still show little or no gradient data with W&B's default watch behavior
 - when W&B is enabled, training also logs the final `model_last.pth` checkpoint as a model artifact
 - you can additionally log model artifacts during training with `wandb.log_model_every_n_epoch=<n>`
 

@@ -163,6 +163,8 @@ class Trainer:
             mode=self.cfg.wandb.mode,
             config=OmegaConf.to_container(self.cfg, resolve=True),
         )
+        run.watch(self.model)
+        logger.info("W&B model watching enabled with default settings")
 
         run.define_metric("epoch")
         run.define_metric("train/step")
