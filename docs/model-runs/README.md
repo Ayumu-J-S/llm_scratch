@@ -13,7 +13,7 @@ PR URL cannot be created.
 
 | Record | Ticket | PR | Initial implementation model / mode | First review model / mode | Repair cycles | Final verdict | Main failure tags |
 | --- | --- | --- | --- | --- | ---: | --- | --- |
-| [ENV-001 DGX Spark CUDA](ENV-001-dgx-spark-cuda.md) | ENV-001 | [#15](https://github.com/Ayumu-J-S/llm_scratch/pull/15) | pending | pending | 0 | in progress | cuda-fallback |
+| [ENV-001 DGX Spark CUDA](ENV-001-dgx-spark-cuda.md) | ENV-001 | [#15](https://github.com/Ayumu-J-S/llm_scratch/pull/15) | not exposed by runtime / not exposed by runtime | pending | 0 | in progress | cuda-fallback |
 
 Use short, stable values in `Main failure tags` so results can be aggregated,
 for example `data-starvation`, `cuda-fallback`, `ml-semantics`,
@@ -27,6 +27,7 @@ there are enough observations for meaningful rates.
 
 | Exact model / mode | Implementation attempts | First-review passes | Repair attempts | Successful repairs | Reviews performed | Important strengths observed | Recurring failure modes | Last updated |
 | --- | ---: | ---: | ---: | ---: | ---: | --- | --- | --- |
+| not exposed by runtime / not exposed by runtime | 1 | 0 | 0 | 0 | 0 | Small fail-closed CUDA boundary; real DGX evidence; retained failed attempts | Initial diagnostic JSON/runtime probing needed repair | 2026-07-11 |
 
 ### Counting rules
 

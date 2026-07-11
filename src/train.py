@@ -8,6 +8,7 @@ from omegaconf import DictConfig, OmegaConf
 from data.streaming_dataset import create_streaming_token_dataloader
 from data.text_dataset import create_autoregressive_dataloader
 from models.simple_decoder_transformer import SimpleDecoderTransformer
+from runtime.device import select_device
 from training.optimization import build_optimizer, build_scheduler
 from training.trainer import Trainer
 from tokenizer.artifacts import load_text, load_tokenizer
@@ -15,7 +16,6 @@ from utils.model import get_parameter_counts
 
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def log_sample_batch(tokenizer, batch) -> None:
@@ -65,14 +65,17 @@ def streaming_split_config(streaming_cfg: DictConfig, split_name: str) -> dict:
         raise TypeError(f"data.streaming.{split_key} must be a mapping")
 
     common_config = {
-        key: value
-        for key, value in config.items()
-        if key not in {"train", "validation"}
+        key: value for key, value in config.items() if key not in {"train", "validation"}
     }
     return {**common_config, **split_config}
 
 
-def build_streaming_dataloader(cfg: DictConfig, split_name: str):
+def build_streaming_dataloader(
+    cfg: DictConfig,
+    split_name: str,
+    *,
+    device: torch.device,
+):
     stream_config = streaming_split_config(cfg.data.streaming, split_name)
     stream_config["tokenizer"] = build_tokenizer_config(cfg)
     return create_streaming_token_dataloader(
@@ -81,7 +84,7 @@ def build_streaming_dataloader(cfg: DictConfig, split_name: str):
         batch_size=cfg.training.batch_size,
         drop_last=split_name == "train",
         num_workers=0,
-        pin_memory=DEVICE.type == "cuda",
+        pin_memory=device.type == "cuda",
     )
 
 
@@ -96,7 +99,8 @@ def log_loader_size(name: str, loader) -> None:
 
 @hydra.main(version_base=None, config_path="../config", config_name="train")
 def main(cfg: DictConfig) -> None:
-    logger.info("Using device: {}", DEVICE)
+    device = select_device(cfg.runtime.device)
+    logger.info("Using device: {}", device)
 
     logger.info("Loading tokenizer artifact...")
     tokenizer = load_tokenizer(
@@ -139,8 +143,8 @@ def main(cfg: DictConfig) -> None:
         )
     elif data_mode == "streaming":
         logger.info("Building streaming causal-LM dataloaders...")
-        train_loader = build_streaming_dataloader(cfg, "train")
-        validation_loader = build_streaming_dataloader(cfg, "validation")
+        train_loader = build_streaming_dataloader(cfg, "train", device=device)
+        validation_loader = build_streaming_dataloader(cfg, "validation", device=device)
     else:
         raise ValueError("data.mode must be either 'local_text' or 'streaming'")
 
@@ -159,14 +163,11 @@ def main(cfg: DictConfig) -> None:
         dropout=cfg.model.dropout,
         pad_token_id=tokenizer.pad_token_id,
     )
-    model.to(DEVICE)
+    model.to(device)
     model.train()
     parameter_counts = get_parameter_counts(model)
     logger.info(
-        "Model parameters: "
-        "total={:,} "
-        "trainable={:,} "
-        "frozen={:,}",
+        "Model parameters: total={:,} trainable={:,} frozen={:,}",
         parameter_counts.total,
         parameter_counts.trainable,
         parameter_counts.non_trainable,
@@ -195,7 +196,7 @@ def main(cfg: DictConfig) -> None:
         validation_loader=validation_loader,
         checkpoint_dir=checkpoint_dir,
         cfg=cfg,
-        device=DEVICE,
+        device=device,
     )
     trainer.fit()
 

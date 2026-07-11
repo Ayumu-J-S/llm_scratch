@@ -8,12 +8,19 @@ A small scratch project for experimenting with a decoder-only autoregressive Tra
 - [uv](https://docs.astral.sh/uv/) installed
 - Python 3.10+
 
+The host uv environment is the CPU development and test environment. Reproducible
+CUDA execution on DGX Spark uses the digest-pinned NVIDIA NGC container described
+in [`docs/dgx-spark-runtime.md`](docs/dgx-spark-runtime.md); do not install a
+PyPI Torch wheel over the NGC framework.
+
 ### Create or update the environment
 ```bash
 make sync
 ```
 
-This uses `uv sync` to create or update the local `.venv` from `pyproject.toml`, and `uv` will generate or refresh `uv.lock` as needed.
+This uses `uv sync --locked --group dev` to create or update the local `.venv`
+from the committed lock without changing it. Update `uv.lock` deliberately in a
+separate dependency change.
 
 ### Activate the environment
 ```bash
@@ -48,6 +55,10 @@ This launches the Hydra-based training entrypoint, which expects an already-trai
 uv run python src/train.py
 ```
 
+Training defaults to `runtime.device=cuda` and fails closed when CUDA is not
+available. `runtime.device=cpu` is an explicit test/debug override, never an
+automatic fallback.
+
 Training uses a decoder-only autoregressive setup built from one corpus:
 - each sample is a left-to-right language modeling window served lazily from a `Dataset`/`DataLoader` pipeline
 - the tokenized corpus is treated as one continuous stream
@@ -70,6 +81,7 @@ You can override runtime values with Hydra arguments, for example:
 
 ```bash
 uv run python src/train.py training.epochs=10 training.batch_size=64
+uv run python src/train.py runtime.device=cpu wandb.enabled=false
 ```
 
 W&B is enabled by default. After syncing dependencies and authenticating with W&B, you can run:
@@ -93,6 +105,7 @@ uv run python src/train.py training.scheduler.enabled=true training.scheduler._t
 - `PHILOSOPHY.md`: project decision policy and research principles
 - `CHECK.md`: selective post-implementation ML-system review catalog
 - `docs/agent-model-workflow.md`: required implementation, heavy-review, repair, and handoff flow
+- `docs/dgx-spark-runtime.md`: pinned DGX Spark container, diagnostics, and CUDA smoke proof
 - `docs/model-runs/`: per-PR model execution records and aggregate model outcomes
 - `src/train.py`: Hydra-based decoder-only training script that loads a saved tokenizer
 - `src/training/trainer.py`: decoder-only trainer loop, validation, checkpointing, and W&B logging

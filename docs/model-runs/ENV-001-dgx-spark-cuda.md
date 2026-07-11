@@ -82,7 +82,7 @@
 | Cycle | Phase | Exact model identifier | Reasoning mode | Input commit/context | Requested work | Outcome | Main findings / changes | Evidence |
 | ---: | --- | --- | --- | --- | --- | --- | --- | --- |
 | 0 | handoff | not exposed by runtime | not exposed by runtime | ticket, philosophy, CHECK, host facts, official NVIDIA sources | Requested Sol / Ultra plan for the smallest reproducible container/device/diagnostic/smoke design | completed | Selected the digest-pinned NGC image, lock-derived non-Torch overlay with provider guards, explicit Hydra device authority, JSON diagnostic, exact ten-step BF16 repository-model smoke, CPU validation, and adversarial matrix | Planner handoff retained in primary task; no repository mutation |
-| 1 | implementation | pending | requested Luna / Extra High | pending accepted plan | Implement and exercise the clean GB10 runtime | pending | No implementation claimed yet | pending |
+| 1 | implementation | not exposed by runtime | not exposed by runtime (requested Luna / Extra High) | `100a11129b97edf50967d41d75ac4c99f18f9bc9`, accepted plan | Implement and exercise the clean GB10 runtime | completed | Added the digest-pinned ARM64 NGC container, byte-stable non-Torch overlay and provider/Torch-identity guards, explicit initialized-device Hydra gate, environment diagnostic, exact ten-step BF16 repository-model CUDA smoke, CPU tests, commands, and operating guide | 58 passed / 3 external skips; clean pull/build; strict GB10 diagnostic; ten finite BF16 CUDA updates; negative no-GPU exits |
 | 1 | review | pending | requested heavier / Extra Thinking | pending stable implementation commit | Independent `/review` | pending | No verdict claimed yet | pending |
 
 ## Check selection and verdicts
@@ -114,16 +114,75 @@ N/A - review pending.
 
 ## Final evidence
 
-- Resolved Hydra command/config: pending
-- Data/tokenizer/model identity: pending
-- Validation and measurements: pending
-- Performance/resource result if applicable: no performance claim; pending
-  environment/smoke evidence only
-- Failed attempts retained at: this record
+- Resolved Hydra command/config: `uv run python src/train.py --cfg job
+  --resolve` reports exact `runtime.device: cuda`. The default no-GPU container
+  training command exits 1 at `select_device` before any tokenizer/data/model
+  log; `runtime.device=cpu` remains the explicit tested override.
+- Data/tokenizer/model identity: synthetic fixed token IDs only; repository
+  `SimpleDecoderTransformer` with vocabulary 257, width 64, 4 heads, 2 layers,
+  context 32, batch 4, no padding, and dropout 0.0. No tokenizer artifact,
+  source corpus, target boundary, or evaluation path changed.
+- Validation and measurements:
+  - Host before: aarch64, GB10, driver 580.159.03; uv Torch 2.10.0+cpu,
+    `torch.version.cuda=None`, CUDA unavailable; 525 GiB root free; Docker
+    images 44.66 GB, volumes 135.7 GB, build cache 306.9 MB.
+  - Exact digest pull completed in 1326.82 seconds. Base image identity:
+    `sha256:9629b436aef8bd90147fd657137047aee94e7b81ada54c3f7209cbce1d24b490`,
+    linux/arm64, with the declared repository digest.
+  - First no-cache overlay build completed in 31.43 seconds. Every diagnostic,
+    provider, identity, and canonical-target repair was rebuilt without cache;
+    the final audit build took 28.10 seconds. Final local image identity:
+    `sha256:894745a95da330c063f06a2a2257428bd02a3a68ffdd10c890626c42bf748d27`,
+    linux/arm64, with exact base and arm64-manifest labels.
+  - Pre/post overlay Torch identity remained
+    `2.13.0a0+8145d630e8.nv26.06`, CUDA build 13.3, module
+    `/usr/local/lib/python3.12/dist-packages/torch/__init__.py`, with installed
+    `METADATA` + `RECORD` SHA-256
+    `c85803b0af1091de7f318c53570de7484270535cf8fcce3aa9030cf137697519`.
+  - Strict JSON diagnostic passed on NVIDIA GB10, compute capability 12.1,
+    CUDA runtime API value 13030, driver 580.159.03, BF16 true, one CUDA
+    device, 130596048896 bytes unified memory. The report carries the required
+    allocator/UMA caveat.
+  - Exact smoke completed 10 AdamW updates under BF16 autocast. Losses were all
+    finite and decreased from 5.595581 to 4.068237; every trainable parameter
+    had a finite gradient and at least one was nonzero; model parameters,
+    inputs, labels, logits, loss, and optimizer tensor state were CUDA; current
+    PID was visible through `nvidia-smi`; peak PyTorch allocation was
+    70,545,408 bytes (not interpreted as total memory).
+  - Without `--gpus all`, required diagnostic exited 2 with valid JSON, CUDA
+    smoke exited 1, and the default training command exited 1 before data. No
+    CUDA-to-CPU fallback occurred.
+  - Host validation: `uv run pytest -q` = 58 passed, 3 explicit external skips;
+    Ruff, format, `uv lock --check`, `git diff --check`, provider-poison test,
+    runtime-provider scan, Hydra resolution, exact byte-for-byte temporary lock
+    regeneration, JSON CLI parsing, and CUDA count/init/name failures all
+    passed. Canonical `make sync`, `runtime-lock`, `diagnose`, `dgx-diagnose`,
+    `dgx-smoke`, and repaired `test-cpu` targets passed.
+  - Host after: 500 GiB root free; Docker images 70.81 GB, volumes unchanged at
+    135.7 GB, build cache 2.695 GB. Nothing was pruned or deleted.
+- Performance/resource result if applicable: R1 wiring proof only. No
+  throughput, GPU-efficiency, thermal, stability, or available-memory claim.
+- Failed attempts retained at: `/tmp/env001-evidence` during implementation
+  (not committed). The first local test collection imported a script as a
+  package and was repaired to exercise it as a subprocess. The first strict
+  JSON capture contained the NGC entrypoint banner and returned no runtime API
+  value; machine-readable commands now bypass the banner and the diagnostic
+  queries `cudaRuntimeGetVersion` directly. Initial raw requirement exports
+  differed only in uv's generated output-path header; the repaired export omits
+  that header and now reproduces entirely byte-for-byte. `pip check` reports
+  NGC's pre-existing
+  `triton-kernels -> pytest` metadata gap in both the untouched base and the
+  overlay; the runtime export intentionally excludes dev dependencies, and the
+  real CUDA smoke passed. The first canonical `make sync --locked` check honored this project's
+  notebook-only default group, removed pytest/Ruff, and caused `make test-cpu`
+  to fail with a missing executable. `make sync` now explicitly installs the
+  locked `dev` group; the target then restored four packages and the complete
+  CPU suite passed.
 - Known trade-offs: the supported CUDA environment is containerized while the
   host uv lock remains the explicit CPU development/test environment.
-- Unresolved risks: container pull/run, dependency overlay compatibility, and
-  real GB10 smoke remain to be proved.
+- Unresolved risks: the independent heavy review is pending. ENV-001 is only a
+  ten-step wiring proof; STAB-001 and later tickets must establish the real BF16
+  recipe and longer stability/resource evidence.
 - Human decision requested: review only after independent verdict; a human
   remains the sole merge authority.
 
@@ -131,9 +190,11 @@ N/A - review pending.
 
 | Model / mode | Role | What it handled well | What it missed or made worse | Context that helped | Outcome |
 | --- | --- | --- | --- | --- | --- |
+| not exposed by runtime / not exposed by runtime | implementation | Preserved NGC framework identity, kept device authority small, exercised real GB10 and negative paths, retained failed evidence | Initial strict JSON capture was contaminated by the inherited NGC banner and runtime version probing needed one repair | Predeclared digests, exact smoke contract, provider guard, and CHECK 5.1/5.3 boundaries | completed; independent review pending |
 
 ## Ledger update
 
 - [x] Added the PR/ticket row to `docs/model-runs/README.md`.
-- [ ] Updated per-model attempt, pass, repair, and review counts.
-- [ ] Confirmed that the PR execution trail matches this record.
+- [x] Updated per-model attempt counts; pass/repair/review counts await review.
+- [x] Confirmed that the implementation trail matches this record; PR body
+  synchronization remains with the primary task.

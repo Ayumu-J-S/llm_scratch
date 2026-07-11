@@ -20,6 +20,9 @@ data:
       seed: 43
       sources: []
 
+runtime:
+  device: cuda
+
 training:
   sequence_length: 64
   epochs: 50
