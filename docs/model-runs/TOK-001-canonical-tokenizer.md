@@ -1,6 +1,6 @@
 # TOK-001 — Canonical Japanese/English Tokenizer
 
-- PR: [#12](https://github.com/Ayumu-J-S/llm_scratch/pull/12) (draft)
+- PR: [#12](https://github.com/Ayumu-J-S/llm_scratch/pull/12) (reviewed; human merge required)
 - Branch: `codex/tok-001-canonical-tokenizer`
 - Ticket: `TOK-001`
 - Hypothesis: a pinned established Japanese/English tokenizer selected by frozen
@@ -10,7 +10,7 @@
 - Experiment record: `reports/tokenizers/TOK-001/comparison.md` (CPU R1
   tokenizer selection evidence; no model-quality experiment)
 - Started: 2026-07-11T16:27:49Z
-- Final verdict: in progress
+- Final verdict: `PASS WITH NOTE`
 - Final record owner: primary task; exact runtime identity not exposed
 
 ## Scope and decision context
@@ -63,7 +63,7 @@ Within measurement spread, select the smaller vocabulary.
 | 1 | repair | not exposed by runtime | not exposed by runtime | failed precommit audit and phase-2 working tree | Remove the nonportable location claim, test mutable revisions, and make EOS/PAD semantics executable and explicit | completed | Removed `install_path`; re-fingerprinted the package; added refingerprinted `main` rejection for both revisions; proved EOS targets and PAD masking without changing loss behavior | fingerprint `12ccbc02...`; focused `55 passed, 1 existing skip`; full `61 passed, 1 existing skip` |
 | 2 | independent review | not exposed by runtime | not exposed by runtime | `759bf4b`, full TOK-001 diff, philosophy/CHECK, PR/model-run evidence | Independent TOK-001 `/review` | FAIL | Tokenizer acceptance and ML checks passed, but the claimed changed-file format check was false because the precommit file list omitted new untracked Python files | `uv run ruff format --check tests/test_canonical_tokenizer.py` failed at line 295 |
 | 2 | repair | not exposed by runtime | not exposed by runtime | failed review at `759bf4b` and concrete repair handoff | Format the added test, rerun checks using a base-to-head file list, and preserve the failed verdict in every handoff surface | completed | Ruff reformatted one expression; the corrected base-to-head changed-file format check passes | repair diff in `tests/test_canonical_tokenizer.py`; validation below |
-| 3 | independent re-review | pending | pending | pending repair commit | Fresh TOK-001 `/review` | pending | No verdict claimed | pending |
+| 3 | independent re-review | not exposed by runtime | not exposed by runtime | `e041c48`, repaired test/record/ledger, current live PR | Fresh TOK-001 `/review` | PASS WITH NOTE | Formatting evidence and execution trail repaired; all acceptance criteria remain satisfied; CUDA/DGX R2 remains deferred without a performance claim | base-to-head format `11 files already formatted`; canonical `17 passed`; full `61 passed, 1 existing skip`; lint/lock/diff/Hydra parity pass |
 
 ## Check selection and verdicts
 
@@ -108,7 +108,25 @@ upstream revisions, and verified artifact bytes. Mutable revision names such as
 After the independent review failed, Ruff reformatted
 `tests/test_canonical_tokenizer.py`. The corrected formatter check enumerates
 Python files from the complete base-to-head diff plus any worktree changes, so
-newly added files cannot be silently omitted. Fresh re-review is pending.
+newly added files cannot be silently omitted. The fresh re-review at `e041c48`
+returned `PASS WITH NOTE`; no blocking or
+substantive findings remain.
+
+### Re-review cycle 3
+
+- Re-review model / mode: not exposed by runtime / not exposed by runtime
+- Commit reviewed: `e041c48b5b020fe9902aa43862590130f9d0fa01`
+- Failed finding repaired: yes; the complete base-to-head Python format check
+  reports 11 files already formatted, and the PR/model-run preserve the failed
+  review and repair trail accurately.
+- Ticket acceptance result: pass
+- Philosophy alignment: pass
+- Complexity / change-surface result: pass
+- ML-system result: pass for CPU R1/wiring/identity evidence; CUDA/DGX R2 is a
+  documented prerequisite-ordered uncertainty, not an inferred result
+- Verdict: `PASS WITH NOTE`
+- Note: the 50,570-token vocabulary materially increases model cost, and DGX
+  loader headroom, step cost, and UMA behavior remain unmeasured until ENV/CFG.
 
 ## Final evidence
 
@@ -197,8 +215,8 @@ newly added files cannot be silently omitted. Fresh re-review is pending.
   and the existing opt-in public-Hugging-Face dataset integration was not run in
   the offline phase-2 validation. CPU R1 tokenization throughput and a bounded
   CPU model smoke are not claims about end-to-end DGX training supply.
-- Human decision requested: review/merge after acceptable independent verdict;
-  model review is not merge authority
+- Human decision requested: review and merge if the documented R2 deferral and
+  vocabulary-cost trade-off are acceptable; model review is not merge authority
 
 ## Model assessment from this ticket
 
@@ -206,13 +224,15 @@ newly added files cannot be silently omitted. Fresh re-review is pending.
 | --- | --- | --- | --- | --- | --- |
 | not exposed by runtime / not exposed by runtime | planning | Produced pinned candidates, primary-source links, cost model, selection gates, direct API/removal map, and test/R2 plan | Requested Sol/Ultra identity/mode unavailable; proposed R2 cannot precede ENV/CFG | Ticket order, philosophy, local cache, official repositories, current code | plan accepted with dependency-order adjustment |
 | not exposed by runtime / not exposed by runtime | implementation phase 1 | Produced an exact artifact lock, frozen multilingual/Unicode corpus, operational and cost measurements, hard-gate evidence, deterministic selection, and focused tests | Requested Luna Extra High/max identity/mode was unavailable; initial module-form command did not match the repository's non-packaged `src` layout and was corrected to a direct script command | Planner handoff, candidate 40-hex revisions, official cards/source licenses, phase boundary excluding integration | comparison completed; LLM-jp v1 selected |
-| not exposed by runtime / not exposed by runtime | implementation phase 2 | Reduced all runtime consumers to one strict offline wrapper/config, preserved pre-source failure ordering across process prefetch, removed obsolete backends/dependencies, and demonstrated fixed IDs plus finite streamed model loss | Requested Luna Extra High/max identity/mode was unavailable; first test commands/import and old character-token fixture assumptions required correction | Phase-1 winner/hash/license evidence, explicit direct-removal handoff, ticket acceptance criteria, real vendored artifact | integration completed; independent review pending |
+| not exposed by runtime / not exposed by runtime | implementation phase 2 | Reduced all runtime consumers to one strict offline wrapper/config, preserved pre-source failure ordering across process prefetch, removed obsolete backends/dependencies, and demonstrated fixed IDs plus finite streamed model loss | Requested Luna Extra High/max identity/mode was unavailable; first test commands/import and old character-token fixture assumptions required correction | Phase-1 winner/hash/license evidence, explicit direct-removal handoff, ticket acceptance criteria, real vendored artifact | integration completed; first independent review failed on handoff evidence, then repaired |
 | not exposed by runtime / not exposed by runtime | independent review | Verified every substantive TOK-001 acceptance criterion, reran the real bounded entrypoint and offline suite, checked hashes/fingerprint/provenance, and retained the CUDA/DGX deferral | Caught that the changed-file formatting claim was false because new untracked files had been omitted from the precommit file list | Stable commit, full diff, philosophy/CHECK, live PR and model-run evidence | `FAIL`; concrete one-file repair and re-review handoff |
-| not exposed by runtime / not exposed by runtime | repair | Applied the minimal formatter-only change and corrected the validation file-selection method without changing tokenizer semantics | Initial implementation validation used a worktree-only `git diff` list that cannot see untracked additions | Exact failed command/file/line and reviewer handoff | repair completed; re-review pending |
+| not exposed by runtime / not exposed by runtime | repair | Applied the minimal formatter-only change and corrected the validation file-selection method without changing tokenizer semantics | Initial implementation validation used a worktree-only `git diff` list that cannot see untracked additions | Exact failed command/file/line and reviewer handoff | repair completed; re-review `PASS WITH NOTE` |
+| not exposed by runtime / not exposed by runtime | independent re-review | Verified the formatter repair, full failed-review trail, complete base-to-head file list, all offline tests, lock/diff, Hydra parity, and clean worktree | Exact model/mode remained hidden; CUDA/DGX R2 remains unavailable in the current CPU runtime | Repair commit `e041c48`, failed-review handoff, live PR, philosophy/CHECK | `PASS WITH NOTE`; ready for human review after final docs parity audit |
 
 ## Ledger update
 
 - [x] Added ticket/PR row to `docs/model-runs/README.md`.
 - [x] Recorded both implementation invocations, the failed independent review,
   and both repairs under the hidden runtime identity/mode.
-- [ ] Confirm live PR execution trail matches this record.
+- [x] Confirmed live PR execution trail matches this record through the repaired
+  commit; final verdict update and docs-only parity audit are the last handoff step.
