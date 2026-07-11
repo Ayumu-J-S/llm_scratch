@@ -13,7 +13,7 @@ PR URL cannot be created.
 
 | Record | Ticket | PR | Initial implementation model / mode | First review model / mode | Repair cycles | Final verdict | Main failure tags |
 | --- | --- | --- | --- | --- | ---: | --- | --- |
-| [EXP-001 review record](EXP-001-review-record.md) | EXP-001 | pending; related process PR [#9](https://github.com/Ayumu-J-S/llm_scratch/pull/9) | not exposed by runtime / not exposed by runtime | blocked twice; model/mode not exposed | 0 | in progress — independent review pending | reproducibility, review-unavailable, merge-order |
+| [EXP-001 review record](EXP-001-review-record.md) | EXP-001 | draft [#10](https://github.com/Ayumu-J-S/llm_scratch/pull/10); related process PR [#9](https://github.com/Ayumu-J-S/llm_scratch/pull/9) | not exposed by runtime / not exposed by runtime | blocked twice; model/mode not exposed | 0 | in progress — independent review pending | reproducibility, review-unavailable, merge-order |
 
 Use short, stable values in `Main failure tags` so results can be aggregated,
 for example `data-starvation`, `cuda-fallback`, `ml-semantics`,

@@ -1,6 +1,6 @@
 # EXP-001 — Experiment and PR Handoff Contract
 
-- Current PR: pending
+- Current PR: [#10](https://github.com/Ayumu-J-S/llm_scratch/pull/10)
 - Related process PR: [#9](https://github.com/Ayumu-J-S/llm_scratch/pull/9)
 - Branch: `codex/exp-001-review-record`
 - Ticket: `EXP-001`
@@ -94,7 +94,7 @@ verdict; their context and evidence are retained above.`
 - Deliberately not changed: `ROADMAP.md`, runtime code, Hydra config, or run data
 - Local evidence: actual Hydra composition output (exit 0), `git diff --check`,
   `uv lock --check`, and explicit field-coverage scan all passed
-- Commit reviewed next: pending
+- Commit reviewed next: `fd2f09886c83332670f3de5da924e0e818efddb5`
 - Re-review model / mode: pending / pending
 - Re-review verdict: pending; no passing verdict claimed
 
@@ -131,4 +131,5 @@ hidden and the independent review attempts were blocked.
 - [x] Added the PR/ticket row to `docs/model-runs/README.md`.
 - [x] Updated applicable attempt counts without counting blocked reviews as
   performed or successful.
-- [ ] Confirm the PR execution trail after the current draft PR exists.
+- [x] Confirmed the draft PR execution trail matches this record; final review
+  fields remain pending.

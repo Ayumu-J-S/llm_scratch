@@ -6,7 +6,7 @@
 
 - Roadmap ticket: `EXP-001`
 - Branch: `codex/exp-001-review-record`
-- Draft PR: `pending` (replace after the initial documentation commit is pushed)
+- Draft PR: [#10](https://github.com/Ayumu-J-S/llm_scratch/pull/10)
 - Experiment owner: implementation agent; exact runtime identity not exposed
 - Status: concluded fixture
 - Started (UTC): 2026-07-11
@@ -115,8 +115,8 @@ reviewable.
   ```
   The command exited successfully after printing the composed job config. The
   empty source lists are the negative result; no training command was launched.
-- Git commit SHA: `pending` (fixture placeholder for the eventual PR commit)
-- Worktree state: dirty; this documentation diff is the evidence under review
+- Git commit SHA: `fd2f09886c83332670f3de5da924e0e818efddb5`
+- Worktree state: clean at the recorded commit
 - Dependency lock identity: `uv.lock`, SHA-256
   `f010398f7f1520d2ba4fafa5e6b9319d1c637fbb9c8c51b9e4fb469faa641a70`
 - Container/image identity: `N/A — no process or container was launched`
@@ -170,14 +170,14 @@ reviewable.
 ## Branch-to-review handoff trace
 
 1. Branch: `codex/exp-001-review-record`.
-2. Draft PR: `pending` (replace with the real URL when created).
+2. Draft PR: [#10](https://github.com/Ayumu-J-S/llm_scratch/pull/10).
 3. Experiment record: this never-deleted fixture, linked from the PR.
 4. Model-execution record: `docs/model-runs/EXP-001-review-record.md`.
 5. Independent heavy review: `pending`; no verdict is claimed.
 6. Merge authority: human reviewer only.
 
-The trace uses `pending` placeholders intentionally until a commit and draft PR
-exist; neither placeholder is evidence of completed review.
+The independent-review entry remains pending and is not evidence of completed
+review.
 
 ## Conclusion
 
