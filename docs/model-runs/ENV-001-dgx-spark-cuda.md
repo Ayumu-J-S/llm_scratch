@@ -52,11 +52,36 @@
   its linux/arm64 manifest is
   `sha256:dcae8df08ef61b019b8eb109113428cba4ef0e37484c6e722406150dd5ada759`.
 
+## Predeclared implementation contract
+
+- Host uv remains the explicit CPU development/test environment. The CUDA path
+  is the NGC image pinned by the multi-architecture digest above and must resolve
+  to the recorded linux/arm64 manifest.
+- Generate a committed runtime-only requirements export with `uv export
+  --locked --no-default-groups --no-dev --no-emit-project --prune torch`.
+  The overlay must reject Torch, Triton, NVIDIA, or CUDA providers, install the
+  complete hash-locked closure with `--no-deps` into a system-site-packages
+  venv, and prove the NGC Torch version/CUDA build/module identity did not move.
+- Hydra defaults to exact `runtime.device: cuda`; exact `cpu` is the only test
+  override. Unknown values and unavailable CUDA fail before tokenizer, data,
+  model, trainer, or W&B construction. No `auto` or implicit fallback exists.
+- Diagnostic JSON/text reports host/OS/Python/Torch/module path, compiled and
+  actual runtime CUDA, driver, devices/compute capability, BF16 support, image
+  digests, RSS, system memory/swap, and allocator values with an explicit DGX
+  Spark unified-memory caveat.
+- CUDA smoke uses `SimpleDecoderTransformer`, fixed synthetic inputs, AdamW,
+  BF16 autocast, and exactly ten finite forward/CE/backward/optimizer steps. It
+  verifies CUDA placement, finite/nonzero gradients, CUDA optimizer state,
+  synchronization, and current-PID visibility through `nvidia-smi`.
+- Record pull/build time and disk state without pruning shared Docker data.
+  Ten steps are correctness evidence, not an R2 throughput/thermal/stability
+  claim; longer pilots remain later-ticket scope.
+
 ## Execution timeline
 
 | Cycle | Phase | Exact model identifier | Reasoning mode | Input commit/context | Requested work | Outcome | Main findings / changes | Evidence |
 | ---: | --- | --- | --- | --- | --- | --- | --- | --- |
-| 0 | handoff | pending | requested Sol / Ultra | ticket, philosophy, CHECK, host facts, official NVIDIA sources | Select the smallest reproducible container/device/diagnostic/smoke design | pending | No plan claimed yet | pending |
+| 0 | handoff | not exposed by runtime | not exposed by runtime | ticket, philosophy, CHECK, host facts, official NVIDIA sources | Requested Sol / Ultra plan for the smallest reproducible container/device/diagnostic/smoke design | completed | Selected the digest-pinned NGC image, lock-derived non-Torch overlay with provider guards, explicit Hydra device authority, JSON diagnostic, exact ten-step BF16 repository-model smoke, CPU validation, and adversarial matrix | Planner handoff retained in primary task; no repository mutation |
 | 1 | implementation | pending | requested Luna / Extra High | pending accepted plan | Implement and exercise the clean GB10 runtime | pending | No implementation claimed yet | pending |
 | 1 | review | pending | requested heavier / Extra Thinking | pending stable implementation commit | Independent `/review` | pending | No verdict claimed yet | pending |
 
