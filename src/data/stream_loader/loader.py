@@ -303,8 +303,11 @@ class StreamLoader:
         self._process: mp.Process | None = None
         self._queue: queue.Queue[Any] | None = None
         self._stop_event: Any | None = None
+        self._reset_accounting()
+
+    def _reset_accounting(self) -> None:
         self.token_counts: dict[str, int] = {dataset["name"]: 0 for dataset in self.dataset_configs}
-        self.packed_token_counts = {
+        self.packed_token_counts: dict[str, int] = {
             "window_token_count": 0,
             "target_token_count": 0,
             "dropped_target_count": 0,
@@ -392,6 +395,7 @@ class StreamLoader:
         ):
             raise StreamLoaderError("loader is already being iterated")
 
+        self._reset_accounting()
         if self.prefetch_mode == "process":
             self._start_process_prefetch_worker()
             return
@@ -449,6 +453,7 @@ class StreamLoader:
         self,
         stop_event: threading.Event | None,
     ) -> Iterator[dict[str, Any]]:
+        self._reset_accounting()
         if self.output_mode == "packed_sequences":
             yield from self._packed_iter(stop_event=stop_event)
             return
@@ -467,11 +472,6 @@ class StreamLoader:
         stride = self.sequence_length - 1
         if stride < 1:
             raise ValueError("packed_sequences requires sequence_length of at least 2")
-        self.packed_token_counts = {
-            "window_token_count": 0,
-            "target_token_count": 0,
-            "dropped_target_count": 0,
-        }
 
         for sample in self._sample_iter(stop_event=stop_event):
             if stop_event is not None and stop_event.is_set():
@@ -541,7 +541,6 @@ class StreamLoader:
         stop_event: threading.Event | None,
     ) -> Iterator[TokenizedSample]:
         rng = random.Random(self.seed)
-        self.token_counts = {dataset["name"]: 0 for dataset in self.dataset_configs}
         all_source_states: list[SourceState] = []
 
         try:

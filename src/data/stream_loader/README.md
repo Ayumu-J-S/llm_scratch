@@ -229,6 +229,10 @@ Hugging Face sources require `revision` to be a 40-character commit hash so runs
 - Use `max_tokens` for small experimental runs before increasing the budget.
 - Keep `num_workers=0` for the PyTorch `DataLoader` unless worker-aware stream partitioning is added.
 - Keep `prefetch.enabled` off while debugging; enable it only after the single-process path is working.
+- Packed buffering currently deletes each consumed prefix from a Python list.
+  The bounded long-document check protects correctness only; no throughput or
+  favorable scaling claim is made, and repeated front deletion remains a risk
+  to measure against real long documents.
 
 ## Output Modes
 
@@ -249,7 +253,11 @@ carried token in both adjacent windows; target tokens count trained transitions.
 With `drop_remainder: true`,
 an incomplete tail reports its untrained transitions as dropped; a tail that is
 only the carried token drops zero transitions. These counters and the unique
-per-source `loader.token_counts` reset on each iteration.
+per-source `loader.token_counts` reset when each iteration begins. A completed
+process-prefetched iteration publishes its final child-process totals to the
+parent loader. If that iteration is closed early or its worker fails, the
+parent-visible counters remain reset rather than exposing totals from a prior
+successful iteration.
 
 ## Prefetching
 

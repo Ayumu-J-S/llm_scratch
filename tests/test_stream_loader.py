@@ -63,6 +63,18 @@ def tokenizer_config(tmp_path):
     return {"kind": "tokenizers", "path": str(tokenizer_path), "eos_token": "<eos>"}
 
 
+def process_packed_config(tmp_path, dataset):
+    return {
+        "tokenizer": tokenizer_config(tmp_path),
+        "output_mode": "packed_sequences",
+        "max_tokens": 7,
+        "sequence_length": 4,
+        "add_eos": False,
+        "prefetch": {"enabled": True, "mode": "process", "buffer_size": 2},
+        "datasets": [dataset],
+    }
+
+
 def base_config(**overrides):
     config = {
         "output_mode": "tokenized_docs",
@@ -365,31 +377,77 @@ def test_process_prefetch_emits_samples(tmp_path):
 
 
 def test_process_prefetch_returns_unique_and_packed_accounting(tmp_path):
-    config = {
-        "tokenizer": tokenizer_config(tmp_path),
-        "output_mode": "packed_sequences",
-        "max_tokens": 7,
-        "sequence_length": 4,
-        "add_eos": False,
-        "prefetch": {"enabled": True, "mode": "process", "buffer_size": 2},
-        "datasets": [
-            {
-                "name": "process",
-                "type": "memory",
-                "ratio": 1.0,
-                "documents": [{"text": "abcdefg"}],
-            }
-        ],
-    }
+    config = process_packed_config(
+        tmp_path,
+        {
+            "name": "process",
+            "type": "memory",
+            "ratio": 1.0,
+            "documents": [{"text": "abcdefg"}],
+        },
+    )
     loader = StreamLoader(config)
 
-    windows = list(loader)
+    for _ in range(2):
+        windows = list(loader)
 
-    assert len(windows) == 2
-    assert loader.token_counts == {"process": 7}
+        assert len(windows) == 2
+        assert loader.token_counts == {"process": 7}
+        assert loader.packed_token_counts == {
+            "window_token_count": 8,
+            "target_token_count": 6,
+            "dropped_target_count": 0,
+        }
+
+
+def test_process_prefetch_early_close_clears_previous_accounting(tmp_path):
+    config = process_packed_config(
+        tmp_path,
+        {
+            "name": "process",
+            "type": "memory",
+            "ratio": 1.0,
+            "documents": [{"text": "abcdefg"}],
+        },
+    )
+    loader = StreamLoader(config)
+    list(loader)
+
+    iterator = iter(loader)
+    next(iterator)
+    iterator.close()
+
+    assert loader.token_counts == {"process": 0}
     assert loader.packed_token_counts == {
-        "window_token_count": 8,
-        "target_token_count": 6,
+        "window_token_count": 0,
+        "target_token_count": 0,
+        "dropped_target_count": 0,
+    }
+
+
+def test_process_prefetch_worker_error_clears_previous_accounting(tmp_path):
+    source_path = tmp_path / "mutable.jsonl"
+    source_path.write_text('{"text": "abcdefg"}\n', encoding="utf-8")
+    config = process_packed_config(
+        tmp_path,
+        {
+            "name": "process",
+            "type": "jsonl",
+            "path": str(source_path),
+            "ratio": 1.0,
+        },
+    )
+    loader = StreamLoader(config)
+    list(loader)
+    source_path.write_text("not-json\n", encoding="utf-8")
+
+    with pytest.raises(StreamLoaderError, match="JSONDecodeError"):
+        list(loader)
+
+    assert loader.token_counts == {"process": 0}
+    assert loader.packed_token_counts == {
+        "window_token_count": 0,
+        "target_token_count": 0,
         "dropped_target_count": 0,
     }
 

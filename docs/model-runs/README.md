@@ -13,7 +13,7 @@ PR URL cannot be created.
 
 | Record | Ticket | PR | Initial implementation model / mode | First review model / mode | Repair cycles | Final verdict | Main failure tags |
 | --- | --- | --- | --- | --- | ---: | --- | --- |
-| [DATA-001 causal boundaries](DATA-001-causal-boundaries.md) | DATA-001 | [#11](https://github.com/Ayumu-J-S/llm_scratch/pull/11) | not exposed by runtime / not exposed by runtime | pending | 0 | in progress | ml-semantics, token-accounting, boundary-policy |
+| [DATA-001 causal boundaries](DATA-001-causal-boundaries.md) | DATA-001 | [#11](https://github.com/Ayumu-J-S/llm_scratch/pull/11) | not exposed by runtime / not exposed by runtime | not exposed by runtime / not exposed by runtime | 1 | in progress | ml-semantics, stale-accounting, boundary-policy |
 
 Use short, stable values in `Main failure tags` so results can be aggregated,
 for example `data-starvation`, `cuda-fallback`, `ml-semantics`,
@@ -27,7 +27,7 @@ there are enough observations for meaningful rates.
 
 | Exact model / mode | Implementation attempts | First-review passes | Repair attempts | Successful repairs | Reviews performed | Important strengths observed | Recurring failure modes | Last updated |
 | --- | ---: | ---: | ---: | ---: | ---: | --- | --- | --- |
-| not exposed by runtime / not exposed by runtime | 1 | 0 | 0 | 0 | 0 | Localized DATA-001 semantics and direct invariant tests | Runtime provenance hidden; requested model/mode unverifiable | 2026-07-11 |
+| not exposed by runtime / not exposed by runtime | 1 | 0 | 1 | 0 | 1 | Localized DATA-001 semantics; review found process lifecycle defect; repair added direct regressions | Runtime provenance hidden; initial stale process-prefetch accounting | 2026-07-11 |
 
 ### Counting rules
 
