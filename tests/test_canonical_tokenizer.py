@@ -295,9 +295,7 @@ def test_train_stream_and_debug_hydra_configs_have_identical_ids(tmp_path):
 def test_process_streamed_jsonl_batch_runs_through_model_with_finite_loss(tmp_path):
     jsonl_path = tmp_path / "bilingual.jsonl"
     jsonl_path.write_text(
-        "".join(
-            json.dumps({"text": "日本語"}, ensure_ascii=False) + "\n" for _ in range(4)
-        ),
+        "".join(json.dumps({"text": "日本語"}, ensure_ascii=False) + "\n" for _ in range(4)),
         encoding="utf-8",
     )
     config = {
