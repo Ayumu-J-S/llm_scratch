@@ -71,8 +71,9 @@
   Spark unified-memory caveat.
 - CUDA smoke uses `SimpleDecoderTransformer`, fixed synthetic inputs, AdamW,
   BF16 autocast, and exactly ten finite forward/CE/backward/optimizer steps. It
-  verifies CUDA placement, finite/nonzero gradients, CUDA optimizer state,
-  synchronization, and current-PID visibility through `nvidia-smi`.
+  verifies CUDA placement, finite/nonzero gradients, CUDA Adam moment tensors,
+  expected CPU step-counter bookkeeping, synchronization, and current-PID
+  visibility through `nvidia-smi`.
 - Record pull/build time and disk state without pruning shared Docker data.
   Ten steps are correctness evidence, not an R2 throughput/thermal/stability
   claim; longer pilots remain later-ticket scope.
@@ -82,7 +83,7 @@
 | Cycle | Phase | Exact model identifier | Reasoning mode | Input commit/context | Requested work | Outcome | Main findings / changes | Evidence |
 | ---: | --- | --- | --- | --- | --- | --- | --- | --- |
 | 0 | handoff | not exposed by runtime | not exposed by runtime | ticket, philosophy, CHECK, host facts, official NVIDIA sources | Requested Sol / Ultra plan for the smallest reproducible container/device/diagnostic/smoke design | completed | Selected the digest-pinned NGC image, lock-derived non-Torch overlay with provider guards, explicit Hydra device authority, JSON diagnostic, exact ten-step BF16 repository-model smoke, CPU validation, and adversarial matrix | Planner handoff retained in primary task; no repository mutation |
-| 1 | implementation | not exposed by runtime | not exposed by runtime (requested Luna / Extra High) | `100a11129b97edf50967d41d75ac4c99f18f9bc9`, accepted plan | Implement and exercise the clean GB10 runtime | completed | Added the digest-pinned ARM64 NGC container, byte-stable non-Torch overlay and provider/Torch-identity guards, explicit initialized-device Hydra gate, environment diagnostic, exact ten-step BF16 repository-model CUDA smoke, CPU tests, commands, and operating guide | 58 passed / 3 external skips; clean pull/build; strict GB10 diagnostic; ten finite BF16 CUDA updates; negative no-GPU exits |
+| 1 | implementation | not exposed by runtime | not exposed by runtime (requested Luna / Extra High) | `100a11129b97edf50967d41d75ac4c99f18f9bc9`, accepted plan | Implement and exercise the clean GB10 runtime | completed | Added the digest-pinned ARM64 NGC container, byte-stable non-Torch overlay and provider/Torch-identity guards, explicit initialized-device Hydra gate, environment diagnostic, exact ten-step BF16 repository-model CUDA smoke, CPU tests, commands, and operating guide | 59 passed / 3 external skips; clean pull/build; strict GB10 diagnostic; ten finite BF16 CUDA updates; negative no-GPU exits |
 | 1 | review | pending | requested heavier / Extra Thinking | pending stable implementation commit | Independent `/review` | pending | No verdict claimed yet | pending |
 
 ## Check selection and verdicts
@@ -143,16 +144,19 @@ N/A - review pending.
     CUDA runtime API value 13030, driver 580.159.03, BF16 true, one CUDA
     device, 130596048896 bytes unified memory. The report carries the required
     allocator/UMA caveat.
-  - Exact smoke completed 10 AdamW updates under BF16 autocast. Losses were all
-    finite and decreased from 5.595581 to 4.068237; every trainable parameter
-    had a finite gradient and at least one was nonzero; model parameters,
-    inputs, labels, logits, loss, and optimizer tensor state were CUDA; current
-    PID was visible through `nvidia-smi`; peak PyTorch allocation was
-    70,545,408 bytes (not interpreted as total memory).
+  - The pre-review smoke completed 10 AdamW updates under BF16 autocast. Losses
+    were all finite and decreased from 5.595581 to 4.068237; every trainable
+    parameter had a finite gradient and at least one was nonzero; model
+    parameters, inputs, labels, logits, loss, and Adam moment tensors were CUDA;
+    current PID was visible through `nvidia-smi`; peak PyTorch allocation was
+    70,545,408 bytes (not interpreted as total memory). That machine result
+    omitted AdamW's CPU step-counter bookkeeping. The repaired smoke now
+    asserts and reports moment and step-counter placement separately; clean
+    repair-commit container evidence is pending the primary task's rebuild.
   - Without `--gpus all`, required diagnostic exited 2 with valid JSON, CUDA
     smoke exited 1, and the default training command exited 1 before data. No
     CUDA-to-CPU fallback occurred.
-  - Host validation: `uv run pytest -q` = 58 passed, 3 explicit external skips;
+  - Host validation: `uv run pytest -q` = 59 passed, 3 explicit external skips;
     Ruff, format, `uv lock --check`, `git diff --check`, provider-poison test,
     runtime-provider scan, Hydra resolution, exact byte-for-byte temporary lock
     regeneration, JSON CLI parsing, and CUDA count/init/name failures all

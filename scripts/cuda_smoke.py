@@ -89,16 +89,26 @@ def run_smoke() -> dict:
 
     if output_dtype != "torch.bfloat16":
         raise RuntimeError(f"autocast output was not BF16: {output_dtype}")
-    optimizer_cuda_tensors = [
+    optimizer_moment_tensors = [
         value
         for state in optimizer.state.values()
         for key, value in state.items()
         if key != "step" and isinstance(value, torch.Tensor)
     ]
-    if not optimizer_cuda_tensors or any(
-        value.device.type != "cuda" for value in optimizer_cuda_tensors
+    if not optimizer_moment_tensors or any(
+        value.device.type != "cuda" for value in optimizer_moment_tensors
     ):
-        raise RuntimeError("AdamW tensor state is not entirely on CUDA")
+        raise RuntimeError("AdamW moment tensors are not entirely on CUDA")
+    optimizer_step_counters = [
+        state["step"]
+        for state in optimizer.state.values()
+        if isinstance(state.get("step"), torch.Tensor)
+    ]
+    step_counter_devices = sorted({value.device.type for value in optimizer_step_counters})
+    if not optimizer_step_counters or step_counter_devices != ["cpu"]:
+        raise RuntimeError(
+            f"AdamW step counters must be CPU bookkeeping tensors, got {step_counter_devices}"
+        )
 
     torch.cuda.synchronize()
     current_pid = os.getpid()
@@ -118,7 +128,8 @@ def run_smoke() -> dict:
         "autocast_output_dtype": output_dtype,
         "losses": losses,
         "finite_losses": all(torch.isfinite(torch.tensor(losses))),
-        "optimizer_state_device": "cuda",
+        "optimizer_moment_tensor_device": "cuda",
+        "optimizer_step_counter_devices": step_counter_devices,
         "pid": current_pid,
         "pid_visible_in_nvidia_smi": True,
         "max_memory_allocated_bytes": torch.cuda.max_memory_allocated(),

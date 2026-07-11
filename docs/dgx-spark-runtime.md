@@ -83,10 +83,11 @@ make dgx-smoke
 
 This executes exactly ten AdamW updates of the repository's
 `SimpleDecoderTransformer` on fixed synthetic CUDA inputs under BF16 autocast.
-It requires finite loss, finite/nonzero gradients, CUDA model/input/optimizer
-state, synchronization, and visibility of its own PID as an `nvidia-smi`
-compute process. It is a wiring/correctness smoke, not throughput, available
-memory, thermal, or long-run stability evidence.
+It requires finite loss, finite/nonzero gradients, CUDA model/input/logit/loss
+placement, CUDA Adam moment tensors, expected CPU step-counter bookkeeping,
+synchronization, and visibility of its own PID as an `nvidia-smi` compute
+process. It is a wiring/correctness smoke, not throughput, available memory,
+thermal, or long-run stability evidence.
 
 ## Training device authority
 

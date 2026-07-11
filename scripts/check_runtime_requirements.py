@@ -7,7 +7,8 @@ from pathlib import Path
 
 FORBIDDEN_PROVIDER = re.compile(
     r"(?:^|[-_.])"
-    r"(torch|torchaudio|torchdata|torchtext|torchvision|torchao|pytorch|triton|nvidia|cuda|"
+    r"(torch|torchaudio|torchdata|torchtext|torchvision|torchao|pytorch|triton|nvidia|"
+    r"cuda(?:\d+[a-z]?)?|"
     r"cudnn|cublas|cufft|curand|cusolver|cusparse|nccl)"
     r"(?:$|[-_.])"
 )
