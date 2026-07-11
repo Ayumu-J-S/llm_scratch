@@ -52,8 +52,8 @@ reported exactly as unavailable rather than inferred.
 | 3 | re-review | not exposed by runtime | not exposed by runtime | `f0faf8466189cb8dd8fecdfca431e3de2bcbcee5` | Independent heavy review against philosophy, ticket, and selected checks | FAIL | The fixture called its Hydra YAML fully resolved while retaining `${training.epochs}`; the model-run record also named a stale re-review target SHA | Reviewer findings received 2026-07-11; exact failed-review handoff below |
 | 4 | repair | not exposed by runtime | not exposed by runtime | Failed-review findings against `f0faf8466189cb8dd8fecdfca431e3de2bcbcee5` | Narrow Luna/Extra High repair requested: recapture resolved Hydra evidence, validate interpolation absence, and correct the re-review target | completed in `df1acf62a05266cfd8f80bd86c96d932d1d6c67e`; re-review pending | Ran the exact `--resolve` command, captured `T_max: 1`, added semantic no-interpolation validation, and replaced the stale target | Command exit 0; resolved-block validation exit 0; `git diff --check` |
 | 4 | re-review | not exposed by runtime | not exposed by runtime | repair commit `df1acf62a05266cfd8f80bd86c96d932d1d6c67e` and metadata head `46bd85837b211eeeb9632980ecfb12a09d1372ce` | Independent heavy re-review of the exact failed findings and full R0 acceptance | FAIL | Original resolved-config and SHA defects passed, but the live draft PR body still contained the pre-repair command, SHA, and execution trail | Reviewer findings received 2026-07-11; PR body inspection |
-| 5 | repair | not exposed by runtime | not exposed by runtime | Failed live-handoff finding against PR #10 and `46bd85837b211eeeb9632980ecfb12a09d1372ce` | Update committed provenance and replace the live PR body after the final metadata commit | in progress | Recorded the second FAIL; final live body update must include both FAIL/repair cycles and the exact new head | This record and pending GitHub PR update |
-| 5 | re-review | pending | pending | future metadata head plus updated PR #10 body | Independent heavy re-review of local records and live handoff parity | pending | No passing re-review has run and no verdict is claimed | pending |
+| 5 | repair | not exposed by runtime | not exposed by runtime | Failed live-handoff finding against PR #10 and `46bd85837b211eeeb9632980ecfb12a09d1372ce` | Update committed provenance and replace the live PR body after the final metadata commit | completed; re-review pending | Recorded the second FAIL and replaced the live body after the final metadata push with both FAIL/repair cycles and exact final head | This record and PR #10 body |
+| 5 | re-review | pending | pending | final branch head plus updated PR #10 body | Independent heavy re-review of local records and live handoff parity | pending | No passing re-review has run and no verdict is claimed | pending |
 
 Allowed outcome interpretation: the two blocked attempts are not reviews
 performed and are not passing reviews. The pending row is a handoff marker, not
@@ -173,12 +173,12 @@ a model invocation.
 
 - Repair model / mode: not exposed by runtime / not exposed by runtime
 - Input handoff: review-cycle-3 live-PR mismatch finding
-- Changes made: record the failed review and replace PR #10's body after this
-  metadata commit is pushed
+- Changes made: recorded the failed review and replaced PR #10's body after the
+  final metadata commit was pushed
 - Deliberately not changed: experiment contract, runtime code, Hydra config,
   `ROADMAP.md`, or the already-validated resolved config
-- Local evidence: pending final commit and GitHub update
-- Re-review target: pending final metadata head plus live PR #10 body
+- Local evidence: final branch head plus matching live PR #10 body
+- Re-review target: final branch head plus live PR #10 body
 - Re-review verdict: pending
 
 ## Final evidence
@@ -214,5 +214,5 @@ hidden and the independent review attempts were blocked.
 - [x] Added the PR/ticket row to `docs/model-runs/README.md`.
 - [x] Updated applicable attempt counts without counting blocked reviews as
   performed or successful.
-- [ ] Reconfirm the draft PR body matches this record after the cycle-5 metadata
-  commit and live GitHub update.
+- [x] Reconfirmed the draft PR body matches this record after the cycle-5
+  metadata commit and live GitHub update; independent re-review remains pending.
