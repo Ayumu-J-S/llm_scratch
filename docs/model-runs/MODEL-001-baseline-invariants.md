@@ -1,6 +1,6 @@
 # MODEL-001 - Conventional Baseline Invariants
 
-- PR: draft
+- PR: [#14](https://github.com/Ayumu-J-S/llm_scratch/pull/14) (draft)
 - Branch: `codex/model-001-baseline-invariants`
 - Ticket: `MODEL-001`
 - Hypothesis: a compact invariant suite and bounded overfit proof can make the
