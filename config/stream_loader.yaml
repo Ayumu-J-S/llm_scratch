@@ -1,0 +1,35 @@
+tokenizer:
+  kind: qwen
+  name: Qwen/Qwen3-0.6B
+  use_fast: true
+
+output_mode: raw_text
+max_tokens: 5000000000
+sequence_length: 4096
+add_eos: true
+preserve_metadata: true
+seed: 42
+
+prefetch:
+  enabled: true
+  buffer_size: 16
+
+retry:
+  max_attempts: 5
+  initial_delay_seconds: 1.0
+  max_delay_seconds: 60.0
+  multiplier: 2.0
+
+cache:
+  dir: data/stream_loader_cache
+  max_size_bytes: 750000000000
+
+datasets:
+  - name: japanese_educational_text
+    type: hf
+    path: hotchpotch/fineweb-2-edu-japanese
+    revision: 180ca004c6a89b590daaad86cb062a07a5353c69
+    config_name: sample_10BT
+    split: train
+    text_field: text
+    ratio: 1.0

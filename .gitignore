@@ -9,3 +9,4 @@ train.log
 artifacts/checkpoints/model_*/
 train_tokenizer.log
 wandb/
+data/stream_loader_cache/
