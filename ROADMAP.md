@@ -37,6 +37,16 @@ Priorities:
 - **P0**: required to make training correct, reproducible, or safe.
 - **P1**: required before the first credible real pretraining baseline.
 - **P2**: valuable after the first baseline exists.
+- **P3**: optional optimization or research work, opened only after a measured
+  baseline identifies a concrete bottleneck.
+
+The numeric order below is the recommended default execution sequence, not just
+a severity ranking. A later ticket may start early when it is in the same wave
+and has no unmet dependency, but it must not displace an unfinished ticket on
+the critical path. In particular, prepare and validate data before training on
+it, prove the complete pipeline on a tiny fixture before a real-data run, and
+defer C, CUDA, compilation, and other low-level optimization until after
+`RUN-001` establishes the first trustworthy baseline.
 
 ## AS-IS snapshot
 
@@ -139,40 +149,59 @@ be called a baseline until the following gates exist:
 
 | Order | Ticket | Priority | State | Depends on | Outcome |
 | ---: | --- | --- | --- | --- | --- |
-| 1 | ENV-001 | P0 | Ready | — | CUDA-capable, reproducible DGX Spark runtime |
-| 2 | DATA-001 | P0 | Ready | — | Correct packed causal transitions |
-| 3 | MODEL-001 | P0 | Ready | — | Protected conventional model invariants |
-| 4 | EXP-001 | P0 | Ready | — | Lightweight experiment and PR handoff contract |
-| 5 | TOK-001 | P0 | Ready | — | One selected, pinned tokenizer used end to end |
-| 6 | DATA-002 | P0 | Ready | — | Immutable manifests and disjoint split contract |
-| 7 | CFG-001 | P0 | Blocked | EXP-001 | Canonical Hydra profiles and commands |
+| 1 | DATA-001 | P0 | Ready | — | Correct packed causal transitions |
+| 2 | TOK-001 | P0 | Ready | — | One selected, pinned tokenizer used end to end |
+| 3 | DATA-002 | P0 | Ready | — | Immutable manifests and disjoint split contract |
+| 4 | MODEL-001 | P0 | Ready | — | Protected conventional model invariants |
+| 5 | ENV-001 | P0 | Ready | — | CUDA-capable, reproducible DGX Spark runtime |
+| 6 | EXP-001 | P0 | Ready | — | Lightweight experiment and PR handoff contract |
+| 7 | CFG-001 | P0 | Blocked | DATA-001, TOK-001, DATA-002, EXP-001 | Canonical Hydra profiles and commands |
 | 8 | REP-001 | P0 | Blocked | CFG-001, TOK-001, DATA-002 | Reproducible run identity and global seed |
-| 9 | DATA-003 | P0 | Blocked | DATA-001, DATA-002, REP-001 | Deterministic stream horizon, shuffle, and cursor |
-| 10 | LOOP-001 | P0 | Blocked | DATA-001, REP-001 | Step/token trainer and correct scalar metrics |
-| 11 | CKPT-001 | P0 | Blocked | DATA-003, LOOP-001 | Atomic rotating full-state resume |
-| 12 | CI-001 | P0 | Blocked | CFG-001, MODEL-001 | Network-free CPU quality gate |
-| 13 | OPT-001 | P1 | Blocked | ENV-001, LOOP-001 | Conventional single-GPU BF16 training recipe |
+| 9 | LOOP-001 | P0 | Blocked | DATA-001, CFG-001, REP-001 | Step/token trainer and correct scalar metrics |
+| 10 | DATA-003 | P0 | Blocked | DATA-001, DATA-002, REP-001, LOOP-001 | Deterministic stream horizon, shuffle, and cursor |
+| 11 | STAB-001 | P0 | Blocked | ENV-001, LOOP-001 | Stable conventional single-GPU BF16 training recipe |
+| 12 | CKPT-001 | P0 | Blocked | DATA-003, LOOP-001, STAB-001 | Atomic rotating full-state resume |
+| 13 | CI-001 | P0 | Blocked | CFG-001, MODEL-001 | Network-free CPU quality gate |
 | 14 | GEN-001 | P1 | Blocked | MODEL-001, TOK-001, CKPT-001 | Minimal base-model continuation CLI |
-| 15 | WB-001 | P1 | Blocked | REP-001, LOOP-001, CKPT-001 | Evidence-complete, quota-safe W&B runs |
-| 16 | GATE-001 | P1 | Blocked | ENV-001, MODEL-001, TOK-001, LOOP-001, CKPT-001, GEN-001, WB-001 | Reproducible bilingual overfit proof |
-| 17 | DATA-004 | P1 | Blocked | TOK-001, DATA-002, DATA-003 | Pinned Japanese/English mixture with QA |
-| 18 | VAL-001 | P1 | Blocked | DATA-004, LOOP-001, CKPT-001 | Trustworthy lightweight held-out validation |
+| 15 | GATE-001 | P1 | Blocked | ENV-001, MODEL-001, TOK-001, LOOP-001, STAB-001, CKPT-001, GEN-001 | Reproducible bilingual overfit proof |
+| 16 | DATA-004 | P1 | Blocked | TOK-001, DATA-002, DATA-003, GATE-001 | Pinned Japanese/English mixture with QA |
+| 17 | VAL-001 | P1 | Blocked | DATA-004, LOOP-001, CKPT-001 | Trustworthy lightweight held-out validation |
+| 18 | WB-001 | P1 | Blocked | REP-001, LOOP-001, CKPT-001 | Evidence-complete, quota-safe W&B runs |
 | 19 | BENCH-001 | P1 | Blocked | GEN-001, VAL-001, WB-001 | Versioned Japanese/general benchmark suite |
-| 20 | DGX-001 | P1 | Blocked | OPT-001, GATE-001, WB-001 | Measured model profile and time/token budget |
+| 20 | DGX-001 | P1 | Blocked | STAB-001, GATE-001, DATA-004, WB-001 | Measured model profile and time/token budget |
 | 21 | OPS-001 | P1 | Blocked | CI-001, CKPT-001, WB-001, VAL-001, BENCH-001 | Agent-native run and handoff loop |
 | 22 | RUN-001 | P1 | Blocked | DATA-004, BENCH-001, DGX-001, OPS-001 | First bounded real pretraining baseline |
 | 23 | HUMAN-001 | P2 | Blocked | BENCH-001, RUN-001 | Blinded base-model human evaluation |
 
-### First execution wave
+### Execution waves
 
-The six Ready tickets may proceed independently. ENV-001 and DATA-001 remove the
-two most immediate execution/correctness blockers. MODEL-001 protects the
-reference architecture. EXP-001 defines how all later work is handed off.
-TOK-001 and DATA-002 establish the two immutable inputs needed by the real
-training path.
+Work through these gates in order. Tickets within a wave may proceed in parallel
+only when their explicit dependencies are satisfied.
 
-Do not start a real pretraining run during this wave. After each ticket merges,
-update the states and dependencies in this table before selecting more work.
+1. **Inputs and correctness:** `DATA-001`, `TOK-001`, `DATA-002`, and
+   `MODEL-001`. Fix token transitions, select the tokenizer, establish immutable
+   splits, and protect the reference model before integrating the training path.
+2. **Reproducible training foundation:** `ENV-001`, `EXP-001`, `CFG-001`,
+   `REP-001`, `LOOP-001`, `DATA-003`, `STAB-001`, `CKPT-001`, and `CI-001`.
+   This wave makes the small pipeline runnable, bounded, stable, resumable, and
+   continuously checked. `STAB-001` covers required BF16 and gradient-safety
+   behavior; it is not a performance-optimization ticket.
+3. **Tiny end-to-end proof:** `GEN-001` and `GATE-001`. Do not select or process
+   the full baseline corpus until the bilingual fixture can learn, resume, and
+   generate correctly.
+4. **Real-baseline preparation:** `DATA-004`, `VAL-001`, `WB-001`, `BENCH-001`,
+   `DGX-001`, and `OPS-001`. Prepare and QA the pinned real-data mixture before
+   any real pretraining; then validate, benchmark, measure, and automate it.
+5. **First credible run:** `RUN-001`, followed by `HUMAN-001` when human
+   comparison is useful.
+6. **Measured optimization:** only after `RUN-001`, consider C/CUDA, compilation,
+   custom kernels, data-path tuning, inference optimization, or architecture
+   experiments. Open one narrowly scoped ticket for a bottleneck demonstrated by
+   the baseline; otherwise do not do this work.
+
+Do not start a real pretraining run before wave 4 is complete. After each ticket
+merges, update the states and dependencies in the table before selecting more
+work.
 
 ## Ticket details
 
@@ -398,10 +427,14 @@ update the states and dependencies in this table before selecting more work.
   - Lockfile drift fails.
 - **Validation:** Local CI-equivalent command and a pull-request workflow run.
 
-### OPT-001 — Establish the conventional single-GPU optimizer recipe
+### STAB-001 — Establish a stable conventional single-GPU training recipe
 
 - **Goal:** Add only the standard training features needed for a stable DGX Spark
   baseline.
+- **Sequencing note:** This is a correctness and stability ticket, not a
+  performance-optimization ticket. It remains before the first baseline because
+  BF16 behavior, accumulation, clipping, and non-finite guards are part of a safe
+  training loop.
 - **In scope:** BF16 autocast where supported, FP32 CPU smoke, gradient
   accumulation, global-norm clipping, explicit AdamW parameters, warmup/decay in
   optimizer steps, and non-finite guards.
@@ -455,8 +488,8 @@ update the states and dependencies in this table before selecting more work.
 
 - **Goal:** Demonstrate the complete learning chain before real pretraining.
 - **In scope:** A fixed, versioned tiny Japanese/English fixture; one bounded
-  random-initialization run; resume; local/offline W&B record; checkpoint-backed
-  continuations.
+  random-initialization run; resume; a complete local experiment record;
+  optional offline W&B logging; checkpoint-backed continuations.
 - **Out of scope:** Generalization claims, production data, benchmark scores, or
   architecture experiments.
 - **Acceptance criteria:**
@@ -602,8 +635,10 @@ update the states and dependencies in this table before selecting more work.
 ## Deferred work
 
 Do not create architecture or low-level performance tickets merely because they
-are interesting. After DGX-001 identifies a measured bottleneck, open one ticket
-for that bottleneck with:
+are interesting. `DGX-001` may measure and name a bottleneck, but optimization
+work remains deferred until `RUN-001` has produced the first trustworthy
+baseline. After that baseline confirms that a bottleneck matters, open one P3
+ticket for it with:
 
 - a reference implementation/result;
 - a correctness tolerance;
@@ -611,9 +646,9 @@ for that bottleneck with:
 - the smallest C, CUDA, compilation, or data-path change that tests the idea; and
 - an explicit rollback condition.
 
-SFT, chat behavior, inference serving/optimization, multi-node training, and
-novel model architectures remain deferred until RUN-001 produces a trustworthy
-pretraining baseline.
+SFT, chat behavior, inference serving/optimization, C/CUDA or native-extension
+work, compilation, multi-node training, and novel model architectures remain
+deferred until `RUN-001` produces a trustworthy pretraining baseline.
 
 ## Research inputs
 
