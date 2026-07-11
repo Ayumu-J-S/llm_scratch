@@ -49,7 +49,9 @@ reported exactly as unavailable rather than inferred.
 | 2 | implementation | not exposed by runtime | not exposed by runtime | `a05eb1d` plus planner handoff | First delegated implementation repair | blocked | Completed read-only inspection but made no edits before interruption | Clean worktree observed after the attempt |
 | 3 | implementation | not exposed by runtime | not exposed by runtime | `a05eb1d` plus exact patch request | Replacement delegated implementation | implemented; interrupted before handoff | Added experiment guidance/template/fixture, PR fields, cross-links, and ledger entry | Current branch diff |
 | 3 | repair | not exposed by runtime | not exposed by runtime | Replacement delegate's working-tree diff | Reconcile interrupted edits and validate exact evidence | completed locally; review pending | Matched record basename to branch slug, replaced illustrative config with actual Hydra composition output, and passed R0 field coverage | `uv run python src/train.py --cfg job ...`; `git diff --check`; `uv lock --check`; field scan |
-| 3 | re-review | pending | pending | pending implementation commit | Independent heavy review against philosophy, ticket, and selected checks | pending | No review has run and no verdict is claimed | pending |
+| 3 | re-review | not exposed by runtime | not exposed by runtime | `f0faf8466189cb8dd8fecdfca431e3de2bcbcee5` | Independent heavy review against philosophy, ticket, and selected checks | FAIL | The fixture called its Hydra YAML fully resolved while retaining `${training.epochs}`; the model-run record also named a stale re-review target SHA | Reviewer findings received 2026-07-11; exact failed-review handoff below |
+| 4 | repair | not exposed by runtime | not exposed by runtime | Failed-review findings against `f0faf8466189cb8dd8fecdfca431e3de2bcbcee5` | Narrow Luna/Extra High repair requested: recapture resolved Hydra evidence, validate interpolation absence, and correct the re-review target | completed locally; re-review pending | Ran the exact `--resolve` command, captured `T_max: 1`, added semantic no-interpolation validation, and replaced the stale target with a pending repaired commit | Command exit 0; resolved-block validation exit 0; `git diff --check` |
+| 4 | re-review | pending | pending | future repaired commit (pending until commit exists) | Independent heavy re-review of the exact failed findings | pending | No passing re-review has run and no verdict is claimed | pending |
 
 Allowed outcome interpretation: the two blocked attempts are not reviews
 performed and are not passing reviews. The pending row is a handoff marker, not
@@ -57,7 +59,7 @@ a model invocation.
 
 ## Check selection and verdicts
 
-### Review cycle 1
+### Review cycle 1 — blocked attempts
 
 - Review model / mode: not exposed by runtime / not exposed by runtime
 - Commit reviewed: none; both attempts blocked before review
@@ -78,23 +80,57 @@ a model invocation.
 | blocker | review availability | Two delegated review invocations returned no verdict before interruption | Execution timeline | Run a fresh independent review against the final commit |
 | process | merge order | Related PR #9 merged before required review completed | PR #9 and merge commit `a05eb1d` | Preserve deviation and do not repeat it for this ticket |
 
+### Review cycle 2 — returned FAIL
+
+- Review model / mode: not exposed by runtime / not exposed by runtime
+- Commit reviewed: `f0faf8466189cb8dd8fecdfca431e3de2bcbcee5`
+- Selected `CHECK.md` sections: applicable documentation and reproducibility
+  checks from 8.1, 8.3, and 7
+- Verdict: `FAIL`; no ticket completion or passing verdict is claimed
+
+#### Findings
+
+| Severity | Area | What was wrong | Evidence | Required action |
+| --- | --- | --- | --- | --- |
+| major | reproducibility | The experiment fixture described its Hydra YAML as fully resolved, but `T_max` remained `${training.epochs}` | `docs/experiments/EXP-001-review-record.md` Attempt 1 | Run the exact command with `--resolve`, replace the block with its exact output including `T_max: 1`, and validate that the captured resolved block contains no interpolation |
+| major | review trace | The recorded next-review target named a stale commit SHA | Previous Repair result entry | Point the next review at the future repaired commit, leaving it pending until that commit exists |
+
 ## Failed-review handoff
 
-`N/A — no review returned FAIL. Two review invocations were blocked before a
-verdict; their context and evidence are retained above.`
+- Failed verdict: `FAIL` against
+  `f0faf8466189cb8dd8fecdfca431e3de2bcbcee5`.
+- Exact repair scope: run
+  `uv run python src/train.py --cfg job --resolve data.mode=streaming training.epochs=1 wandb.enabled=false`;
+  replace the fixture block with the exact resolved output; update its evidence,
+  command, and timestamps; semantically verify the block has no `${...}`;
+  preserve both review findings here; and correct ledger counts and the pending
+  re-review target.
+- Deliberate model selection: Luna at Extra High was requested for this narrow
+  documentation/config-evidence repair. The collaboration runtime cannot expose
+  or select model identity or reasoning mode, so both are recorded as `not
+  exposed by runtime`; no substitute identity is inferred.
+- Constraints carried forward: do not edit `ROADMAP.md` or runtime code; do not
+  claim `PASS`; do not commit or push; retain the earlier blocked attempts.
+- Required re-review: independently verify the repaired resolved block and
+  review trace on the future repaired commit before ticket completion.
 
 ## Repair result
 
-- Repair cycle: current EXP-001 documentation implementation
+- Repair cycle: 4, narrow failed-review repair
 - Repair model / mode: not exposed by runtime / not exposed by runtime
-- Input handoff: ticket acceptance criteria, philosophy, applicable checks, and
-  the requested missing fields
-- Changes made: added the experiment contract, filled R0 fixture including a
-  retained negative attempt, tightened PR/model-run links, and updated ledger
+- Input handoff: the cycle-2 `FAIL` findings and complete failed-review handoff
+  above
+- Changes made: recaptured exact resolved Hydra output with `--resolve`, changed
+  `T_max` to `1`, added semantic interpolation validation, preserved the FAIL,
+  and corrected the next-review target and ledger counts
 - Deliberately not changed: `ROADMAP.md`, runtime code, Hydra config, or run data
-- Local evidence: actual Hydra composition output (exit 0), `git diff --check`,
-  `uv lock --check`, and explicit field-coverage scan all passed
-- Commit reviewed next: `fd2f09886c83332670f3de5da924e0e818efddb5`
+- Local evidence: exact resolved Hydra command exited 0; a `uv run python`
+  validation extracted and parsed the captured YAML, recursively asserted that
+  no string contains `${`, and asserted
+  `training.scheduler.T_max == training.epochs == 1`; it printed `PASS: parsed
+  captured YAML; no unresolved interpolation; T_max == epochs == 1` and exited
+  0; `git diff --check` passed
+- Commit reviewed next: future repaired commit (pending until commit exists)
 - Re-review model / mode: pending / pending
 - Re-review verdict: pending; no passing verdict claimed
 
@@ -103,9 +139,9 @@ verdict; their context and evidence are retained above.`
 - Resolved Hydra command/config: `N/A — documentation-only ticket`; the fixture
   preserves its deliberately invalid attempted config
 - Data/tokenizer/model identity: `N/A — no scientific run`
-- Validation and measurements: Hydra composition exit 0; `git diff --check`,
-  `uv lock --check`, and the explicit R0 field-coverage scan passed; independent
-  review pending
+- Validation and measurements: resolved Hydra composition exit 0; captured
+  resolved-block no-interpolation scan exit 0; `git diff --check` passed;
+  independent re-review pending
 - Performance/resource result: `N/A — R0 documentation change`
 - Failed attempts retained at: execution timeline and fixture Attempt 1
 - Known trade-offs: prose completeness adds review surface, but prevents missing
@@ -123,8 +159,8 @@ hidden and the independent review attempts were blocked.
 | Model / mode | Role | What it handled well | What it missed or made worse | Context that helped | Outcome |
 | --- | --- | --- | --- | --- | --- |
 | not exposed by runtime / not exposed by runtime | planning | Produced a philosophy-grounded scoped plan | Requested Sol/Ultra identity could not be verified | Exact ticket, philosophy, and R0 checks | completed |
-| not exposed by runtime / not exposed by runtime | implementation and repair | Produced a scoped documentation repair | First delegate stalled; replacement was interrupted before reporting validation | Exact planner handoff and patch request | implemented locally; validation pending |
-| not exposed by runtime / not exposed by runtime | review attempts | N/A | Returned no verdict before interruption | Philosophy, ticket, and selected checks | blocked twice |
+| not exposed by runtime / not exposed by runtime | implementation and repair | Produced scoped documentation repairs and exact resolved-config evidence | First delegate stalled; initial fixture captured unresolved interpolation | Exact planner handoff, failed findings, and narrow repair request | repair completed locally; re-review pending |
+| not exposed by runtime / not exposed by runtime | review attempts | Detected unresolved evidence and a stale review target | Two earlier invocations returned no verdict before interruption | Philosophy, ticket, and selected checks | blocked twice; later review returned FAIL |
 
 ## Ledger update
 

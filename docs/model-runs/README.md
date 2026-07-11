@@ -13,7 +13,7 @@ PR URL cannot be created.
 
 | Record | Ticket | PR | Initial implementation model / mode | First review model / mode | Repair cycles | Final verdict | Main failure tags |
 | --- | --- | --- | --- | --- | ---: | --- | --- |
-| [EXP-001 review record](EXP-001-review-record.md) | EXP-001 | draft [#10](https://github.com/Ayumu-J-S/llm_scratch/pull/10); related process PR [#9](https://github.com/Ayumu-J-S/llm_scratch/pull/9) | not exposed by runtime / not exposed by runtime | blocked twice; model/mode not exposed | 0 | in progress — independent review pending | reproducibility, review-unavailable, merge-order |
+| [EXP-001 review record](EXP-001-review-record.md) | EXP-001 | draft [#10](https://github.com/Ayumu-J-S/llm_scratch/pull/10); related process PR [#9](https://github.com/Ayumu-J-S/llm_scratch/pull/9) | not exposed by runtime / not exposed by runtime | blocked twice, then FAIL; model/mode not exposed | 1 | in progress — repaired, independent re-review pending | reproducibility, stale-review-target, review-unavailable, merge-order |
 
 Use short, stable values in `Main failure tags` so results can be aggregated,
 for example `data-starvation`, `cuda-fallback`, `ml-semantics`,
@@ -27,7 +27,7 @@ there are enough observations for meaningful rates.
 
 | Exact model / mode | Implementation attempts | First-review passes | Repair attempts | Successful repairs | Reviews performed | Important strengths observed | Recurring failure modes | Last updated |
 | --- | ---: | ---: | ---: | ---: | ---: | --- | --- | --- |
-| not exposed by runtime / not exposed by runtime | 2 | 0 | 1 | 0 | 0 | Produced a scoped EXP-001 plan and documentation repair | One implementation stalled; two review attempts returned no verdict; exact model attribution impossible | 2026-07-11 |
+| not exposed by runtime / not exposed by runtime | 2 | 0 | 2 | 0 | 1 | Produced a scoped EXP-001 plan, documentation repair, and exact resolved-config recapture | One implementation stalled; two review attempts returned no verdict; initial evidence retained an unresolved interpolation; exact model attribution impossible | 2026-07-11 |
 
 ### Counting rules
 

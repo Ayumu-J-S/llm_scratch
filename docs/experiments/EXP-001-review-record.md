@@ -10,7 +10,7 @@
 - Experiment owner: implementation agent; exact runtime identity not exposed
 - Status: concluded fixture
 - Started (UTC): 2026-07-11
-- Last updated (UTC): 2026-07-11
+- Last updated (UTC): 2026-07-11T15:06:35Z
 - Model-run provenance: `docs/model-runs/EXP-001-review-record.md`
 
 ## Predeclared question and decision rule
@@ -51,12 +51,12 @@ reviewable.
 
 ### Launch identity
 
-- Started / ended (UTC): 2026-07-11T14:58:41Z / 2026-07-11T14:59:42Z
+- Started / ended (UTC): 2026-07-11T15:06:34Z / 2026-07-11T15:06:35Z
 - Outcome: negative configuration finding; composition succeeded and training was
   deliberately not launched because both streaming source lists were empty
 - Exact command:
   ```text
-  uv run python src/train.py --cfg job data.mode=streaming training.epochs=1 wandb.enabled=false
+  uv run python src/train.py --cfg job --resolve data.mode=streaming training.epochs=1 wandb.enabled=false
   ```
 - Fully resolved Hydra configuration printed by that command:
   ```yaml
@@ -94,7 +94,7 @@ reviewable.
       enabled: false
       interval: epoch
       _target_: torch.optim.lr_scheduler.CosineAnnealingLR
-      T_max: ${training.epochs}
+      T_max: 1
       eta_min: 0.0
   model:
     embed_size: 384
@@ -140,7 +140,7 @@ reviewable.
 ### Counters, evidence, and integrity
 
 - Counters: 0 training seconds, 0 optimizer steps, 0 training/example/target
-  tokens; configuration command completed in 0.86 wall-clock seconds
+  tokens; configuration command completed in 1.1 wall-clock seconds
 - Metrics: `N/A — no training, validation, or evaluation`
 - System metrics: `N/A — only Hydra configuration composition ran`
 - W&B IDs: `N/A — W&B disabled and no launch occurred`
