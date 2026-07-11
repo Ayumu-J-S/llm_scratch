@@ -1,13 +1,13 @@
 # MODEL-001 - Conventional Baseline Invariants
 
-- PR: [#14](https://github.com/Ayumu-J-S/llm_scratch/pull/14) (draft)
+- PR: [#14](https://github.com/Ayumu-J-S/llm_scratch/pull/14) (ready for human review)
 - Branch: `codex/model-001-baseline-invariants`
 - Ticket: `MODEL-001`
 - Hypothesis: a compact invariant suite and bounded overfit proof can make the
   current conventional decoder-only Transformer a trustworthy reference without
   redesigning the architecture.
 - Started: 2026-07-11T18:54:00Z
-- Final verdict: in progress
+- Final verdict: PASS WITH NOTE
 - Final record owner: primary task; exact runtime identity not exposed
 
 ## Scope and decision context
@@ -55,21 +55,30 @@
 | 0 | handoff | not exposed by runtime | not exposed by runtime | baseline plus ticket/philosophy/CHECK/model context | Requested Sol / Ultra plan for a bounded implementation and evidence contract | completed | Froze architecture; defined metadata-only input validation, single-authority padding semantics, exact invariant suite, fixed overfit gate, parameter oracle, and R1/R2 evidence | Planner handoff retained in primary task; no repository mutation |
 | 1 | implementation | not exposed by runtime | not exposed by runtime (requested Luna / Extra High) | `a186aa6ffa954c38bc88ca891bae34394f494737`, accepted predeclared contract | Implement the smallest invariant suite and required direct model fixes; run CPU validation and R1 | completed | Added metadata-only input validation, constructor PAD validation, inferred padding with an all-pad-safe tensor sentinel, zero padded-query hidden states/logits, and one bounded invariant test module; architecture math is unchanged | 20 focused tests; 59 passed/3 opt-in network skips full suite; fixed overfit CE 3.028204918 -> 0.002615080 in 30 updates; R1 retained below |
 | 1 | repair | not exposed by runtime | not exposed by runtime (requested Luna / Extra High) | uncommitted implementation plus primary precommit audit | Complete exact accepted-plan assertions omitted by the first test pass without changing model code | completed | Switched shape evidence to the fixed 4x6 batch; strengthened causal suffix, nonzero-gradient, padded-objective/PAD-gradient, parameter utility, and external-mask-authority assertions | 20 focused tests; 59 passed/3 opt-in network skips; model implementation unchanged |
-| 1 | review | pending | requested heavier / Extra Thinking | pending stable implementation commit | Independent `/review` against acceptance, philosophy, and applicable CHECK | pending | No verdict claimed; implementation evidence is not a review substitute | pending |
+| 1 | review | not exposed by runtime | not exposed by runtime | `83315a6f10134f5745dc51a738a1e7a93d1b4a2d` | Independent `/review` against acceptance, philosophy, and applicable CHECK | PASS WITH NOTE | No acceptance or integrity blockers; independently reproduced all invariants, exact overfit trajectory, counts, quality checks, and R1. CUDA R2 remains blocked by ENV-001; per-parameter nonzero-gradient assertion is a non-blocking strengthening note | 20 focused; 59 passed/3 skips; independent R1 median 0.191837724 s and 450,328 KiB RSS |
 
 ## Check selection and verdicts
 
 ### Review cycle 1
 
-- Review model / mode: pending
-- Commit reviewed: pending
+- Review model / mode: not exposed by runtime / not exposed by runtime
+- Commit reviewed: `83315a6f10134f5745dc51a738a1e7a93d1b4a2d`
 - Selected `CHECK.md` sections: 5.2, 6.1, 6.2, 7, and 11 MODEL-001
-- Major sections marked N/A and why: pending review
-- Ticket acceptance result: pending
-- Philosophy alignment: pending
-- Complexity / change-surface result: pending
-- ML-system result: pending
-- Verdict: pending
+- Major sections marked N/A and why: CUDA/BF16 efficiency and long GPU pilots are
+  blocked by ENV-001 because this runtime is PyTorch 2.10.0+cpu; data, trainer,
+  checkpoint, and W&B sections are unchanged by this focused model ticket.
+- Ticket acceptance result: PASS; shape/context, causal prefix, finite loss and
+  gradients, clear invalid input/PAD failures, exact counts, padding semantics,
+  and the predeclared overfit gate all pass.
+- Philosophy alignment: PASS; the change protects the conventional model without
+  architecture novelty and preserves visible, bounded evidence.
+- Complexity / change-surface result: PASS; one model file, one test module, and
+  provenance docs changed; no sibling-ticket behavior was imported.
+- ML-system result: PASS WITH NOTE; CPU invariants and R1 pass. CUDA/BF16 R2 is
+  honestly deferred to ENV-001, and the committed test asserts collective
+  nonzero gradient activity rather than the stronger per-parameter property
+  independently observed during review.
+- Verdict: PASS WITH NOTE
 
 #### Findings
 
@@ -78,11 +87,13 @@
 
 ## Failed-review handoff
 
-N/A - review pending.
+N/A - the first independent review passed with notes.
 
 ## Repair result
 
-N/A - review pending.
+- Primary precommit audit found six accepted-plan assertions missing from the
+  first test draft. The implementation agent strengthened those assertions
+  without changing model code; the independent review then passed.
 
 ## Final evidence
 
@@ -122,21 +133,23 @@ N/A - review pending.
   conclusion.
 - Unresolved risks: CUDA/DGX validation depends on ENV-001 and must not be
   fabricated: this runtime exposes PyTorch 2.10.0+cpu and
-  `torch.cuda.is_available() == False`, so R2 is blocked on ENV-001. Independent
-  heavy review remains pending; no PASS verdict is claimed.
-- Human decision requested: review only after independent model verdict; a human
-  remains the sole merge authority.
+  `torch.cuda.is_available() == False`, so R2 is blocked on ENV-001. The durable
+  gradient test proves all gradients finite and collective nonzero activity;
+  independent review additionally observed nonzero activity in every parameter
+  tensor, but that stronger assertion is only a note.
+- Human decision requested: review and merge if the evidence is acceptable; a
+  human remains the sole merge authority.
 
 ## Model assessment from this ticket
 
 | Model / mode | Role | What it handled well | What it missed or made worse | Context that helped | Outcome |
 | --- | --- | --- | --- | --- | --- |
-| not exposed by runtime / not exposed by runtime (requested Luna / Extra High) | implementation and precommit repair | Kept the change to one model and one invariant test module; satisfied the predeclared causal, numerical, padding, parameter, and overfit checks | The first test pass omitted several exact accepted-plan assertions and the initial standalone R1 probe omitted `PYTHONPATH=src`; both were corrected before the stable implementation commit | Frozen parameter oracle, exact overfit gate, primary precommit audit, single padding authority, and explicit architecture exclusions | completed; review pending |
+| not exposed by runtime / not exposed by runtime (requested Luna / Extra High) | implementation and precommit repair | Kept the change to one model and one invariant test module; satisfied the predeclared causal, numerical, padding, parameter, and overfit checks | The first test pass omitted several exact accepted-plan assertions and the initial standalone R1 probe omitted `PYTHONPATH=src`; both were corrected before the stable implementation commit | Frozen parameter oracle, exact overfit gate, primary precommit audit, single padding authority, and explicit architecture exclusions | completed; independent review PASS WITH NOTE |
+| not exposed by runtime / not exposed by runtime | independent review | Reproduced all ticket invariants, exact overfit trajectory, parameter identities, quality checks, and an independent R1; checked the hot path for host synchronization | CUDA/BF16 could not be reviewed on the CPU-only runtime; identified a non-blocking stronger per-parameter gradient assertion | Stable commit, predeclared contract, failed-attempt record, and adversarial padding cases | PASS WITH NOTE |
 
 ## Ledger update
 
 - [x] Added the PR/ticket row to `docs/model-runs/README.md`.
-- [x] Updated per-model attempt, pass, repair, and review counts for the
-  completed implementation phase; review counts remain zero while `/review` is
-  pending.
-- [ ] Confirmed that the PR execution trail matches this record.
+- [x] Updated per-model attempt, pass, repair, and review counts.
+- [x] Confirmed that the PR execution trail matches this record after the final
+  documentation commit.
