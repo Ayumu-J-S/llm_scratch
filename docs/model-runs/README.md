@@ -13,6 +13,7 @@ PR URL cannot be created.
 
 | Record | Ticket | PR | Initial implementation model / mode | First review model / mode | Repair cycles | Final verdict | Main failure tags |
 | --- | --- | --- | --- | --- | ---: | --- | --- |
+| [DATA-001 causal boundaries](DATA-001-causal-boundaries.md) | DATA-001 | draft pending | pending | pending | 0 | in progress | ml-semantics, token-accounting, boundary-policy |
 
 Use short, stable values in `Main failure tags` so results can be aggregated,
 for example `data-starvation`, `cuda-fallback`, `ml-semantics`,
