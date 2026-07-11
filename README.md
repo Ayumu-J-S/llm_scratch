@@ -89,6 +89,11 @@ uv run python src/train.py training.scheduler.enabled=true training.scheduler._t
 ```
 
 ## Project files
+- `ROADMAP.md`: dependency-ordered engineering and research tickets
+- `PHILOSOPHY.md`: project decision policy and research principles
+- `CHECK.md`: selective post-implementation ML-system review catalog
+- `docs/agent-model-workflow.md`: required implementation, heavy-review, repair, and handoff flow
+- `docs/model-runs/`: per-PR model execution records and aggregate model outcomes
 - `src/train.py`: Hydra-based decoder-only training script that loads a saved tokenizer
 - `src/training/trainer.py`: decoder-only trainer loop, validation, checkpointing, and W&B logging
 - `src/train_tokenizer.py`: Hydra-based tokenizer training script
