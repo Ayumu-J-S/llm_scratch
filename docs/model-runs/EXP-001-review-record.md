@@ -51,7 +51,9 @@ reported exactly as unavailable rather than inferred.
 | 3 | repair | not exposed by runtime | not exposed by runtime | Replacement delegate's working-tree diff | Reconcile interrupted edits and validate exact evidence | completed locally; review pending | Matched record basename to branch slug, replaced illustrative config with actual Hydra composition output, and passed R0 field coverage | `uv run python src/train.py --cfg job ...`; `git diff --check`; `uv lock --check`; field scan |
 | 3 | re-review | not exposed by runtime | not exposed by runtime | `f0faf8466189cb8dd8fecdfca431e3de2bcbcee5` | Independent heavy review against philosophy, ticket, and selected checks | FAIL | The fixture called its Hydra YAML fully resolved while retaining `${training.epochs}`; the model-run record also named a stale re-review target SHA | Reviewer findings received 2026-07-11; exact failed-review handoff below |
 | 4 | repair | not exposed by runtime | not exposed by runtime | Failed-review findings against `f0faf8466189cb8dd8fecdfca431e3de2bcbcee5` | Narrow Luna/Extra High repair requested: recapture resolved Hydra evidence, validate interpolation absence, and correct the re-review target | completed in `df1acf62a05266cfd8f80bd86c96d932d1d6c67e`; re-review pending | Ran the exact `--resolve` command, captured `T_max: 1`, added semantic no-interpolation validation, and replaced the stale target | Command exit 0; resolved-block validation exit 0; `git diff --check` |
-| 4 | re-review | pending | pending | repair commit `df1acf62a05266cfd8f80bd86c96d932d1d6c67e` plus the current metadata-only branch head | Independent heavy re-review of the exact failed findings | pending | No passing re-review has run and no verdict is claimed | pending |
+| 4 | re-review | not exposed by runtime | not exposed by runtime | repair commit `df1acf62a05266cfd8f80bd86c96d932d1d6c67e` and metadata head `46bd85837b211eeeb9632980ecfb12a09d1372ce` | Independent heavy re-review of the exact failed findings and full R0 acceptance | FAIL | Original resolved-config and SHA defects passed, but the live draft PR body still contained the pre-repair command, SHA, and execution trail | Reviewer findings received 2026-07-11; PR body inspection |
+| 5 | repair | not exposed by runtime | not exposed by runtime | Failed live-handoff finding against PR #10 and `46bd85837b211eeeb9632980ecfb12a09d1372ce` | Update committed provenance and replace the live PR body after the final metadata commit | in progress | Recorded the second FAIL; final live body update must include both FAIL/repair cycles and the exact new head | This record and pending GitHub PR update |
+| 5 | re-review | pending | pending | future metadata head plus updated PR #10 body | Independent heavy re-review of local records and live handoff parity | pending | No passing re-review has run and no verdict is claimed | pending |
 
 Allowed outcome interpretation: the two blocked attempts are not reviews
 performed and are not passing reviews. The pending row is a handoff marker, not
@@ -95,6 +97,23 @@ a model invocation.
 | major | reproducibility | The experiment fixture described its Hydra YAML as fully resolved, but `T_max` remained `${training.epochs}` | `docs/experiments/EXP-001-review-record.md` Attempt 1 | Run the exact command with `--resolve`, replace the block with its exact output including `T_max: 1`, and validate that the captured resolved block contains no interpolation |
 | major | review trace | The recorded next-review target named a stale commit SHA | Previous Repair result entry | Point the next review at the future repaired commit, leaving it pending until that commit exists |
 
+### Review cycle 3 — returned FAIL
+
+- Review model / mode: not exposed by runtime / not exposed by runtime
+- Commit reviewed: `46bd85837b211eeeb9632980ecfb12a09d1372ce`
+- Repair commit verified: `df1acf62a05266cfd8f80bd86c96d932d1d6c67e`
+- Selected `CHECK.md` sections: 1, 7, 8.1, 8.3, and 11 EXP-001
+- Ticket acceptance result: local contract criteria passed; live branch-to-PR
+  handoff failed
+- Verdict: `FAIL`; PR #10's body remained stale even though comments and local
+  records contained the repair
+
+#### Findings
+
+| Severity | Area | What was wrong | Evidence | Required action |
+| --- | --- | --- | --- | --- |
+| major | live PR handoff | PR #10 body still named the command without `--resolve`, reviewed SHA `fd2f098a`, a cycle-3 pending review, and omitted the returned FAIL/repair | Live draft PR body inspected against `46bd85837b211eeeb9632980ecfb12a09d1372ce` | Replace the body after the final metadata commit with the exact resolved command, both FAIL cycles, repair SHA, final head, validation, and pending re-review state |
+
 ## Failed-review handoff
 
 - Failed verdict: `FAIL` against
@@ -113,6 +132,21 @@ a model invocation.
   claim `PASS`; do not commit or push; retain the earlier blocked attempts.
 - Required re-review: independently verify the repaired resolved block and
   review trace on the future repaired commit before ticket completion.
+
+### Failed-review handoff — cycle 3
+
+- Failed verdict: `FAIL` against the live handoff at
+  `46bd85837b211eeeb9632980ecfb12a09d1372ce`.
+- Exact repair scope: update this record and ledger, push the metadata commit,
+  then replace PR #10's body so its command, commits, execution timeline,
+  validation, and verdict state match the repository records.
+- Deliberate model selection: this is a bounded metadata synchronization repair;
+  the current agent is used to avoid handing credentials/state to another
+  execution path. Exact model identity and mode are not exposed by runtime.
+- Constraints: preserve both FAIL findings, keep the PR draft, claim no passing
+  verdict, and do not alter runtime code or `ROADMAP.md`.
+- Completion evidence: live PR body and final branch head agree, followed by an
+  independent re-review.
 
 ## Repair result
 
@@ -134,6 +168,18 @@ a model invocation.
   `df1acf62a05266cfd8f80bd86c96d932d1d6c67e` plus the current metadata-only branch head
 - Re-review model / mode: pending / pending
 - Re-review verdict: pending; no passing verdict claimed
+
+## Repair result — cycle 5 live handoff
+
+- Repair model / mode: not exposed by runtime / not exposed by runtime
+- Input handoff: review-cycle-3 live-PR mismatch finding
+- Changes made: record the failed review and replace PR #10's body after this
+  metadata commit is pushed
+- Deliberately not changed: experiment contract, runtime code, Hydra config,
+  `ROADMAP.md`, or the already-validated resolved config
+- Local evidence: pending final commit and GitHub update
+- Re-review target: pending final metadata head plus live PR #10 body
+- Re-review verdict: pending
 
 ## Final evidence
 
@@ -168,5 +214,5 @@ hidden and the independent review attempts were blocked.
 - [x] Added the PR/ticket row to `docs/model-runs/README.md`.
 - [x] Updated applicable attempt counts without counting blocked reviews as
   performed or successful.
-- [x] Confirmed the draft PR execution trail matches this record; final review
-  fields remain pending.
+- [ ] Reconfirm the draft PR body matches this record after the cycle-5 metadata
+  commit and live GitHub update.
