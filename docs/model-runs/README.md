@@ -13,7 +13,7 @@ PR URL cannot be created.
 
 | Record | Ticket | PR | Initial implementation model / mode | First review model / mode | Repair cycles | Final verdict | Main failure tags |
 | --- | --- | --- | --- | --- | ---: | --- | --- |
-| [MODEL-001 baseline invariants](MODEL-001-baseline-invariants.md) | MODEL-001 | [#14](https://github.com/Ayumu-J-S/llm_scratch/pull/14) | pending | pending | 0 | in progress | pending |
+| [MODEL-001 baseline invariants](MODEL-001-baseline-invariants.md) | MODEL-001 | [#14](https://github.com/Ayumu-J-S/llm_scratch/pull/14) | not exposed by runtime / not exposed by runtime | pending | 1 | in progress | accepted-plan-coverage |
 
 Use short, stable values in `Main failure tags` so results can be aggregated,
 for example `data-starvation`, `cuda-fallback`, `ml-semantics`,
@@ -27,6 +27,7 @@ there are enough observations for meaningful rates.
 
 | Exact model / mode | Implementation attempts | First-review passes | Repair attempts | Successful repairs | Reviews performed | Important strengths observed | Recurring failure modes | Last updated |
 | --- | ---: | ---: | ---: | ---: | ---: | --- | --- | --- |
+| not exposed by runtime / not exposed by runtime | 1 | 0 | 1 | 0 | 0 | Bounded MODEL-001 change passed the predeclared invariant and CPU evidence gates | First test pass omitted exact accepted-plan assertions; standalone probe initially omitted repository import path | 2026-07-11 |
 
 ### Counting rules
 
