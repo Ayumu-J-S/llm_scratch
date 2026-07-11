@@ -38,51 +38,119 @@
 | 0 | handoff (planning attempt 1) | not exposed by runtime | not exposed by runtime | `e0705b0`, full parent context, DATA-002/philosophy/CHECK/current data paths | Requested `gpt-5.6-sol` / Ultra plan | interrupted | Produced no handoff after repeated finalize requests; stopped to avoid blocking the roadmap | collaboration attempt retained in parent task |
 | 0 | handoff (planning attempt 2) | not exposed by runtime | not exposed by runtime | `e0705b0`, clean minimal context, same bounded request | Retry requested `gpt-5.6-sol` / Ultra plan | interrupted | Produced no handoff after repeated finalize requests; stopped without repository changes | collaboration attempt retained in parent task |
 | 0 | handoff (planning attempt 3) | not exposed by runtime | not exposed by runtime | `e0705b0`, DATA-002/philosophy/CHECK, loader/cache/config/tests | Requested `gpt-5.6-sol` / Ultra plan with immediate bounded output | completed | Defined strict manifest/index schema, stable text identity, content-based deterministic split, preflight/hot-path separation, overlap/smoke/benchmark guards, source rules, modular merge seams, R1 evidence, and exact tests | planner handoff in parent task |
-| 1 | implementation | pending | pending | accepted plan and live draft PR | Self-contained manifest/split implementation | pending | No implementation outcome claimed | pending |
-| 1 | review | pending | pending | pending implementation commit | Independent DATA-002 `/review` | pending | No verdict claimed | pending |
+| 1 | implementation | not exposed by runtime | not exposed by runtime | `be6470e`, accepted plan and live draft PR | Requested Luna / Extra High or maximum; bounded identity/manifest/split contract, fixture builder, one loader seam, tests, and R1 evidence | completed | Added strict canonical schemas/fingerprints, bounded Unicode identity, stable IDs, deterministic content-hash splits, purpose/benchmark guards, checksum-validating preflight, immutable resolved documents, manifest loader integration, and committed bilingual/smoke/benchmark fixtures | 57 passed, 3 explicit network integration skips; initial checks passed, but the precommit audit below found blocking authority/lifecycle/integration defects |
+| 1 | precommit audit | not exposed by runtime | not exposed by runtime | uncommitted initial implementation | Review acceptance, philosophy, and applicable CHECK sections before implementation commit | FAIL | Hydra fields could grant reserved benchmark access; the PyTorch dataset repeated preflight each epoch; train/validation loaders lacked a cross-source overlap check; a purpose string authorized mutable local text; package paths could escape; URL cache identity/concurrency was not process-safe | Exact reproductions and repair handoff below |
+| 2 | repair | not exposed by runtime | not exposed by runtime | uncommitted FAIL handoff and complete repository context | Close all six audit blockers and add exact regressions | completed | Training hardcodes benchmark denial; resolved manifests live on the dataset; cross-loader ID/content overlap fails before preview/model; default smoke is pinned; package paths fail closed; URL+SHA cache uses per-key Linux locks and preserves other-process temporaries | 62 passed, 3 explicit network skips; six exact repair regressions pass; Ruff/format/lock/diff/Hydra pass |
+| 2 | re-review | pending | pending | pending repair commit | Independent DATA-002 `/review` | pending | No passing verdict claimed | pending |
 
 ## Check selection and verdicts
 
 ### Review cycle 1
 
-- Review model / mode: pending
-- Commit reviewed: pending
+- Review model / mode: not exposed by runtime / not exposed by runtime
+- Commit reviewed: uncommitted precommit implementation
 - Selected `CHECK.md` sections: 1, 4.1, 4.4, 7, 8.2, and 11 DATA-002
-- Major sections marked N/A and why: pending plan/review
-- Ticket acceptance result: pending
-- Philosophy alignment: pending
-- Complexity / change-surface result: pending
-- ML-system result: pending
-- Verdict: pending
+- Major sections marked N/A and why: GPU/model/optimizer/checkpoint sections; this
+  ticket changes data identity and startup/loader behavior only.
+- Ticket acceptance result: FAIL before repair.
+- Philosophy alignment: FAIL; config-controlled reserved benchmark access and
+  mutable same-corpus authority violated research-integrity boundaries.
+- Complexity / change-surface result: FAIL; identity was correct in isolation
+  but not enforced at the actual dataset/training/cache lifecycle seams.
+- ML-system result: FAIL; repeated epoch hashing and absent cross-loader overlap
+  validation made the claimed runtime invariant false.
+- Verdict: FAIL
 
 #### Findings
 
 | Severity | Area | What was wrong or good | Evidence | Required action |
 | --- | --- | --- | --- | --- |
+| P0 | benchmark authority | `StreamLoader` trusted Hydra `access` and `allow_reserved_benchmark`, allowing reserved text into the training loader | reserved fixture loaded when both fields were set | hardcode training access and reject authority fields |
+| P0 | split isolation | independently valid train/validation loaders could select the same membership | no union-level ID/content comparison existed | validate all resolved train sources against all validation sources before preview/model |
+| P1 | lifecycle | `StreamingTokenDataset.__iter__` constructed and preflighted a new loader every epoch | normalized-content hashing repeated on each traversal | retain immutable resolved manifests on dataset construction and inject them into iterators |
+| P0 | smoke authority | a user-set purpose string authorized arbitrary mutable `data/inputLearnText.txt` | local-text path bypassed manifest identity | replace the mode with the pinned memorization manifest |
+| P1 | package paths | absolute and traversal source/index/artifact paths were accepted | schema path strings were resolved without containment | require package-relative contained paths in loader and builder |
+| P1 | cache integrity | URL-only keying, eager temp cleanup, and in-process coordination did not protect concurrent processes | same URL could alias content identities; a new process could delete another process's temp | key by URL+SHA, preserve foreign temporaries, and add a per-key Linux file lock |
 
 ## Failed-review handoff
 
-`N/A — review pending.`
+Repair the six findings above without expanding into DATA-003/DATA-004. Preserve
+the strict manifest core, add exact exploit/lifecycle regressions, and rerun the
+full evidence suite before requesting independent re-review.
 
 ## Repair result
 
-`N/A — implementation/review pending.`
+All six findings were repaired in cycle 2. Focused regressions reproduce the old
+benchmark bypass, two-epoch hash repetition, same-selection overlap, mutable
+smoke authority, path escape, and cross-process cache race; all now fail closed
+or exhibit the required one-time behavior. Independent re-review remains
+pending, so no PASS is claimed.
 
 ## Final evidence
 
-- Resolved Hydra command/config: pending
-- Data/tokenizer/model identity: pending
-- Validation and measurements: pending
-- Performance/resource result if applicable: pending R1 design
-- Failed attempts retained at: execution timeline
-- Known trade-offs: pending
-- Unresolved risks: pending
-- Planning blocker to resolve: the current real HF source is eligible only if
-  its exact revision exposes recordable license/terms and immutable shard
-  metadata; a 40-hex repository commit alone is not silently treated as content
-  checksum evidence.
+- Resolved Hydra command/config: `uv run python src/train.py --cfg job
+  --resolve`; the default `data.mode: memorization_smoke` names the committed
+  manifest and fingerprint directly. Streaming uses manifest-backed, distinct
+  train/validation selections.
+- Data identity:
+  - bilingual manifest:
+    `47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19`;
+    dataset:
+    `d34675a2697a507b6ae2d499e772b1a6ded264000b619b42b94731555c335a2e`;
+    train/validation:
+    `1cf2ddecf55e08e38ab95e2bac0d1ce17ded7df6b80f4d8e9cf6864449e1fe7e` /
+    `fec55d7aa28b1250e76e79d69d6047b5cb4fa909664fbeed6f39ded132bdf347`;
+    11 train and 9 validation documents with zero ID/content-hash overlap.
+  - memorization-smoke manifest:
+    `adb4dadc6f2e37f340504c8368be44a7b0c7a73b337c34d5457f2f2629bc0256`.
+  - reserved benchmark fixture:
+    `a12e307b8c3817efe956d8d37c55edcde56f30cf695e83a9e60155ff5949eb79`.
+- Provenance: repository-authored fixtures are CC0. The intended
+  `hotchpotch/fineweb-2-edu-japanese` source records its exact commit, ODC-By
+  1.0 card license, Common Crawl terms, intended config/split, and missing
+  139-training-shard inventory blocker in
+  `data/manifests/fineweb-2-edu-japanese.blocked.md`; it is deliberately not
+  runnable, and its test shard is excluded from the intended inventory.
+- Validation: `uv run pytest -q` reported 62 passed and 3 explicit opt-in
+  external-download skips. Manifest correctness tests do not skip. Ruff checked
+  and format-checked every tracked/untracked changed Python file;
+  `uv lock --check`, `git diff --check`, and Hydra resolution passed.
+- Mutation/invariant evidence covers schema/fingerprint,
+  revision/path/artifact/index/source/split changes, exact Unicode identity,
+  duplicate ID/content, reorder, seed/prefetch membership, overlap, purpose and
+  benchmark guards, URL cache corruption, unchanged text/metadata, preflight
+  once, and existing loader/training behavior.
+- Exact repair regressions: six focused tests passed for benchmark-authority
+  denial, one preflight across two real dataset traversals, same-selection
+  cross-loader rejection, pinned smoke identity, package path containment, and
+  SHA-keyed cross-process cache locking.
+- R1 bounded fixture measurement after repair: 50 train-selection preflights
+  had 0.396 ms median (0.391-0.862 ms range) and process `ru_maxrss` 237,404
+  KiB, dominated by imported Torch/runtime. Actual `StreamingTokenDataset`
+  construction, including its sole preflight, took 0.452 ms. Thirty subsequent
+  complete traversals had 0.363 ms median (0.355-0.765 ms), 41 windows, and
+  903,574 next-token targets/s. The identity hash spy stayed at exactly 20
+  source documents after construction and after both tested epochs. These
+  tiny-fixture results make no real-data, GPU, or DGX performance claim.
+- Failed attempt: the first builder command failed with
+  `ModuleNotFoundError: data`; the repository is not installed as a package.
+  The documented `PYTHONPATH=src` command and rerun succeeded.
+- Trade-off: local/URL JSONL documents are materialized after one preflight so
+  the hot path never rehashes or resplits. This bounded adapter is not the final
+  large-corpus source path. HF manifests are identity-validatable but fail at
+  runtime until DATA-004 adds the full inventory and bounded adapter.
+- Cache boundary: manifested URL entries are keyed by URL plus expected SHA-256
+  and installed atomically under a per-key Linux file lock. The repair does not
+  claim global cross-key cache-capacity serialization.
+- Merge seam: `src/data/stream_loader/loader.py`, the two Hydra configs, and
+  `src/train.py` overlap unmerged DATA-001/TOK-001 siblings; the portable core
+  is isolated in `src/data/{identity,manifests,splits}.py`.
+- Unresolved risks: no R2/DGX, default end-to-end train run (the tokenizer
+  artifact is absent on this branch), or consequential real-source run; no
+  throughput claim. Legacy direct sources remain usable for tests, while real
+  configs set `require_manifests: true` and reject them.
 - Human decision requested: review/merge only after independent verdict; model
-  review is not merge authority
+  review is not merge authority.
 
 ## Model assessment from this ticket
 
@@ -90,9 +158,12 @@
 | --- | --- | --- | --- | --- | --- |
 | not exposed by runtime / not exposed by runtime | planning attempts 1-2 | No observable planning output | Both attempts remained active without returning a handoff and were deliberately interrupted | Repeated explicit finalize requests | failed operationally; no repository mutation |
 | not exposed by runtime / not exposed by runtime | planning attempt 3 | Produced an exact schema, source rules, deterministic content-based split, preflight/runtime boundary, modular integration plan, tests, and R1 review contract | Requested Sol/Ultra identity and mode were unavailable; real HF shard evidence remains to be verified during implementation | Minimal bounded context and explicit current-main merge constraint | plan accepted for implementation |
+| not exposed by runtime / not exposed by runtime | initial implementation | Implemented the bounded stdlib core, fail-closed source identity, one loader seam, committed fixtures, mutation/invariance tests, and honest R1 evidence without taking later tickets | Requested Luna/Extra High identity and mode were unavailable; first builder invocation omitted `PYTHONPATH`; large HF streaming remains blocked | Accepted planner handoff, exact acceptance tests, narrow sibling-branch seam, and verified source facts | implementation completed; independent review pending |
+| not exposed by runtime / not exposed by runtime | precommit audit and repair | Found authority, lifecycle, cross-loader, mutable-smoke, package-path, and process-cache defects that unit-level identity tests missed; repaired each with exact regressions | Runtime did not expose an independent model/mode; re-review is still required before any passing verdict | Concrete exploit reproductions and actual two-epoch dataset behavior | initial review FAIL; repair completed; re-review pending |
 
 ## Ledger update
 
 - [x] Added the PR/ticket row to `docs/model-runs/README.md`.
-- [ ] Updated per-model attempt, pass, repair, and review counts.
-- [ ] Confirmed that the PR execution trail matches this record.
+- [x] Updated implementation, failed first-review, and repair-attempt counts;
+  passing re-review counts remain pending.
+- [ ] Confirmed that the PR execution trail matches this record after the implementation commit.

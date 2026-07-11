@@ -1,0 +1,19 @@
+{
+  "documents": [
+    {
+      "content_sha256": "bb52efe67c6c9b47e94948a261ec81721d32ef835dabcf280ccaf194178d8919",
+      "document_id": "a7262bdcf411216d2864f5b748aa030e82b2cf27ea50d43c350fe291e7e0b1f1",
+      "source_index": 0,
+      "split": "validation",
+      "upstream_id": "smoke-ja"
+    },
+    {
+      "content_sha256": "0f189322516984e544c820212b8179d321e0183edd46efe124a1ff2256a22bed",
+      "document_id": "33e92d1c3223a69a078a733a382d8d460694201617b416b2949c257badd7ec9f",
+      "source_index": 1,
+      "split": "validation",
+      "upstream_id": "smoke-en"
+    }
+  ],
+  "schema_version": 1
+}

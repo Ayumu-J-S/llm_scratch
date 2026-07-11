@@ -8,11 +8,13 @@ max_tokens: 5000000000
 sequence_length: 4096
 add_eos: true
 preserve_metadata: true
+require_manifests: true
 seed: 42
 
 prefetch:
   enabled: true
   buffer_size: 16
+  mode: thread
 
 retry:
   max_attempts: 5
@@ -25,11 +27,9 @@ cache:
   max_size_bytes: 750000000000
 
 datasets:
-  - name: japanese_educational_text
-    type: hf
-    path: hotchpotch/fineweb-2-edu-japanese
-    revision: 180ca004c6a89b590daaad86cb062a07a5353c69
-    config_name: sample_10BT
-    split: train
-    text_field: text
+  - name: bilingual_fixture_train
+    type: manifest
+    manifest_path: tests/fixtures/data_manifests/bilingual.manifest.json
+    expected_fingerprint: 47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19
+    selection: train
     ratio: 1.0

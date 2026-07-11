@@ -15,11 +15,15 @@ It prints the trainer batch contract: `inputs`, `labels`, their shapes, and a sh
 
 ## Training Usage
 
-The default training config still uses the small local text path for quick memorization checks:
+The default training config uses the pinned memorization manifest for a quick
+same-corpus check:
 
 ```yaml
 data:
-  mode: local_text
+  mode: memorization_smoke
+  memorization:
+    manifest_path: tests/fixtures/data_manifests/memorization.manifest.json
+    expected_fingerprint: adb4dadc6f2e37f340504c8368be44a7b0c7a73b337c34d5457f2f2629bc0256
 ```
 
 Switch to the streaming path when you want to train from larger sources without materializing the full corpus locally:
@@ -51,7 +55,9 @@ with StreamLoader(cfg) as loader:
         break
 ```
 
-For programmatic tests or small local experiments, pass an in-memory config:
+For programmatic tests or small local experiments, pass an in-memory config.
+Memory and arbitrary iterable sources are fixtures only; they are rejected when
+`require_manifests: true`:
 
 ```python
 from data.stream_loader import StreamLoader
@@ -108,28 +114,29 @@ max_tokens: 5000000000
 sequence_length: 4096
 add_eos: true
 preserve_metadata: true
+require_manifests: true
 seed: 42
 
 prefetch:
   enabled: true
   buffer_size: 16
+  mode: thread
 
 cache:
   dir: data/stream_loader_cache
   max_size_bytes: 750000000000
 
 datasets:
-  - name: japanese_educational_text
-    type: hf
-    path: hotchpotch/fineweb-2-edu-japanese
-    revision: 180ca004c6a89b590daaad86cb062a07a5353c69
-    config_name: sample_10BT
-    split: train
-    text_field: text
+  - name: bilingual_fixture_train
+    type: manifest
+    manifest_path: tests/fixtures/data_manifests/bilingual.manifest.json
+    expected_fingerprint: 47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19
+    selection: train
     ratio: 1.0
 ```
 
-Use `config/stream_loader.yaml` for dataloader/tokenizer/debug work on the `sample_10BT` subset.
+Use `config/stream_loader.yaml` for offline dataloader/tokenizer/debug work on
+the small bilingual fixture.
 
 Required top-level fields:
 
@@ -147,6 +154,39 @@ Common optional fields:
 - `seed`: deterministic source sampling seed.
 - `prefetch.enabled`: load samples in a background worker.
 
+## Manifest Sources
+
+```yaml
+- name: corpus_train
+  type: manifest
+  manifest_path: data/manifests/corpus.manifest.json
+  expected_fingerprint: <64 lowercase hex characters>
+  selection: train
+  ratio: 1.0
+```
+
+Preflight verifies the manifest and index schemas/fingerprints, local or cached
+source checksum and size, every stable document ID and normalized-content hash,
+and the content-derived split. Resolved document metadata is retained in memory
+and no identity hashing or split assignment occurs in the per-epoch sample
+path. Manifest sources use synchronous or thread prefetch; process prefetch is
+rejected so it cannot silently repeat preflight in a child process.
+The PyTorch streaming dataset retains the immutable resolved manifests, so
+constructing a new iterator for another epoch does not reopen, rehash, or
+resplit the source.
+
+Source, index, and HF artifact paths are package-relative and cannot be
+absolute, traverse above the manifest directory, or escape through symlinks.
+URL cache entries are keyed by URL plus expected SHA-256 and use a per-key Linux
+file lock around download and atomic installation.
+
+`pretraining` permits only disjoint `train` and `validation` selections.
+Same-corpus selection requires a manifest whose purpose is explicitly
+`memorization_smoke`. Benchmark manifests are evaluation-only, and reserved
+benchmark data requires a separate explicit evaluation grant.
+Training loader Hydra fields cannot grant benchmark access; evaluation authority
+exists only in the code-level preflight API.
+
 ## Tokenizers
 
 Supported tokenizer config kinds:
@@ -159,7 +199,7 @@ You can pass an already constructed tokenizer object instead of a tokenizer mapp
 
 ## Source Types
 
-`memory`
+`memory` (fixture only)
 
 ```yaml
 - name: smoke
@@ -169,7 +209,7 @@ You can pass an already constructed tokenizer object instead of a tokenizer mapp
     - text: hello world
 ```
 
-`iterable`
+`iterable` (fixture only)
 
 Use this from Python by passing an iterable or callable under `iterable`.
 

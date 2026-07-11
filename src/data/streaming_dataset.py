@@ -9,6 +9,7 @@ from omegaconf import DictConfig, OmegaConf
 from torch.utils.data import DataLoader, IterableDataset
 
 from data.stream_loader import StreamLoader
+from data.stream_loader.loader import preflight_stream_manifests
 
 
 class StreamingTokenDataset(IterableDataset):
@@ -25,9 +26,14 @@ class StreamingTokenDataset(IterableDataset):
         self.window_length = self.sequence_length + 1
         self.config = _stream_loader_config(config, window_length=self.window_length)
         self.tokenizer = tokenizer
+        self.resolved_manifests = preflight_stream_manifests(self.config)
 
     def __iter__(self):
-        with StreamLoader(self.config, tokenizer=self.tokenizer) as loader:
+        with StreamLoader(
+            self.config,
+            tokenizer=self.tokenizer,
+            resolved_manifests=self.resolved_manifests,
+        ) as loader:
             for sample in loader:
                 input_ids = torch.as_tensor(sample["input_ids"], dtype=torch.long)
                 if input_ids.numel() != self.window_length:

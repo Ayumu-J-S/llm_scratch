@@ -16,6 +16,8 @@ from typing import Any, Iterable, Iterator, Mapping
 import numpy as np
 
 from data.stream_loader.cache import BoundedShardCache, RetryPolicy, download_url_to_path
+from data.manifests import ResolvedManifest, preflight_manifest
+from data.splits import DataPurpose
 
 
 OUTPUT_MODES = {"raw_text", "bytes", "tokenized_docs", "packed_sequences"}
@@ -106,6 +108,18 @@ class IterableTextSource:
                 metadata_fields=self.metadata_fields,
                 max_text_chars=self.max_text_chars,
                 fallback_index=index,
+            )
+
+
+class ManifestTextSource:
+    def __init__(self, manifest: ResolvedManifest) -> None:
+        self.manifest = manifest
+
+    def __iter__(self) -> Iterator[RawDocument]:
+        for document in self.manifest.documents:
+            yield RawDocument(
+                text=document.text,
+                metadata=document.metadata(self.manifest),
             )
 
 
@@ -227,6 +241,7 @@ class StreamLoader:
         self,
         config: Mapping[str, Any],
         tokenizer: Any | Mapping[str, Any] | None = None,
+        resolved_manifests: Mapping[str, ResolvedManifest] | None = None,
     ) -> None:
         self.config = dict(config)
         self.output_mode = self.config.get("output_mode", "raw_text")
@@ -249,11 +264,6 @@ class StreamLoader:
         self.preserve_metadata = bool(self.config.get("preserve_metadata", False))
         self.shutdown_timeout_seconds = float(self.config.get("shutdown_timeout_seconds", 5.0))
 
-        tokenizer_config = tokenizer if tokenizer is not None else self.config.get("tokenizer")
-        self.tokenizer = _load_tokenizer(tokenizer_config)
-        if self.add_eos and self.tokenizer.eos_token_id is None:
-            raise ValueError("add_eos requires tokenizer.eos_token_id")
-
         retry_config = self.config.get("retry", {})
         self.retry_policy = RetryPolicy(
             max_attempts=int(retry_config.get("max_attempts", 3)),
@@ -274,6 +284,19 @@ class StreamLoader:
 
         self.dataset_configs = [dict(item) for item in self.config.get("datasets", [])]
         self._validate_dataset_configs()
+        if resolved_manifests is None:
+            self.resolved_manifests = _preflight_manifest_datasets(
+                self.dataset_configs,
+                cache=self.cache,
+            )
+        else:
+            self.resolved_manifests = dict(resolved_manifests)
+            _validate_resolved_manifest_inputs(self.dataset_configs, self.resolved_manifests)
+
+        tokenizer_config = tokenizer if tokenizer is not None else self.config.get("tokenizer")
+        self.tokenizer = _load_tokenizer(tokenizer_config)
+        if self.add_eos and self.tokenizer.eos_token_id is None:
+            raise ValueError("add_eos requires tokenizer.eos_token_id")
 
         prefetch_config = self.config.get("prefetch", {})
         self.prefetch_enabled = bool(prefetch_config.get("enabled", False))
@@ -284,6 +307,8 @@ class StreamLoader:
         self.prefetch_mode = str(prefetch_config.get("mode", default_prefetch_mode))
         if self.prefetch_mode not in {"thread", "process"}:
             raise ValueError("prefetch.mode must be 'thread' or 'process'")
+        if self.prefetch_mode == "process" and self.resolved_manifests:
+            raise ValueError("manifest sources are preflighted once and require thread prefetch")
         if (
             self.prefetch_enabled
             and self.prefetch_mode == "thread"
@@ -619,6 +644,8 @@ class StreamLoader:
             return UrlJsonlTextSource(dataset, cache=self.cache, retry_policy=self.retry_policy)
         if source_type == "hf":
             return HuggingFaceTextSource(dataset, cache_dir=self.cache_dir)
+        if source_type == "manifest":
+            return ManifestTextSource(self.resolved_manifests[dataset["name"]])
         raise ValueError(f"Unsupported dataset source type: {source_type}")
 
     def _choose_source(
@@ -687,6 +714,23 @@ class StreamLoader:
             dataset["ratio"] = ratio
             ratios.append(ratio)
             source_type = dataset.get("type", dataset.get("source", "hf"))
+            if self.config.get("require_manifests", False) and source_type != "manifest":
+                raise ValueError("real data configs require manifest-backed datasets")
+            if source_type == "manifest":
+                forbidden = sorted(
+                    field for field in ("access", "allow_reserved_benchmark") if field in dataset
+                )
+                if forbidden:
+                    raise ValueError(
+                        "training manifest datasets cannot configure evaluation authority: "
+                        f"{forbidden}"
+                    )
+                required = {"manifest_path", "expected_fingerprint", "selection"}
+                missing = sorted(field for field in required if field not in dataset)
+                if missing:
+                    raise ValueError(
+                        f"manifest dataset {dataset['name']} is missing fields: {missing}"
+                    )
             if source_type == "hf":
                 revision = dataset.get("revision")
                 if revision is None:
@@ -700,6 +744,79 @@ class StreamLoader:
 
         if not math.isclose(sum(ratios), 1.0, rel_tol=0.0, abs_tol=1e-6):
             raise ValueError(f"dataset ratios must sum to 1.0, got {sum(ratios)}")
+
+
+def preflight_stream_manifests(config: Mapping[str, Any]) -> dict[str, ResolvedManifest]:
+    config_dict = copy.deepcopy(dict(config))
+    retry_config = config_dict.get("retry", {})
+    retry_policy = RetryPolicy(
+        max_attempts=int(retry_config.get("max_attempts", 3)),
+        initial_delay_seconds=float(retry_config.get("initial_delay_seconds", 0.25)),
+        max_delay_seconds=float(retry_config.get("max_delay_seconds", 5.0)),
+        multiplier=float(retry_config.get("multiplier", 2.0)),
+    )
+    cache_config = config_dict.get("cache", {})
+    cache = None
+    if cache_config.get("dir") is not None:
+        cache = BoundedShardCache(
+            cache_config["dir"],
+            max_size_bytes=int(cache_config.get("max_size_bytes", 1 << 30)),
+            retry_policy=retry_policy,
+        )
+    datasets = [dict(item) for item in config_dict.get("datasets", [])]
+    return _preflight_manifest_datasets(datasets, cache=cache)
+
+
+def _preflight_manifest_datasets(
+    datasets: list[dict[str, Any]],
+    *,
+    cache: BoundedShardCache | None,
+) -> dict[str, ResolvedManifest]:
+    resolved = {}
+    for dataset in datasets:
+        if dataset.get("type", dataset.get("source", "hf")) != "manifest":
+            continue
+        forbidden = sorted(
+            field for field in ("access", "allow_reserved_benchmark") if field in dataset
+        )
+        if forbidden:
+            raise ValueError(
+                f"training manifest datasets cannot configure evaluation authority: {forbidden}"
+            )
+        resolved[dataset["name"]] = preflight_manifest(
+            dataset["manifest_path"],
+            expected_fingerprint=dataset["expected_fingerprint"],
+            selection=dataset["selection"],
+            access="training",
+            allow_reserved_benchmark=False,
+            cache=cache,
+        )
+    return resolved
+
+
+def _validate_resolved_manifest_inputs(
+    datasets: list[dict[str, Any]],
+    resolved: Mapping[str, ResolvedManifest],
+) -> None:
+    expected = {
+        dataset["name"]: dataset
+        for dataset in datasets
+        if dataset.get("type", dataset.get("source", "hf")) == "manifest"
+    }
+    if set(resolved) != set(expected):
+        raise ValueError("resolved manifest names do not match configured manifest datasets")
+    for name, manifest in resolved.items():
+        dataset = expected[name]
+        if manifest.purpose in {
+            DataPurpose.BENCHMARK_DEV,
+            DataPurpose.BENCHMARK_RESERVED,
+        }:
+            raise ValueError("benchmark manifests cannot enter the training loader")
+        if (
+            manifest.manifest_fingerprint != dataset["expected_fingerprint"]
+            or manifest.selection != dataset["selection"]
+        ):
+            raise ValueError(f"resolved manifest identity does not match dataset {name!r}")
 
 
 def _record_to_document(

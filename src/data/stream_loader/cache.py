@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import fcntl
 import os
 import shutil
 import threading
@@ -59,19 +60,28 @@ class BoundedShardCache:
         self.max_size_bytes = int(max_size_bytes)
         self.retry_policy = retry_policy or RetryPolicy()
         self.cache_dir.mkdir(parents=True, exist_ok=True)
+        self.lock_dir = self.cache_dir / ".locks"
+        self.lock_dir.mkdir(exist_ok=True)
 
         self._condition = threading.Condition()
         self._active_paths: dict[Path, int] = {}
         self._downloading_keys: set[str] = set()
-        self._cleanup_incomplete_downloads()
 
     @contextmanager
     def acquire(
         self,
         key: str,
         downloader: Callable[[Path], None],
+        *,
+        expected_sha256: str | None = None,
+        expected_size_bytes: int | None = None,
     ) -> Iterator[Path]:
-        path = self._acquire_path(key=key, downloader=downloader)
+        path = self._acquire_path(
+            key=key,
+            downloader=downloader,
+            expected_sha256=expected_sha256,
+            expected_size_bytes=expected_size_bytes,
+        )
         try:
             yield path
         finally:
@@ -105,42 +115,56 @@ class BoundedShardCache:
         self,
         key: str,
         downloader: Callable[[Path], None],
+        expected_sha256: str | None = None,
+        expected_size_bytes: int | None = None,
     ) -> Path:
-        path = self._path_for_key(key)
+        identity_key = key if expected_sha256 is None else f"{key}\0sha256={expected_sha256}"
+        path = self._path_for_key(identity_key)
         while True:
             with self._condition:
                 if path.exists():
-                    self._mark_active_locked(path)
-                    return path
+                    if _matches_identity(path, expected_sha256, expected_size_bytes):
+                        self._mark_active_locked(path)
+                        return path
 
-                if key not in self._downloading_keys:
-                    self._downloading_keys.add(key)
+                if identity_key not in self._downloading_keys:
+                    self._downloading_keys.add(identity_key)
                     break
 
                 self._condition.wait()
 
         tmp_path = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
         try:
-            self.retry_policy.run(lambda: self._download_once(downloader, tmp_path))
-            downloaded_size = tmp_path.stat().st_size
-            if downloaded_size > self.max_size_bytes:
-                raise CacheSpaceError(
-                    f"Shard is larger than cache capacity: "
-                    f"{downloaded_size} > {self.max_size_bytes}"
-                )
+            with self._key_file_lock(identity_key):
+                if path.exists():
+                    if _matches_identity(path, expected_sha256, expected_size_bytes):
+                        with self._condition:
+                            self._mark_active_locked(path)
+                        return path
+                    path.unlink()
 
-            with self._condition:
-                while not self._make_space_locked(downloaded_size):
-                    self._condition.wait(timeout=0.25)
+                self.retry_policy.run(lambda: self._download_once(downloader, tmp_path))
+                downloaded_size = tmp_path.stat().st_size
+                if not _matches_identity(tmp_path, expected_sha256, expected_size_bytes):
+                    raise ValueError("downloaded cache entry failed its immutable identity")
+                if downloaded_size > self.max_size_bytes:
+                    raise CacheSpaceError(
+                        f"Shard is larger than cache capacity: "
+                        f"{downloaded_size} > {self.max_size_bytes}"
+                    )
 
-                os.replace(tmp_path, path)
-                self._mark_active_locked(path)
-                return path
+                with self._condition:
+                    while not self._make_space_locked(downloaded_size):
+                        self._condition.wait(timeout=0.25)
+
+                    os.replace(tmp_path, path)
+                    self._mark_active_locked(path)
+                    return path
         finally:
             if tmp_path.exists():
                 tmp_path.unlink()
             with self._condition:
-                self._downloading_keys.discard(key)
+                self._downloading_keys.discard(identity_key)
                 self._condition.notify_all()
 
     def _download_once(
@@ -191,10 +215,15 @@ class BoundedShardCache:
         if path.exists():
             path.touch()
 
-    def _cleanup_incomplete_downloads(self) -> None:
-        for path in self.cache_dir.iterdir():
-            if path.is_file() and path.name.startswith(".") and path.name.endswith(".tmp"):
-                path.unlink()
+    @contextmanager
+    def _key_file_lock(self, key: str) -> Iterator[None]:
+        lock_path = self.lock_dir / f"{hashlib.sha256(key.encode('utf-8')).hexdigest()}.lock"
+        with lock_path.open("a+b") as lock_file:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
 
 def download_url_to_path(
@@ -206,3 +235,19 @@ def download_url_to_path(
     with urlopen(url, timeout=timeout_seconds) as response:
         with destination.open("wb") as file:
             shutil.copyfileobj(response, file)
+
+
+def _matches_identity(
+    path: Path,
+    expected_sha256: str | None,
+    expected_size_bytes: int | None,
+) -> bool:
+    if expected_size_bytes is not None and path.stat().st_size != expected_size_bytes:
+        return False
+    if expected_sha256 is None:
+        return True
+    digest = hashlib.sha256()
+    with path.open("rb") as file:
+        for chunk in iter(lambda: file.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest() == expected_sha256
