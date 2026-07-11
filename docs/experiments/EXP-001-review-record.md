@@ -115,8 +115,9 @@ reviewable.
   ```
   The command exited successfully after printing the composed job config. The
   empty source lists are the negative result; no training command was launched.
-- Git commit SHA: `fd2f09886c83332670f3de5da924e0e818efddb5`
-- Worktree state: clean at the recorded commit
+- Git commit SHA: `f0faf8466189cb8dd8fecdfca431e3de2bcbcee5`
+- Worktree state: clean when the configuration command ran; the resolved output
+  was then committed by repair commit `df1acf62a05266cfd8f80bd86c96d932d1d6c67e`
 - Dependency lock identity: `uv.lock`, SHA-256
   `f010398f7f1520d2ba4fafa5e6b9319d1c637fbb9c8c51b9e4fb469faa641a70`
 - Container/image identity: `N/A — no process or container was launched`

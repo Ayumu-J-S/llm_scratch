@@ -50,8 +50,8 @@ reported exactly as unavailable rather than inferred.
 | 3 | implementation | not exposed by runtime | not exposed by runtime | `a05eb1d` plus exact patch request | Replacement delegated implementation | implemented; interrupted before handoff | Added experiment guidance/template/fixture, PR fields, cross-links, and ledger entry | Current branch diff |
 | 3 | repair | not exposed by runtime | not exposed by runtime | Replacement delegate's working-tree diff | Reconcile interrupted edits and validate exact evidence | completed locally; review pending | Matched record basename to branch slug, replaced illustrative config with actual Hydra composition output, and passed R0 field coverage | `uv run python src/train.py --cfg job ...`; `git diff --check`; `uv lock --check`; field scan |
 | 3 | re-review | not exposed by runtime | not exposed by runtime | `f0faf8466189cb8dd8fecdfca431e3de2bcbcee5` | Independent heavy review against philosophy, ticket, and selected checks | FAIL | The fixture called its Hydra YAML fully resolved while retaining `${training.epochs}`; the model-run record also named a stale re-review target SHA | Reviewer findings received 2026-07-11; exact failed-review handoff below |
-| 4 | repair | not exposed by runtime | not exposed by runtime | Failed-review findings against `f0faf8466189cb8dd8fecdfca431e3de2bcbcee5` | Narrow Luna/Extra High repair requested: recapture resolved Hydra evidence, validate interpolation absence, and correct the re-review target | completed locally; re-review pending | Ran the exact `--resolve` command, captured `T_max: 1`, added semantic no-interpolation validation, and replaced the stale target with a pending repaired commit | Command exit 0; resolved-block validation exit 0; `git diff --check` |
-| 4 | re-review | pending | pending | future repaired commit (pending until commit exists) | Independent heavy re-review of the exact failed findings | pending | No passing re-review has run and no verdict is claimed | pending |
+| 4 | repair | not exposed by runtime | not exposed by runtime | Failed-review findings against `f0faf8466189cb8dd8fecdfca431e3de2bcbcee5` | Narrow Luna/Extra High repair requested: recapture resolved Hydra evidence, validate interpolation absence, and correct the re-review target | completed in `df1acf62a05266cfd8f80bd86c96d932d1d6c67e`; re-review pending | Ran the exact `--resolve` command, captured `T_max: 1`, added semantic no-interpolation validation, and replaced the stale target | Command exit 0; resolved-block validation exit 0; `git diff --check` |
+| 4 | re-review | pending | pending | repair commit `df1acf62a05266cfd8f80bd86c96d932d1d6c67e` plus the current metadata-only branch head | Independent heavy re-review of the exact failed findings | pending | No passing re-review has run and no verdict is claimed | pending |
 
 Allowed outcome interpretation: the two blocked attempts are not reviews
 performed and are not passing reviews. The pending row is a handoff marker, not
@@ -130,7 +130,8 @@ a model invocation.
   `training.scheduler.T_max == training.epochs == 1`; it printed `PASS: parsed
   captured YAML; no unresolved interpolation; T_max == epochs == 1` and exited
   0; `git diff --check` passed
-- Commit reviewed next: future repaired commit (pending until commit exists)
+- Commit reviewed next: repair commit
+  `df1acf62a05266cfd8f80bd86c96d932d1d6c67e` plus the current metadata-only branch head
 - Re-review model / mode: pending / pending
 - Re-review verdict: pending; no passing verdict claimed
 
