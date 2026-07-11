@@ -1,6 +1,6 @@
 # DATA-002 — Immutable Manifests and Disjoint Splits
 
-- PR: [#13](https://github.com/Ayumu-J-S/llm_scratch/pull/13) (draft)
+- PR: [#13](https://github.com/Ayumu-J-S/llm_scratch/pull/13) (ready for human review)
 - Branch: `codex/data-002-immutable-manifests`
 - Ticket: `DATA-002`
 - Hypothesis: immutable source manifests plus deterministic document identity
@@ -8,7 +8,7 @@
   auditable before source access or training without adding per-sample hot-path
   checksum work.
 - Started: 2026-07-11T17:38:46Z
-- Final verdict: in progress
+- Final verdict: PASS WITH NOTE
 - Final record owner: primary task; exact runtime identity not exposed
 
 ## Scope and decision context
@@ -43,7 +43,7 @@
 | 2 | repair | not exposed by runtime | not exposed by runtime | uncommitted FAIL handoff and complete repository context | Close all six audit blockers and add exact regressions | completed | Training hardcodes benchmark denial; resolved manifests live on the dataset; cross-loader ID/content overlap fails before preview/model; default smoke is pinned; package paths fail closed; URL+SHA cache uses per-key Linux locks and preserves other-process temporaries | 62 passed, 3 explicit network skips; six exact repair regressions pass; Ruff/format/lock/diff/Hydra pass |
 | 2 | independent `/review` | not exposed by runtime | not exposed by runtime | `b4bcd7f4b86a8477ff94670cff2f0b387bfb0da8` | Mandatory independent review against DATA-002, philosophy, and selected CHECK sections | FAIL | Training still honored `require_manifests: false` and empty resolved mappings; canonical smoke contained Japanese outside the committed English-project BPE; documented streaming budgets guaranteed fixture exhaustion | Review handoff supplied by primary task; exact model/mode unavailable |
 | 3 | repair | not exposed by runtime | not exposed by runtime | stable review-failed commit `b4bcd7f4` and exact findings | Requested Luna / Extra High or maximum; close only the three review findings and run actual bounded workflows | completed | Training forces manifest-only streaming and rejects explicit false/empty mappings; smoke is pinned English compatible with the current BPE; fixture streaming budgets use `max`; obsolete mutable-path override removed | 64 passed, 3 explicit network skips; actual tokenizer+smoke and bilingual streaming one-epoch CPU commands completed offline |
-| 3 | re-review | pending | pending | pending repair commit | Independent DATA-002 `/review` | pending | No passing verdict claimed | pending |
+| 3 | re-review | not exposed by runtime | not exposed by runtime | `96b2227054177fd245d7c3956392b224f542c6a7` | Independent DATA-002 `/review` of every prior finding and the complete ticket | PASS WITH NOTE | All authority, overlap, tokenizer-compatibility, workflow, split, lifecycle, and documentation findings closed; DATA-004 large-corpus work remains explicitly deferred | 64 passed, 3 explicit network skips; focused 5 passed; two actual bounded CPU workflows; quality/Hydra checks pass |
 
 ## Check selection and verdicts
 
@@ -92,6 +92,24 @@ full evidence suite before requesting independent re-review.
 | P1 | canonical smoke | pinned smoke text contained Japanese characters absent from the currently committed English-corpus BPE | preserve immutable smoke identity with text encodable by the canonical branch tokenizer |
 | P1 | documented workflow | `data.mode=streaming` requested 1,000,000/100,000 tokens from a 20-document fixture and exhausted by construction | use a valid fixture horizon and execute the documented path with a compatible tokenizer |
 
+### Independent re-review cycle 3
+
+- Review model / mode: not exposed by runtime / not exposed by runtime
+- Commit reviewed: `96b2227054177fd245d7c3956392b224f542c6a7`
+- Selected `CHECK.md` sections: 4.1, 4.4, 8.2, and 11 DATA-002
+- Ticket acceptance result: PASS; every real training input is manifest-backed,
+  train/validation identity sets are non-empty and disjoint, split membership is
+  deterministic, and same-corpus use is restricted to the pinned smoke profile.
+- Philosophy alignment: PASS; provenance and benchmark boundaries fail closed,
+  failed attempts remain visible, and no deferred real-data claim is implied.
+- Complexity / change-surface result: PASS; the manifest core and one existing
+  loader/training seam remain within DATA-002.
+- ML-system result: PASS WITH NOTE; actual bounded canonical smoke and streaming
+  epochs completed with finite losses and checkpoints. Real HF inventory,
+  bounded large-corpus loading, DGX behavior, and real-source throughput remain
+  the explicit DATA-004 boundary.
+- Verdict: PASS WITH NOTE
+
 ## Repair result
 
 All six findings were repaired in cycle 2. Focused regressions reproduce the old
@@ -103,7 +121,8 @@ pending, so no PASS is claimed.
 Cycle 3 repaired the independent findings. Manifest-only streaming is now code
 authority, the fingerprinted CC0 smoke uses current-BPE-compatible English
 text, and both fixture horizons are `max`. Actual offline one-epoch smoke and
-streaming commands completed. Independent re-review remains pending.
+streaming commands completed. Independent re-review returned PASS WITH NOTE;
+the note is limited to work explicitly deferred to DATA-004.
 
 ## Final evidence
 
@@ -184,12 +203,12 @@ streaming commands completed. Independent re-review remains pending.
 - Merge seam: `src/data/stream_loader/loader.py`, the two Hydra configs, and
   `src/train.py` overlap unmerged DATA-001/TOK-001 siblings; the portable core
   is isolated in `src/data/{identity,manifests,splits}.py`.
-- Unresolved risks: no R2/DGX, default end-to-end train run (the tokenizer
-  artifact is absent on this branch), or consequential real-source run; no
-  throughput claim. Legacy direct sources remain usable for tests, while real
-  configs set `require_manifests: true` and reject them.
-- Human decision requested: review/merge only after independent verdict; model
-  review is not merge authority.
+- Unresolved risks: no R2/DGX or consequential real-source run; no real-data
+  throughput claim. The canonical tokenizer and both bounded training seams
+  were exercised with temporary artifacts. Legacy direct sources remain usable
+  for component tests, while the training entrypoint forces manifest-only data.
+- Human decision requested: review and merge if the evidence is acceptable;
+  model review is not merge authority.
 
 ## Model assessment from this ticket
 
@@ -197,13 +216,14 @@ streaming commands completed. Independent re-review remains pending.
 | --- | --- | --- | --- | --- | --- |
 | not exposed by runtime / not exposed by runtime | planning attempts 1-2 | No observable planning output | Both attempts remained active without returning a handoff and were deliberately interrupted | Repeated explicit finalize requests | failed operationally; no repository mutation |
 | not exposed by runtime / not exposed by runtime | planning attempt 3 | Produced an exact schema, source rules, deterministic content-based split, preflight/runtime boundary, modular integration plan, tests, and R1 review contract | Requested Sol/Ultra identity and mode were unavailable; real HF shard evidence remains to be verified during implementation | Minimal bounded context and explicit current-main merge constraint | plan accepted for implementation |
-| not exposed by runtime / not exposed by runtime | initial implementation | Implemented the bounded stdlib core, fail-closed source identity, one loader seam, committed fixtures, mutation/invariance tests, and honest R1 evidence without taking later tickets | Requested Luna/Extra High identity and mode were unavailable; first builder invocation omitted `PYTHONPATH`; large HF streaming remains blocked | Accepted planner handoff, exact acceptance tests, narrow sibling-branch seam, and verified source facts | implementation completed; independent review pending |
-| not exposed by runtime / not exposed by runtime | precommit audit and repair | Found authority, lifecycle, cross-loader, mutable-smoke, package-path, and process-cache defects that unit-level identity tests missed; repaired each with exact regressions | Runtime did not expose an independent model/mode; re-review is still required before any passing verdict | Concrete exploit reproductions and actual two-epoch dataset behavior | initial review FAIL; repair completed; re-review pending |
-| not exposed by runtime / not exposed by runtime | independent review 2 and repair 3 | Identified remaining production authority, tokenizer compatibility, and documented-horizon defects; repair added training-entrypoint guards and actual offline workflow evidence | Previous repair stopped at component tests and did not execute the canonical smoke/streaming commands | Stable reviewed commit, exact failing cases, current BPE corpus, and bounded CPU commands | independent review FAIL; repair completed; re-review pending |
+| not exposed by runtime / not exposed by runtime | initial implementation | Implemented the bounded stdlib core, fail-closed source identity, one loader seam, committed fixtures, mutation/invariance tests, and honest R1 evidence without taking later tickets | Requested Luna/Extra High identity and mode were unavailable; first builder invocation omitted `PYTHONPATH`; large HF streaming remains blocked | Accepted planner handoff, exact acceptance tests, narrow sibling-branch seam, and verified source facts | implementation completed; first reviews failed |
+| not exposed by runtime / not exposed by runtime | precommit audit and repair | Found authority, lifecycle, cross-loader, mutable-smoke, package-path, and process-cache defects that unit-level identity tests missed; repaired each with exact regressions | Runtime did not expose an independent model/mode; the repair still missed a training-entrypoint bypass and runnable-workflow defects | Concrete exploit reproductions and actual two-epoch dataset behavior | initial review FAIL; repair required another cycle |
+| not exposed by runtime / not exposed by runtime | independent review 2, repair 3, and re-review 3 | Identified remaining production authority, tokenizer compatibility, and documented-horizon defects; repair added training-entrypoint guards and actual offline workflow evidence; re-review closed every finding | Previous repair stopped at component tests and did not execute the canonical smoke/streaming commands | Stable reviewed commit, exact failing cases, current BPE corpus, bounded CPU commands, and full acceptance matrix | PASS WITH NOTE; DATA-004 boundary retained |
 
 ## Ledger update
 
 - [x] Added the PR/ticket row to `docs/model-runs/README.md`.
-- [x] Updated implementation, two failed reviews, and two repair-attempt counts;
-  passing re-review counts remain pending.
-- [ ] Confirmed that the PR execution trail matches this record after the implementation commit.
+- [x] Updated implementation, two failed reviews, two repair-attempt counts, and
+  the passing independent re-review.
+- [x] Confirmed that the PR execution trail matches this record after the final
+  documentation commit.
