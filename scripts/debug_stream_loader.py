@@ -8,6 +8,7 @@ import time
 from collections.abc import Mapping
 from pathlib import Path
 
+import hydra
 from omegaconf import OmegaConf
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -99,7 +100,13 @@ def main() -> None:
 
 
 def load_debug_config(path: Path, *, split: str) -> tuple[dict, int | None]:
-    raw_config = OmegaConf.to_container(OmegaConf.load(path), resolve=True)
+    resolved_path = path.resolve()
+    with hydra.initialize_config_dir(
+        version_base=None,
+        config_dir=str(resolved_path.parent),
+    ):
+        composed = hydra.compose(config_name=resolved_path.stem)
+    raw_config = OmegaConf.to_container(composed, resolve=True)
     if not isinstance(raw_config, Mapping):
         raise TypeError("debug config must be a mapping")
 
@@ -122,22 +129,14 @@ def load_train_streaming_config(config: Mapping, *, split: str) -> tuple[dict, i
         name=f"data.streaming.{split}",
     )
     common_config = {
-        key: value
-        for key, value in streaming_config.items()
-        if key not in {"train", "validation"}
+        key: value for key, value in streaming_config.items() if key not in {"train", "validation"}
     }
     debug_config = {**common_config, **dict(split_config)}
     if "sources" in debug_config and "datasets" not in debug_config:
         debug_config["datasets"] = debug_config.pop("sources")
 
-    artifacts_config = as_optional_mapping(config.get("artifacts"))
-    if artifacts_config is not None and "tokenizer" not in debug_config:
-        tokenizer_path = (
-            ROOT_DIR
-            / str(artifacts_config["tokenizers_dir"])
-            / str(artifacts_config["tokenizer_filename"])
-        )
-        debug_config["tokenizer"] = {"kind": "bpe", "path": str(tokenizer_path)}
+    tokenizer_config = as_mapping(config.get("tokenizer"), name="tokenizer")
+    debug_config["tokenizer"] = dict(tokenizer_config)
 
     training_config = as_optional_mapping(config.get("training"))
     sequence_length = None

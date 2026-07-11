@@ -10,7 +10,7 @@ from data.text_dataset import create_autoregressive_dataloader
 from models.simple_decoder_transformer import SimpleDecoderTransformer
 from training.optimization import build_optimizer, build_scheduler
 from training.trainer import Trainer
-from tokenizer.artifacts import load_text, load_tokenizer
+from tokenizer.canonical import CanonicalTokenizer
 from utils.model import get_parameter_counts
 
 
@@ -36,7 +36,7 @@ def log_sample_batch(tokenizer, batch) -> None:
 def load_token_ids(input_path: str, tokenizer, split_name: str):
     split_label = split_name.capitalize()
     logger.info("Loading {} corpus from: {}", split_name, input_path)
-    text = load_text(input_path)
+    text = (ROOT_DIR / input_path).read_text(encoding="utf-8")
     logger.info("Tokenizing {} corpus...", split_name)
     token_ids = tokenizer.encode(text)
     logger.info("{} corpus length: {} tokens", split_label, len(token_ids))
@@ -44,8 +44,10 @@ def load_token_ids(input_path: str, tokenizer, split_name: str):
 
 
 def build_tokenizer_config(cfg: DictConfig) -> dict[str, str]:
-    tokenizer_path = ROOT_DIR / cfg.artifacts.tokenizers_dir / cfg.artifacts.tokenizer_filename
-    return {"kind": "bpe", "path": str(tokenizer_path)}
+    config = OmegaConf.to_container(cfg.tokenizer, resolve=True)
+    if not isinstance(config, dict):
+        raise TypeError("tokenizer config must resolve to a mapping")
+    return config
 
 
 def to_plain_config(config: DictConfig) -> dict:
@@ -65,9 +67,7 @@ def streaming_split_config(streaming_cfg: DictConfig, split_name: str) -> dict:
         raise TypeError(f"data.streaming.{split_key} must be a mapping")
 
     common_config = {
-        key: value
-        for key, value in config.items()
-        if key not in {"train", "validation"}
+        key: value for key, value in config.items() if key not in {"train", "validation"}
     }
     return {**common_config, **split_config}
 
@@ -99,11 +99,9 @@ def main(cfg: DictConfig) -> None:
     logger.info("Using device: {}", DEVICE)
 
     logger.info("Loading tokenizer artifact...")
-    tokenizer = load_tokenizer(
-        cfg.artifacts.tokenizers_dir,
-        cfg.artifacts.tokenizer_filename,
-    )
+    tokenizer = CanonicalTokenizer.from_config(cfg.tokenizer)
     logger.info("Tokenizer vocab size: {}", tokenizer.vocab_size)
+    logger.info("Tokenizer fingerprint: {}", tokenizer.fingerprint)
 
     data_mode = cfg.data.get("mode", "local_text")
     if data_mode == "local_text":
@@ -163,10 +161,7 @@ def main(cfg: DictConfig) -> None:
     model.train()
     parameter_counts = get_parameter_counts(model)
     logger.info(
-        "Model parameters: "
-        "total={:,} "
-        "trainable={:,} "
-        "frozen={:,}",
+        "Model parameters: total={:,} trainable={:,} frozen={:,}",
         parameter_counts.total,
         parameter_counts.trainable,
         parameter_counts.non_trainable,

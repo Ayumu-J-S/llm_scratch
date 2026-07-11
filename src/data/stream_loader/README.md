@@ -28,7 +28,7 @@ Switch to the streaming path when you want to train from larger sources without 
 uv run python src/train.py data.mode=streaming
 ```
 
-`src/train.py` builds streaming train and validation loaders from `data.streaming.train` and `data.streaming.validation`, adds the project tokenizer artifact, packs token windows, and returns the standard trainer batch contract:
+`src/train.py` builds streaming train and validation loaders from `data.streaming.train` and `data.streaming.validation`, adds the canonical tokenizer config, packs token windows, and returns the standard trainer batch contract:
 
 - `inputs`: left-to-right causal-LM input tokens
 - `labels`: the same packed stream shifted by one token
@@ -38,11 +38,19 @@ For a first smoke test, keep `max_tokens` small and use the debug script before 
 ## Python Usage
 
 ```python
+from pathlib import Path
+
+import hydra
 from omegaconf import OmegaConf
 
 from data.stream_loader import StreamLoader
 
-cfg = OmegaConf.to_container(OmegaConf.load("config/stream_loader.yaml"), resolve=True)
+with hydra.initialize_config_dir(
+    version_base=None,
+    config_dir=str(Path("config").resolve()),
+):
+    composed = hydra.compose(config_name="stream_loader")
+cfg = OmegaConf.to_container(composed, resolve=True)
 
 with StreamLoader(cfg) as loader:
     for sample in loader:
@@ -58,9 +66,8 @@ from data.stream_loader import StreamLoader
 
 config = {
     "tokenizer": {
-        "kind": "tokenizers",
-        "path": "artifacts/tokenizers/tokenizer.json",
-        "eos_token": "<eos>",
+        "manifest_path": "assets/tokenizers/llm-jp-v1/manifest.json",
+        "expected_fingerprint": "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b",
     },
     "output_mode": "tokenized_docs",
     "max_tokens": 10_000,
@@ -98,10 +105,9 @@ print(batch["inputs"].shape, batch["labels"].shape)
 ## Config Shape
 
 ```yaml
-tokenizer:
-  kind: qwen
-  name: Qwen/Qwen3-0.6B
-  use_fast: true
+defaults:
+  - tokenizer: canonical
+  - _self_
 
 output_mode: raw_text
 max_tokens: 5000000000
@@ -133,7 +139,8 @@ Use `config/stream_loader.yaml` for dataloader/tokenizer/debug work on the `samp
 
 Required top-level fields:
 
-- `tokenizer`: tokenizer mapping, or a tokenizer object passed to `StreamLoader`.
+- `tokenizer`: the serializable canonical mapping with exactly
+  `manifest_path` and `expected_fingerprint`.
 - `datasets`: one or more dataset mappings. `name` values must be unique.
 - `ratio`: each dataset needs a positive ratio, and all ratios must sum to `1.0`.
 
@@ -147,15 +154,15 @@ Common optional fields:
 - `seed`: deterministic source sampling seed.
 - `prefetch.enabled`: load samples in a background worker.
 
-## Tokenizers
+## Tokenizer identity
 
-Supported tokenizer config kinds:
-
-- `tokenizers`: load a local Hugging Face `tokenizers` JSON file.
-- `hf`, `huggingface`, or `qwen`: load a tokenizer with `transformers.AutoTokenizer`.
-- `mistral_tekken` or `tekken`: load a Mistral Tekken tokenizer.
-
-You can pass an already constructed tokenizer object instead of a tokenizer mapping for synchronous or thread-prefetched loading. Process prefetch requires a tokenizer mapping because the worker process needs to construct its own tokenizer.
+Only the repository's canonical manifest config is accepted. Backend aliases,
+remote tokenizer names, inferred tokenizer objects, and project-BPE artifacts
+are rejected. Construction verifies the manifest fingerprint, pinned upstream
+and tokenizer-source revisions, local file sizes and hashes, vocabulary and
+special IDs, normalization/byte fallback, and deterministic probe IDs before a
+data source is opened. Process prefetch serializes the two-field config and
+reconstructs and revalidates the tokenizer in the child before source access.
 
 ## Source Types
 

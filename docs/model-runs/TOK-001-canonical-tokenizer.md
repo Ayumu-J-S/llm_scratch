@@ -31,9 +31,10 @@
   training hard-wires the English-only project BPE while standalone streaming
   names a remote Qwen tokenizer.
 - Intended evidence: pinned four-candidate R1 report and Pareto decision;
-  committed winner artifact/license/manifest; missing/moved/mutated failures;
-  offline deterministic IDs/round trips; local and process streaming; debug/train
-  parity; streamed batch through the conventional model with finite loss.
+  committed winner artifact/license/manifest; missing/mutable revision and
+  missing/moved/mutated artifact failures; offline deterministic IDs/round
+  trips; local and process streaming; debug/train parity; streamed batch
+  through the conventional model with finite loss.
 
 ## Planned candidate set and decision rule
 
@@ -57,8 +58,10 @@ Within measurement spread, select the smaller vocabulary.
 | ---: | --- | --- | --- | --- | --- | --- | --- | --- |
 | 0 | handoff (planning) | not exposed by runtime | not exposed by runtime | `a05eb1d`, TOK-001, philosophy/CHECK, current tokenizer paths, official candidate sources | Plan with requested `gpt-5.6-sol` / `ultra` | completed | Defined pinned four-candidate R1/R2 rule, vocabulary costs, artifact contract, direct removals, and offline integration; runtime hid requested identity/mode | Planner handoff in parent task |
 | 1 | implementation (phase 1 comparison) | not exposed by runtime | not exposed by runtime | `0b695b8`, planner handoff, exact candidate revisions, TOK-001/philosophy/CHECK | Requested `gpt-5.6-luna` at Extra High/max; freeze corpus, verify allowlisted candidate artifacts/licenses, benchmark, and select without runtime integration | completed | Added 160-document corpus and malformed recipes, exact candidate lock, reproducible fetch/benchmark/report, and six comparison-contract tests; selected LLM-jp v1; rinna excluded before artifact/runtime addition; Qwen3 failed exact Unicode round-trip | `reports/tokenizers/TOK-001/`; `tests/fixtures/tokenizer_comparison/v1/`; `tests/test_tokenizer_comparison.py` |
-| 2 | implementation (phase 2 integration) | pending | pending | phase 1 winner and evidence | Vendor LLM-jp v1, integrate one canonical offline path, remove old BPE/backends, and validate streamed model batch | pending | Not started; deliberately excluded from phase 1 | pending |
-| 1 | review | pending | pending | pending implementation commit | Independent TOK-001 review | pending | No verdict claimed | pending |
+| 2 | implementation (phase 2 integration) | not exposed by runtime | not exposed by runtime | `ddcef45`, phase-1 LLM-jp v1 decision/report, TOK-001/philosophy/CHECK, phase-2 handoff | Requested `gpt-5.6-luna` at Extra High/max; vendor LLM-jp v1, integrate one canonical offline path, remove old BPE/backends, and validate a streamed model batch | completed | Vendored pinned tokenizer/license/manifest/source notice; added strict manifest/hash/pipeline/probe wrapper; made Hydra train/stream/debug/model/process paths share it; removed BPE training and remote/backend branches/dependencies; added offline process-stream/model evidence | `assets/tokenizers/llm-jp-v1/`; `src/tokenizer/canonical.py`; `tests/test_canonical_tokenizer.py`; 21-test no-skip offline integration and 59-test full suite |
+| 1 | precommit audit | not exposed by runtime | not exposed by runtime | phase-2 working tree, TOK-001/philosophy/CHECK | Audit contract and evidence before the implementation commit | FAIL | Found an unused, misleading `install_path` manifest field and under-specified EOS/PAD evidence; confirmed runtime parity/removals/process reconstruction | Audit handoff in parent task |
+| 1 | repair | not exposed by runtime | not exposed by runtime | failed precommit audit and phase-2 working tree | Remove the nonportable location claim, test mutable revisions, and make EOS/PAD semantics executable and explicit | completed | Removed `install_path`; re-fingerprinted the package; added refingerprinted `main` rejection for both revisions; proved EOS targets and PAD masking without changing loss behavior | fingerprint `12ccbc02...`; focused `55 passed, 1 existing skip`; full `61 passed, 1 existing skip` |
+| 2 | review | pending | pending | pending implementation commit | Independent TOK-001 `/review` | pending | No verdict claimed | pending |
 
 ## Check selection and verdicts
 
@@ -87,14 +90,22 @@ Within measurement spread, select the smaller vocabulary.
 
 ## Repair result
 
-`N/A — implementation/review pending.`
+Precommit audit repair completed before the stable implementation commit. The
+canonical manifest no longer claims a fixed filesystem install location;
+immutable identity remains the expected manifest fingerprint, exact 40-hex
+upstream revisions, and verified artifact bytes. Mutable revision names such as
+`main` are rejected even when the mutated manifest is internally re-fingerprinted.
 
 ## Final evidence
 
-- Resolved Hydra command/config: runtime integration remains pending; phase 1
-  commands were `uv run python src/tokenizer/comparison.py --fetch --fetch-only`,
-  `uv run python src/tokenizer/comparison.py`, and
-  `uv run pytest tests/test_tokenizer_comparison.py -q`.
+- Resolved Hydra command/config: phase-1 commands were `uv run python
+  src/tokenizer/comparison.py --fetch --fetch-only`, `uv run python
+  src/tokenizer/comparison.py`, and `uv run pytest
+  tests/test_tokenizer_comparison.py -q`. Phase 2 resolved the training profile
+  with `uv run python src/train.py --cfg job --resolve` and the standalone
+  stream profile with Hydra `compose(config_name="stream_loader")`; both select
+  `assets/tokenizers/llm-jp-v1/manifest.json` and expected fingerprint
+  `12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b`.
 - Data/tokenizer/model identity: frozen corpus has 160 documents, 20 in each of
   eight strata, SHA-256
   `16d2596017853928346bbf6270fc723d67799b8387080aaa172c42a19804a45a`.
@@ -104,7 +115,12 @@ Within measurement spread, select the smaller vocabulary.
   `c3134b3a958b56d443c1484a3d640502637cfbd2`; tokenizer JSON SHA-256 is
   `fefc427dff3323dd8a2fd66f392b90a62896db3b11a031463ad0f4c70fb1de9c`.
 - Validation and measurements: all eligible artifacts loaded from exact local
-  files. LLM-jp v1 and v3 passed all phase-1 hard gates; Qwen3 failed exact
+  files. Phase 2 vendors only `tokenizer.json` and its Apache-2.0 `LICENSE`, plus
+  the repository manifest/source notice; no model weights, model config, or chat
+  template are present. The manifest fingerprint is
+  `12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b`,
+  vocabulary is 50,570 with maximum ID 50,569, and UNK/BOS/PAD/EOS-EOD IDs are
+  0/1/4/7. LLM-jp v1 and v3 passed all phase-1 hard gates; Qwen3 failed exact
   Unicode round-trip on 6/160 documents because its normalizer composed NFD
   input; rinna was excluded because the exact revision contains no
   repository-owned license file/tokenizer-specific redistribution notice.
@@ -117,24 +133,56 @@ Within measurement spread, select the smaller vocabulary.
   logits from 395.1 MiB to 777.9 MiB, and its 5.73M bytes/s median lay below the
   full LLM-jp v1 five-pass range. The predeclared promotion rule therefore
   selected LLM-jp v1; both eligible candidates remain on the Pareto frontier.
-  Validation after report generation: `uv lock --check` passed; `uv run ruff
-  check .` passed; `uv run pytest -q` passed with 45 tests and 3 skips;
-  `git diff --check` passed; scoped Ruff format check passed. Repository-wide
-  `ruff format --check .` remains red on six pre-existing files outside this
-  phase's diff (`scripts/debug_stream_loader.py`, model files, `bpe.py`,
-  `train.py`, and `trainer.py`), which were not reformatted as unrelated churn.
-- Performance/resource result: CPU R1 comparison required. R2 BF16/DGX cannot
-  run until ENV/CFG establish CUDA and a real profile; no performance conclusion
-  will be made without it.
+  Phase-2 network-offline validation used `UV_NO_SYNC=1`, `HF_HUB_OFFLINE=1`,
+  `TRANSFORMERS_OFFLINE=1`, and `DATASETS_OFFLINE=1`: the focused canonical,
+  stream-loader, streaming-dataset, and train-streaming integration passed 55
+  tests with one existing opt-in remote-dataset skip. It includes fixed Japanese,
+  English, mixed, symbols, and emoji IDs and round trips; missing and mutable
+  revisions; missing/moved/mutated artifact bytes; strict UTF-8/range rejection;
+  source-access guards; parent/process revalidation; local/debug/train ID parity;
+  process-prefetched local JSONL; model vocabulary dimension; and finite
+  causal-LM loss. The full offline suite passed 61 tests with the same one
+  existing opt-in remote-dataset skip; the dedicated canonical integration file
+  passed all 17 tests with no skips. `uv run ruff check .`, scoped changed-file
+  `ruff format --check`, `uv lock --check`, and `git diff --check` passed.
+  EOS/EOD ID 7 is appended at document boundaries and is an ordinary next-token
+  target. Packed batches contain no padding; PAD ID 4 configures the embedding
+  and attention padding mask if it appears, while current cross-entropy has no
+  `ignore_index` behavior. A real bounded CPU entrypoint run used the canonical
+  manifest, `tests/fixtures/tiny_corpus.jsonl`, sequence length 8, batch size 8,
+  one epoch/12 training batches, W&B disabled, and a 16-wide one-layer model; it
+  completed with finite train/validation losses 10.810500/10.592047.
+- Performance/resource result: CPU R1 comparison required. Phase-2 smoke ran on
+  Linux aarch64 with `torch 2.10.0+cpu`; CUDA was unavailable
+  (`torch.version.cuda=None`, zero devices), so no CUDA/DGX R2 or performance
+  claim is made. The
+  default 384-wide untied embedding/head grows from 393,728 vocabulary-driven
+  parameters at the former configured 512-token target to 38,888,330 at 50,570
+  tokens, a delta of 38,494,602; the full current default model grows from
+  11,040,512 to 49,535,114 parameters.
 - Failed attempts retained at: execution timeline and comparison report. The
   first invocation using `uv run python -m tokenizer.comparison` failed because
   this non-packaged repository does not put `src` on the Python module path;
-  the direct committed script command is used instead.
-- Known trade-offs: established multilingual tokenizers greatly enlarge the
-  current untied embedding/LM head; compression must repay that cost
-- Unresolved risks: phase-2 artifact vendoring and notices, integration
-  correctness, real streamed-batch/model behavior, and DGX R2 step cost. CPU R1
-  tokenization throughput is not a claim about end-to-end training supply.
+  the direct committed script command is used instead. In phase 2, the first
+  focused command used bare `pytest` and failed because the executable is only
+  available through `uv run`; the corrected command used `uv run pytest`. The
+  next collection failed because `scripts` is not an import package; the parity
+  test now loads the debug script with `runpy`. The first canonical-fixture pass
+  had five failures from old one-character/one-token quota assumptions and an
+  unbound method mock; the fixtures now use real canonical lengths/IDs and the
+  direct serializable config. The first real-entrypoint smoke mistakenly used
+  the full local corpus and a 6,877-batch epoch; it was manually stopped after
+  3,550 batches because it was not a bounded smoke and yields no result claim.
+  The corrected 12-batch fixture command completed, after which focused and full
+  suites passed.
+- Known trade-offs: the selected established tokenizer greatly enlarges the
+  current untied embedding/LM head; its measured bilingual compression and
+  smaller cost than the other eligible candidate justified selection, but the
+  38.5M-parameter delta is material.
+- Unresolved risks: CUDA/DGX R2 step cost and loader headroom remain unmeasured,
+  and the existing opt-in public-Hugging-Face dataset integration was not run in
+  the offline phase-2 validation. CPU R1 tokenization throughput and a bounded
+  CPU model smoke are not claims about end-to-end DGX training supply.
 - Human decision requested: review/merge after acceptable independent verdict;
   model review is not merge authority
 
@@ -144,10 +192,11 @@ Within measurement spread, select the smaller vocabulary.
 | --- | --- | --- | --- | --- | --- |
 | not exposed by runtime / not exposed by runtime | planning | Produced pinned candidates, primary-source links, cost model, selection gates, direct API/removal map, and test/R2 plan | Requested Sol/Ultra identity/mode unavailable; proposed R2 cannot precede ENV/CFG | Ticket order, philosophy, local cache, official repositories, current code | plan accepted with dependency-order adjustment |
 | not exposed by runtime / not exposed by runtime | implementation phase 1 | Produced an exact artifact lock, frozen multilingual/Unicode corpus, operational and cost measurements, hard-gate evidence, deterministic selection, and focused tests | Requested Luna Extra High/max identity/mode was unavailable; initial module-form command did not match the repository's non-packaged `src` layout and was corrected to a direct script command | Planner handoff, candidate 40-hex revisions, official cards/source licenses, phase boundary excluding integration | comparison completed; LLM-jp v1 selected |
+| not exposed by runtime / not exposed by runtime | implementation phase 2 | Reduced all runtime consumers to one strict offline wrapper/config, preserved pre-source failure ordering across process prefetch, removed obsolete backends/dependencies, and demonstrated fixed IDs plus finite streamed model loss | Requested Luna Extra High/max identity/mode was unavailable; first test commands/import and old character-token fixture assumptions required correction | Phase-1 winner/hash/license evidence, explicit direct-removal handoff, ticket acceptance criteria, real vendored artifact | integration completed; independent review pending |
 
 ## Ledger update
 
 - [x] Added ticket/PR row to `docs/model-runs/README.md`.
-- [x] Recorded phase-1 implementation attempt; aggregate counts remain pending
-  until the ticket finishes.
+- [x] Recorded both implementation invocations as two attempts under the hidden
+  runtime identity/mode; review and outcome counts remain pending.
 - [ ] Confirm live PR execution trail matches this record.

@@ -13,7 +13,7 @@ PR URL cannot be created.
 
 | Record | Ticket | PR | Initial implementation model / mode | First review model / mode | Repair cycles | Final verdict | Main failure tags |
 | --- | --- | --- | --- | --- | ---: | --- | --- |
-| [TOK-001 canonical tokenizer](TOK-001-canonical-tokenizer.md) | TOK-001 | [#12](https://github.com/Ayumu-J-S/llm_scratch/pull/12) | not exposed by runtime / not exposed by runtime | pending | 0 | in progress | reproducibility, tokenizer-cost, offline-identity |
+| [TOK-001 canonical tokenizer](TOK-001-canonical-tokenizer.md) | TOK-001 | [#12](https://github.com/Ayumu-J-S/llm_scratch/pull/12) | not exposed by runtime / not exposed by runtime | pending | 1 | in progress | reproducibility, tokenizer-cost, offline-identity |
 
 Use short, stable values in `Main failure tags` so results can be aggregated,
 for example `data-starvation`, `cuda-fallback`, `ml-semantics`,
@@ -27,6 +27,7 @@ there are enough observations for meaningful rates.
 
 | Exact model / mode | Implementation attempts | First-review passes | Repair attempts | Successful repairs | Reviews performed | Important strengths observed | Recurring failure modes | Last updated |
 | --- | ---: | ---: | ---: | ---: | ---: | --- | --- | --- |
+| not exposed by runtime / not exposed by runtime | 2 | 0 | 1 | 0 | 1 | Pinned evidence selection; direct offline integration with process/source guards | Initial invocation/import mismatch; fixture assumptions and unused manifest field needed correction | 2026-07-11 |
 
 ### Counting rules
 
