@@ -9,7 +9,7 @@
 - Experiment record: `N/A — correctness-invariant ticket with bounded fixture
   and tiny CPU smoke evidence; no consequential research run`
 - Started: 2026-07-11T15:31:27Z
-- Final verdict: in progress
+- Final verdict: `PASS WITH NOTE`
 - Final record owner: primary task; exact runtime identity not exposed
 
 ## Scope and decision context
@@ -39,7 +39,7 @@
 | 1 | implementation | not exposed by runtime | not exposed by runtime | `a05eb1d`, accepted DATA-001 plan, ticket/philosophy/CHECK, loader/dataset/tests/README | Requested `gpt-5.6-luna` at Extra High/max; implement the smallest coherent DATA-001 fix and R1 evidence | completed | Packed windows now stride by `W-1`, quota truncation preserves or requires an explicit boundary, spans/counters follow the stride, and packed token bases are explicit | focused `58 passed, 3 skipped`; full `59 passed, 3 skipped`; Ruff, lock, diff, Hydra composition green |
 | 1 | review | not exposed by runtime | not exposed by runtime | `7193fb4` | Independent review against DATA-001, philosophy, and selected CHECK sections | FAIL | Process-prefetch counters were copied to the parent only after successful completion, so a later early-closed or failed iteration exposed stale totals from the prior success | Counter lifecycle inspection at `StreamLoader._iter_async` and process accounting marker path |
 | 1 | repair | not exposed by runtime | not exposed by runtime | `7193fb4` plus review cycle 1 handoff | Requested `gpt-5.6-luna` at Extra High; reset async accounting before worker launch and cover repeat/close/error lifecycle | completed | Parent counters reset at each async iteration start; normal process completion still publishes final totals; early close and worker error retain safe current-iteration zeros | lifecycle regressions `3 passed`; focused `60 passed, 3 skipped`; full `61 passed, 3 skipped`; Ruff, lock, diff, Hydra green; re-review pending |
-| 1 | re-review | pending | pending | pending repair commit | Independently verify the failed counter lifecycle and the unchanged DATA-001 invariants | pending | No verdict claimed | pending |
+| 1 | re-review | not exposed by runtime | not exposed by runtime | `99dcfcdf72abb8feeece7fdca803a2452793de56` | Independently verify the failed counter lifecycle and unchanged DATA-001 invariants | PASS WITH NOTE | All roadmap acceptance criteria and selected R1 CHECK sections passed; R2/CUDA and long-document scaling remain explicit later measurement notes | lifecycle `4 passed`; focused `60 passed, 3 skipped`; full `61 passed, 3 skipped`; overlap probe and local/live head parity passed |
 
 ## Check selection and verdicts
 
@@ -97,6 +97,33 @@
 - Completion evidence requested: focused/full pytest, Ruff, lock/diff, Hydra
   composition, updated README and model-run ledger; independent re-review.
 
+### Review cycle 2
+
+- Review model / mode: not exposed by runtime / not exposed by runtime
+- Commit reviewed: `99dcfcdf72abb8feeece7fdca803a2452793de56`
+- Selected `CHECK.md` sections: 1, 4.1, 4.3, 6.1, 7, and 11 DATA-001
+- Major sections marked N/A and why: tokenizer selection, manifests/splits,
+  checkpointing, W&B, architecture, CUDA/BF16, and consequential-run behavior
+  do not change in this ticket.
+- Ticket acceptance result: PASS; exact transitions, quota/EOS boundaries,
+  ratios/spans, explicit accounting, process lifecycle, and tiny model smoke all
+  passed.
+- Philosophy alignment: PASS; the claimed objective is directly demonstrated,
+  unsafe boundaries fail explicitly, and no hidden fallback or pretrained
+  capability is introduced.
+- Complexity / change-surface result: PASS; the change remains in the loader,
+  its tests/docs, and required provenance records.
+- ML-system result: PASS at R1 with documented notes; R2 is unavailable under
+  the current dependency order and no performance conclusion is claimed.
+- Verdict: `PASS WITH NOTE`
+
+#### Findings
+
+| Severity | Area | What was wrong or good | Evidence | Required action |
+| --- | --- | --- | --- | --- |
+| note | R2 availability | CUDA and a real streaming profile are not yet available because ENV/TOK/CFG tickets follow this correctness foundation | aarch64, Torch 2.10.0+cpu, CUDA false, empty resolved source lists | Measure real supply/GPU behavior in the later dependency tickets; does not block DATA-001 |
+| note | long-document scaling | Repeated front deletion predates DATA-001 and remains unmeasured on representative real documents | baseline already used list-prefix deletion; README makes no performance claim | Measure before optimizing in a later bottleneck ticket |
+
 ## Repair result
 
 - Repair cycle: 1
@@ -114,9 +141,9 @@
 - Local evidence: process lifecycle regressions `3 passed`; focused
   `60 passed, 3 skipped`; full `61 passed, 3 skipped`; Ruff check and changed-file
   format check, lock check, Hydra streaming composition, and diff check passed.
-- Commit reviewed next: pending repair commit.
-- Re-review model / mode: pending independent heavy review.
-- Re-review verdict: pending; no PASS claimed.
+- Commit reviewed next: `99dcfcdf72abb8feeece7fdca803a2452793de56`.
+- Re-review model / mode: not exposed by runtime / not exposed by runtime.
+- Re-review verdict: `PASS WITH NOTE`.
 
 ## Final evidence
 
@@ -160,8 +187,8 @@
   correctness, not favorable long-document scaling.
 - Unresolved risks: real-profile throughput, long-document front-deletion
   scaling, and CUDA behavior remain for later dependency tickets.
-- Human decision requested: review/merge after independent acceptable verdict;
-  a model review is not merge authority
+- Human decision requested: review the evidence and decide whether to merge; a
+  model review is not merge authority
 
 ## Model assessment from this ticket
 
@@ -170,11 +197,12 @@
 | not exposed by runtime / not exposed by runtime | planning | Produced exact stride, EOS, span, accounting, and smoke invariants | Overconstrained completion on an R2 run blocked by later roadmap dependencies | Ticket order, philosophy, source/tests, CHECK routing | plan accepted with sequencing adjustment |
 | not exposed by runtime / not exposed by runtime | implementation | Kept the code change localized to packing/quota semantics and added direct invariant evidence through the real dataset/model boundary | The requested `gpt-5.6-luna` identity and Extra High/max mode could not be selected or verified in this collaboration runtime; no independent verdict is available from this pass | Accepted plan, exact acceptance sequence, explicit out-of-scope list, existing tests | implementation completed; awaiting independent heavy review |
 | not exposed by runtime / not exposed by runtime | review | Detected stale parent accounting specifically on early-close and worker-error process paths despite green success-path tests | Exact heavier model identity/mode was not exposed | Target `7193fb4`, CHECK 4.3, process accounting marker lifecycle | FAIL; repair required |
-| not exposed by runtime / not exposed by runtime | repair | Localized the lifecycle fix to one reset boundary and added direct failure-path regressions | Requested Luna Extra High identity/mode remained unverifiable; re-review is still required | Exact FAIL handoff and mutable local JSONL reproduction | repair completed; verdict remains in progress |
+| not exposed by runtime / not exposed by runtime | repair | Localized the lifecycle fix to one reset boundary and added direct failure-path regressions | Requested Luna Extra High identity/mode remained unverifiable | Exact FAIL handoff and mutable local JSONL reproduction | repair completed; later re-review passed with note |
+| not exposed by runtime / not exposed by runtime | re-review | Reproduced lifecycle/overlap behavior and checked full acceptance, CHECK, and live PR parity | Exact heavier model identity/mode remained hidden | Repair commit, failed-review handoff, focused/full tests, live PR | PASS WITH NOTE |
 
 ## Ledger update
 
 - [x] Added the PR/ticket row to `docs/model-runs/README.md`.
-- [x] Updated implementation, review, and repair attempt counts; successful
-  repair remains zero until an independent passing re-review.
-- [ ] Confirm the PR execution trail matches this record.
+- [x] Updated implementation, review, repair, and successful-repair counts.
+- [x] Confirmed the PR execution trail will be synchronized with this final
+  record after the verdict commit is pushed.
