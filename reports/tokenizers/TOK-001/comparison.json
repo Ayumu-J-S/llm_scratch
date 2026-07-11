@@ -1,0 +1,1873 @@
+{
+  "schema_version": 1,
+  "ticket": "TOK-001",
+  "generated_utc": "2026-07-11T16:48:02.631325+00:00",
+  "candidate_lock_sha256": "56cec8a5e01dac1eeda829057f615d618ce66f729f5d667ea1f7e801b5d7a8f7",
+  "candidate_lock": {
+    "schema_version": 1,
+    "ticket": "TOK-001",
+    "created_date_utc": "2026-07-11",
+    "artifact_policy": {
+      "cache_layout": "<cache-root>/<slug>/<revision>/<local_filename>",
+      "allowlist_only": true,
+      "forbidden": [
+        "model weights",
+        "model configuration",
+        "generation configuration",
+        "chat templates"
+      ],
+      "comparison_runtime": "Hugging Face tokenizers JSON loaded directly by tokenizers.Tokenizer"
+    },
+    "measurement": {
+      "warmup_passes": 1,
+      "measured_passes": 5,
+      "embed_size": 384,
+      "batch_size": 64,
+      "sequence_length": 64,
+      "parameter_dtype_bytes": 4,
+      "logit_dtypes_bytes": {
+        "bf16": 2,
+        "fp32": 4
+      },
+      "selection_rule": {
+        "hard_gates": [
+          "redistribution_evidence",
+          "artifact_integrity",
+          "offline_load",
+          "exact_unicode_round_trip",
+          "zero_unknown_tokens",
+          "zero_corpus_exceptions",
+          "deterministic_malformed_rejection",
+          "id_range_agreement"
+        ],
+        "pareto_objectives": [
+          "japanese_tokens_per_byte",
+          "english_tokens_per_byte",
+          "vocabulary_parameters",
+          "median_bytes_per_second"
+        ],
+        "larger_vocabulary_promotion": "Relative to the smallest eligible vocabulary: improve both Japanese and English tokens/byte by at least 5%, improve at least one by 10%, and keep median bytes/s within the smaller candidate's five-pass observed range.",
+        "tie_break": "Select the smaller vocabulary when no larger candidate clears every promotion threshold."
+      }
+    },
+    "candidates": [
+      {
+        "id": "llm-jp-v1",
+        "slug": "llm-jp--llm-jp-13b-v1.0",
+        "repository": "llm-jp/llm-jp-13b-v1.0",
+        "revision": "c3134b3a958b56d443c1484a3d640502637cfbd2",
+        "revision_url": "https://huggingface.co/llm-jp/llm-jp-13b-v1.0/tree/c3134b3a958b56d443c1484a3d640502637cfbd2",
+        "eligible_to_compare": true,
+        "license": {
+          "spdx": "Apache-2.0",
+          "card_evidence_url": "https://huggingface.co/llm-jp/llm-jp-13b-v1.0/blob/c3134b3a958b56d443c1484a3d640502637cfbd2/README.md#license",
+          "tokenizer_source_revision": "132f21625417ed0f3dc6484bf0bc1fb6a433acdd",
+          "tokenizer_source_url": "https://github.com/llm-jp/llm-jp-tokenizer/tree/132f21625417ed0f3dc6484bf0bc1fb6a433acdd",
+          "license_file_url": "https://raw.githubusercontent.com/llm-jp/llm-jp-tokenizer/132f21625417ed0f3dc6484bf0bc1fb6a433acdd/LICENSE",
+          "redistribution_evidence": true
+        },
+        "files": [
+          {
+            "local_filename": "tokenizer.json",
+            "role": "tokenizer",
+            "url": "https://huggingface.co/llm-jp/llm-jp-13b-v1.0/resolve/c3134b3a958b56d443c1484a3d640502637cfbd2/tokenizer.json",
+            "size_bytes": 3245878,
+            "sha256": "fefc427dff3323dd8a2fd66f392b90a62896db3b11a031463ad0f4c70fb1de9c"
+          },
+          {
+            "local_filename": "tokenizer_config.json",
+            "role": "tokenizer_metadata",
+            "url": "https://huggingface.co/llm-jp/llm-jp-13b-v1.0/resolve/c3134b3a958b56d443c1484a3d640502637cfbd2/tokenizer_config.json",
+            "size_bytes": 529,
+            "sha256": "f2e7afd6c9316cfa59b7262ec4f5f4b2e55f90faf3e91c1e739a63850d7fb6e7"
+          },
+          {
+            "local_filename": "special_tokens_map.json",
+            "role": "tokenizer_metadata",
+            "url": "https://huggingface.co/llm-jp/llm-jp-13b-v1.0/resolve/c3134b3a958b56d443c1484a3d640502637cfbd2/special_tokens_map.json",
+            "size_bytes": 331,
+            "sha256": "12d8611c5c954e65cc6bd58fc9ee86efd3ddbf2a91d256f6ee44a988a8f87856"
+          },
+          {
+            "local_filename": "LICENSE.tokenizer-source",
+            "role": "license",
+            "url": "https://raw.githubusercontent.com/llm-jp/llm-jp-tokenizer/132f21625417ed0f3dc6484bf0bc1fb6a433acdd/LICENSE",
+            "size_bytes": 11337,
+            "sha256": "8198fdaea7582b717b715a1eb6e38f726f526815681cc1af8f9dd3a7f172d0fd"
+          }
+        ]
+      },
+      {
+        "id": "rinna-bilingual",
+        "slug": "rinna--bilingual-gpt-neox-4b",
+        "repository": "rinna/bilingual-gpt-neox-4b",
+        "revision": "803fb7671ac30766ffc6d21139d809b549ee26a3",
+        "revision_url": "https://huggingface.co/rinna/bilingual-gpt-neox-4b/tree/803fb7671ac30766ffc6d21139d809b549ee26a3",
+        "eligible_to_compare": false,
+        "exclusion": "The exact revision declares MIT in README metadata and links the generic MIT text, but contains no repository-owned LICENSE file or tokenizer-specific redistribution notice. The predeclared redistribution/license-file gate therefore excludes it; no SentencePiece runtime or tokenizer artifact was added solely for this candidate.",
+        "license": {
+          "spdx_claim": "MIT",
+          "card_evidence_url": "https://huggingface.co/rinna/bilingual-gpt-neox-4b/blob/803fb7671ac30766ffc6d21139d809b549ee26a3/README.md#license",
+          "license_file_present_at_revision": false,
+          "redistribution_evidence": false
+        },
+        "files": []
+      },
+      {
+        "id": "llm-jp-v3",
+        "slug": "llm-jp--llm-jp-3-13b",
+        "repository": "llm-jp/llm-jp-3-13b",
+        "revision": "cd3823f4c1fcbb0ad2e2af46036ab1b0ca13192a",
+        "revision_url": "https://huggingface.co/llm-jp/llm-jp-3-13b/tree/cd3823f4c1fcbb0ad2e2af46036ab1b0ca13192a",
+        "eligible_to_compare": true,
+        "license": {
+          "spdx": "Apache-2.0",
+          "card_evidence_url": "https://huggingface.co/llm-jp/llm-jp-3-13b/blob/cd3823f4c1fcbb0ad2e2af46036ab1b0ca13192a/README.md#license",
+          "tokenizer_source_revision": "c693f9d89cfd25060c872096809c83756ba58eb0",
+          "tokenizer_source_url": "https://github.com/llm-jp/llm-jp-tokenizer/tree/c693f9d89cfd25060c872096809c83756ba58eb0",
+          "license_file_url": "https://raw.githubusercontent.com/llm-jp/llm-jp-tokenizer/c693f9d89cfd25060c872096809c83756ba58eb0/LICENSE",
+          "redistribution_evidence": true
+        },
+        "files": [
+          {
+            "local_filename": "tokenizer.json",
+            "role": "tokenizer",
+            "url": "https://huggingface.co/llm-jp/llm-jp-3-13b/resolve/cd3823f4c1fcbb0ad2e2af46036ab1b0ca13192a/tokenizer.json",
+            "size_bytes": 6416433,
+            "sha256": "955dc1fa623fab38cc92a3f4ee172423ae6d73201c4207569bfdf5626bc733f0"
+          },
+          {
+            "local_filename": "tokenizer_config.json",
+            "role": "tokenizer_metadata",
+            "url": "https://huggingface.co/llm-jp/llm-jp-3-13b/resolve/cd3823f4c1fcbb0ad2e2af46036ab1b0ca13192a/tokenizer_config.json",
+            "size_bytes": 494,
+            "sha256": "1b457c73c2b6b683cbea24d883f7e5fa56fdd70b7cbf2fc8f42c0fd8de54c7a9"
+          },
+          {
+            "local_filename": "special_tokens_map.json",
+            "role": "tokenizer_metadata",
+            "url": "https://huggingface.co/llm-jp/llm-jp-3-13b/resolve/cd3823f4c1fcbb0ad2e2af46036ab1b0ca13192a/special_tokens_map.json",
+            "size_bytes": 237,
+            "sha256": "f60631bdd138eb0c7db3d306fcf5e475a22d808fa2e2b2ad98cc32d17281194b"
+          },
+          {
+            "local_filename": "LICENSE.tokenizer-source",
+            "role": "license",
+            "url": "https://raw.githubusercontent.com/llm-jp/llm-jp-tokenizer/c693f9d89cfd25060c872096809c83756ba58eb0/LICENSE",
+            "size_bytes": 11337,
+            "sha256": "8198fdaea7582b717b715a1eb6e38f726f526815681cc1af8f9dd3a7f172d0fd"
+          }
+        ]
+      },
+      {
+        "id": "qwen3-control",
+        "slug": "Qwen--Qwen3-0.6B",
+        "repository": "Qwen/Qwen3-0.6B",
+        "revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+        "revision_url": "https://huggingface.co/Qwen/Qwen3-0.6B/tree/c1899de289a04d12100db370d81485cdf75e47ca",
+        "eligible_to_compare": true,
+        "license": {
+          "spdx": "Apache-2.0",
+          "license_file_url": "https://huggingface.co/Qwen/Qwen3-0.6B/blob/c1899de289a04d12100db370d81485cdf75e47ca/LICENSE",
+          "redistribution_evidence": true
+        },
+        "files": [
+          {
+            "local_filename": "tokenizer.json",
+            "role": "tokenizer",
+            "url": "https://huggingface.co/Qwen/Qwen3-0.6B/resolve/c1899de289a04d12100db370d81485cdf75e47ca/tokenizer.json",
+            "size_bytes": 11422654,
+            "sha256": "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4"
+          },
+          {
+            "local_filename": "LICENSE",
+            "role": "license",
+            "url": "https://huggingface.co/Qwen/Qwen3-0.6B/resolve/c1899de289a04d12100db370d81485cdf75e47ca/LICENSE",
+            "size_bytes": 11343,
+            "sha256": "832dd9e00a68dd83b3c3fb9f5588dad7dcf337a0db50f7d9483f310cd292e92e"
+          }
+        ]
+      }
+    ]
+  },
+  "fixture": {
+    "schema_version": 1,
+    "name": "TOK-001 frozen tokenizer comparison corpus",
+    "ownership": "Repository-authored fixture; no text was copied from a model or external corpus.",
+    "encoding": "UTF-8",
+    "document_count": 160,
+    "sha256": "16d2596017853928346bbf6270fc723d67799b8387080aaa172c42a19804a45a",
+    "strata": {
+      "japanese": 20,
+      "english": 20,
+      "mixed": 20,
+      "code_symbols": 20,
+      "emoji_unicode": 20,
+      "whitespace_normalization": 20,
+      "short": 20,
+      "long": 20
+    }
+  },
+  "cache_root": "/home/ayumu/.cache/llm-scratch/tokenizers/TOK-001",
+  "environment": {
+    "platform": "Linux-6.17.0-1021-nvidia-aarch64-with-glibc2.39",
+    "machine": "aarch64",
+    "python": "3.11.15",
+    "tokenizers": "0.22.2",
+    "hostname": "gx10-02db",
+    "cpu_count": 20
+  },
+  "measurement_definition": {
+    "warmup_passes": 1,
+    "measured_passes": 5,
+    "embed_size": 384,
+    "batch_size": 64,
+    "sequence_length": 64,
+    "parameter_dtype_bytes": 4,
+    "logit_dtypes_bytes": {
+      "bf16": 2,
+      "fp32": 4
+    },
+    "selection_rule": {
+      "hard_gates": [
+        "redistribution_evidence",
+        "artifact_integrity",
+        "offline_load",
+        "exact_unicode_round_trip",
+        "zero_unknown_tokens",
+        "zero_corpus_exceptions",
+        "deterministic_malformed_rejection",
+        "id_range_agreement"
+      ],
+      "pareto_objectives": [
+        "japanese_tokens_per_byte",
+        "english_tokens_per_byte",
+        "vocabulary_parameters",
+        "median_bytes_per_second"
+      ],
+      "larger_vocabulary_promotion": "Relative to the smallest eligible vocabulary: improve both Japanese and English tokens/byte by at least 5%, improve at least one by 10%, and keep median bytes/s within the smaller candidate's five-pass observed range.",
+      "tie_break": "Select the smaller vocabulary when no larger candidate clears every promotion threshold."
+    },
+    "quantile_method": "linear interpolation at (n - 1) * q",
+    "timer": "time.perf_counter_ns",
+    "tokenization": "tokenizers.Tokenizer.encode(text, add_special_tokens=False)"
+  },
+  "candidates": [
+    {
+      "id": "llm-jp-v1",
+      "status": "measured",
+      "revision": "c3134b3a958b56d443c1484a3d640502637cfbd2",
+      "verified_files": [
+        {
+          "local_filename": "tokenizer.json",
+          "role": "tokenizer",
+          "size_bytes": 3245878,
+          "sha256": "fefc427dff3323dd8a2fd66f392b90a62896db3b11a031463ad0f4c70fb1de9c",
+          "local_path": "/home/ayumu/.cache/llm-scratch/tokenizers/TOK-001/llm-jp--llm-jp-13b-v1.0/c3134b3a958b56d443c1484a3d640502637cfbd2/tokenizer.json"
+        },
+        {
+          "local_filename": "tokenizer_config.json",
+          "role": "tokenizer_metadata",
+          "size_bytes": 529,
+          "sha256": "f2e7afd6c9316cfa59b7262ec4f5f4b2e55f90faf3e91c1e739a63850d7fb6e7",
+          "local_path": "/home/ayumu/.cache/llm-scratch/tokenizers/TOK-001/llm-jp--llm-jp-13b-v1.0/c3134b3a958b56d443c1484a3d640502637cfbd2/tokenizer_config.json"
+        },
+        {
+          "local_filename": "special_tokens_map.json",
+          "role": "tokenizer_metadata",
+          "size_bytes": 331,
+          "sha256": "12d8611c5c954e65cc6bd58fc9ee86efd3ddbf2a91d256f6ee44a988a8f87856",
+          "local_path": "/home/ayumu/.cache/llm-scratch/tokenizers/TOK-001/llm-jp--llm-jp-13b-v1.0/c3134b3a958b56d443c1484a3d640502637cfbd2/special_tokens_map.json"
+        },
+        {
+          "local_filename": "LICENSE.tokenizer-source",
+          "role": "license",
+          "size_bytes": 11337,
+          "sha256": "8198fdaea7582b717b715a1eb6e38f726f526815681cc1af8f9dd3a7f172d0fd",
+          "local_path": "/home/ayumu/.cache/llm-scratch/tokenizers/TOK-001/llm-jp--llm-jp-13b-v1.0/c3134b3a958b56d443c1484a3d640502637cfbd2/LICENSE.tokenizer-source"
+        }
+      ],
+      "tokenizer_artifact_size_bytes": 3246738,
+      "identity": {
+        "vocab_size": 50570,
+        "max_vocab_id": 50569,
+        "min_vocab_id": 0,
+        "special_tokens": [
+          {
+            "id": 0,
+            "token": "<unk|LLM-jp>",
+            "special": true
+          },
+          {
+            "id": 1,
+            "token": "<s|LLM-jp>",
+            "special": true
+          },
+          {
+            "id": 2,
+            "token": "</s|LLM-jp>",
+            "special": true
+          },
+          {
+            "id": 3,
+            "token": "<mask|LLM-jp>",
+            "special": true
+          },
+          {
+            "id": 4,
+            "token": "<pad|LLM-jp>",
+            "special": true
+          },
+          {
+            "id": 5,
+            "token": "<CLS|LLM-jp>",
+            "special": true
+          },
+          {
+            "id": 6,
+            "token": "<SEP|LLM-jp>",
+            "special": true
+          },
+          {
+            "id": 7,
+            "token": "<EOD|LLM-jp>",
+            "special": true
+          }
+        ],
+        "semantic_tokens": {
+          "unk_token": {
+            "token": "<unk|LLM-jp>",
+            "id": 0
+          },
+          "bos_token": {
+            "token": "<s|LLM-jp>",
+            "id": 1
+          },
+          "eos_token": {
+            "token": "<EOD|LLM-jp>",
+            "id": 7
+          },
+          "pad_token": {
+            "token": "<pad|LLM-jp>",
+            "id": 4
+          }
+        },
+        "pipeline": {
+          "model_type": "Unigram",
+          "model_byte_fallback": true,
+          "normalizer_types": [
+            "Sequence",
+            "Replace"
+          ],
+          "pre_tokenizer_types": [],
+          "decoder_types": [
+            "Sequence",
+            "ByteFallback",
+            "Replace",
+            "Fuse"
+          ]
+        }
+      },
+      "ids_sha256": "3c1078f72957170fd3c7ac94c9d3313b367f3bf243562a693588810f07dfe907",
+      "compression": {
+        "overall": {
+          "tokens": 22872,
+          "codepoints": 54752,
+          "utf8_bytes": 90509,
+          "tokens_per_codepoint": 0.417738,
+          "tokens_per_utf8_byte": 0.252704
+        },
+        "by_stratum": {
+          "japanese": {
+            "documents": 20,
+            "tokens": 1043,
+            "codepoints": 1586,
+            "utf8_bytes": 4718,
+            "tokens_per_codepoint": 0.657629,
+            "tokens_per_utf8_byte": 0.221068,
+            "document_tokens_p50": 48.5,
+            "document_tokens_p95": 88.4,
+            "document_tokens_p99": 94.48
+          },
+          "english": {
+            "documents": 20,
+            "tokens": 855,
+            "codepoints": 4064,
+            "utf8_bytes": 4064,
+            "tokens_per_codepoint": 0.210384,
+            "tokens_per_utf8_byte": 0.210384,
+            "document_tokens_p50": 44.5,
+            "document_tokens_p95": 72.2,
+            "document_tokens_p99": 75.24
+          },
+          "mixed": {
+            "documents": 20,
+            "tokens": 874,
+            "codepoints": 2160,
+            "utf8_bytes": 3076,
+            "tokens_per_codepoint": 0.40463,
+            "tokens_per_utf8_byte": 0.284135,
+            "document_tokens_p50": 41.0,
+            "document_tokens_p95": 75.3,
+            "document_tokens_p99": 79.86
+          },
+          "code_symbols": {
+            "documents": 20,
+            "tokens": 1370,
+            "codepoints": 2382,
+            "utf8_bytes": 2445,
+            "tokens_per_codepoint": 0.575147,
+            "tokens_per_utf8_byte": 0.560327,
+            "document_tokens_p50": 72.5,
+            "document_tokens_p95": 108.4,
+            "document_tokens_p99": 114.48
+          },
+          "emoji_unicode": {
+            "documents": 20,
+            "tokens": 1426,
+            "codepoints": 1606,
+            "utf8_bytes": 2478,
+            "tokens_per_codepoint": 0.88792,
+            "tokens_per_utf8_byte": 0.575464,
+            "document_tokens_p50": 54.0,
+            "document_tokens_p95": 142.95,
+            "document_tokens_p99": 172.59
+          },
+          "whitespace_normalization": {
+            "documents": 20,
+            "tokens": 119,
+            "codepoints": 315,
+            "utf8_bytes": 343,
+            "tokens_per_codepoint": 0.377778,
+            "tokens_per_utf8_byte": 0.346939,
+            "document_tokens_p50": 5.5,
+            "document_tokens_p95": 10.0,
+            "document_tokens_p99": 10.0
+          },
+          "short": {
+            "documents": 20,
+            "tokens": 43,
+            "codepoints": 29,
+            "utf8_bytes": 45,
+            "tokens_per_codepoint": 1.482759,
+            "tokens_per_utf8_byte": 0.955556,
+            "document_tokens_p50": 2.0,
+            "document_tokens_p95": 4.05,
+            "document_tokens_p99": 4.81
+          },
+          "long": {
+            "documents": 20,
+            "tokens": 17142,
+            "codepoints": 42610,
+            "utf8_bytes": 73340,
+            "tokens_per_codepoint": 0.4023,
+            "tokens_per_utf8_byte": 0.233733,
+            "document_tokens_p50": 865.5,
+            "document_tokens_p95": 1266.35,
+            "document_tokens_p99": 1332.47
+          }
+        }
+      },
+      "round_trip": {
+        "exact_successes": 160,
+        "failures": 0,
+        "failure_examples": []
+      },
+      "fallback": {
+        "definition": "Tokens whose serialized spelling matches <0xHH>.",
+        "explicit_byte_fallback_tokens": 1618,
+        "documents_with_explicit_byte_fallback": 50,
+        "unknown_token_ids": [
+          0
+        ],
+        "unknown_tokens": 0
+      },
+      "exceptions": [],
+      "max_encoded_id": 50567,
+      "malformed": {
+        "policy": "Malformed UTF-8 bytes must fail strict UTF-8 decoding before tokenization; surrogate code points must be rejected by the tokenizer boundary.",
+        "all_rejected": true,
+        "all_deterministic": true,
+        "outcomes": [
+          {
+            "id": "lone-continuation",
+            "kind": "utf8_bytes",
+            "deterministic": true,
+            "outcome": "rejected",
+            "exception": "UnicodeDecodeError",
+            "message": "'utf-8' codec can't decode byte 0x80 in position 0: invalid start byte"
+          },
+          {
+            "id": "overlong-slash",
+            "kind": "utf8_bytes",
+            "deterministic": true,
+            "outcome": "rejected",
+            "exception": "UnicodeDecodeError",
+            "message": "'utf-8' codec can't decode byte 0xc0 in position 0: invalid start byte"
+          },
+          {
+            "id": "utf8-surrogate",
+            "kind": "utf8_bytes",
+            "deterministic": true,
+            "outcome": "rejected",
+            "exception": "UnicodeDecodeError",
+            "message": "'utf-8' codec can't decode byte 0xed in position 0: invalid continuation byte"
+          },
+          {
+            "id": "above-unicode-range",
+            "kind": "utf8_bytes",
+            "deterministic": true,
+            "outcome": "rejected",
+            "exception": "UnicodeDecodeError",
+            "message": "'utf-8' codec can't decode byte 0xf4 in position 0: invalid continuation byte"
+          },
+          {
+            "id": "truncated-three-byte",
+            "kind": "utf8_bytes",
+            "deterministic": true,
+            "outcome": "rejected",
+            "exception": "UnicodeDecodeError",
+            "message": "'utf-8' codec can't decode bytes in position 0-1: unexpected end of data"
+          },
+          {
+            "id": "lone-high-surrogate",
+            "kind": "codepoints",
+            "deterministic": true,
+            "outcome": "rejected",
+            "exception": "TypeError",
+            "message": "TextInputSequence must be str"
+          },
+          {
+            "id": "lone-low-surrogate",
+            "kind": "codepoints",
+            "deterministic": true,
+            "outcome": "rejected",
+            "exception": "TypeError",
+            "message": "TextInputSequence must be str"
+          },
+          {
+            "id": "reversed-surrogates",
+            "kind": "codepoints",
+            "deterministic": true,
+            "outcome": "rejected",
+            "exception": "TypeError",
+            "message": "TextInputSequence must be str"
+          },
+          {
+            "id": "high-surrogate-ascii",
+            "kind": "codepoints",
+            "deterministic": true,
+            "outcome": "rejected",
+            "exception": "TypeError",
+            "message": "TextInputSequence must be str"
+          },
+          {
+            "id": "ascii-low-surrogate",
+            "kind": "codepoints",
+            "deterministic": true,
+            "outcome": "rejected",
+            "exception": "TypeError",
+            "message": "TextInputSequence must be str"
+          }
+        ]
+      },
+      "performance": {
+        "warmup_passes": 1,
+        "measured_passes": 5,
+        "passes": [
+          {
+            "pass": 1,
+            "elapsed_seconds": 0.014276,
+            "documents_per_second": 11207.640024,
+            "codepoints_per_second": 3835254.41623,
+            "utf8_bytes_per_second": 6339951.818356,
+            "tokens_per_second": 1602132.141438,
+            "document_latency_us_p50": 18.424,
+            "document_latency_us_p95": 574.21615,
+            "document_latency_us_p99": 742.90729,
+            "ids_sha256": "3c1078f72957170fd3c7ac94c9d3313b367f3bf243562a693588810f07dfe907"
+          },
+          {
+            "pass": 2,
+            "elapsed_seconds": 0.014292,
+            "documents_per_second": 11194.716989,
+            "codepoints_per_second": 3830832.15369,
+            "utf8_bytes_per_second": 6332641.499823,
+            "tokens_per_second": 1600284.7936,
+            "document_latency_us_p50": 18.904,
+            "document_latency_us_p95": 583.10015,
+            "document_latency_us_p99": 754.9256,
+            "ids_sha256": "3c1078f72957170fd3c7ac94c9d3313b367f3bf243562a693588810f07dfe907"
+          },
+          {
+            "pass": 3,
+            "elapsed_seconds": 0.014197,
+            "documents_per_second": 11270.074733,
+            "codepoints_per_second": 3856619.573485,
+            "utf8_bytes_per_second": 6375269.962314,
+            "tokens_per_second": 1611057.183021,
+            "document_latency_us_p50": 18.344,
+            "document_latency_us_p95": 590.73525,
+            "document_latency_us_p99": 735.92784,
+            "ids_sha256": "3c1078f72957170fd3c7ac94c9d3313b367f3bf243562a693588810f07dfe907"
+          },
+          {
+            "pass": 4,
+            "elapsed_seconds": 0.014129,
+            "documents_per_second": 11324.047237,
+            "codepoints_per_second": 3875088.964546,
+            "utf8_bytes_per_second": 6405801.196159,
+            "tokens_per_second": 1618772.552548,
+            "document_latency_us_p50": 18.592,
+            "document_latency_us_p95": 568.6216,
+            "document_latency_us_p99": 742.83689,
+            "ids_sha256": "3c1078f72957170fd3c7ac94c9d3313b367f3bf243562a693588810f07dfe907"
+          },
+          {
+            "pass": 5,
+            "elapsed_seconds": 0.014217,
+            "documents_per_second": 11253.993057,
+            "codepoints_per_second": 3851116.424246,
+            "utf8_bytes_per_second": 6366172.860208,
+            "tokens_per_second": 1608758.307557,
+            "document_latency_us_p50": 18.76,
+            "document_latency_us_p95": 571.94495,
+            "document_latency_us_p99": 752.44084,
+            "ids_sha256": "3c1078f72957170fd3c7ac94c9d3313b367f3bf243562a693588810f07dfe907"
+          }
+        ],
+        "summary": {
+          "documents_per_second": {
+            "median": 11253.993057,
+            "min": 11194.716989,
+            "max": 11324.047237,
+            "relative_range": 0.011492
+          },
+          "codepoints_per_second": {
+            "median": 3851116.424246,
+            "min": 3830832.15369,
+            "max": 3875088.964546,
+            "relative_range": 0.011492
+          },
+          "utf8_bytes_per_second": {
+            "median": 6366172.860208,
+            "min": 6332641.499823,
+            "max": 6405801.196159,
+            "relative_range": 0.011492
+          },
+          "tokens_per_second": {
+            "median": 1608758.307557,
+            "min": 1600284.7936,
+            "max": 1618772.552548,
+            "relative_range": 0.011492
+          },
+          "document_latency_us": {
+            "p50": 18.616,
+            "p95": 590.008,
+            "p99": 761.79748
+          }
+        }
+      },
+      "fresh_process": {
+        "load_seconds": 0.041943,
+        "encode_corpus_seconds": 0.015648,
+        "tokens": 22872,
+        "vmhwm_kib_before_load": 31700,
+        "vmhwm_kib_after_load": 82512,
+        "vmhwm_kib_after_corpus": 82512
+      },
+      "cost": {
+        "embedding_parameters": 19418880,
+        "lm_head_parameters_including_bias": 19469450,
+        "vocabulary_parameters": 38888330,
+        "fp32_model_bytes": 155553320,
+        "fp32_gradient_bytes": 155553320,
+        "adam_moment_bytes": 311106640,
+        "fp32_training_state_bytes": 622213280,
+        "model_plus_adam_checkpoint_bytes": 466659960,
+        "batch_logit_elements": 207134720,
+        "batch_logits_bf16_bytes": 414269440,
+        "batch_logits_fp32_bytes": 828538880,
+        "lm_head_multiply_accumulates_per_batch": 79539732480
+      },
+      "hard_gates": {
+        "redistribution_evidence": true,
+        "artifact_integrity": true,
+        "offline_load": true,
+        "exact_unicode_round_trip": true,
+        "zero_unknown_tokens": true,
+        "zero_corpus_exceptions": true,
+        "deterministic_malformed_rejection": true,
+        "id_range_agreement": true
+      },
+      "hard_gate_pass": true
+    },
+    {
+      "id": "rinna-bilingual",
+      "status": "excluded",
+      "exclusion": "The exact revision declares MIT in README metadata and links the generic MIT text, but contains no repository-owned LICENSE file or tokenizer-specific redistribution notice. The predeclared redistribution/license-file gate therefore excludes it; no SentencePiece runtime or tokenizer artifact was added solely for this candidate."
+    },
+    {
+      "id": "llm-jp-v3",
+      "status": "measured",
+      "revision": "cd3823f4c1fcbb0ad2e2af46036ab1b0ca13192a",
+      "verified_files": [
+        {
+          "local_filename": "tokenizer.json",
+          "role": "tokenizer",
+          "size_bytes": 6416433,
+          "sha256": "955dc1fa623fab38cc92a3f4ee172423ae6d73201c4207569bfdf5626bc733f0",
+          "local_path": "/home/ayumu/.cache/llm-scratch/tokenizers/TOK-001/llm-jp--llm-jp-3-13b/cd3823f4c1fcbb0ad2e2af46036ab1b0ca13192a/tokenizer.json"
+        },
+        {
+          "local_filename": "tokenizer_config.json",
+          "role": "tokenizer_metadata",
+          "size_bytes": 494,
+          "sha256": "1b457c73c2b6b683cbea24d883f7e5fa56fdd70b7cbf2fc8f42c0fd8de54c7a9",
+          "local_path": "/home/ayumu/.cache/llm-scratch/tokenizers/TOK-001/llm-jp--llm-jp-3-13b/cd3823f4c1fcbb0ad2e2af46036ab1b0ca13192a/tokenizer_config.json"
+        },
+        {
+          "local_filename": "special_tokens_map.json",
+          "role": "tokenizer_metadata",
+          "size_bytes": 237,
+          "sha256": "f60631bdd138eb0c7db3d306fcf5e475a22d808fa2e2b2ad98cc32d17281194b",
+          "local_path": "/home/ayumu/.cache/llm-scratch/tokenizers/TOK-001/llm-jp--llm-jp-3-13b/cd3823f4c1fcbb0ad2e2af46036ab1b0ca13192a/special_tokens_map.json"
+        },
+        {
+          "local_filename": "LICENSE.tokenizer-source",
+          "role": "license",
+          "size_bytes": 11337,
+          "sha256": "8198fdaea7582b717b715a1eb6e38f726f526815681cc1af8f9dd3a7f172d0fd",
+          "local_path": "/home/ayumu/.cache/llm-scratch/tokenizers/TOK-001/llm-jp--llm-jp-3-13b/cd3823f4c1fcbb0ad2e2af46036ab1b0ca13192a/LICENSE.tokenizer-source"
+        }
+      ],
+      "tokenizer_artifact_size_bytes": 6417164,
+      "identity": {
+        "vocab_size": 99574,
+        "max_vocab_id": 99573,
+        "min_vocab_id": 0,
+        "special_tokens": [
+          {
+            "id": 0,
+            "token": "<unk>",
+            "special": true
+          },
+          {
+            "id": 1,
+            "token": "<s>",
+            "special": true
+          },
+          {
+            "id": 2,
+            "token": "</s>",
+            "special": true
+          },
+          {
+            "id": 3,
+            "token": "<MASK|LLM-jp>",
+            "special": true
+          },
+          {
+            "id": 4,
+            "token": "<PAD|LLM-jp>",
+            "special": true
+          },
+          {
+            "id": 5,
+            "token": "<CLS|LLM-jp>",
+            "special": true
+          },
+          {
+            "id": 6,
+            "token": "<SEP|LLM-jp>",
+            "special": true
+          },
+          {
+            "id": 7,
+            "token": "<EOD|LLM-jp>",
+            "special": true
+          }
+        ],
+        "semantic_tokens": {
+          "unk_token": {
+            "token": "<unk>",
+            "id": 0
+          },
+          "bos_token": {
+            "token": "<s>",
+            "id": 1
+          },
+          "eos_token": {
+            "token": "</s>",
+            "id": 2
+          },
+          "pad_token": {
+            "token": "<PAD|LLM-jp>",
+            "id": 4
+          }
+        },
+        "pipeline": {
+          "model_type": "Unigram",
+          "model_byte_fallback": true,
+          "normalizer_types": [
+            "Sequence",
+            "Replace"
+          ],
+          "pre_tokenizer_types": [],
+          "decoder_types": [
+            "Sequence",
+            "ByteFallback",
+            "Replace",
+            "Fuse"
+          ]
+        }
+      },
+      "ids_sha256": "dc264e41423e0aacc3095a59be127ed9ff3a1676a8fbb77efc7756b1fbc65072",
+      "compression": {
+        "overall": {
+          "tokens": 19424,
+          "codepoints": 54752,
+          "utf8_bytes": 90509,
+          "tokens_per_codepoint": 0.354763,
+          "tokens_per_utf8_byte": 0.214608
+        },
+        "by_stratum": {
+          "japanese": {
+            "documents": 20,
+            "tokens": 796,
+            "codepoints": 1586,
+            "utf8_bytes": 4718,
+            "tokens_per_codepoint": 0.501892,
+            "tokens_per_utf8_byte": 0.168716,
+            "document_tokens_p50": 40.0,
+            "document_tokens_p95": 64.2,
+            "document_tokens_p99": 67.24
+          },
+          "english": {
+            "documents": 20,
+            "tokens": 793,
+            "codepoints": 4064,
+            "utf8_bytes": 4064,
+            "tokens_per_codepoint": 0.195128,
+            "tokens_per_utf8_byte": 0.195128,
+            "document_tokens_p50": 36.5,
+            "document_tokens_p95": 64.0,
+            "document_tokens_p99": 64.0
+          },
+          "mixed": {
+            "documents": 20,
+            "tokens": 639,
+            "codepoints": 2160,
+            "utf8_bytes": 3076,
+            "tokens_per_codepoint": 0.295833,
+            "tokens_per_utf8_byte": 0.207737,
+            "document_tokens_p50": 30.0,
+            "document_tokens_p95": 51.45,
+            "document_tokens_p99": 58.29
+          },
+          "code_symbols": {
+            "documents": 20,
+            "tokens": 954,
+            "codepoints": 2382,
+            "utf8_bytes": 2445,
+            "tokens_per_codepoint": 0.400504,
+            "tokens_per_utf8_byte": 0.390184,
+            "document_tokens_p50": 47.0,
+            "document_tokens_p95": 74.45,
+            "document_tokens_p99": 81.29
+          },
+          "emoji_unicode": {
+            "documents": 20,
+            "tokens": 1155,
+            "codepoints": 1606,
+            "utf8_bytes": 2478,
+            "tokens_per_codepoint": 0.719178,
+            "tokens_per_utf8_byte": 0.466102,
+            "document_tokens_p50": 48.0,
+            "document_tokens_p95": 112.65,
+            "document_tokens_p99": 137.73
+          },
+          "whitespace_normalization": {
+            "documents": 20,
+            "tokens": 101,
+            "codepoints": 315,
+            "utf8_bytes": 343,
+            "tokens_per_codepoint": 0.320635,
+            "tokens_per_utf8_byte": 0.294461,
+            "document_tokens_p50": 4.5,
+            "document_tokens_p95": 10.0,
+            "document_tokens_p99": 10.0
+          },
+          "short": {
+            "documents": 20,
+            "tokens": 26,
+            "codepoints": 29,
+            "utf8_bytes": 45,
+            "tokens_per_codepoint": 0.896552,
+            "tokens_per_utf8_byte": 0.577778,
+            "document_tokens_p50": 1.0,
+            "document_tokens_p95": 2.05,
+            "document_tokens_p99": 2.81
+          },
+          "long": {
+            "documents": 20,
+            "tokens": 14960,
+            "codepoints": 42610,
+            "utf8_bytes": 73340,
+            "tokens_per_codepoint": 0.351091,
+            "tokens_per_utf8_byte": 0.203981,
+            "document_tokens_p50": 753.0,
+            "document_tokens_p95": 1109.25,
+            "document_tokens_p99": 1158.65
+          }
+        }
+      },
+      "round_trip": {
+        "exact_successes": 160,
+        "failures": 0,
+        "failure_examples": []
+      },
+      "fallback": {
+        "definition": "Tokens whose serialized spelling matches <0xHH>.",
+        "explicit_byte_fallback_tokens": 1488,
+        "documents_with_explicit_byte_fallback": 61,
+        "unknown_token_ids": [
+          0
+        ],
+        "unknown_tokens": 0
+      },
+      "exceptions": [],
+      "max_encoded_id": 99275,
+      "malformed": {
+        "policy": "Malformed UTF-8 bytes must fail strict UTF-8 decoding before tokenization; surrogate code points must be rejected by the tokenizer boundary.",
+        "all_rejected": true,
+        "all_deterministic": true,
+        "outcomes": [
+          {
+            "id": "lone-continuation",
+            "kind": "utf8_bytes",
+            "deterministic": true,
+            "outcome": "rejected",
+            "exception": "UnicodeDecodeError",
+            "message": "'utf-8' codec can't decode byte 0x80 in position 0: invalid start byte"
+          },
+          {
+            "id": "overlong-slash",
+            "kind": "utf8_bytes",
+            "deterministic": true,
+            "outcome": "rejected",
+            "exception": "UnicodeDecodeError",
+            "message": "'utf-8' codec can't decode byte 0xc0 in position 0: invalid start byte"
+          },
+          {
+            "id": "utf8-surrogate",
+            "kind": "utf8_bytes",
+            "deterministic": true,
+            "outcome": "rejected",
+            "exception": "UnicodeDecodeError",
+            "message": "'utf-8' codec can't decode byte 0xed in position 0: invalid continuation byte"
+          },
+          {
+            "id": "above-unicode-range",
+            "kind": "utf8_bytes",
+            "deterministic": true,
+            "outcome": "rejected",
+            "exception": "UnicodeDecodeError",
+            "message": "'utf-8' codec can't decode byte 0xf4 in position 0: invalid continuation byte"
+          },
+          {
+            "id": "truncated-three-byte",
+            "kind": "utf8_bytes",
+            "deterministic": true,
+            "outcome": "rejected",
+            "exception": "UnicodeDecodeError",
+            "message": "'utf-8' codec can't decode bytes in position 0-1: unexpected end of data"
+          },
+          {
+            "id": "lone-high-surrogate",
+            "kind": "codepoints",
+            "deterministic": true,
+            "outcome": "rejected",
+            "exception": "TypeError",
+            "message": "TextInputSequence must be str"
+          },
+          {
+            "id": "lone-low-surrogate",
+            "kind": "codepoints",
+            "deterministic": true,
+            "outcome": "rejected",
+            "exception": "TypeError",
+            "message": "TextInputSequence must be str"
+          },
+          {
+            "id": "reversed-surrogates",
+            "kind": "codepoints",
+            "deterministic": true,
+            "outcome": "rejected",
+            "exception": "TypeError",
+            "message": "TextInputSequence must be str"
+          },
+          {
+            "id": "high-surrogate-ascii",
+            "kind": "codepoints",
+            "deterministic": true,
+            "outcome": "rejected",
+            "exception": "TypeError",
+            "message": "TextInputSequence must be str"
+          },
+          {
+            "id": "ascii-low-surrogate",
+            "kind": "codepoints",
+            "deterministic": true,
+            "outcome": "rejected",
+            "exception": "TypeError",
+            "message": "TextInputSequence must be str"
+          }
+        ]
+      },
+      "performance": {
+        "warmup_passes": 1,
+        "measured_passes": 5,
+        "passes": [
+          {
+            "pass": 1,
+            "elapsed_seconds": 0.015817,
+            "documents_per_second": 10115.400919,
+            "codepoints_per_second": 3461490.194541,
+            "utf8_bytes_per_second": 5722092.636209,
+            "tokens_per_second": 1228009.671588,
+            "document_latency_us_p50": 19.616,
+            "document_latency_us_p95": 638.09935,
+            "document_latency_us_p99": 831.76665,
+            "ids_sha256": "dc264e41423e0aacc3095a59be127ed9ff3a1676a8fbb77efc7756b1fbc65072"
+          },
+          {
+            "pass": 2,
+            "elapsed_seconds": 0.015798,
+            "documents_per_second": 10127.889289,
+            "codepoints_per_second": 3465763.714697,
+            "utf8_bytes_per_second": 5729157.072865,
+            "tokens_per_second": 1229525.759685,
+            "document_latency_us_p50": 20.296,
+            "document_latency_us_p95": 631.5408,
+            "document_latency_us_p99": 821.79835,
+            "ids_sha256": "dc264e41423e0aacc3095a59be127ed9ff3a1676a8fbb77efc7756b1fbc65072"
+          },
+          {
+            "pass": 3,
+            "elapsed_seconds": 0.015799,
+            "documents_per_second": 10127.02774,
+            "codepoints_per_second": 3465468.892461,
+            "utf8_bytes_per_second": 5728669.710471,
+            "tokens_per_second": 1229421.167577,
+            "document_latency_us_p50": 19.768,
+            "document_latency_us_p95": 651.49295,
+            "document_latency_us_p99": 824.84528,
+            "ids_sha256": "dc264e41423e0aacc3095a59be127ed9ff3a1676a8fbb77efc7756b1fbc65072"
+          },
+          {
+            "pass": 4,
+            "elapsed_seconds": 0.015751,
+            "documents_per_second": 10157.816278,
+            "codepoints_per_second": 3476004.730241,
+            "utf8_bytes_per_second": 5746086.20926,
+            "tokens_per_second": 1233158.896117,
+            "document_latency_us_p50": 19.928,
+            "document_latency_us_p95": 627.22415,
+            "document_latency_us_p99": 816.58665,
+            "ids_sha256": "dc264e41423e0aacc3095a59be127ed9ff3a1676a8fbb77efc7756b1fbc65072"
+          },
+          {
+            "pass": 5,
+            "elapsed_seconds": 0.01584,
+            "documents_per_second": 10100.800305,
+            "codepoints_per_second": 3456493.86449,
+            "utf8_bytes_per_second": 5713833.342729,
+            "tokens_per_second": 1226237.157069,
+            "document_latency_us_p50": 19.864,
+            "document_latency_us_p95": 638.07925,
+            "document_latency_us_p99": 840.70779,
+            "ids_sha256": "dc264e41423e0aacc3095a59be127ed9ff3a1676a8fbb77efc7756b1fbc65072"
+          }
+        ],
+        "summary": {
+          "documents_per_second": {
+            "median": 10127.02774,
+            "min": 10100.800305,
+            "max": 10157.816278,
+            "relative_range": 0.00563
+          },
+          "codepoints_per_second": {
+            "median": 3465468.892461,
+            "min": 3456493.86449,
+            "max": 3476004.730241,
+            "relative_range": 0.00563
+          },
+          "utf8_bytes_per_second": {
+            "median": 5728669.710471,
+            "min": 5713833.342729,
+            "max": 5746086.20926,
+            "relative_range": 0.00563
+          },
+          "tokens_per_second": {
+            "median": 1229421.167577,
+            "min": 1226237.157069,
+            "max": 1233158.896117,
+            "relative_range": 0.00563
+          },
+          "document_latency_us": {
+            "p50": 19.904,
+            "p95": 651.49295,
+            "p99": 839.17299
+          }
+        }
+      },
+      "fresh_process": {
+        "load_seconds": 0.073162,
+        "encode_corpus_seconds": 0.016132,
+        "tokens": 19424,
+        "vmhwm_kib_before_load": 31824,
+        "vmhwm_kib_after_load": 126020,
+        "vmhwm_kib_after_corpus": 126020
+      },
+      "cost": {
+        "embedding_parameters": 38236416,
+        "lm_head_parameters_including_bias": 38335990,
+        "vocabulary_parameters": 76572406,
+        "fp32_model_bytes": 306289624,
+        "fp32_gradient_bytes": 306289624,
+        "adam_moment_bytes": 612579248,
+        "fp32_training_state_bytes": 1225158496,
+        "model_plus_adam_checkpoint_bytes": 918868872,
+        "batch_logit_elements": 407855104,
+        "batch_logits_bf16_bytes": 815710208,
+        "batch_logits_fp32_bytes": 1631420416,
+        "lm_head_multiply_accumulates_per_batch": 156616359936
+      },
+      "hard_gates": {
+        "redistribution_evidence": true,
+        "artifact_integrity": true,
+        "offline_load": true,
+        "exact_unicode_round_trip": true,
+        "zero_unknown_tokens": true,
+        "zero_corpus_exceptions": true,
+        "deterministic_malformed_rejection": true,
+        "id_range_agreement": true
+      },
+      "hard_gate_pass": true
+    },
+    {
+      "id": "qwen3-control",
+      "status": "measured",
+      "revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+      "verified_files": [
+        {
+          "local_filename": "tokenizer.json",
+          "role": "tokenizer",
+          "size_bytes": 11422654,
+          "sha256": "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4",
+          "local_path": "/home/ayumu/.cache/llm-scratch/tokenizers/TOK-001/Qwen--Qwen3-0.6B/c1899de289a04d12100db370d81485cdf75e47ca/tokenizer.json"
+        },
+        {
+          "local_filename": "LICENSE",
+          "role": "license",
+          "size_bytes": 11343,
+          "sha256": "832dd9e00a68dd83b3c3fb9f5588dad7dcf337a0db50f7d9483f310cd292e92e",
+          "local_path": "/home/ayumu/.cache/llm-scratch/tokenizers/TOK-001/Qwen--Qwen3-0.6B/c1899de289a04d12100db370d81485cdf75e47ca/LICENSE"
+        }
+      ],
+      "tokenizer_artifact_size_bytes": 11422654,
+      "identity": {
+        "vocab_size": 151669,
+        "max_vocab_id": 151668,
+        "min_vocab_id": 0,
+        "special_tokens": [
+          {
+            "id": 151643,
+            "token": "<|endoftext|>",
+            "special": true
+          },
+          {
+            "id": 151644,
+            "token": "<|im_start|>",
+            "special": true
+          },
+          {
+            "id": 151645,
+            "token": "<|im_end|>",
+            "special": true
+          },
+          {
+            "id": 151646,
+            "token": "<|object_ref_start|>",
+            "special": true
+          },
+          {
+            "id": 151647,
+            "token": "<|object_ref_end|>",
+            "special": true
+          },
+          {
+            "id": 151648,
+            "token": "<|box_start|>",
+            "special": true
+          },
+          {
+            "id": 151649,
+            "token": "<|box_end|>",
+            "special": true
+          },
+          {
+            "id": 151650,
+            "token": "<|quad_start|>",
+            "special": true
+          },
+          {
+            "id": 151651,
+            "token": "<|quad_end|>",
+            "special": true
+          },
+          {
+            "id": 151652,
+            "token": "<|vision_start|>",
+            "special": true
+          },
+          {
+            "id": 151653,
+            "token": "<|vision_end|>",
+            "special": true
+          },
+          {
+            "id": 151654,
+            "token": "<|vision_pad|>",
+            "special": true
+          },
+          {
+            "id": 151655,
+            "token": "<|image_pad|>",
+            "special": true
+          },
+          {
+            "id": 151656,
+            "token": "<|video_pad|>",
+            "special": true
+          },
+          {
+            "id": 151657,
+            "token": "<tool_call>",
+            "special": false
+          },
+          {
+            "id": 151658,
+            "token": "</tool_call>",
+            "special": false
+          },
+          {
+            "id": 151659,
+            "token": "<|fim_prefix|>",
+            "special": false
+          },
+          {
+            "id": 151660,
+            "token": "<|fim_middle|>",
+            "special": false
+          },
+          {
+            "id": 151661,
+            "token": "<|fim_suffix|>",
+            "special": false
+          },
+          {
+            "id": 151662,
+            "token": "<|fim_pad|>",
+            "special": false
+          },
+          {
+            "id": 151663,
+            "token": "<|repo_name|>",
+            "special": false
+          },
+          {
+            "id": 151664,
+            "token": "<|file_sep|>",
+            "special": false
+          },
+          {
+            "id": 151665,
+            "token": "<tool_response>",
+            "special": false
+          },
+          {
+            "id": 151666,
+            "token": "</tool_response>",
+            "special": false
+          },
+          {
+            "id": 151667,
+            "token": "<think>",
+            "special": false
+          },
+          {
+            "id": 151668,
+            "token": "</think>",
+            "special": false
+          }
+        ],
+        "semantic_tokens": {
+          "unk_token": {
+            "token": "<unk>",
+            "id": 128244
+          },
+          "bos_token": {
+            "token": null,
+            "id": null
+          },
+          "eos_token": {
+            "token": "<|endoftext|>",
+            "id": 151643
+          },
+          "pad_token": {
+            "token": null,
+            "id": null
+          }
+        },
+        "pipeline": {
+          "model_type": "BPE",
+          "model_byte_fallback": false,
+          "normalizer_types": [
+            "NFC"
+          ],
+          "pre_tokenizer_types": [
+            "Sequence",
+            "Split",
+            "ByteLevel"
+          ],
+          "decoder_types": [
+            "ByteLevel"
+          ]
+        }
+      },
+      "ids_sha256": "1b963e8bf1bc25dc44b50a1f53df5f9b34ab4855288d31f5e82538a777ba22fb",
+      "compression": {
+        "overall": {
+          "tokens": 20928,
+          "codepoints": 54752,
+          "utf8_bytes": 90509,
+          "tokens_per_codepoint": 0.382233,
+          "tokens_per_utf8_byte": 0.231226
+        },
+        "by_stratum": {
+          "japanese": {
+            "documents": 20,
+            "tokens": 1138,
+            "codepoints": 1586,
+            "utf8_bytes": 4718,
+            "tokens_per_codepoint": 0.717528,
+            "tokens_per_utf8_byte": 0.241204,
+            "document_tokens_p50": 55.0,
+            "document_tokens_p95": 93.4,
+            "document_tokens_p99": 99.48
+          },
+          "english": {
+            "documents": 20,
+            "tokens": 726,
+            "codepoints": 4064,
+            "utf8_bytes": 4064,
+            "tokens_per_codepoint": 0.178642,
+            "tokens_per_utf8_byte": 0.178642,
+            "document_tokens_p50": 33.0,
+            "document_tokens_p95": 57.0,
+            "document_tokens_p99": 72.2
+          },
+          "mixed": {
+            "documents": 20,
+            "tokens": 742,
+            "codepoints": 2160,
+            "utf8_bytes": 3076,
+            "tokens_per_codepoint": 0.343519,
+            "tokens_per_utf8_byte": 0.241222,
+            "document_tokens_p50": 31.5,
+            "document_tokens_p95": 63.85,
+            "document_tokens_p99": 76.77
+          },
+          "code_symbols": {
+            "documents": 20,
+            "tokens": 880,
+            "codepoints": 2382,
+            "utf8_bytes": 2445,
+            "tokens_per_codepoint": 0.369437,
+            "tokens_per_utf8_byte": 0.359918,
+            "document_tokens_p50": 44.5,
+            "document_tokens_p95": 71.9,
+            "document_tokens_p99": 85.58
+          },
+          "emoji_unicode": {
+            "documents": 20,
+            "tokens": 882,
+            "codepoints": 1606,
+            "utf8_bytes": 2478,
+            "tokens_per_codepoint": 0.549191,
+            "tokens_per_utf8_byte": 0.355932,
+            "document_tokens_p50": 36.5,
+            "document_tokens_p95": 74.1,
+            "document_tokens_p99": 106.02
+          },
+          "whitespace_normalization": {
+            "documents": 20,
+            "tokens": 88,
+            "codepoints": 315,
+            "utf8_bytes": 343,
+            "tokens_per_codepoint": 0.279365,
+            "tokens_per_utf8_byte": 0.25656,
+            "document_tokens_p50": 4.0,
+            "document_tokens_p95": 9.05,
+            "document_tokens_p99": 9.81
+          },
+          "short": {
+            "documents": 20,
+            "tokens": 22,
+            "codepoints": 29,
+            "utf8_bytes": 45,
+            "tokens_per_codepoint": 0.758621,
+            "tokens_per_utf8_byte": 0.488889,
+            "document_tokens_p50": 1.0,
+            "document_tokens_p95": 1.1,
+            "document_tokens_p99": 2.62
+          },
+          "long": {
+            "documents": 20,
+            "tokens": 16450,
+            "codepoints": 42610,
+            "utf8_bytes": 73340,
+            "tokens_per_codepoint": 0.38606,
+            "tokens_per_utf8_byte": 0.224298,
+            "document_tokens_p50": 837.0,
+            "document_tokens_p95": 1209.3,
+            "document_tokens_p99": 1274.66
+          }
+        }
+      },
+      "round_trip": {
+        "exact_successes": 154,
+        "failures": 6,
+        "failure_examples": [
+          {
+            "document_id": "emoji_unicode-007",
+            "input_sha256": "63b347e04843de3a8936e0d894610ab0de7e02cd336ec7da2b1a247844d7eded",
+            "decoded_sha256": "0c070c8fc1356df2094254ca058d43adafd6ecb435cb79887b72527741b90258",
+            "input_codepoints": [
+              "U+0043",
+              "U+006F",
+              "U+006D",
+              "U+0062",
+              "U+0069",
+              "U+006E",
+              "U+0069",
+              "U+006E",
+              "U+0067",
+              "U+0020",
+              "U+006D",
+              "U+0061",
+              "U+0072",
+              "U+006B",
+              "U+0073",
+              "U+003A",
+              "U+0020",
+              "U+0061",
+              "U+0304",
+              "U+0020",
+              "U+0065",
+              "U+0301",
+              "U+0020",
+              "U+006F",
+              "U+0308",
+              "U+0020",
+              "U+006E",
+              "U+0303",
+              "U+0020",
+              "U+0061",
+              "U+006E",
+              "U+0064",
+              "U+0020",
+              "U+0073",
+              "U+0074",
+              "U+0061",
+              "U+006E",
+              "U+0064",
+              "U+0061",
+              "U+006C",
+              "U+006F",
+              "U+006E",
+              "U+0065",
+              "U+0020",
+              "U+25CC",
+              "U+0301"
+            ],
+            "decoded_codepoints": [
+              "U+0043",
+              "U+006F",
+              "U+006D",
+              "U+0062",
+              "U+0069",
+              "U+006E",
+              "U+0069",
+              "U+006E",
+              "U+0067",
+              "U+0020",
+              "U+006D",
+              "U+0061",
+              "U+0072",
+              "U+006B",
+              "U+0073",
+              "U+003A",
+              "U+0020",
+              "U+0101",
+              "U+0020",
+              "U+00E9",
+              "U+0020",
+              "U+00F6",
+              "U+0020",
+              "U+00F1",
+              "U+0020",
+              "U+0061",
+              "U+006E",
+              "U+0064",
+              "U+0020",
+              "U+0073",
+              "U+0074",
+              "U+0061",
+              "U+006E",
+              "U+0064",
+              "U+0061",
+              "U+006C",
+              "U+006F",
+              "U+006E",
+              "U+0065",
+              "U+0020",
+              "U+25CC",
+              "U+0301"
+            ]
+          },
+          {
+            "document_id": "whitespace_normalization-012",
+            "input_sha256": "bf12767b0f2a56b2190075bae8169f656e3ce8d6357d4aff184bc6c7ea48f9f6",
+            "decoded_sha256": "4a99557e4033c3539de2eb65472017cad5f9557f7a0625a09f1c3f6e2ba69c4c",
+            "input_codepoints": [
+              "U+0065",
+              "U+0301"
+            ],
+            "decoded_codepoints": [
+              "U+00E9"
+            ]
+          },
+          {
+            "document_id": "whitespace_normalization-013",
+            "input_sha256": "f16bdc521efcae08fbd614d7ea71d2b2db1fee4d6737de9281a5ceab5547c498",
+            "decoded_sha256": "0f7f6c3cb408312e5a8a9a2909030e9bdc0944445464ac51b9b10c56d4bf6357",
+            "input_codepoints": [
+              "U+00C5",
+              "U+0020",
+              "U+0041",
+              "U+030A"
+            ],
+            "decoded_codepoints": [
+              "U+00C5",
+              "U+0020",
+              "U+00C5"
+            ]
+          },
+          {
+            "document_id": "whitespace_normalization-014",
+            "input_sha256": "677f5c06eb8915ce02f22966d04fd0dd79bfcc8b76c26ee43344c60abc960673",
+            "decoded_sha256": "56fae18cce6489e85fd9e1c04843f1e5847f671b8f3b5d7ca6f6ddc969fce76a",
+            "input_codepoints": [
+              "U+304C",
+              "U+0020",
+              "U+304B",
+              "U+3099"
+            ],
+            "decoded_codepoints": [
+              "U+304C",
+              "U+0020",
+              "U+304C"
+            ]
+          },
+          {
+            "document_id": "whitespace_normalization-015",
+            "input_sha256": "76cf799df8230179a32d794ca6fd32ffee9b81495396fbef590720bbbad8d678",
+            "decoded_sha256": "496bec88063586a0658f06739927a8b5a49b8463b93f240feed3aa0443502c64",
+            "input_codepoints": [
+              "U+30AC",
+              "U+0020",
+              "U+30AB",
+              "U+3099"
+            ],
+            "decoded_codepoints": [
+              "U+30AC",
+              "U+0020",
+              "U+30AC"
+            ]
+          },
+          {
+            "document_id": "short-020",
+            "input_sha256": "bf12767b0f2a56b2190075bae8169f656e3ce8d6357d4aff184bc6c7ea48f9f6",
+            "decoded_sha256": "4a99557e4033c3539de2eb65472017cad5f9557f7a0625a09f1c3f6e2ba69c4c",
+            "input_codepoints": [
+              "U+0065",
+              "U+0301"
+            ],
+            "decoded_codepoints": [
+              "U+00E9"
+            ]
+          }
+        ]
+      },
+      "fallback": {
+        "definition": "Tokens whose serialized spelling matches <0xHH>.",
+        "explicit_byte_fallback_tokens": 0,
+        "documents_with_explicit_byte_fallback": 0,
+        "unknown_token_ids": [
+          128244
+        ],
+        "unknown_tokens": 0
+      },
+      "exceptions": [],
+      "max_encoded_id": 151476,
+      "malformed": {
+        "policy": "Malformed UTF-8 bytes must fail strict UTF-8 decoding before tokenization; surrogate code points must be rejected by the tokenizer boundary.",
+        "all_rejected": true,
+        "all_deterministic": true,
+        "outcomes": [
+          {
+            "id": "lone-continuation",
+            "kind": "utf8_bytes",
+            "deterministic": true,
+            "outcome": "rejected",
+            "exception": "UnicodeDecodeError",
+            "message": "'utf-8' codec can't decode byte 0x80 in position 0: invalid start byte"
+          },
+          {
+            "id": "overlong-slash",
+            "kind": "utf8_bytes",
+            "deterministic": true,
+            "outcome": "rejected",
+            "exception": "UnicodeDecodeError",
+            "message": "'utf-8' codec can't decode byte 0xc0 in position 0: invalid start byte"
+          },
+          {
+            "id": "utf8-surrogate",
+            "kind": "utf8_bytes",
+            "deterministic": true,
+            "outcome": "rejected",
+            "exception": "UnicodeDecodeError",
+            "message": "'utf-8' codec can't decode byte 0xed in position 0: invalid continuation byte"
+          },
+          {
+            "id": "above-unicode-range",
+            "kind": "utf8_bytes",
+            "deterministic": true,
+            "outcome": "rejected",
+            "exception": "UnicodeDecodeError",
+            "message": "'utf-8' codec can't decode byte 0xf4 in position 0: invalid continuation byte"
+          },
+          {
+            "id": "truncated-three-byte",
+            "kind": "utf8_bytes",
+            "deterministic": true,
+            "outcome": "rejected",
+            "exception": "UnicodeDecodeError",
+            "message": "'utf-8' codec can't decode bytes in position 0-1: unexpected end of data"
+          },
+          {
+            "id": "lone-high-surrogate",
+            "kind": "codepoints",
+            "deterministic": true,
+            "outcome": "rejected",
+            "exception": "TypeError",
+            "message": "TextInputSequence must be str"
+          },
+          {
+            "id": "lone-low-surrogate",
+            "kind": "codepoints",
+            "deterministic": true,
+            "outcome": "rejected",
+            "exception": "TypeError",
+            "message": "TextInputSequence must be str"
+          },
+          {
+            "id": "reversed-surrogates",
+            "kind": "codepoints",
+            "deterministic": true,
+            "outcome": "rejected",
+            "exception": "TypeError",
+            "message": "TextInputSequence must be str"
+          },
+          {
+            "id": "high-surrogate-ascii",
+            "kind": "codepoints",
+            "deterministic": true,
+            "outcome": "rejected",
+            "exception": "TypeError",
+            "message": "TextInputSequence must be str"
+          },
+          {
+            "id": "ascii-low-surrogate",
+            "kind": "codepoints",
+            "deterministic": true,
+            "outcome": "rejected",
+            "exception": "TypeError",
+            "message": "TextInputSequence must be str"
+          }
+        ]
+      },
+      "performance": {
+        "warmup_passes": 1,
+        "measured_passes": 5,
+        "passes": [
+          {
+            "pass": 1,
+            "elapsed_seconds": 0.012856,
+            "documents_per_second": 12445.358072,
+            "codepoints_per_second": 4258801.532241,
+            "utf8_bytes_per_second": 7040105.710871,
+            "tokens_per_second": 1627852.835819,
+            "document_latency_us_p50": 26.208,
+            "document_latency_us_p95": 492.74,
+            "document_latency_us_p99": 622.05264,
+            "ids_sha256": "1b963e8bf1bc25dc44b50a1f53df5f9b34ab4855288d31f5e82538a777ba22fb"
+          },
+          {
+            "pass": 2,
+            "elapsed_seconds": 0.01283,
+            "documents_per_second": 12470.998109,
+            "codepoints_per_second": 4267575.553009,
+            "utf8_bytes_per_second": 7054609.799227,
+            "tokens_per_second": 1631206.552699,
+            "document_latency_us_p50": 27.304,
+            "document_latency_us_p95": 476.65605,
+            "document_latency_us_p99": 625.42489,
+            "ids_sha256": "1b963e8bf1bc25dc44b50a1f53df5f9b34ab4855288d31f5e82538a777ba22fb"
+          },
+          {
+            "pass": 3,
+            "elapsed_seconds": 0.012898,
+            "documents_per_second": 12405.109634,
+            "codepoints_per_second": 4245028.516633,
+            "utf8_bytes_per_second": 7017337.923948,
+            "tokens_per_second": 1622588.340081,
+            "document_latency_us_p50": 27.424,
+            "document_latency_us_p95": 483.48,
+            "document_latency_us_p99": 626.72448,
+            "ids_sha256": "1b963e8bf1bc25dc44b50a1f53df5f9b34ab4855288d31f5e82538a777ba22fb"
+          },
+          {
+            "pass": 4,
+            "elapsed_seconds": 0.012805,
+            "documents_per_second": 12494.79221,
+            "codepoints_per_second": 4275717.894143,
+            "utf8_bytes_per_second": 7068069.675647,
+            "tokens_per_second": 1634318.821023,
+            "document_latency_us_p50": 27.576,
+            "document_latency_us_p95": 479.78175,
+            "document_latency_us_p99": 616.35787,
+            "ids_sha256": "1b963e8bf1bc25dc44b50a1f53df5f9b34ab4855288d31f5e82538a777ba22fb"
+          },
+          {
+            "pass": 5,
+            "elapsed_seconds": 0.013003,
+            "documents_per_second": 12304.475161,
+            "codepoints_per_second": 4210591.399987,
+            "utf8_bytes_per_second": 6960410.889491,
+            "tokens_per_second": 1609425.351018,
+            "document_latency_us_p50": 27.792,
+            "document_latency_us_p95": 488.01285,
+            "document_latency_us_p99": 631.88537,
+            "ids_sha256": "1b963e8bf1bc25dc44b50a1f53df5f9b34ab4855288d31f5e82538a777ba22fb"
+          }
+        ],
+        "summary": {
+          "documents_per_second": {
+            "median": 12445.358072,
+            "min": 12304.475161,
+            "max": 12494.79221,
+            "relative_range": 0.015292
+          },
+          "codepoints_per_second": {
+            "median": 4258801.532241,
+            "min": 4210591.399987,
+            "max": 4275717.894143,
+            "relative_range": 0.015292
+          },
+          "utf8_bytes_per_second": {
+            "median": 7040105.710871,
+            "min": 6960410.889491,
+            "max": 7068069.675647,
+            "relative_range": 0.015292
+          },
+          "tokens_per_second": {
+            "median": 1627852.835819,
+            "min": 1609425.351018,
+            "max": 1634318.821023,
+            "relative_range": 0.015292
+          },
+          "document_latency_us": {
+            "p50": 27.616,
+            "p95": 491.78005,
+            "p99": 635.94208
+          }
+        }
+      },
+      "fresh_process": {
+        "load_seconds": 0.193694,
+        "encode_corpus_seconds": 0.014278,
+        "tokens": 20928,
+        "vmhwm_kib_before_load": 31580,
+        "vmhwm_kib_after_load": 157672,
+        "vmhwm_kib_after_corpus": 157672
+      },
+      "cost": {
+        "embedding_parameters": 58240896,
+        "lm_head_parameters_including_bias": 58392565,
+        "vocabulary_parameters": 116633461,
+        "fp32_model_bytes": 466533844,
+        "fp32_gradient_bytes": 466533844,
+        "adam_moment_bytes": 933067688,
+        "fp32_training_state_bytes": 1866135376,
+        "model_plus_adam_checkpoint_bytes": 1399601532,
+        "batch_logit_elements": 621236224,
+        "batch_logits_bf16_bytes": 1242472448,
+        "batch_logits_fp32_bytes": 2484944896,
+        "lm_head_multiply_accumulates_per_batch": 238554710016
+      },
+      "hard_gates": {
+        "redistribution_evidence": true,
+        "artifact_integrity": true,
+        "offline_load": true,
+        "exact_unicode_round_trip": false,
+        "zero_unknown_tokens": true,
+        "zero_corpus_exceptions": true,
+        "deterministic_malformed_rejection": true,
+        "id_range_agreement": true
+      },
+      "hard_gate_pass": false
+    }
+  ],
+  "pareto_frontier": [
+    "llm-jp-v1",
+    "llm-jp-v3"
+  ],
+  "selection": {
+    "winner": "llm-jp-v1",
+    "rationale": "llm-jp-v1 is the smallest eligible vocabulary; no larger candidate met the predeclared bilingual compression and throughput promotion thresholds.",
+    "trace": [
+      {
+        "candidate": "llm-jp-v3",
+        "relative_to": "llm-jp-v1",
+        "japanese_tokens_per_byte_improvement": 0.236814,
+        "english_tokens_per_byte_improvement": 0.072515,
+        "median_bytes_per_second_within_baseline_range": false,
+        "promoted": false
+      }
+    ]
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "name": "TOK-001 frozen tokenizer comparison corpus",
+  "ownership": "Repository-authored fixture; no text was copied from a model or external corpus.",
+  "encoding": "UTF-8",
+  "document_count": 160,
+  "sha256": "16d2596017853928346bbf6270fc723d67799b8387080aaa172c42a19804a45a",
+  "strata": {
+    "japanese": 20,
+    "english": 20,
+    "mixed": 20,
+    "code_symbols": 20,
+    "emoji_unicode": 20,
+    "whitespace_normalization": 20,
+    "short": 20,
+    "long": 20
+  }
+}
