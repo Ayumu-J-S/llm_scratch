@@ -88,6 +88,9 @@ def resolved_manifest_token_ids(manifest: ResolvedManifest, tokenizer) -> list[i
 
 def build_streaming_dataloader(cfg: DictConfig, split_name: str):
     stream_config = streaming_split_config(cfg.data.streaming, split_name)
+    if stream_config.get("require_manifests") is False:
+        raise ValueError("streaming training cannot set require_manifests=false")
+    stream_config["require_manifests"] = True
     stream_config["tokenizer"] = build_tokenizer_config(cfg)
     return create_streaming_token_dataloader(
         config=stream_config,

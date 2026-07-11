@@ -85,7 +85,6 @@ Useful overrides:
 ```bash
 uv run python src/train.py wandb.mode=offline
 uv run python src/train.py wandb.enabled=false
-uv run python src/train.py data.val=data/inputLearnText.txt
 uv run python src/train.py training.optimizer._target_=torch.optim.SGD training.optimizer.lr=0.1 training.optimizer.momentum=0.9
 uv run python src/train.py training.scheduler.enabled=true training.scheduler._target_=torch.optim.lr_scheduler.CosineAnnealingLR training.scheduler.T_max=10
 ```

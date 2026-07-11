@@ -190,6 +190,10 @@ def validate_disjoint_manifests(
     train_manifests: Mapping[str, ResolvedManifest],
     validation_manifests: Mapping[str, ResolvedManifest],
 ) -> None:
+    if not train_manifests:
+        raise ManifestError("production training requires resolved train manifests")
+    if not validation_manifests:
+        raise ManifestError("production training requires resolved validation manifests")
     train_ids = {
         document.document_id
         for manifest in train_manifests.values()

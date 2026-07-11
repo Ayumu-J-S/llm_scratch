@@ -23,13 +23,33 @@ data:
   mode: memorization_smoke
   memorization:
     manifest_path: tests/fixtures/data_manifests/memorization.manifest.json
-    expected_fingerprint: adb4dadc6f2e37f340504c8368be44a7b0c7a73b337c34d5457f2f2629bc0256
+    expected_fingerprint: 00c3797a7d0eda13950fd699a60c45fcd388829f016479caaeb369438767bd31
 ```
 
-Switch to the streaming path when you want to train from larger sources without materializing the full corpus locally:
+Switch to the streaming path when you want to exercise the distinct manifest
+selections. The committed fixture is bilingual, so use a tokenizer artifact
+whose character vocabulary covers that fixture and keep this proof run small:
 
 ```bash
-uv run python src/train.py data.mode=streaming
+PYTHONPATH=src uv run python - <<'PY'
+import json
+from pathlib import Path
+from tokenizer.bpe import BPETokenizer
+
+source = Path("tests/fixtures/data_manifests/bilingual.jsonl")
+text = "\n".join(json.loads(line)["text"] for line in source.read_text().splitlines())
+tokenizer = BPETokenizer(special_tokens=["<pad>", "<bos>", "<eos>"])
+tokenizer.train(text, vocab_size=512)
+tokenizer.save("/tmp/data002-bilingual-tokenizer/tokenizer.json")
+PY
+```
+
+```bash
+uv run python src/train.py data.mode=streaming training.epochs=1 \
+  training.sequence_length=8 training.batch_size=1 \
+  model.embed_size=16 model.num_heads=2 model.num_layers=1 model.dropout=0 \
+  wandb.enabled=false artifacts.tokenizers_dir=/tmp/data002-bilingual-tokenizer \
+  artifacts.checkpoints_dir=/tmp/data002-stream-checkpoints
 ```
 
 `src/train.py` builds streaming train and validation loaders from `data.streaming.train` and `data.streaming.validation`, adds the project tokenizer artifact, packs token windows, and returns the standard trainer batch contract:

@@ -13,7 +13,7 @@ PR URL cannot be created.
 
 | Record | Ticket | PR | Initial implementation model / mode | First review model / mode | Repair cycles | Final verdict | Main failure tags |
 | --- | --- | --- | --- | --- | ---: | --- | --- |
-| [DATA-002 immutable manifests](DATA-002-immutable-manifests.md) | DATA-002 | [#13](https://github.com/Ayumu-J-S/llm_scratch/pull/13) | not exposed by runtime / not exposed by runtime | not exposed by runtime / not exposed by runtime | 1 | in progress | benchmark-authority, split-leakage, lifecycle, cache-integrity |
+| [DATA-002 immutable manifests](DATA-002-immutable-manifests.md) | DATA-002 | [#13](https://github.com/Ayumu-J-S/llm_scratch/pull/13) | not exposed by runtime / not exposed by runtime | not exposed by runtime / not exposed by runtime | 2 | in progress | benchmark-authority, split-leakage, tokenizer-compatibility, workflow-integrity |
 
 Use short, stable values in `Main failure tags` so results can be aggregated,
 for example `data-starvation`, `cuda-fallback`, `ml-semantics`,
@@ -27,7 +27,7 @@ there are enough observations for meaningful rates.
 
 | Exact model / mode | Implementation attempts | First-review passes | Repair attempts | Successful repairs | Reviews performed | Important strengths observed | Recurring failure modes | Last updated |
 | --- | ---: | ---: | ---: | ---: | ---: | --- | --- | --- |
-| not exposed by runtime / not exposed by runtime | 1 | 0 | 1 | 0 | 1 | Strict identity core; audit found authority/lifecycle/integration defects; exact repairs implemented | Runtime provenance unavailable; initial pass missed training-seam and process-cache invariants | 2026-07-11 |
+| not exposed by runtime / not exposed by runtime | 1 | 0 | 2 | 0 | 2 | Strict identity core; reviews found authority/lifecycle/workflow defects; exact repairs and actual CPU workflows completed | Runtime provenance unavailable; earlier passes missed entrypoint authority, tokenizer compatibility, and invalid documented horizons | 2026-07-11 |
 
 ### Counting rules
 

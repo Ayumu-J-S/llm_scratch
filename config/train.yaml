@@ -2,7 +2,7 @@ data:
   mode: memorization_smoke
   memorization:
     manifest_path: tests/fixtures/data_manifests/memorization.manifest.json
-    expected_fingerprint: adb4dadc6f2e37f340504c8368be44a7b0c7a73b337c34d5457f2f2629bc0256
+    expected_fingerprint: 00c3797a7d0eda13950fd699a60c45fcd388829f016479caaeb369438767bd31
   streaming:
     require_manifests: true
     cache:
@@ -12,7 +12,7 @@ data:
       enabled: true
       buffer_size: 16
     train:
-      max_tokens: 1000000
+      max_tokens: max
       add_eos: true
       seed: 42
       sources:
@@ -23,7 +23,7 @@ data:
           selection: train
           ratio: 1.0
     validation:
-      max_tokens: 100000
+      max_tokens: max
       add_eos: true
       seed: 43
       sources:
