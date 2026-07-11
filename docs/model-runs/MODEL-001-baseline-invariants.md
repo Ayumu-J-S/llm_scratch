@@ -26,11 +26,33 @@
   seed, CPU timing/memory reference, and CUDA forward/backward smoke only when
   the ENV-001 runtime is available.
 
+## Predeclared implementation contract
+
+- The architecture math stays unchanged: conventional MHA, LayerNorm, GELU,
+  sinusoidal positions, residual paths, and untied LM head.
+- Token inputs must be rank-2, non-empty, `torch.long`, and no longer than the
+  configured context. `pad_token_id` must be a non-boolean integer inside the
+  vocabulary.
+- Padding has one authority: the model derives it from `pad_token_id`; the
+  public external-mask override is removed because no repository caller uses it.
+  Padded query logits are zero and all-pad rows remain finite using tensor-only
+  operations, without `.item()`, host boolean conversion, or CUDA synchronization.
+  A zero-valid-target objective remains LOOP-001 scope.
+- Tiny test model: vocab 8, width 16, 4 heads, one layer, feed-forward width 32,
+  context 6, dropout 0, PAD 0. Independent exact parameter oracle: 2,488.
+- Overfit gate fixed before implementation: seed 17, a fixed 4x6 cyclic batch
+  over IDs 1-4, AdamW lr 0.02 and weight decay 0, exactly 30 updates, all losses
+  finite, final below initial, and final cross-entropy at most 0.02. Planner
+  calibration observed 0.002615; the acceptance threshold remains 0.02.
+- R1: current default FP32 CPU model, batch 4/context 64, one thread, two warmups
+  and seven forward/loss/backward samples with every time plus median/p95/max and
+  process RSS recorded. R2 CUDA/BF16 is blocked until ENV-001 when CUDA is absent.
+
 ## Execution timeline
 
 | Cycle | Phase | Exact model identifier | Reasoning mode | Input commit/context | Requested work | Outcome | Main findings / changes | Evidence |
 | ---: | --- | --- | --- | --- | --- | --- | --- | --- |
-| 0 | handoff | pending | requested Sol / Ultra | baseline plus ticket/philosophy/CHECK/model context | Produce a bounded implementation and evidence plan | pending | No plan claimed yet | pending |
+| 0 | handoff | not exposed by runtime | not exposed by runtime | baseline plus ticket/philosophy/CHECK/model context | Requested Sol / Ultra plan for a bounded implementation and evidence contract | completed | Froze architecture; defined metadata-only input validation, single-authority padding semantics, exact invariant suite, fixed overfit gate, parameter oracle, and R1/R2 evidence | Planner handoff retained in primary task; no repository mutation |
 | 1 | implementation | pending | requested Luna / Extra High | pending accepted plan | Implement the smallest invariant suite and any required direct model fixes | pending | No implementation claimed yet | pending |
 | 1 | review | pending | requested heavier / Extra Thinking | pending stable implementation commit | Independent `/review` against acceptance, philosophy, and applicable CHECK | pending | No verdict claimed yet | pending |
 
