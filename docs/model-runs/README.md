@@ -13,6 +13,7 @@ PR URL cannot be created.
 
 | Record | Ticket | PR | Initial implementation model / mode | First review model / mode | Repair cycles | Final verdict | Main failure tags |
 | --- | --- | --- | --- | --- | ---: | --- | --- |
+| [EXP-001 review record](EXP-001-review-record.md) | EXP-001 | pending; related process PR [#9](https://github.com/Ayumu-J-S/llm_scratch/pull/9) | not exposed by runtime / not exposed by runtime | blocked twice; model/mode not exposed | 0 | in progress — independent review pending | reproducibility, review-unavailable, merge-order |
 
 Use short, stable values in `Main failure tags` so results can be aggregated,
 for example `data-starvation`, `cuda-fallback`, `ml-semantics`,
@@ -26,6 +27,7 @@ there are enough observations for meaningful rates.
 
 | Exact model / mode | Implementation attempts | First-review passes | Repair attempts | Successful repairs | Reviews performed | Important strengths observed | Recurring failure modes | Last updated |
 | --- | ---: | ---: | ---: | ---: | ---: | --- | --- | --- |
+| not exposed by runtime / not exposed by runtime | 2 | 0 | 1 | 0 | 0 | Produced a scoped EXP-001 plan and documentation repair | One implementation stalled; two review attempts returned no verdict; exact model attribution impossible | 2026-07-11 |
 
 ### Counting rules
 
@@ -37,6 +39,8 @@ there are enough observations for meaningful rates.
   `not exposed by runtime / <mode>` rather than guessing.
 - Record blocked runs and tool failures as attempts in the detailed record, but
   do not count them as successes.
+- Count `Reviews performed` only when a reviewer actually returns findings and a
+  verdict; a blocked pre-review invocation remains only in the detailed record.
 - Do not judge model quality from counts alone. Include ticket type, change
   size, and failure tags.
 

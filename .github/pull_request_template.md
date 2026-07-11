@@ -1,7 +1,11 @@
 ## Ticket and hypothesis
 
 - Roadmap ticket:
-- Hypothesis / expected result:
+- Experiment record: `docs/experiments/<ticket>-<slug>.md` / `N/A` with reason
+- Hypothesis:
+- Expected result:
+- Predeclared success, failure, and stop conditions:
+- Predeclared elapsed-time budget:
 - Why this is the smallest coherent change:
 
 ## Scope
@@ -28,6 +32,13 @@
 - Important design decisions:
 - Failed attempts:
 - Resolved Hydra command/config:
+
+For every consequential attempt, including negative and aborted attempts:
+
+| Attempt | Exact command | Fully resolved Hydra config/path | Evidence link | Outcome |
+| ---: | --- | --- | --- | --- |
+
+- [ ] Failed/negative attempts retain their attempted config and evidence.
 
 ## Post-implementation review — required
 
@@ -65,13 +76,15 @@ real ML-system observations, measurements, and any tests that were actually nece
 - Performance/resource evidence if applicable:
 - W&B/checkpoint/trace/log identifiers:
 - Train/validation/data integrity evidence if applicable:
+- Research-integrity checks (data separation, leakage, weight/target provenance):
+- Conclusion against the predeclared conditions:
 
 ## Risks and handoff
 
 - Known trade-offs:
 - Unresolved uncertainty:
 - Human decision requested:
-- Next useful hypothesis:
+- Exactly one next question or step:
 
 - [ ] The PR is not marked ready while the latest model review is `FAIL`.
 - [ ] A human remains the merge authority.
