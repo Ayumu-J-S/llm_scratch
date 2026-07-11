@@ -35,8 +35,10 @@
 
 | Cycle | Phase | Exact model identifier | Reasoning mode | Input commit/context | Requested work | Outcome | Main findings / changes | Evidence |
 | ---: | --- | --- | --- | --- | --- | --- | --- | --- |
-| 0 | handoff (planning) | pending | pending | `a05eb1d`, DATA-002, philosophy/CHECK, current data paths | Requested `gpt-5.6-sol` / Ultra plan | pending | No plan or model identity claimed yet | pending delegated planner |
-| 1 | implementation | pending | pending | pending plan and live draft PR | Self-contained manifest/split implementation | pending | No implementation outcome claimed | pending |
+| 0 | handoff (planning attempt 1) | not exposed by runtime | not exposed by runtime | `e0705b0`, full parent context, DATA-002/philosophy/CHECK/current data paths | Requested `gpt-5.6-sol` / Ultra plan | interrupted | Produced no handoff after repeated finalize requests; stopped to avoid blocking the roadmap | collaboration attempt retained in parent task |
+| 0 | handoff (planning attempt 2) | not exposed by runtime | not exposed by runtime | `e0705b0`, clean minimal context, same bounded request | Retry requested `gpt-5.6-sol` / Ultra plan | interrupted | Produced no handoff after repeated finalize requests; stopped without repository changes | collaboration attempt retained in parent task |
+| 0 | handoff (planning attempt 3) | not exposed by runtime | not exposed by runtime | `e0705b0`, DATA-002/philosophy/CHECK, loader/cache/config/tests | Requested `gpt-5.6-sol` / Ultra plan with immediate bounded output | completed | Defined strict manifest/index schema, stable text identity, content-based deterministic split, preflight/hot-path separation, overlap/smoke/benchmark guards, source rules, modular merge seams, R1 evidence, and exact tests | planner handoff in parent task |
+| 1 | implementation | pending | pending | accepted plan and live draft PR | Self-contained manifest/split implementation | pending | No implementation outcome claimed | pending |
 | 1 | review | pending | pending | pending implementation commit | Independent DATA-002 `/review` | pending | No verdict claimed | pending |
 
 ## Check selection and verdicts
@@ -75,6 +77,10 @@
 - Failed attempts retained at: execution timeline
 - Known trade-offs: pending
 - Unresolved risks: pending
+- Planning blocker to resolve: the current real HF source is eligible only if
+  its exact revision exposes recordable license/terms and immutable shard
+  metadata; a 40-hex repository commit alone is not silently treated as content
+  checksum evidence.
 - Human decision requested: review/merge only after independent verdict; model
   review is not merge authority
 
@@ -82,6 +88,8 @@
 
 | Model / mode | Role | What it handled well | What it missed or made worse | Context that helped | Outcome |
 | --- | --- | --- | --- | --- | --- |
+| not exposed by runtime / not exposed by runtime | planning attempts 1-2 | No observable planning output | Both attempts remained active without returning a handoff and were deliberately interrupted | Repeated explicit finalize requests | failed operationally; no repository mutation |
+| not exposed by runtime / not exposed by runtime | planning attempt 3 | Produced an exact schema, source rules, deterministic content-based split, preflight/runtime boundary, modular integration plan, tests, and R1 review contract | Requested Sol/Ultra identity and mode were unavailable; real HF shard evidence remains to be verified during implementation | Minimal bounded context and explicit current-main merge constraint | plan accepted for implementation |
 
 ## Ledger update
 
