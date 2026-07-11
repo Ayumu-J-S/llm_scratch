@@ -1,6 +1,24 @@
 data:
+  mode: local_text
   train: data/inputLearnText.txt
   val: data/inputLearnText.txt
+  streaming:
+    cache:
+      dir: data/stream_loader_cache
+      max_size_bytes: 750000000000
+    prefetch:
+      enabled: true
+      buffer_size: 16
+    train:
+      max_tokens: 1000000
+      add_eos: true
+      seed: 42
+      sources: []
+    validation:
+      max_tokens: 100000
+      add_eos: true
+      seed: 43
+      sources: []
 
 training:
   sequence_length: 64
