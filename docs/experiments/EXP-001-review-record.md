@@ -174,19 +174,20 @@ reviewable.
 2. Draft PR: [#10](https://github.com/Ayumu-J-S/llm_scratch/pull/10).
 3. Experiment record: this never-deleted fixture, linked from the PR.
 4. Model-execution record: `docs/model-runs/EXP-001-review-record.md`.
-5. Independent heavy review: `pending`; no verdict is claimed.
+5. Independent review: `PASS WITH NOTE` at
+   `be26321bc57eebad88c63e2cae3b7641b5c0e533`; model/mode not exposed by runtime.
 6. Merge authority: human reviewer only.
 
-The independent-review entry remains pending and is not evidence of completed
-review.
+The review note is that this static fixture has not yet exercised the contract
+during a consequential training run.
 
 ## Conclusion
 
-- Hypothesis result: supported for template field coverage, pending independent
-  review
+- Hypothesis result: supported for template field coverage; independent review
+  returned `PASS WITH NOTE`
 - Evidence-backed conclusion: the record contract can retain a negative
   attempted configuration, reasoned N/A fields, evidence, and handoff links
 - Uncertainty and limitations: this R0 fixture proves documentation shape only,
   not repeatability of a real run or any scientific/system outcome
-- Exactly one next step: independently review EXP-001 against `PHILOSOPHY.md`,
-  its acceptance criteria, and applicable `CHECK.md` sections 8.1, 8.3, and 7
+- Exactly one next step: exercise this contract on the next consequential run
+  that reaches an in-scope roadmap ticket

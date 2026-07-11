@@ -8,7 +8,7 @@
   negative run handoffs reconstructible by a fresh agent
 - Experiment record: `docs/experiments/EXP-001-review-record.md`
 - Started: 2026-07-11
-- Final verdict: in progress — independent review pending
+- Final verdict: `PASS WITH NOTE`
 - Final record owner: current implementation agent; exact identity not exposed
 
 ## Scope and decision context
@@ -53,7 +53,7 @@ reported exactly as unavailable rather than inferred.
 | 4 | repair | not exposed by runtime | not exposed by runtime | Failed-review findings against `f0faf8466189cb8dd8fecdfca431e3de2bcbcee5` | Narrow Luna/Extra High repair requested: recapture resolved Hydra evidence, validate interpolation absence, and correct the re-review target | completed in `df1acf62a05266cfd8f80bd86c96d932d1d6c67e`; re-review pending | Ran the exact `--resolve` command, captured `T_max: 1`, added semantic no-interpolation validation, and replaced the stale target | Command exit 0; resolved-block validation exit 0; `git diff --check` |
 | 4 | re-review | not exposed by runtime | not exposed by runtime | repair commit `df1acf62a05266cfd8f80bd86c96d932d1d6c67e` and metadata head `46bd85837b211eeeb9632980ecfb12a09d1372ce` | Independent heavy re-review of the exact failed findings and full R0 acceptance | FAIL | Original resolved-config and SHA defects passed, but the live draft PR body still contained the pre-repair command, SHA, and execution trail | Reviewer findings received 2026-07-11; PR body inspection |
 | 5 | repair | not exposed by runtime | not exposed by runtime | Failed live-handoff finding against PR #10 and `46bd85837b211eeeb9632980ecfb12a09d1372ce` | Update committed provenance and replace the live PR body after the final metadata commit | completed; re-review pending | Recorded the second FAIL and replaced the live body after the final metadata push with both FAIL/repair cycles and exact final head | This record and PR #10 body |
-| 5 | re-review | pending | pending | final branch head plus updated PR #10 body | Independent heavy re-review of local records and live handoff parity | pending | No passing re-review has run and no verdict is claimed | pending |
+| 5 | re-review | not exposed by runtime | not exposed by runtime | `be26321bc57eebad88c63e2cae3b7641b5c0e533` plus updated PR #10 body | Independent heavy re-review of local records and live handoff parity | PASS WITH NOTE | All EXP-001 acceptance criteria and selected CHECK sections passed; real consequential-run usability remains unexercised | Reviewer validation: exact Hydra stdout equality, no interpolation, field scan 37/37, local/remote/PR head parity, lock and diff checks |
 
 Allowed outcome interpretation: the two blocked attempts are not reviews
 performed and are not passing reviews. The pending row is a handoff marker, not
@@ -113,6 +113,29 @@ a model invocation.
 | Severity | Area | What was wrong | Evidence | Required action |
 | --- | --- | --- | --- | --- |
 | major | live PR handoff | PR #10 body still named the command without `--resolve`, reviewed SHA `fd2f098a`, a cycle-3 pending review, and omitted the returned FAIL/repair | Live draft PR body inspected against `46bd85837b211eeeb9632980ecfb12a09d1372ce` | Replace the body after the final metadata commit with the exact resolved command, both FAIL cycles, repair SHA, final head, validation, and pending re-review state |
+
+### Review cycle 4 — PASS WITH NOTE
+
+- Review model / mode: not exposed by runtime / not exposed by runtime
+- Commit reviewed: `be26321bc57eebad88c63e2cae3b7641b5c0e533`
+- Selected `CHECK.md` sections: 1, 7, 8.1, 8.3, and 11 EXP-001
+- Major sections marked N/A: 3–6, 8.2, and 9–10 because no comparison,
+  data path, GPU/model/numerical behavior, checkpoint/W&B behavior, or long-run
+  operation changed or ran
+- Ticket acceptance result: PASS; all roadmap acceptance fields and the live
+  fixture handoff were demonstrated
+- Philosophy alignment: PASS; hypothesis, budget, identities, negative result,
+  integrity, conclusion, uncertainty, and next step remain human-legible
+- Complexity / change-surface result: PASS; documentation/templates only, with
+  separate experiment and model-provenance responsibilities
+- ML-system result: N/A; no ML runtime changed or ran
+- Verdict: `PASS WITH NOTE`
+
+#### Findings
+
+| Severity | Area | What was wrong or good | Evidence | Required action |
+| --- | --- | --- | --- | --- |
+| note | operational exercise | Static fixture and live PR handoff satisfy EXP-001, but the contract has not yet been used by a consequential training run | Fixture limitation, final reviewer validation | Exercise the contract during the next in-scope consequential run; this does not block EXP-001 |
 
 ## Failed-review handoff
 
@@ -179,7 +202,8 @@ a model invocation.
   `ROADMAP.md`, or the already-validated resolved config
 - Local evidence: final branch head plus matching live PR #10 body
 - Re-review target: final branch head plus live PR #10 body
-- Re-review verdict: pending
+- Re-review verdict: `PASS WITH NOTE` at
+  `be26321bc57eebad88c63e2cae3b7641b5c0e533`
 
 ## Final evidence
 
@@ -187,16 +211,17 @@ a model invocation.
   preserves its deliberately invalid attempted config
 - Data/tokenizer/model identity: `N/A — no scientific run`
 - Validation and measurements: resolved Hydra composition exit 0; captured
-  resolved-block no-interpolation scan exit 0; `git diff --check` passed;
-  independent re-review pending
+  stdout byte-identical to fresh output; no unresolved interpolation;
+  `T_max == epochs == 1`; field scan 37/37; `uv lock --check` and
+  `git diff --check` passed; local/remote/PR heads matched
 - Performance/resource result: `N/A — R0 documentation change`
 - Failed attempts retained at: execution timeline and fixture Attempt 1
 - Known trade-offs: prose completeness adds review surface, but prevents missing
   negative-run identity
 - Unresolved risks: the contract has not yet been exercised by a real
-  consequential run
-- Human decision requested: review and merge only after independent review
-  returns an acceptable verdict
+  consequential run; accepted as the explicit review note for this R0 ticket
+- Human decision requested: review the evidence and decide whether to merge;
+  model review is not merge authority
 
 ## Model assessment from this ticket
 
@@ -207,7 +232,7 @@ hidden and the independent review attempts were blocked.
 | --- | --- | --- | --- | --- | --- |
 | not exposed by runtime / not exposed by runtime | planning | Produced a philosophy-grounded scoped plan | Requested Sol/Ultra identity could not be verified | Exact ticket, philosophy, and R0 checks | completed |
 | not exposed by runtime / not exposed by runtime | implementation and repair | Produced scoped documentation repairs and exact resolved-config evidence | First delegate stalled; initial fixture captured unresolved interpolation | Exact planner handoff, failed findings, and narrow repair request | repair completed locally; re-review pending |
-| not exposed by runtime / not exposed by runtime | review attempts | Detected unresolved evidence and a stale review target | Two earlier invocations returned no verdict before interruption | Philosophy, ticket, and selected checks | blocked twice; later review returned FAIL |
+| not exposed by runtime / not exposed by runtime | review attempts | Detected unresolved evidence, stale review trace, and stale live PR body; verified final repairs | Two earlier invocations returned no verdict before interruption | Philosophy, ticket, selected checks, exact failed-review handoffs, and live PR state | blocked twice; two FAIL verdicts; final PASS WITH NOTE |
 
 ## Ledger update
 
