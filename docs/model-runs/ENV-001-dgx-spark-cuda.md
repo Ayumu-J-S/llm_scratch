@@ -1,6 +1,6 @@
 # ENV-001 - Reproducible DGX Spark CUDA Runtime
 
-- PR: draft
+- PR: [#15](https://github.com/Ayumu-J-S/llm_scratch/pull/15) (draft)
 - Branch: `codex/env-001-dgx-spark-cuda`
 - Ticket: `ENV-001`
 - Hypothesis: a digest-pinned NVIDIA NGC PyTorch ARM64 container plus explicit
