@@ -79,7 +79,7 @@ def build_streaming_dataloader(cfg: DictConfig, split_name: str):
         config=stream_config,
         sequence_length=cfg.training.sequence_length,
         batch_size=cfg.training.batch_size,
-        drop_last=True,
+        drop_last=split_name == "train",
         num_workers=0,
         pin_memory=DEVICE.type == "cuda",
     )
