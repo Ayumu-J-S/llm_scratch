@@ -1,6 +1,6 @@
 # DATA-002 — Immutable Manifests and Disjoint Splits
 
-- PR: draft
+- PR: [#13](https://github.com/Ayumu-J-S/llm_scratch/pull/13) (draft)
 - Branch: `codex/data-002-immutable-manifests`
 - Ticket: `DATA-002`
 - Hypothesis: immutable source manifests plus deterministic document identity
