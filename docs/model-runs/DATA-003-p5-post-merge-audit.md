@@ -7,8 +7,8 @@
   complete without changing any other roadmap ticket state.
 - Experiment record: `N/A` — documentation/audit handoff only; no research run.
 - Started: 2026-07-12
-- Final verdict: PASS WITH NOTE — independent re-review passed; guarded final
-  audit pending on the documentation-record successor
+- Final verdict: FAIL — PR-body validation repair and independent re-review
+  pending
 - Final record owner: `/root/data003_p5_repair`
 
 ## Scope and decision context
@@ -35,6 +35,10 @@
 | 1 | review | not exposed by runtime | not exposed by runtime | audit PR head `4b1671637a37a5cdf2c628e8bd255fe38067ba16` | Independent review against DATA-003, `PHILOSOPHY.md`, and applicable `CHECK.md` handoff/changeability sections | FAIL `4680048999` | The corrective-status paragraph still said DATA-003 was In progress and incorrectly made CKPT-001/DATA-004 blocked by incomplete DATA-003 | Review `4680048999` |
 | 1 | repair | not exposed by runtime | not exposed by runtime | failed review `4680048999` on `4b16716` | Replace only the stale historical correction with the resolved P2/#30/#31 history; update audit ledger counts and handoff | repaired; independent re-review passed with note | No roadmap state outside DATA-003 changed; CKPT-001/DATA-004 retain only their remaining explicit dependencies | repaired head `cd38b371`; review `4680057481` |
 | 1 | re-review | not exposed by runtime | not exposed by runtime | repaired audit PR head `cd38b371def6b6a64da112643f6591e756131022` | Independently verify the repair against DATA-003, `PHILOSOPHY.md`, and applicable `CHECK.md` handoff/changeability sections | PASS WITH NOTE `4680057481` | The resolved P2/#30/#31 history is consistent; only the normal guarded final audit remains. This record update creates a docs-only successor requiring confirmation. | Review `4680057481`; exact-head docs checks pass |
+| 2 | review | not exposed by runtime | not exposed by runtime | audit PR head `cd38b371def6b6a64da112643f6591e756131022` | Independently verify current PR-body validation commands as well as the docs-only change surface | FAIL `4680060842` | The PR body said `uv run ruff check .`, which fails in a fresh default environment because Ruff is dev-group-only; source and documentation state otherwise passed | Review `4680060842` |
+| 2 | repair | not exposed by runtime | not exposed by runtime | failed review `4680060842` on `cd38b371` | Correct only the PR-body validation command to `uv run --group dev ruff check .`; retain prior review evidence and request exact-head re-review | implemented in PR metadata; independent re-review required | No repository file or roadmap ticket state changed for this repair | PR body updated with successor `9ab457d`; exact re-review head pending |
+| 3 | review | not exposed by runtime | not exposed by runtime | documentation-record successor `9ab457d41623f61524d8d3647bb93ff0c8e05065` | Independently verify that the current record and PR trail include all earlier verdicts and counts | FAIL `4680062832` | The PR body command was corrected, but the model-run record/PR trail omitted `4680060842` and the aggregate stopped at 44 instead of the 45 reviews already performed | Review `4680062832` |
+| 3 | repair | not exposed by runtime | not exposed by runtime | failed review `4680062832` on `9ab457d` | Record both newer FAILs, correct the aggregate to include every verdict-bearing review, and update the PR body; request exact-head no-drift re-review | in progress; independent re-review required | Documentation and PR metadata only; no repository behavior or roadmap ticket state changed | exact repaired head pending |
 
 ## Runtime provenance block
 
@@ -165,22 +169,79 @@
 | --- | --- | --- | --- | --- |
 | Note | final audit | The fixed corrective text, ledger counts, and retained #31 review/audit evidence are consistent at the reviewed head. | Independent review `4680057481`; exact-head docs checks pass. | Confirm the documentation-record successor, then perform the normal guarded final audit. |
 
+### Review cycle 3
+
+- Review model / mode: independent reviewer; actual exact model and reasoning
+  mode are not exposed by runtime.
+- Commit reviewed: `cd38b371def6b6a64da112643f6591e756131022`.
+- Selected `CHECK.md` sections: minimum review, 7.1 change surface, and 8.1
+  reproducibility/audit trail.
+- Major sections marked N/A and why: this is a docs/PR-metadata audit; no ML,
+  data, packing, GPU, training, or performance behavior changed.
+- Ticket acceptance result: FAIL for the audit handoff only — the PR-body
+  validation command was not runnable in a fresh default environment.
+- Philosophy alignment: FAIL — validation claims must be reproducible from the
+  stated command.
+- Complexity / change-surface result: direct PR-body-only repair available.
+- ML-system result: N/A for new behavior; source and road-map state passed
+  this review.
+- Verdict: FAIL `4680060842`; PR-body repair and independent re-review
+  required.
+
+#### Findings
+
+| Severity | Area | What was wrong or good | Evidence | Required action |
+| --- | --- | --- | --- | --- |
+| P2 | PR validation evidence | The body claimed `uv run ruff check .`; Ruff is development-group-only, so that command fails in a clean default environment. Roadmap history, downstream dependencies, source scope, and ledger counts otherwise passed. | Independent review `4680060842` on `cd38b371`. | Change the body to `uv run --group dev ruff check .`, preserve this failure record, and independently re-review the exact current PR state. |
+
+### Review cycle 4
+
+- Review model / mode: independent reviewer; actual exact model and reasoning
+  mode are not exposed by runtime.
+- Commit reviewed: `9ab457d41623f61524d8d3647bb93ff0c8e05065`.
+- Selected `CHECK.md` sections: minimum review, 7.1 change surface, and 8.1
+  reproducibility/audit trail.
+- Major sections marked N/A and why: this is a docs/PR-metadata audit; no ML,
+  data, packing, GPU, training, or performance behavior changed.
+- Ticket acceptance result: FAIL for audit-record completeness — the corrected
+  command was present, but the newer FAIL and its count were absent from the
+  evidence trail.
+- Philosophy alignment: FAIL — a review/audit handoff must retain every
+  observable verdict and count it under the ledger's stated rule.
+- Complexity / change-surface result: direct, documentation-and-PR-metadata
+  repair available.
+- ML-system result: N/A for new behavior; DATA-003 state and source scope pass.
+- Verdict: FAIL `4680062832`; full-trail repair and exact-head no-drift review
+  required.
+
+#### Findings
+
+| Severity | Area | What was wrong or good | Evidence | Required action |
+| --- | --- | --- | --- | --- |
+| P2 | audit completeness | The successor fixed the dev-group command but omitted the verdict-bearing FAIL `4680060842`; its aggregate used 44 instead of the 45 reviews performed before this review. | Independent review `4680062832` on `9ab457d`. | Record both newer failures and their repairs in the model record/PR body, count this review as well, then request no-drift re-review of the exact repaired head. |
+
 ## Failed-review handoff
 
 | Field | Handoff |
 | --- | --- |
-| Failed review | `4680048999` (FAIL) on `4b1671637a37a5cdf2c628e8bd255fe38067ba16` |
-| Failure | A stale corrective-status paragraph contradicted the DATA-003 Done state and the P5 merge evidence. |
-| Repair scope | Documentation only: change that paragraph, this audit record, and the ledger counts. Do not change any other ticket state. |
-| Required proof | Docs checks, exact-head independent re-review, then the normal guarded merge audit. |
+| First failed review | `4680048999` (FAIL) on `4b1671637a37a5cdf2c628e8bd255fe38067ba16`: stale corrective-status text contradicted DATA-003 Done. |
+| First repair result | Resolved at `cd38b371`; re-review `4680057481` returned PASS WITH NOTE. |
+| Second failed review | `4680060842` (FAIL) on `cd38b371`: the PR body used the default-group Ruff command; PR metadata was corrected to use the dev group. |
+| Latest failed review | `4680062832` (FAIL) on `9ab457d`: the record/PR trail omitted `4680060842` and its pre-review total of 45 verdict-bearing reviews. |
+| Latest repair scope | Documentation and PR metadata only: retain both new FAILs and count every verdict-bearing review, including `4680062832`; do not change any repository behavior or ticket state. |
+| Required proof | Exact-current-state no-drift re-review, then the normal guarded merge audit. |
 | Handoff context | P2 was documented in #30 and repaired/audited/merged by #31 (`cf827016`); downstream blocked states must describe their own remaining explicit dependencies. |
 
 ## Repair result
 
 Repair cycle 1 changed no source or execution behavior and produced
 `cd38b371def6b6a64da112643f6591e756131022`. Independent re-review
-`4680057481` returned PASS WITH NOTE. This documentation-record successor
-requires a docs-only confirmation before the guarded final audit.
+`4680057481` returned PASS WITH NOTE. A later review `4680060842` found the
+PR-body command mismatch; repair cycle 2 corrects that PR metadata to use the
+dev group. Review `4680062832` then found that the newer FAIL was omitted from
+the record/PR trail. Repair cycle 3 records both findings and every
+verdict-bearing review; it requires exact-current-state no-drift re-review
+before the guarded final audit.
 
 ## Final evidence
 
@@ -195,8 +256,8 @@ requires a docs-only confirmation before the guarded final audit.
   checks because it changes no code.
 - Performance/resource result: N/A — docs only.
 - Known trade-offs: none added.
-- Unresolved risks: the record of the PASS WITH NOTE creates a docs-only
-  successor; its confirmation and the guarded final audit remain pending.
+- Unresolved risks: the full-trail documentation/PR-metadata repair, its
+  exact-head no-drift re-review, and the guarded final audit remain pending.
 - Human decision requested: none before its review; user authorization remains
   bounded by the roadmap goal and guarded gates.
 
@@ -208,12 +269,13 @@ requires a docs-only confirmation before the guarded final audit.
 - Authorization evidence location: conversation instruction and final PR audit.
 - Authorization covers this named PR or bounded ticket/goal series: yes — it is
   an ordinary repository documentation audit within the roadmap goal.
-- Exact independently reviewed head SHA: `cd38b371def6b6a64da112643f6591e756131022`
-  (the repair head; this record update requires successor confirmation).
-- Latest independent verdict / model / mode: PASS WITH NOTE `4680057481`;
-  independent reviewer, exact model and reasoning mode not exposed by runtime.
-- All actionable findings repaired and independently re-reviewed: yes at
-  `cd38b371`; pending confirmation of this documentation-record successor.
+- Exact independently reviewed head SHA: `9ab457d41623f61524d8d3647bb93ff0c8e05065`
+  (latest review was FAIL; current repair requires re-review).
+- Latest independent verdict / model / mode: FAIL `4680062832`; independent
+  reviewer, exact model and reasoning mode not exposed by runtime.
+- All actionable findings repaired and independently re-reviewed: first finding
+  yes at `cd38b371`; the later PR-body and full-trail findings are pending
+  re-review.
 - Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: pending
   final refresh.
 - Newer human objections since authorization/review: pending final refresh.
@@ -243,12 +305,12 @@ requires a docs-only confirmation before the guarded final audit.
 
 | Model / mode | Role | What it handled well | What it missed or made worse | Context that helped | Outcome |
 | --- | --- | --- | --- | --- | --- |
-| Codex / GPT-5; exact ID and mode not exposed | post-merge audit implementation and repair | Scoped the completion record to DATA-003, retained observable merge evidence, and made the docs-only correction after the finding | Initial audit missed stale corrective-status text; independent review caught it | PR #31 reviews/audit comments, merged main, roadmap dependency table, failed-review handoff | PASS WITH NOTE at `cd38b371`; successor confirmation/final audit pending |
+| Codex / GPT-5; exact ID and mode not exposed | post-merge audit implementation and repair | Scoped the completion record to DATA-003, retained observable merge evidence, and made direct docs/PR-metadata repairs | Initial audit missed stale corrective-status text; later reviews caught a fresh-environment PR-body command mismatch and then an incomplete review trail/count | PR #31 reviews/audit comments, merged main, roadmap dependency table, failed-review handoffs | latest repair/re-review pending |
 
 ## Ledger update
 
 - [x] Added the post-merge audit row to `docs/model-runs/README.md`.
-- [x] Updated aggregate counts for both verdict-bearing reviews and the successful repair.
-- [x] Recorded the failed-review and repaired-head PASS WITH NOTE execution trails.
+- [x] Updated aggregate counts for every verdict-bearing review through `4680062832`; repairs 2 and 3 are not yet successful.
+- [x] Recorded all three failed-review handoffs and the repaired-head PASS WITH NOTE trail.
 - [ ] Recorded this audit PR's guarded self-merge audit or human merge evidence.
 - [x] Confirmed this is not the bootstrap policy PR.
