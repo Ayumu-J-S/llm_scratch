@@ -27,6 +27,7 @@
 | 2 | repair | not exposed by runtime | not exposed by runtime | attempt-6 evidence at candidate `66ec702`; requested lightweight Extra High | Preserve the successful loss/trajectory result but repair the failed full-suffix sampling audit without changing training. | in progress | Retry uses longer, fixed in-fixture prefixes to remove cross-language first-token ambiguity; model/data/optimizer/seed/budget/threshold remain unchanged. | Experiment-record sampling-audit retry predeclaration dated 2026-07-12 |
 | 2 | implementation | not exposed by runtime | not exposed by runtime | exact run head `3d0f4fbdc7c8ad40d30b9e5eb03e448e712d2e2e`; requested Luna/lightweight Extra High | Run the new predeclared prompt selection through the complete reference/repeat/resume proof. | candidate complete | Attempt 7 PASS: all three 200-step traces hashed identically; verified step-100 resume and GEN-001 JP/EN samples passed. | `reports/gate-001/attempt-7/gate_record.json`; experiment record |
 | 2 | handoff | not exposed by runtime | not exposed by runtime | candidate `3d0f4fbdc7c8ad40d30b9e5eb03e448e712d2e2e`; requested heavier reviewer Extra Thinking | Hand off exact implementation evidence for independent PHILOSOPHY/ticket/CHECK review. | ready for review | No hidden reasoning recorded; request is limited to ticket acceptance, selected checks 6/8/9.1/R2, and change surface. | provenance capture 2026-07-12T16:23:21Z |
+| 3 | repair | not exposed by runtime | not exposed by runtime | independent pre-review of `5e33d91`; requested lightweight Extra High | Apply the sole actionable finding: repository formatter layout in the proof runner. | repaired | `ruff format` changed seven insertions/thirteen deletions of line wrapping only; fixture, commands, evidence, and outcomes are unchanged. | `82e1ece`; `ruff format --check`, Ruff lint, 28 focused tests passed |
 
 ## Runtime provenance block
 
@@ -79,6 +80,9 @@ Implementation repairs before review (all retained in the experiment record):
   this preserved the NLL threshold rather than relaxing it.
 - Cycle 3: predeclare unambiguous fixed in-fixture continuation prefixes after
   retaining the short-prompt sampling failure; rerun the full comparison.
+- Cycle 4: independent pre-review found only `ruff format --check` drift in
+  `scripts/run_gate_overfit.py`. Commit `82e1ece` is formatter-only; focused
+  static/28-test validation passed and requires exact-head re-review.
 
 ## Final evidence
 
