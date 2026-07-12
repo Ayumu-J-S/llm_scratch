@@ -24,8 +24,8 @@
   behavior before expanding complexity; preserve the smallest coherent change.
 - Original baseline commit/run: `a05eb1de5656643757a1c3d98047c98dedea8bfa`.
 - Integration baseline: `origin/main` at
-  `8a6f94bcf1c88e65f8c7cda03946ee7d469b9cb6`, after human merges of
-  EXP-001, DATA-001, TOK-001, and DATA-002.
+  `7da2c03c8adddb7e5e9c02839e5079b7f33584af`, after merges of EXP-001,
+  DATA-001, TOK-001, DATA-002, POLICY-001, and PROV-001.
 - Intended evidence: exact invariant tests, predeclared overfit threshold and
   seed, CPU timing/memory reference, and CUDA forward/backward smoke only when
   the ENV-001 runtime is available.
@@ -69,6 +69,7 @@
 | 1 | review | not exposed by runtime | not exposed by runtime | `83315a6f10134f5745dc51a738a1e7a93d1b4a2d` | Independent `/review` against acceptance, philosophy, and applicable CHECK | PASS WITH NOTE | No acceptance or integrity blockers; independently reproduced all invariants, exact overfit trajectory, counts, quality checks, and R1. CUDA R2 remains blocked by ENV-001; per-parameter nonzero-gradient assertion is a non-blocking strengthening note | 20 focused; 59 passed/3 skips; independent R1 median 0.191837724 s and 450,328 KiB RSS |
 | 2 | integration planning | not exposed by runtime | not exposed by runtime (requested Sol / Ultra) | original PR plus merged EXP-001/DATA-001/TOK-001/DATA-002 and guarded merge policy | Reconcile MODEL-001 with the canonical tokenizer/manifests, close the gradient and CUDA notes, and preserve the conventional architecture | completed | Required a normal merge, canonical parameter oracle, per-tensor gradient gates, real streamed backward, canonical CPU R1, and exact-candidate GB10 BF16 R2; excluded model/objective/trainer/data redesign | Accepted plan retained in the parent task and implemented here |
 | 2 | integration implementation | not exposed by runtime | not exposed by runtime (requested Luna / Extra High) | `d71b00645393461689429039e0a3984f4c624661` plus `origin/main` `8a6f94bcf1c88e65f8c7cda03946ee7d469b9cb6` | Merge normally, preserve ledger union, reconcile canonical semantics, close review notes, and run CPU/GPU evidence | implemented; review pending | Normal merge produced `ff1b24df83555fd86c1098b321eb48f227a1789b`; model source and architecture math stayed unchanged. Tests now require a gradient for every trainable tensor, finite values, and nonzero activity per tensor; the canonical oracle is 49,535,114; the streamed canonical batch now runs backward. | 23 focused and 162 full passed/1 opt-in skip; seed-17 CE 3.028204918 -> 0.002615080; canonical CPU R1 and dirty-candidate GB10 R2 retained below; exact stable-head review remains pending |
+| 2 | integration refresh | not exposed by runtime | not exposed by runtime (requested Luna / Extra High) | `bf3fc1f` plus `origin/main` `7da2c03c8adddb7e5e9c02839e5079b7f33584af` | Merge the latest provenance-audited main normally, reconcile the ledger union, and rerun the exact offline quality gates against the resulting head | implemented; review pending | Normal merge produced `db7f541`; MODEL-001 source and architecture math stayed unchanged. The ledger now includes PROV-001 and the roadmap keeps MODEL-001 Ready until its fresh independent review. Ruff format identified pre-existing drift but no unrelated files were changed in this integration refresh. | 29 focused model/stream tests; 166 full passed/1 opt-in skip; `uv lock --check` and Hydra resolution pass; Ruff check passes, while format check reports four pre-existing files; exact stable-head independent review remains pending |
 
 ## Check selection and verdicts
 
@@ -133,11 +134,13 @@ N/A - the first independent review passed with notes.
 
 ## Integration evidence - pending independent review
 
-- Merge and dependency identity: PR #14 was converted back to draft before a
+- Merge and dependency identity: PR #14 remains draft while this refresh uses a
   normal, non-rebase merge of `origin/main`
-  `8a6f94bcf1c88e65f8c7cda03946ee7d469b9cb6`. The merge commit is
-  `ff1b24df83555fd86c1098b321eb48f227a1789b`. The integrated head contains the
-  merged heads of PRs #10 through #13; no force push or history rewrite was used.
+  `7da2c03c8adddb7e5e9c02839e5079b7f33584af`. The refresh merge commit is
+  `db7f541`. The integrated head contains the merged roadmap dependencies,
+  including PROV-001; no force push or history rewrite was used. The prior
+  integration merge `ff1b24df83555fd86c1098b321eb48f227a1789b` remains the
+  historical evidence for the pre-PROV-001 dependency set.
 - Resolved Hydra command/config: `uv run python src/train.py --cfg job --resolve`
   passes. It resolves tokenizer fingerprint
   `12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b`,
@@ -154,13 +157,23 @@ N/A - the first independent review passed with notes.
   sinusoidal positions, and an untied linear LM head. This integration changes
   tests and provenance, not architecture, objective, manifest, tokenizer,
   trainer, optimizer, or data code.
-- CPU validation: `uv run --group dev pytest -q` reports 162 passed and one
-  opt-in test skipped. The focused model plus real streaming canonical batch
-  reports 23 passed. Ruff format/check, `uv lock --check`, `git diff --check`,
-  Hydra resolution, canonical PAD/model integration, and immutable manifest
-  guards pass. The streamed fixture now executes forward, CE, and backward and
-  requires every trainable tensor's gradient to be present, finite, and contain
-  nonzero activity.
+- CPU validation (prior integration): `uv run --group dev pytest -q` reports 162
+  passed and one opt-in test skipped. The focused model plus real streaming
+  canonical batch reports 23 passed. Ruff format/check, `uv lock --check`,
+  `git diff --check`, Hydra resolution, canonical PAD/model integration, and
+  immutable manifest guards pass. The streamed fixture now executes forward,
+  CE, and backward and requires every trainable tensor's gradient to be
+  present, finite, and contain nonzero activity.
+- Refresh validation at `db7f541`: `uv run --group dev pytest -q` reports 166
+  passed and one opt-in test skipped; the focused model/stream selection
+  reports 29 passed. `uv run ruff format --check .`, `uv run ruff check .`,
+  `uv lock --check`, `uv run python src/train.py --cfg job --resolve`, and
+  `git diff --check` pass. `uv run ruff format --check .` reports four files
+  that would be reformatted (the existing provenance capture/test plus
+  pre-existing embedding/trainer formatting drift); these unrelated changes
+  were intentionally left out of this integration refresh. The resolved Hydra
+  output retains the canonical tokenizer fingerprint, immutable memorization-
+  smoke fingerprint, and disjoint bilingual train/validation selections.
 - Tiny overfit: seed 17, fixed B4/T6 cyclic batch, AdamW lr 0.02 and weight
   decay 0, exactly 30 updates; CE 3.028204917907715 ->
   0.002615080215036869, below the predeclared 0.02 threshold.
@@ -234,6 +247,7 @@ N/A - the first independent review passed with notes.
 | not exposed by runtime / not exposed by runtime | independent review | Reproduced all ticket invariants, exact overfit trajectory, parameter identities, quality checks, and an independent R1; checked the hot path for host synchronization | CUDA/BF16 could not be reviewed on the CPU-only runtime; identified a non-blocking stronger per-parameter gradient assertion | Stable commit, predeclared contract, failed-attempt record, and adversarial padding cases | PASS WITH NOTE |
 | not exposed by runtime / not exposed by runtime (requested Sol / Ultra) | integration planning | Correctly treated the merged tokenizer, manifests, ENV runtime, and guarded merge policy as current authority; predeclared exact canonical CPU/GPU evidence without redesigning the model | Exact model/mode attribution remains unavailable | Original failure note, current main, canonical identities, and CHECK MODEL-001 priorities | completed |
 | not exposed by runtime / not exposed by runtime (requested Luna / Extra High) | integration implementation | Preserved the source architecture, reconciled the canonical oracle, closed the durable per-tensor gradient note, added real streamed backward, and completed bounded GB10 evidence | First GPU report attempted `git rev-parse` through a host-only worktree pointer inside the container; rerun used explicit observed identities | Accepted integration plan, exact parameter formula, mounted-candidate requirement, and pinned ENV image | implemented; fresh independent review pending |
+| not exposed by runtime / not exposed by runtime (requested Luna / Extra High) | integration refresh | Merged provenance-audited main without rewriting history; kept MODEL-001 Ready until the exact integrated head receives an independent review; reran the offline gates | Ruff 0.15.18 exposed pre-existing formatting drift in embedding/trainer files and the merged provenance files; no unrelated formatting churn was added in this refresh | Latest `origin/main`, merged ledger, exact-head discipline, and the model-run acceptance contract | implemented; fresh independent review pending |
 
 ## Ledger update
 
@@ -243,3 +257,5 @@ N/A - the first independent review passed with notes.
   independent review.
 - [ ] Confirm that the PR execution trail matches the stable reviewed head
   before readiness or guarded merge audit.
+- [x] Refreshed the execution trail for integrated head `db7f541`; review and
+  verdict remain intentionally pending.
