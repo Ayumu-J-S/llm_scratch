@@ -1,8 +1,9 @@
 # Roadmap
 
 This document turns `PHILOSOPHY.md` into a dependency-ordered engineering and
-research backlog. It is based on the repository state at commit `f31dfb4` on
-2026-07-11.
+research backlog. The original planning snapshot is based on commit `f31dfb4`
+from 2026-07-11; ticket states are maintained against merged acceptance
+evidence as the roadmap advances.
 
 It is not a promise to implement every idea. It is the current best account of
 what must be true before this repository can run trustworthy pretraining
@@ -28,6 +29,8 @@ experiments on one DGX Spark.
 Ticket states:
 
 - **Ready**: no unmet dependency; an agent may start it.
+- **In progress**: implementation or review evidence exists, but the ticket has
+  not yet merged with complete acceptance evidence.
 - **Blocked**: one or more listed dependencies are incomplete.
 - **Deferred**: deliberately outside the current pretraining baseline.
 - **Done**: merged with acceptance evidence.
@@ -48,7 +51,10 @@ it, prove the complete pipeline on a tiny fixture before a real-data run, and
 defer C, CUDA, compilation, and other low-level optimization until after
 `RUN-001` establishes the first trustworthy baseline.
 
-## AS-IS snapshot
+## Initial AS-IS snapshot
+
+This section preserves the evidence used to create the roadmap at `f31dfb4`.
+It is historical context, not a description of the current merged baseline.
 
 ### Verified health
 
@@ -145,6 +151,22 @@ be called a baseline until the following gates exist:
 - W&B logging follows a quota-safe policy; and
 - the end-to-end bilingual overfit gate passes.
 
+## Current progress snapshot
+
+Updated 2026-07-12 against `origin/main` at `7f9c172` and the active
+`GATE-001` handoff at `5a7bfb4`:
+
+- 15 of 24 roadmap tickets are **Done**. All P0 tickets and `GEN-001` have
+  merged with acceptance evidence.
+- `GATE-001` is **In progress**. Its bounded bilingual overfit proof passed
+  independent review with a documented environment-scoped determinism note;
+  final exact-head audit and merge remain.
+- `WB-001` is **Ready** because `REP-001`, `LOOP-001`, and `CKPT-001` are Done.
+- `DATA-004` remains blocked only by `GATE-001`; it is the next critical-path
+  ticket after that merge.
+- The remaining seven tickets are blocked by the dependencies shown below.
+- A real pretraining baseline remains prohibited until wave 4 completes.
+
 ## Backlog overview
 
 | Order | Ticket | Priority | State | Depends on | Outcome |
@@ -160,14 +182,14 @@ be called a baseline until the following gates exist:
 | 8 | REP-001 | P0 | Done | CFG-001, TOK-001, DATA-002 | Reproducible run identity and global seed |
 | 9 | LOOP-001 | P0 | Done | DATA-001, CFG-001, REP-001 | Step/token trainer and correct scalar metrics |
 | 10 | DATA-003 | P0 | Done | DATA-001, DATA-002, REP-001, LOOP-001 | Deterministic stream horizon, shuffle, and cursor |
-| 11 | STAB-001 | P0 | Blocked | ENV-001, LOOP-001 | Stable conventional single-GPU BF16 training recipe |
-| 12 | CKPT-001 | P0 | Blocked | DATA-003, LOOP-001, STAB-001 | Atomic rotating full-state resume |
-| 13 | CI-001 | P0 | Blocked | CFG-001, MODEL-001 | Network-free CPU quality gate |
-| 14 | GEN-001 | P1 | Blocked | MODEL-001, TOK-001, CKPT-001 | Minimal base-model continuation CLI |
-| 15 | GATE-001 | P1 | Blocked | ENV-001, MODEL-001, TOK-001, LOOP-001, STAB-001, CKPT-001, GEN-001 | Reproducible bilingual overfit proof |
+| 11 | STAB-001 | P0 | Done | ENV-001, LOOP-001 | Stable conventional single-GPU BF16 training recipe |
+| 12 | CKPT-001 | P0 | Done | DATA-003, LOOP-001, STAB-001 | Atomic rotating full-state resume |
+| 13 | CI-001 | P0 | Done | CFG-001, MODEL-001 | Network-free CPU quality gate |
+| 14 | GEN-001 | P1 | Done | MODEL-001, TOK-001, CKPT-001 | Minimal base-model continuation CLI |
+| 15 | GATE-001 | P1 | In progress | ENV-001, MODEL-001, TOK-001, LOOP-001, STAB-001, CKPT-001, GEN-001 | Reproducible bilingual overfit proof |
 | 16 | DATA-004 | P1 | Blocked | TOK-001, DATA-002, DATA-003, GATE-001 | Pinned Japanese/English mixture with QA |
 | 17 | VAL-001 | P1 | Blocked | DATA-004, LOOP-001, CKPT-001 | Trustworthy lightweight held-out validation |
-| 18 | WB-001 | P1 | Blocked | REP-001, LOOP-001, CKPT-001 | Evidence-complete, quota-safe W&B runs |
+| 18 | WB-001 | P1 | Ready | REP-001, LOOP-001, CKPT-001 | Evidence-complete, quota-safe W&B runs |
 | 19 | BENCH-001 | P1 | Blocked | GEN-001, VAL-001, WB-001 | Versioned Japanese/general benchmark suite |
 | 20 | DGX-001 | P1 | Blocked | STAB-001, GATE-001, DATA-004, WB-001 | Measured model profile and time/token budget |
 | 21 | OPS-001 | P1 | Blocked | CI-001, CKPT-001, WB-001, VAL-001, BENCH-001 | Agent-native run and handoff loop |
