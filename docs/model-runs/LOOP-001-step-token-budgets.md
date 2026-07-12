@@ -1,6 +1,6 @@
 # LOOP-001 - Step/token budgets and correct metrics
 
-- PR: [#25](https://github.com/Ayumu-J-S/llm_scratch/pull/25) (draft; pending parent merge)
+- PR: [#25](https://github.com/Ayumu-J-S/llm_scratch/pull/25) (ready; pending parent merge)
 - Branch: `codex/loop-001-step-token-budgets`
 - Ticket: LOOP-001
 - Hypothesis: A trainer whose stopping, scheduling, and event decisions use
