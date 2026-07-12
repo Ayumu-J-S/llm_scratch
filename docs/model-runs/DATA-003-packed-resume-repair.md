@@ -1,6 +1,7 @@
 # DATA-003 - Packed residual resume repair
 
-- PR: [#31](https://github.com/Ayumu-J-S/llm_scratch/pull/31) (draft)
+- PR: [#31](https://github.com/Ayumu-J-S/llm_scratch/pull/31) (merged as
+  squash `cf82701635cab23657a05ea80a03ef5a657abe1f`)
 - Branch: `codex/data-003-packed-resume-repair`
 - Ticket: DATA-003
 - Hypothesis: Once a final short packed window has been yielded, its residual
@@ -9,8 +10,8 @@
 - Experiment record: `N/A` — this is a deterministic loader-invariant repair,
   not a research-quality training run.
 - Started: 2026-07-12
-- Final verdict: PASS WITH NOTE — independent review passed; guarded connector
-  audit and merge remain pending.
+- Final verdict: PASS WITH NOTE — independently reviewed, guarded-audited, and
+  merged.
 - Final record owner: `/root/data003_p5_repair`
 
 ## Scope and decision context
@@ -39,6 +40,8 @@
 | 2 | repair | not exposed by runtime | not exposed by runtime | `bd11955`; cycle-1 validation failure; exact P2 config | Requested Luna / Extra High repair: distinguish a supplied completed checkpoint from a later iterator on the same loader, including process-prefetch serialization | implemented; independent review pending | Added one-shot resume state. A supplied completed cursor returns its empty suffix; later same-loader iteration starts a next pass. Process prefetch receives the parent's one-shot state; final partial residual/producer-marker fixes remain. | Repair code `54f8c591e6264f8da479bcf8893be20b82bf5a0a`; focused 15 passed; full 227 passed, 1 skipped; Ruff, lock, and diff checks pass |
 | 2 | re-review | not exposed by runtime | not exposed by runtime | exact docs head `313ca0a90ca6d4b9be31efd914c21e53ddf8f3e7`; repair code `54f8c591e6264f8da479bcf8893be20b82bf5a0a` | Independent heavier review against DATA-003, philosophy, and selected checklist sections | PASS WITH NOTE | No code defect found. The reviewer manually checked completed-cursor resume in sync, thread, and process modes; its review target/validation matched the repair evidence. | Review `4680026587`; focused 15 passed; full 227 passed, 1 skipped; Ruff, lock, and diff checks pass |
 | 2 | re-review (no drift) | not exposed by runtime | not exposed by runtime | exact docs head `d52f1e527c5d7968ea565eafce9c7c6f842810a3`; repair code remains `54f8c591e6264f8da479bcf8893be20b82bf5a0a` | Confirm the review-record-only descendant did not change the reviewed implementation or evidence | PASS WITH NOTE | No-drift review confirmed the documentation update preserves the accepted code, evidence, and pending audit state. | Review `4680031289`; final connector audit pending |
+| 2 | re-review (no drift) | not exposed by runtime | not exposed by runtime | exact docs head `4288c96230b69ea41941e992fb3d9894b413796c`; repair code remains `54f8c591e6264f8da479bcf8893be20b82bf5a0a` | Confirm the final review-alignment docs did not change accepted implementation/evidence | PASS WITH NOTE | No drift; the final connector audit could use this exact head. | Review `4680036491` |
+| 2 | handoff | not exposed by runtime | not exposed by runtime | reviewed head `4288c962`; target base `9bf68b0` | Perform guarded final audit and self-merge only if the exact-head gate inventory is clear | merged | Final audit found Ready/mergeable, no CHANGES_REQUESTED or review threads, and empty status/workflow inventories; squash merge completed without bypass or force. | Audit [pre-merge](https://github.com/Ayumu-J-S/llm_scratch/pull/31#issuecomment-4951174771), [post-merge](https://github.com/Ayumu-J-S/llm_scratch/pull/31#issuecomment-4951175758); squash `cf827016` |
 
 ## Runtime provenance block
 
@@ -283,8 +286,9 @@
   exact identity/mode not exposed by runtime.
 - Re-review verdict: implementation PASS WITH NOTE (`4680026587`) on exact docs
   head `313ca0a90ca6d4b9be31efd914c21e53ddf8f3e7`, followed by no-drift PASS
-  WITH NOTE (`4680031289`) on `d52f1e527c5d7968ea565eafce9c7c6f842810a3`;
-  guarded connector audit pending.
+  WITH NOTE (`4680031289`) on `d52f1e527c5d7968ea565eafce9c7c6f842810a3`
+  and final no-drift PASS WITH NOTE (`4680036491`) on
+  `4288c96230b69ea41941e992fb3d9894b413796c`.
 
 ## Final evidence
 
@@ -310,62 +314,64 @@
   whole residual must be absent from a checkpoint cursor. Cursor capture remains
   bounded by the existing shuffle buffer; no new buffer or config branch was
   added.
-- Unresolved risks: guarded connector audit, exact-head status/workflow
-  inventory, and merge remain required; no code risk is open from the latest
-  independent review.
-- Human decision requested: none before the guarded audit; self-merge is only
-  eligible after every exact-head gate passes.
+- Unresolved risks: none within this ticket; the completed merge is recorded
+  below and downstream ticket selection remains a separate planning decision.
+- Human decision requested: none for DATA-003 P5 repair.
 
 ## Merge authority and final audit
 
-- Merge path: guarded agent self-merge only after the exact-head review and
-  audit; otherwise human merge.
+- Merge path: guarded agent self-merge, completed.
 - Human authorization: user stated on 2026-07-12, `これからはとりあえず全部セルフマージしていいよ` (authorizing self-merge for the bounded roadmap-completion goal, after review).
 - Authorization evidence location: conversation instruction; final PR audit
   must restate the scope and exact-head observation.
 - Authorization covers this named PR or bounded ticket/goal series: yes —
   DATA-003 P5 is ordinary repository collaboration within the roadmap goal.
-- Exact independently reviewed head SHA: `d52f1e527c5d7968ea565eafce9c7c6f842810a3`
-  (implementation review `4680026587` remains on `313ca0a`).
-- Latest independent verdict / model / mode: no-drift PASS WITH NOTE
-  `4680031289`; exact model identifier and reasoning mode not exposed by runtime.
+- Exact independently reviewed head SHA: `4288c96230b69ea41941e992fb3d9894b413796c`
+  (implementation review `4680026587` remains on `313ca0a`; earlier no-drift
+  review `4680031289` remains on `d52f1e5`).
+- Latest independent verdict / model / mode: final no-drift PASS WITH NOTE
+  `4680036491`; exact model identifier and reasoning mode not exposed by runtime.
 - All actionable findings repaired and independently re-reviewed: yes.
-- Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: none
-  reported by independent review; final connector refresh pending.
-- Newer human objections since authorization/review: pending final refresh.
+- Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: none.
+- Newer human objections since authorization/review: none observed by final audit.
 - Human review dismissed by an agent: no.
-- Unresolved review threads at final audit: pending.
-- Branch-protection required-context inventory: pending final refresh.
-- Applicable configured workflow/check inventory: pending final refresh.
-- Observed exact-head check statuses: pending final refresh.
-- Expected checks absent, pending, skipped, cancelled, or non-successful: pending.
-- No-check evidence when both inventories are empty: pending.
-- Target branch and base SHA at final audit: pending.
-- Up-to-date, conflict-free, and mergeable evidence: pending.
-- Record, ledger, PR trail, validation, and risks parity: pending.
+- Unresolved review threads at final audit: zero.
+- Branch-protection required-context inventory: no required contexts reported.
+- Applicable configured workflow/check inventory: no workflow runs reported.
+- Observed exact-head check statuses: empty combined-status inventory.
+- Expected checks absent, pending, skipped, cancelled, or non-successful: zero;
+  no-check case is evidenced by both empty inventories.
+- No-check evidence when both inventories are empty: [final audit
+  comment](https://github.com/Ayumu-J-S/llm_scratch/pull/31#issuecomment-4951174771).
+- Target branch and base SHA at final audit: `main` at
+  `9bf68b0373022309e320db7e8674769a542cc511`.
+- Up-to-date, conflict-free, and mergeable evidence: Ready and mergeable in the
+  immediate pre-merge refresh.
+- Record, ledger, PR trail, validation, and risks parity: yes; confirmed by
+  final audit and post-merge completion comment.
 - Prohibited self-merge categories: clear so far — ordinary data-loader logic,
   tests, and documentation only; no secrets, security, paid resource, private
   data, deployment, release, or permission change.
 - Admin/bypass/force/disabled-check requirement: no.
-- Final audit PR body/comment location: pending.
-- Final audit changed reviewed head: no (required).
-- Immediate pre-merge re-fetch/compare observation location: pending.
+- Final audit PR body/comment location: [pre-merge audit](https://github.com/Ayumu-J-S/llm_scratch/pull/31#issuecomment-4951174771) and [post-merge completion](https://github.com/Ayumu-J-S/llm_scratch/pull/31#issuecomment-4951175758).
+- Final audit changed reviewed head: no.
+- Immediate pre-merge re-fetch/compare observation location: [pre-merge audit](https://github.com/Ayumu-J-S/llm_scratch/pull/31#issuecomment-4951174771).
 - Immediate refresh compared authorization, head, base, review decision/objections,
-  threads, expected checks/statuses, and mergeability: pending.
-- Drift found: pending.
-- Merge outcome: pending.
+  threads, expected checks/statuses, and mergeability: yes.
+- Drift found: no.
+- Merge outcome: agent merged as squash `cf82701635cab23657a05ea80a03ef5a657abe1f`.
 
 ## Model assessment from this ticket
 
 | Model / mode | Role | What it handled well | What it missed or made worse | Context that helped | Outcome |
 | --- | --- | --- | --- | --- | --- |
-| Codex / GPT-5; exact ID and mode not exposed | repair/review | Localized the final residual and final thread-marker defect, then reproduced and repaired the completed-external-cursor boundary under the exact P2 config | Cycle 1 missed the `max_tokens=4` JSON completed-cursor transition; exact deployment/model ID and reasoning mode remain unavailable | DATA-003 P2 sequence, loader cursor state, selected `CHECK.md` sections, exact JSON round-trip | Implementation PASS WITH NOTE `4680026587`; no-drift PASS WITH NOTE `4680031289`; guarded audit pending |
+| Codex / GPT-5; exact ID and mode not exposed | repair/review | Localized the final residual and final thread-marker defect, then reproduced and repaired the completed-external-cursor boundary under the exact P2 config | Cycle 1 missed the `max_tokens=4` JSON completed-cursor transition; exact deployment/model ID and reasoning mode remain unavailable | DATA-003 P2 sequence, loader cursor state, selected `CHECK.md` sections, exact JSON round-trip | Implementation PASS WITH NOTE `4680026587`; no-drift PASS WITH NOTE `4680031289` and `4680036491`; guarded audit and merge complete |
 
 ## Ledger update
 
 - [x] Added this per-PR record to `docs/model-runs/README.md`.
 - [x] Updated aggregate counts after independent review.
 - [x] Confirmed the PR execution trail matches this record through implementation
-  review `4680026587` and no-drift review `4680031289`.
-- [ ] Recorded guarded self-merge audit or human merge evidence.
+  review `4680026587` and no-drift reviews `4680031289` / `4680036491`.
+- [x] Recorded guarded self-merge audit and merge evidence.
 - [x] Confirmed this is not the bootstrap policy PR.
