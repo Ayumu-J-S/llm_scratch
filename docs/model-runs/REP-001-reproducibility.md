@@ -115,7 +115,7 @@ exact-head re-review (`4679720242`) closed that finding with PASS WITH NOTE.
 - Expected checks absent, pending, skipped, cancelled, or non-successful: none observed; no expected contexts were exposed by the available inventory
 - No-check evidence when both inventories are empty: yes, with the connector evidence limitation above recorded
 - Target branch and base SHA at final audit: `main` / `792cb895e04760dea4f4b23c36a934a5ab6589f9` for PR23
-- Up-to-date, conflict-free, and mergeable evidence: PR23 is based on current main and is docs-only at audit head `4efe83b`
+- Up-to-date, conflict-free, and mergeable evidence: PR23 is based on current main and is docs-only; the live PR body records the current audit head (a commit cannot contain its own SHA)
 - Record, ledger, PR trail, validation, and risks parity: complete for PR24; PR23 exact-head review/merge remains pending
 - Prohibited self-merge categories: clear — no secrets/security/deployment/permission changes
 - Admin/bypass/force/disabled-check requirement: no
