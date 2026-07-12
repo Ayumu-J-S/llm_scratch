@@ -126,11 +126,16 @@ class Trainer:
                 train_loss = epoch_loss_sum / epoch_tokens
                 self._run_events(epoch_end=True, train_loss=train_loss)
                 if self.scheduler is not None and self.scheduler_interval == "epoch":
+                    # Metric-free schedulers advance at the epoch boundary;
+                    # ReduceLROnPlateau alone requires a validation metric.
                     validation_loss = self._latest_validation_loss
-                    if validation_loss is None:
-                        validation_loss = self._evaluate()
-                        self._record_validation_metrics(validation_loss)
-                    self._step_scheduler(validation_loss)
+                    if isinstance(self.scheduler, ReduceLROnPlateau):
+                        if validation_loss is None:
+                            validation_loss = self._evaluate()
+                            self._record_validation_metrics(validation_loss)
+                        self._step_scheduler(validation_loss)
+                    else:
+                        self._step_scheduler()
 
                 if self._budget_reached():
                     break
