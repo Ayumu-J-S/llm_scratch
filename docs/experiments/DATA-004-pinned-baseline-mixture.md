@@ -29,8 +29,8 @@ held-out NLL, benchmark ability, or the final model/time budget.
 
 | Language | Repository / config | Audited revision | Decision |
 | --- | --- | --- | --- |
-| Japanese | `HuggingFaceFW/fineweb-2` / `jpn_Jpan` | `af9c13333eb981300149d5ca60a8e9d659b276b9` | selected pending final immutable inventory capture |
-| English | `HuggingFaceFW/fineweb` / `sample-10BT` | `9bb295ddab0e05d785b879661af7260fed5140fc` | selected pending final immutable inventory capture |
+| Japanese | `HuggingFaceFW/fineweb-2` / `jpn_Jpan` | `af9c13333eb981300149d5ca60a8e9d659b276b9` | selected: 175 upstream-train shards, 400,138,563 rows, 716,653,211,753 compressed bytes |
+| English | `HuggingFaceFW/fineweb` / `sample-10BT` | `9bb295ddab0e05d785b879661af7260fed5140fc` | selected: 15 upstream-train shards, 14,868,862 rows, 30,639,384,917 compressed bytes |
 
 The predeclared educational candidates were rejected before live data access.
 `HuggingFaceFW/fineweb-edu` uses a classifier trained from Llama 3 70B outputs,
@@ -41,11 +41,20 @@ outputs, but they postdate dataset creation and do not establish the historical
 terms. This ticket therefore prefers the direct heuristic/LID/MinHash FineWeb
 and FineWeb-2 variants and does not train on model-generated quality labels.
 
-Before committing manifests or downloading probe shards, re-fetch the selected
-exact revisions through the official Hugging Face API, record every selected
-train shard path/size/LFS SHA-256, and retain the dataset cards, ODC-By 1.0,
-Common Crawl terms, and relevant filtering-tool licenses. Derive both project
-splits from upstream train with the shared normalized-content rule.
+The official revision APIs reproduced those aggregate inventories and expose an
+LFS SHA-256 for every selected shard. FineWeb has no upstream test artifact.
+FineWeb-2's single Japanese test shard (25,889 rows; 48,225,826 bytes) is
+excluded because the card does not define its intended semantics. The smallest
+declared live probes are 574,962,194 bytes for English and 329,375,758 bytes for
+Japanese; the largest selected shards are 2,148,338,231 and 4,844,733,228 bytes,
+respectively. Derive both project splits from upstream train with the shared
+normalized-content rule.
+
+Retain the pinned dataset cards, ODC-By 1.0, Common Crawl terms, and filtering
+tool licenses alongside the machine-readable manifests. ODC-By covers database
+rights, not every underlying page's copyright, privacy obligations, or site
+terms; this remains a documented web-corpus limitation rather than a claim of
+unrestricted content rights.
 
 ## Predeclared implementation boundary
 
@@ -106,4 +115,6 @@ CHECK all of 4, 5.3, 5.4, 8.2 plus applicable 3/R2/R3.
 No measurement result yet. The initial source candidates, thresholds, budgets,
 and stop conditions were written before implementation or live data access; the
 source audit then rejected both educational candidates on provenance/licensing
-risk and selected direct non-generative variants, pending final inventory capture.
+risk and selected direct non-generative variants. The selected exact-revision
+aggregate inventories reproduce from the official APIs; implementation and
+per-shard manifest capture remain in progress.
