@@ -531,6 +531,13 @@ class StreamLoader:
             cursor["packed_spans"] = copy.deepcopy(getattr(self, "_packed_cursor_spans", []))
         return cursor
 
+    def _producer_cursor_state(self) -> dict[str, Any]:
+        """Capture the worker's cursor without reading consumer acknowledgements."""
+
+        if self._active_source_states is not None and self._active_rng is not None:
+            return self._capture_cursor(self._active_source_states, self._active_rng)
+        return _copy_cursor(self._cursor or self._initial_cursor())
+
     def _validate_cursor(self, cursor: Mapping[str, Any]) -> None:
         if int(cursor.get("version", -1)) != 1:
             raise ValueError("unsupported stream cursor version")
@@ -661,10 +668,7 @@ class StreamLoader:
                     self._put_prefetch_item(
                         {
                             _CURSOR_MARKER: True,
-                            "cursor": self._capture_cursor(
-                                self._active_source_states or [],
-                                self._active_rng or random.Random(self.seed),
-                            ),
+                            "cursor": self._producer_cursor_state(),
                         }
                     )
                     self._put_prefetch_item(item)
@@ -787,13 +791,23 @@ class StreamLoader:
                 output["source_spans"] = _slice_spans(spans, len(buffer))
             self.packed_token_counts["window_token_count"] += len(buffer)
             self.packed_token_counts["target_token_count"] += max(len(buffer) - 1, 0)
+            # The final short window consumes the whole packed residual.  Update
+            # the cursor before yielding so a checkpoint taken immediately by
+            # the consumer cannot re-emit these tokens on resume.
+            self._clear_packed_cursor_residual()
             yield output
         elif buffer:
             self.packed_token_counts["dropped_target_count"] += max(len(buffer) - 1, 0)
-        self._packed_cursor_buffer = []
-        self._packed_cursor_spans = []
+        self._clear_packed_cursor_residual()
         if self.cursor_enabled and self._active_source_states is not None and self._active_rng is not None:
             self._cursor = self._capture_cursor(self._active_source_states, self._active_rng)
+
+    def _clear_packed_cursor_residual(self) -> None:
+        self._packed_cursor_buffer = []
+        self._packed_cursor_spans = []
+        if self.cursor_enabled and self._cursor is not None:
+            self._cursor["packed_buffer"] = []
+            self._cursor["packed_spans"] = []
 
     def _format_document_sample(self, sample: TokenizedSample) -> dict[str, Any]:
         base = {
