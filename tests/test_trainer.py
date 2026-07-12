@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -192,3 +193,19 @@ def test_fractional_step_and_token_budgets_are_rejected(tmp_path: Path):
         _trainer(tmp_path, [_batch([[0, 1]])], max_steps=1.5)
     with pytest.raises(ValueError, match="max_tokens.*positive integer"):
         _trainer(tmp_path, [_batch([[0, 1]])], max_tokens=1.5)
+
+
+def test_reused_checkpoint_dir_truncates_metrics_per_run(tmp_path: Path):
+    first = _trainer(tmp_path, [_batch([[0, 1]]) for _ in range(2)], max_steps=2)
+    first.fit()
+    first_lines = (tmp_path / "metrics.jsonl").read_text(encoding="utf-8").splitlines()
+    assert len(first_lines) == len(first.metrics)
+    assert any(json.loads(line)["optimizer_step"] == 2 for line in first_lines)
+
+    second = _trainer(tmp_path, [_batch([[0, 1]])], max_steps=1)
+    second.fit()
+    second_lines = (tmp_path / "metrics.jsonl").read_text(encoding="utf-8").splitlines()
+    records = [json.loads(line) for line in second_lines]
+    assert len(second_lines) == len(second.metrics)
+    assert all(record["optimizer_step"] == 1 for record in records)
+    assert len(second_lines) < len(first_lines)

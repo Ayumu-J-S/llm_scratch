@@ -86,6 +86,13 @@ class Trainer:
     def fit(self) -> list[dict[str, Any]]:
         """Run training and return the local metric records."""
 
+        # A checkpoint directory can be reused by a later run.  Metrics are
+        # run-local evidence, not append-only checkpoint state; truncate the
+        # JSONL stream before every fit so offline records cannot be mixed.
+        self.metrics.clear()
+        metrics_path = self.checkpoint_dir / "metrics.jsonl"
+        self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
+        metrics_path.write_text("", encoding="utf-8")
         self.run = self._init_wandb()
         self._start_time = time.monotonic()
         saw_batch = False
