@@ -241,6 +241,7 @@ def validate_training_config(config: Mapping[str, Any] | DictConfig) -> dict[str
         "smoke_overfit": ("memorization_smoke", "memorization_smoke"),
         "pretrain_streaming": ("streaming", "pretraining"),
         "stability_smoke": ("streaming", "pretraining"),
+        "gate_overfit": ("streaming", "memorization_gate"),
     }.get(profile_name)
     if expected_profile is None:
         raise ConfigPreflightError(f"unknown training profile: {profile_name!r}")

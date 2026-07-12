@@ -1,0 +1,29 @@
+{
+  "dataset_fingerprint": "3356d6a2920afc20f4160e4cce56ca5a80be43cea6ec3bf3fff23f8cffed57e2",
+  "index_path": "auxiliary.index.json",
+  "index_sha256": "7447a432c21d7a08d9ca98bf74917509a1b47598cdf756dfea193f5df8098f3e",
+  "manifest_fingerprint": "eca88f8008d0988f92b6a6998fff80d8a1269d5c1ae8bb40023b7e214ef48f5c",
+  "name": "gate-001-auxiliary-v1",
+  "purpose": "memorization_smoke",
+  "schema_version": 1,
+  "source": {
+    "id_field": "id",
+    "kind": "local_jsonl",
+    "path": "auxiliary.jsonl",
+    "sha256": "59cd16a2659d98762668cea885c7542a71a8b577d8bca86c006d6d8a37e87464",
+    "size_bytes": 176,
+    "text_field": "text"
+  },
+  "split": {
+    "salt": "llm-scratch-gate-001-auxiliary-v1",
+    "validation_fraction": "0.5"
+  },
+  "split_fingerprints": {
+    "train": "7b1e1faf71d3c4e79e2b02945645ada862fc96c2404f0a0c0488a4f20553795c",
+    "validation": "1f09f4cc95a7d5d5d04b68b52db7643208cd073d763ad29c8e543606eb4fed35"
+  },
+  "usage": {
+    "license": "CC0-1.0",
+    "terms_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+  }
+}
