@@ -356,7 +356,8 @@ PASS WITH NOTE, followed by the guarded audit and squash merge below.
 - Immediate pre-merge re-fetch/compare observation location: [final audit
   comment](https://github.com/Ayumu-J-S/llm_scratch/pull/32#issuecomment-4951256335).
 - Immediate refresh compared authorization, head, base, review decision/objections,
-  threads, expected checks/statuses, and mergeability: pending.
+  threads, expected checks/statuses, and mergeability: yes; recorded in
+  `4951256335` without changing the reviewed head.
 - Drift found: no.
 - Merge outcome: squash merged as `29c6b9253005f6bf7e92dc54e1f2c7043124b23a`.
 
