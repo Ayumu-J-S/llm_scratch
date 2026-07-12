@@ -41,6 +41,13 @@ class CanonicalTokenizer:
         self.fingerprint = str(manifest["fingerprint"])
         runtime = _mapping(manifest["runtime"], "manifest.runtime")
         special_tokens = _mapping(manifest["special_tokens"], "manifest.special_tokens")
+        self._reserved_special_tokens = {
+            _special_id(special_tokens, role): (
+                role,
+                str(_mapping(special_tokens[role], f"manifest.special_tokens.{role}")["token"]),
+            )
+            for role in sorted(_SPECIAL_ROLES)
+        }
         self.vocab_size = _integer(runtime["vocab_size"], "manifest.runtime.vocab_size")
         self.max_token_id = _integer(runtime["max_token_id"], "manifest.runtime.max_token_id")
         self.unk_token_id = _special_id(special_tokens, "unk")
@@ -83,6 +90,14 @@ class CanonicalTokenizer:
             int(token_id) for token_id in self._tokenizer.encode(text, add_special_tokens=False).ids
         ]
         self._validate_ids(token_ids)
+        for token_id in token_ids:
+            reserved = self._reserved_special_tokens.get(token_id)
+            if reserved is not None:
+                role, token = reserved
+                raise ValueError(
+                    "raw text encoded to reserved canonical special token: "
+                    f"role={role}, token={token!r}, id={token_id}"
+                )
         return token_ids
 
     def decode(

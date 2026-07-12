@@ -1,6 +1,6 @@
 # TOK-001 — Canonical Japanese/English Tokenizer
 
-- PR: [#12](https://github.com/Ayumu-J-S/llm_scratch/pull/12) (reviewed; human merge required)
+- PR: [#12](https://github.com/Ayumu-J-S/llm_scratch/pull/12) (repair awaiting independent re-review)
 - Branch: `codex/tok-001-canonical-tokenizer`
 - Ticket: `TOK-001`
 - Hypothesis: a pinned established Japanese/English tokenizer selected by frozen
@@ -10,7 +10,7 @@
 - Experiment record: `reports/tokenizers/TOK-001/comparison.md` (CPU R1
   tokenizer selection evidence; no model-quality experiment)
 - Started: 2026-07-11T16:27:49Z
-- Final verdict: `PASS WITH NOTE`
+- Final verdict: `PENDING RE-REVIEW`
 - Final record owner: primary task; exact runtime identity not exposed
 
 ## Scope and decision context
@@ -64,6 +64,8 @@ Within measurement spread, select the smaller vocabulary.
 | 2 | independent review | not exposed by runtime | not exposed by runtime | `759bf4b`, full TOK-001 diff, philosophy/CHECK, PR/model-run evidence | Independent TOK-001 `/review` | FAIL | Tokenizer acceptance and ML checks passed, but the claimed changed-file format check was false because the precommit file list omitted new untracked Python files | `uv run ruff format --check tests/test_canonical_tokenizer.py` failed at line 295 |
 | 2 | repair | not exposed by runtime | not exposed by runtime | failed review at `759bf4b` and concrete repair handoff | Format the added test, rerun checks using a base-to-head file list, and preserve the failed verdict in every handoff surface | completed | Ruff reformatted one expression; the corrected base-to-head changed-file format check passes | repair diff in `tests/test_canonical_tokenizer.py`; validation below |
 | 3 | independent re-review | not exposed by runtime | not exposed by runtime | `e041c48`, repaired test/record/ledger, current live PR | Fresh TOK-001 `/review` | PASS WITH NOTE | Formatting evidence and execution trail repaired; all acceptance criteria remain satisfied; CUDA/DGX R2 remains deferred without a performance claim | base-to-head format `11 files already formatted`; canonical `17 passed`; full `61 passed, 1 existing skip`; lint/lock/diff/Hydra parity pass |
+| 4 | external GitHub review | not exposed by runtime | not exposed by runtime | `9d5cfeaac8bf1df5082ea68f182da586731932ab`, ready PR #12 | Automated review of the ready PR head | FAIL | Found that `add_special_tokens=False` still recognizes literal upstream special-token spellings, allowing corpus text to emit PAD/EOD and other reserved IDs; PAD would be attention-masked as if synthetic padding and raw EOD would be indistinguishable from loader boundaries | [unresolved P2 review thread](https://github.com/Ayumu-J-S/llm_scratch/pull/12#discussion_r3564723322); direct reproduction emitted PAD=4 and EOD=7 |
+| 4 | repair | not exposed by runtime | not exposed by runtime | failed external review at `9d5cfea`, full manifest/wrapper/local/stream paths, TOK-001 and CHECK 4.2/4.3/6.1 | Requested Luna / Extra High; reject every manifest-reserved special ID after the one canonical raw-text encode without changing loader EOS insertion | completed; re-review pending | Derived all eight role/token/ID entries from the validated manifest; raw special IDs now fail with explicit context; clean corpus IDs are unchanged; local and serial/process stream paths fail before emitting a batch/sample; deliberate EOS append remains exactly once | canonical `43 passed`; focused offline `81 passed, 1 skipped`; full offline `87 passed, 1 skipped`; frozen wrapper digest `3c1078f7...`; artifact/license hashes unchanged |
 
 ## Check selection and verdicts
 
@@ -98,6 +100,15 @@ passing acceptance evidence, the requirement to use a base-to-head changed-file
 list that includes added files, and the requirement for a fresh independent
 re-review.
 
+The later external GitHub review of ready head `9d5cfea` returned `FAIL` for a
+separate ML-semantics issue. Although implicit special-token insertion was
+disabled, the upstream tokenizer still recognized literal spellings such as
+`<pad|LLM-jp>` and emitted reserved IDs. The repair handoff requires one
+underlying encode, rejection of all eight manifest-reserved IDs with clear
+role/token/ID evidence, unchanged clean-text IDs, preserved explicit loader EOS
+append behavior, local and process-stream failure propagation, and a fresh
+independent review before restoring a passing verdict.
+
 ## Repair result
 
 Precommit audit repair completed before the stable implementation commit. The
@@ -105,12 +116,12 @@ canonical manifest no longer claims a fixed filesystem install location;
 immutable identity remains the expected manifest fingerprint, exact 40-hex
 upstream revisions, and verified artifact bytes. Mutable revision names such as
 `main` are rejected even when the mutated manifest is internally re-fingerprinted.
-After the independent review failed, Ruff reformatted
+After the first independent review failed, Ruff reformatted
 `tests/test_canonical_tokenizer.py`. The corrected formatter check enumerates
 Python files from the complete base-to-head diff plus any worktree changes, so
 newly added files cannot be silently omitted. The fresh re-review at `e041c48`
-returned `PASS WITH NOTE`; no blocking or
-substantive findings remain.
+returned `PASS WITH NOTE` at that point. The later external cycle invalidated
+that final status; cycle 4 is repaired but remains pending independent re-review.
 
 ### Re-review cycle 3
 
@@ -127,6 +138,33 @@ substantive findings remain.
 - Verdict: `PASS WITH NOTE`
 - Note: the 50,570-token vocabulary materially increases model cost, and DGX
   loader headroom, step cost, and UMA behavior remain unmeasured until ENV/CFG.
+
+### External review cycle 4
+
+- Review model / mode: not exposed by runtime / not exposed by runtime
+- Commit reviewed: `9d5cfeaac8bf1df5082ea68f182da586731932ab`
+- Selected `CHECK.md` sections: 4.2 tokenization, 4.3 packing/boundaries/token
+  accounting, and 6.1 objective semantics
+- Ticket acceptance result: fail; raw corpus text could emit reserved PAD/EOD
+  IDs and violate the recorded boundary and masking semantics
+- Philosophy alignment: fail; the visible text-to-token causal chain did not
+  distinguish raw content from loader-owned control tokens
+- Complexity / change-surface result: repair must stay inside the canonical
+  wrapper and must not add an escaping or parallel tokenizer path
+- ML-system result: fail; real corpus content could be attention-masked as PAD,
+  while raw EOD could masquerade as an explicit document boundary
+- Verdict: `FAIL`
+
+#### Finding and repair
+
+| Severity | Area | What was wrong | Repair | Evidence after repair |
+| --- | --- | --- | --- | --- |
+| P2 | Tokenization / objective semantics | `Tokenizer.encode(..., add_special_tokens=False)` recognized all eight literal upstream special-token spellings. The wrapper range-checked but accepted their IDs, so PAD/EOD from raw documents entered the same path as synthetic padding and loader boundaries. | Build the complete reserved ID to role/token mapping from the already-validated manifest. After the single underlying raw-text encode and ordinary range validation, reject the first emitted reserved ID with role/token/ID context. Do not mutate text or change `StreamLoader`'s explicit `eos_token_id` append. | Every special spelling embedded in raw text fails; PAD/EOD fail at start/end/repeated; local text and serial/process-prefetched streams fail before output; clean Japanese/English/mixed/emoji and all 160 frozen documents emit no reserved IDs and retain digest `3c1078f72957170fd3c7ac94c9d3313b367f3bf243562a693588810f07dfe907`; clean loader output has exactly one appended EOD and no PAD. |
+
+Repair implementation model / mode: not exposed by runtime / not exposed by
+runtime (requested Luna / Extra High; the runtime did not display an exact
+identifier or reasoning mode). Final verdict remains `PENDING RE-REVIEW`; this
+implementation pass does not substitute for the required independent review.
 
 ## Final evidence
 
@@ -184,6 +222,14 @@ substantive findings remain.
   manifest, `tests/fixtures/tiny_corpus.jsonl`, sequence length 8, batch size 8,
   one epoch/12 training batches, W&B disabled, and a 16-wide one-layer model; it
   completed with finite train/validation losses 10.810500/10.592047.
+  Cycle-4 repair adds an explicit raw/control-token boundary: all eight
+  manifest special IDs are rejected from wrapper-encoded text, while
+  `StreamLoader` still appends EOD ID 7 directly after successful clean-text
+  encoding. Dedicated canonical validation now passes 43 tests; focused offline
+  tokenizer/stream/data/train validation passes 81 tests with the one existing
+  opt-in remote-dataset skip; the full offline suite passes 87 tests with that
+  same skip. Frozen clean IDs retain SHA-256
+  `3c1078f72957170fd3c7ac94c9d3313b367f3bf243562a693588810f07dfe907`.
 - Performance/resource result: CPU R1 comparison required. Phase-2 smoke ran on
   Linux aarch64 with `torch 2.10.0+cpu`; CUDA was unavailable
   (`torch.version.cuda=None`, zero devices), so no CUDA/DGX R2 or performance
@@ -206,7 +252,10 @@ substantive findings remain.
   the full local corpus and a 6,877-batch epoch; it was manually stopped after
   3,550 batches because it was not a bounded smoke and yields no result claim.
   The corrected 12-batch fixture command completed, after which focused and full
-  suites passed.
+  suites passed. During cycle 4, the first base-to-head formatting invocation
+  included deleted Python paths and therefore failed before completing the
+  gate; rerunning with `--diff-filter=ACMR` checked the 11 existing changed
+  Python files successfully.
 - Known trade-offs: the selected established tokenizer greatly enlarges the
   current untied embedding/LM head; its measured bilingual compression and
   smaller cost than the other eligible candidate justified selection, but the
@@ -215,8 +264,9 @@ substantive findings remain.
   and the existing opt-in public-Hugging-Face dataset integration was not run in
   the offline phase-2 validation. CPU R1 tokenization throughput and a bounded
   CPU model smoke are not claims about end-to-end DGX training supply.
-- Human decision requested: review and merge if the documented R2 deferral and
-  vocabulary-cost trade-off are acceptable; model review is not merge authority
+- Human decision requested: none until a fresh independent review evaluates the
+  cycle-4 repair; the PR must not return to ready/merge consideration on this
+  implementation pass alone.
 
 ## Model assessment from this ticket
 
@@ -228,11 +278,13 @@ substantive findings remain.
 | not exposed by runtime / not exposed by runtime | independent review | Verified every substantive TOK-001 acceptance criterion, reran the real bounded entrypoint and offline suite, checked hashes/fingerprint/provenance, and retained the CUDA/DGX deferral | Caught that the changed-file formatting claim was false because new untracked files had been omitted from the precommit file list | Stable commit, full diff, philosophy/CHECK, live PR and model-run evidence | `FAIL`; concrete one-file repair and re-review handoff |
 | not exposed by runtime / not exposed by runtime | repair | Applied the minimal formatter-only change and corrected the validation file-selection method without changing tokenizer semantics | Initial implementation validation used a worktree-only `git diff` list that cannot see untracked additions | Exact failed command/file/line and reviewer handoff | repair completed; re-review `PASS WITH NOTE` |
 | not exposed by runtime / not exposed by runtime | independent re-review | Verified the formatter repair, full failed-review trail, complete base-to-head file list, all offline tests, lock/diff, Hydra parity, and clean worktree | Exact model/mode remained hidden; CUDA/DGX R2 remains unavailable in the current CPU runtime | Repair commit `e041c48`, failed-review handoff, live PR, philosophy/CHECK | `PASS WITH NOTE`; ready for human review after final docs parity audit |
+| not exposed by runtime / not exposed by runtime | external GitHub review | Found that literal special-token spellings bypassed the intended raw/control-token boundary and connected the defect to PAD masking and EOS semantics | Exact model/mode was not exposed; the finding arrived only after the earlier passing re-review | Ready head `9d5cfea`, manifest special IDs, canonical encode line, model PAD behavior, loader EOS append | `FAIL`; concrete P2 repair required |
+| not exposed by runtime / not exposed by runtime | repair cycle 4 | Kept one canonical encode path, derived the complete reserved mapping from the validated manifest, preserved explicit loader EOS, and added end-to-end local/process failure and frozen-corpus identity evidence | Requested Luna / Extra High identity/mode was unavailable; fresh independent review remains required | Exact external finding, manifest, wrapper, stream/local consumers, frozen digest | repair completed; verdict pending re-review |
 
 ## Ledger update
 
 - [x] Added ticket/PR row to `docs/model-runs/README.md`.
-- [x] Recorded both implementation invocations, the failed independent review,
-  and both repairs under the hidden runtime identity/mode.
-- [x] Confirmed live PR execution trail matches this record through the repaired
-  commit; final verdict update and docs-only parity audit are the last handoff step.
+- [x] Recorded both implementation invocations, both failed reviews, and all
+  three repair passes under the runtime-exposed identity/mode values.
+- [ ] Fresh independent review must evaluate cycle 4 and then update the live PR,
+  final verdict, and docs parity before the PR can return to ready state.

@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import re
 import runpy
 import shutil
 import socket
@@ -56,6 +57,10 @@ PROBES = {
     ],
     "絵文字🙂🌸🚀": [31, 27072, 26865, 273, 192, 186, 163, 49867, 273, 192, 187, 161],
 }
+SPECIAL_TOKENS = json.loads((ASSET_DIR / "manifest.json").read_text(encoding="utf-8"))[
+    "special_tokens"
+]
+RESERVED_SPECIAL_IDS = {config["id"] for config in SPECIAL_TOKENS.values()}
 
 
 def test_canonical_identity_special_tokens_and_offline_probes(monkeypatch):
@@ -91,6 +96,147 @@ def test_canonical_tokenizer_rejects_invalid_utf8_and_ids():
         tokenizer.decode([1.5])
     with pytest.raises(ValueError, match="outside canonical range"):
         tokenizer.decode([tokenizer.vocab_size])
+
+
+@pytest.mark.parametrize(
+    ("role", "special_token", "special_id"),
+    [(role, config["token"], config["id"]) for role, config in SPECIAL_TOKENS.items()],
+)
+def test_raw_text_rejects_every_reserved_special_token(role, special_token, special_id):
+    tokenizer = CanonicalTokenizer.from_config(CONFIG)
+    text = f"ordinary prefix {special_token} ordinary suffix"
+
+    with pytest.raises(
+        ValueError,
+        match=re.escape(f"role={role}, token={special_token!r}, id={special_id}"),
+    ):
+        tokenizer.encode(text)
+
+
+@pytest.mark.parametrize(
+    ("role", "text"),
+    [
+        ("pad", "<pad|LLM-jp> suffix"),
+        ("pad", "prefix <pad|LLM-jp>"),
+        ("pad", "<pad|LLM-jp><pad|LLM-jp>"),
+        ("eos_eod", "<EOD|LLM-jp> suffix"),
+        ("eos_eod", "prefix <EOD|LLM-jp>"),
+        ("eos_eod", "<EOD|LLM-jp><EOD|LLM-jp>"),
+    ],
+)
+def test_raw_pad_and_eod_are_rejected_at_boundaries_and_when_repeated(role, text):
+    tokenizer = CanonicalTokenizer.from_config(CONFIG)
+
+    with pytest.raises(ValueError, match=rf"role={role}, .*id="):
+        tokenizer.encode(text)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "自然な日本語の文章です。",
+        "A clean English sentence.",
+        "日本語 and English in one clean document 🙂",
+        "絵文字🙂🌸🚀と記号 []{}<> /\\ +=_",
+    ],
+)
+def test_clean_multilingual_text_never_emits_reserved_special_ids(text):
+    tokenizer = CanonicalTokenizer.from_config(CONFIG)
+
+    token_ids = tokenizer.encode(text)
+
+    assert RESERVED_SPECIAL_IDS.isdisjoint(token_ids)
+
+
+def test_frozen_corpus_retains_selected_wrapper_id_digest_without_reserved_ids():
+    tokenizer = CanonicalTokenizer.from_config(CONFIG)
+    documents = [
+        json.loads(line)
+        for line in (ROOT / "tests/fixtures/tokenizer_comparison/v1/corpus.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+
+    encodings = [tokenizer.encode(document["text"]) for document in documents]
+    digest = hashlib.sha256(json.dumps(encodings, separators=(",", ":")).encode()).hexdigest()
+
+    assert len(encodings) == 160
+    assert digest == "3c1078f72957170fd3c7ac94c9d3313b367f3bf243562a693588810f07dfe907"
+    assert all(RESERVED_SPECIAL_IDS.isdisjoint(token_ids) for token_ids in encodings)
+
+
+@pytest.mark.parametrize(
+    ("special_token", "role"),
+    [("<pad|LLM-jp>", "pad"), ("<EOD|LLM-jp>", "eos_eod")],
+)
+def test_local_text_rejects_raw_pad_and_eod_before_batch_construction(
+    tmp_path, special_token, role
+):
+    input_path = tmp_path / "contaminated.txt"
+    input_path.write_text(f"clean prefix {special_token} clean suffix", encoding="utf-8")
+    tokenizer = CanonicalTokenizer.from_config(CONFIG)
+
+    with pytest.raises(ValueError, match=rf"role={role}, .*id="):
+        train_module.load_token_ids(str(input_path), tokenizer, "training")
+
+
+@pytest.mark.parametrize("process_prefetch", [False, True])
+@pytest.mark.parametrize(
+    ("special_token", "role"),
+    [("<pad|LLM-jp>", "pad"), ("<EOD|LLM-jp>", "eos_eod")],
+)
+def test_stream_loader_rejects_raw_pad_and_eod_before_emitting_samples(
+    process_prefetch, special_token, role
+):
+    config = {
+        "tokenizer": dict(CONFIG),
+        "output_mode": "raw_text",
+        "max_tokens": "max",
+        "add_eos": True,
+        "prefetch": {
+            "enabled": process_prefetch,
+            "mode": "process",
+            "buffer_size": 1,
+        },
+        "datasets": [
+            {
+                "name": "contaminated",
+                "type": "memory",
+                "ratio": 1.0,
+                "documents": [{"text": f"clean {special_token} raw"}],
+            }
+        ],
+    }
+
+    expected_error = StreamLoaderError if process_prefetch else ValueError
+    with pytest.raises(expected_error, match=rf"role={role}, .*id="):
+        next(iter(StreamLoader(config)))
+
+
+def test_loader_appends_one_eod_to_clean_text_without_padding():
+    tokenizer = CanonicalTokenizer.from_config(CONFIG)
+    text = "日本語 and English 🙂"
+    config = {
+        "tokenizer": dict(CONFIG),
+        "output_mode": "tokenized_docs",
+        "max_tokens": "max",
+        "add_eos": True,
+        "datasets": [
+            {
+                "name": "clean",
+                "type": "memory",
+                "ratio": 1.0,
+                "documents": [{"text": text}],
+            }
+        ],
+    }
+
+    sample = next(iter(StreamLoader(config)))
+    token_ids = sample["input_ids"].tolist()
+
+    assert token_ids == tokenizer.encode(text) + [tokenizer.eos_token_id]
+    assert token_ids.count(tokenizer.eos_token_id) == 1
+    assert tokenizer.pad_token_id not in token_ids
 
 
 @pytest.mark.parametrize(
