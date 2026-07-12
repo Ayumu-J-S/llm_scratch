@@ -1,6 +1,6 @@
 # DATA-003 - Deterministic stream horizon, shuffle, and exact cursor
 
-- PR: [#29](https://github.com/Ayumu-J-S/llm_scratch/pull/29) (draft pending cycle-3 re-review)
+- PR: [#29](https://github.com/Ayumu-J-S/llm_scratch/pull/29) (draft pending cycle-4 re-review)
 - Branch: `codex/data-003-stream-cursor`
 - Ticket: DATA-003
 - Hypothesis: A bounded stream with explicit pass policy and serialized source/RNG cursor can reproduce an uninterrupted suffix while keeping prefetch an execution detail.
@@ -27,9 +27,9 @@
 | 2 | repair | not exposed by runtime | not exposed by runtime | review cycle 1 failure and `883f6d0` | Requested Luna / Extra High repair: make async cursor state consumer-acknowledged without changing sample order; preserve process behavior | completed; re-review PASS WITH NOTE | Added cursor ACK marker before every thread sample and a separate parent `_consumer_cursor`; `state_dict()` returns ACK state while async worker runs; added delayed thread/process interruption regressions | Focused DATA-003 tests 8 passed; full suite 220 passed, 1 skipped; static checks clean |
 | 2 | re-review | not exposed by runtime | not exposed by runtime | `ea2c01e68ab4d120b10b3f8208d1388a0be7d19c` (PR #29) | Re-run independent review on exact repair head | PASS WITH NOTE | Consumer-ack cursor markers close the thread/process ahead-of-consumer defect; cursor buffering remains a documented memory trade-off | Review `4679913983`; focused 8 passed; full 220 passed, 1 skipped; static checks clean |
 | 3 | review | not exposed by runtime | not exposed by runtime | `13d90f7e8921c0875a7c37ad1bf44a3147d94c09` (PR #29) | Exact-head refresh after ready-state docs update | FAIL | Thread reuse lost `pass_complete` on natural exhaustion; `load_state_dict` cursor was absent from spawned process config | Review `4679929272`; two P2 findings, no merge |
-| 3 | repair | not exposed by runtime | not exposed by runtime | `13d90f7` plus review `4679929272` | Preserve completed async cursor and propagate explicit cursor into process worker; add regressions | completed; re-review pending | Final thread cursor marker preserves completed-pass state; `load_state_dict` updates serialized process config; thread reuse and process load-state tests added | Focused 10 passed; full 222 passed, 1 skipped; static checks clean; repair `bc8ebbc32db56436e37d32550c1ef6d11a56e66` |
-| 3 | re-review | not exposed by runtime | not exposed by runtime | `bc8ebbc32db56436e37d32550c1ef6d11a56e66` | Independent exact-head review after P2 repairs | pending | Must verify thread/process reuse and spawned-worker resume on final head | pending |
-| 4 | review | not exposed by runtime | not exposed by runtime | `04ca349e6257315580d225196cca658a134795ac` | Exact-head refresh of process-prefetch reuse | FAIL | Process prefetch serialized stale `self.config["cursor"]` on loader reuse and repeated the first pass | Reviewer reproduction; repair pending |
+| 3 | repair | not exposed by runtime | not exposed by runtime | `13d90f7` plus review `4679929272` | Preserve completed async cursor and propagate explicit cursor into process worker; add regressions | completed; cycle-4 refresh found process reuse P2 | Final thread cursor marker preserves completed-pass state; `load_state_dict` updates serialized process config; thread reuse and process load-state tests added | Focused 10 passed; full 222 passed, 1 skipped; static checks clean; repair `bc8ebbc32db56436e37d32550c1ef6d11a56e66` |
+| 3 | re-review | not exposed by runtime | not exposed by runtime | `bc8ebbc32db56436e37d32550c1ef6d11a56e66` | Independent exact-head review after P2 repairs | FAIL/continued | Process reuse remained unsafe on the exact refresh; handed to cycle 4 | Finding evidence `4679944167` |
+| 4 | review | not exposed by runtime | not exposed by runtime | `04ca349e6257315580d225196cca658a134795ac` | Exact-head refresh of process-prefetch reuse | FAIL | Process prefetch serialized stale `self.config["cursor"]` on loader reuse and repeated the first pass | Review `4679944167`; repair `93132f7` |
 | 4 | repair | not exposed by runtime | not exposed by runtime | `04ca349` plus cycle-4 finding | Sync acknowledged cursor into process config on each marker; add process same-loader reuse regression | completed; re-review pending | Config sync is gated to DATA-003 cursor mode so legacy process fixtures retain repeat behavior | Focused 11 passed; full 223 passed, 1 skipped; static checks clean |
 | 4 | re-review | not exposed by runtime | not exposed by runtime | pending final repair head | Independent exact-head review | pending | Verify process reuse and all prior P2 paths | pending |
 
@@ -83,7 +83,7 @@
 - Philosophy alignment: deterministic source identity and explicit repeat policy are visible; prefetch does not alter order.
 - Complexity / change-surface result: PASS WITH NOTE — protocol remains in the existing loader; bounded cursor buffers have documented memory cost.
 - ML-system result: fixture-level data semantics pass; no DGX claim.
-- Verdict: PASS WITH NOTE for cycle 2; cycle 3 exact-head refresh found two P2 lifecycle defects and is pending repair re-review.
+- Verdict: PASS WITH NOTE for cycle 2; cycles 3/4 found and repaired async lifecycle defects, with cycle-4 exact-head re-review pending.
 
 #### Findings
 
@@ -114,7 +114,7 @@
 - Input handoff: review cycle 1's 10/10 delayed-thread cursor mismatch.
 - Changes made: thread worker emits `_CURSOR_MARKER` immediately before each queued sample; parent tracks `_consumer_cursor`; async `state_dict()` returns acknowledged state, while process prefetch emits the same marker protocol. Added delayed thread interruption regression and retained process interruption coverage.
 - What was deliberately not changed: source sampling, shuffle algorithm, manifest identity, packed residual semantics, process mode, or model/checkpoint code.
-- Local evidence: DATA-003 focused tests 8 passed; full suite `220 passed, 1 skipped`; Ruff, lock, and diff checks pass.
+- Local evidence: DATA-003 focused tests 11 passed; full suite `223 passed, 1 skipped`; Ruff, lock, and diff checks pass.
 - Commit reviewed next: `ea2c01e68ab4d120b10b3f8208d1388a0be7d19c` (code; current docs-only head `9c077d5553c8b2e9010b6b4f9e677ca52de25c1b`).
 - Re-review model / mode: actual exact model and reasoning mode not exposed by runtime.
 - Re-review verdict: PASS WITH NOTE (`4679913983`) on exact `ea2c01e`.
@@ -124,6 +124,14 @@
 - Changes made: thread worker emits a final cursor marker after natural exhaustion; `load_state_dict` mirrors the cursor into serialized config; added same-loader thread reuse and process load-state resume regressions.
 - Local evidence: DATA-003 focused 10 passed; full suite 222 passed, 1 skipped; Ruff, lock, and diff checks pass.
 - Commit reviewed next: `bc8ebbc32db56436e37d32550c1ef6d11a56e66`.
+- Re-review model / mode: pending independent exact-head re-review.
+- Re-review verdict: pending.
+
+- Repair cycle 4: actual exact model and reasoning mode not exposed by runtime; requested Luna / Extra High.
+- Input handoff: cycle-4 process-reuse finding `4679944167` on `04ca349`.
+- Changes made: acknowledged cursor markers now synchronize `self.config["cursor"]` for DATA-003 cursor mode; process same-loader reuse regression added while preserving legacy process fixtures.
+- Local evidence: DATA-003 focused 11 passed; full suite 223 passed, 1 skipped; Ruff, lock, and diff checks pass.
+- Commit reviewed next: `93132f7f4103492e41357eee3d0f8a1277ccecb4` (current exact code/docs head).
 - Re-review model / mode: pending independent exact-head re-review.
 - Re-review verdict: pending.
 
@@ -145,7 +153,7 @@
 - Authorization evidence location: parent task messages and final PR audit comment.
 - Authorization covers this named PR or bounded ticket/goal series: pending final audit.
 - Exact independently reviewed head SHA: `ea2c01e68ab4d120b10b3f8208d1388a0be7d19c` (latest passing code before cycle 3/4 P2 findings); final repair re-review pending.
-- Latest independent verdict / model / mode: cycle 4 refresh FAIL (process-reuse P2); exact model and reasoning mode not exposed by runtime.
+- Latest independent verdict / model / mode: cycle-4 refresh FAIL `4679944167`; exact model and reasoning mode not exposed by runtime.
 - All actionable findings repaired and independently re-reviewed: no — cycle 4 process-reuse repair awaits re-review.
 - Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: pending.
 - Newer human objections since authorization/review: pending final refresh.
@@ -166,18 +174,18 @@
 - Immediate pre-merge re-fetch/compare observation location: pending.
 - Immediate refresh compared authorization, head, base, review decision/objections, threads, expected checks/statuses, and mergeability: pending.
 - Drift found: pending.
-- Merge outcome: pending; blocked until cycle 3 re-review passes.
+- Merge outcome: pending; blocked until cycle 4 re-review passes.
 
 ## Model assessment from this ticket
 
 | Model / mode | Role | What it handled well | What it missed or made worse | Context that helped | Outcome |
 | --- | --- | --- | --- | --- | --- |
-| Codex / GPT-5; exact ID and mode not exposed | implementation/review | Localized deterministic source/cursor semantics, bounded shuffle, repeat accounting, and consumer-ack prefetch protocol; repair added completion preservation and process cursor propagation | Exact deployment/model ID and reasoning mode unavailable; cycle-3 exact-head re-review is still pending | DATA-003 acceptance, loader internals, DATA-001/DATA-002 boundaries, selected CHECK sections, delayed-consumer and reuse/resume reproductions | in progress after cycle-3 FAIL `4679929272` |
+| Codex / GPT-5; exact ID and mode not exposed | implementation/review | Localized deterministic source/cursor semantics, bounded shuffle, repeat accounting, consumer-ack protocol, completion preservation, and process cursor synchronization | Exact deployment/model ID and reasoning mode unavailable; cycle-4 exact-head re-review is pending | DATA-003 acceptance, loader internals, DATA-001/DATA-002 boundaries, selected CHECK sections, delayed-consumer and reuse/resume reproductions | in progress after cycle-4 FAIL `4679944167` |
 
 ## Ledger update
 
-- [x] Added the DATA-003 ticket record and PR URL; cycle-3 re-review is pending.
+- [x] Added the DATA-003 ticket record and PR URL; cycle-4 re-review is pending.
 - [ ] Updated aggregate implementation/review counts after final verdict.
-- [x] Confirmed PR execution trail matches this record through failed refresh `4679929272` and pending repair `bc8ebbc`.
+- [x] Confirmed PR execution trail matches this record through cycle-4 finding `4679944167` and repair `93132f7`.
 - [ ] Recorded complete guarded self-merge authority/audit or human merge evidence.
 - [x] Confirmed no bootstrap policy self-merge rule is being used.
