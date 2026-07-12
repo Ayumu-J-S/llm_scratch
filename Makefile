@@ -1,5 +1,6 @@
 .PHONY: help sync activate train smoke pretrain-streaming config-check \
-	runtime-lock diagnose dgx-build dgx-diagnose dgx-smoke test-cpu
+	runtime-lock diagnose dgx-build dgx-diagnose dgx-smoke test-cpu \
+	ci-sync ci-lint ci-test ci-config ci-lock ci-offline-smoke ci-cpu
 
 DGX_IMAGE := llm-scratch:env-001
 DGX_RUN_FLAGS := --rm --gpus all --ipc=host --ulimit memlock=-1 --ulimit stack=67108864
@@ -18,7 +19,8 @@ help:
 		'  make dgx-build        - Build the pinned ARM64 DGX Spark image without cache' \
 		'  make dgx-diagnose     - Require CUDA and BF16 in the DGX Spark image' \
 		'  make dgx-smoke        - Run exactly ten BF16 CUDA optimizer steps' \
-		'  make test-cpu         - Run the explicit CPU development test suite'
+		'  make test-cpu         - Run the explicit CPU development test suite' \
+		'  make ci-cpu           - Run the network-free pull-request quality gate'
 
 sync:
 	uv sync --locked --group dev
@@ -57,3 +59,26 @@ dgx-smoke:
 
 test-cpu:
 	uv run pytest -q
+
+# CI-001: sync is the only target permitted to obtain packages. Every following
+# target is explicitly offline, uses the already-created environment, and must
+# fail rather than let uv resolve or download anything on demand.
+ci-sync:
+	uv sync --locked --no-default-groups --group dev
+
+ci-lint:
+	UV_OFFLINE=1 HF_HUB_OFFLINE=1 HF_DATASETS_OFFLINE=1 WANDB_MODE=disabled WANDB_DISABLED=true uv run --no-sync ruff check .
+
+ci-test:
+	UV_OFFLINE=1 HF_HUB_OFFLINE=1 HF_DATASETS_OFFLINE=1 WANDB_MODE=disabled WANDB_DISABLED=true uv run --no-sync pytest -q
+
+ci-config:
+	UV_OFFLINE=1 HF_HUB_OFFLINE=1 HF_DATASETS_OFFLINE=1 WANDB_MODE=disabled WANDB_DISABLED=true uv run --no-sync python scripts/config_check.py profile=smoke_overfit
+
+ci-lock:
+	UV_OFFLINE=1 uv run --no-sync python scripts/check_lock_drift.py
+
+ci-offline-smoke:
+	UV_OFFLINE=1 HF_HUB_OFFLINE=1 HF_DATASETS_OFFLINE=1 WANDB_MODE=disabled WANDB_DISABLED=true uv run --no-sync python scripts/offline_smoke.py
+
+ci-cpu: ci-sync ci-lint ci-test ci-config ci-lock ci-offline-smoke

@@ -1,0 +1,34 @@
+name: PR quality gate
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cpu-quality:
+    name: CPU quality (offline)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          version: "0.11.19"
+      - name: Frozen uv sync
+        run: make ci-sync
+      - name: Ruff
+        run: make ci-lint
+      - name: Pytest
+        run: make ci-test
+      - name: Hydra composition
+        run: make ci-config
+      - name: Lockfile and drift rejection
+        run: make ci-lock
+      - name: Offline tiny CPU smoke
+        run: make ci-offline-smoke
