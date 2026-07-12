@@ -10,7 +10,9 @@
   and tiny CPU smoke evidence; no consequential research run`
 - Started: 2026-07-11T15:31:27Z
 - Previous implementation verdict: `PASS WITH NOTE`
-- Integration verdict: `pending independent exact-head review`
+- Integration verdict: `PASS WITH NOTE` on exact implementation head
+  `bab5cd5a3a962675665c1ace25b3c9c345d359e6`
+- Final documentation handoff: `pending primary parity audit`
 - Final record owner: primary task; exact runtime identity not exposed
 
 ## Scope and decision context
@@ -41,7 +43,8 @@
 | 1 | review | not exposed by runtime | not exposed by runtime | `7193fb4` | Independent review against DATA-001, philosophy, and selected CHECK sections | FAIL | Process-prefetch counters were copied to the parent only after successful completion, so a later early-closed or failed iteration exposed stale totals from the prior success | Counter lifecycle inspection at `StreamLoader._iter_async` and process accounting marker path |
 | 1 | repair | not exposed by runtime | not exposed by runtime | `7193fb4` plus review cycle 1 handoff | Requested `gpt-5.6-luna` at Extra High; reset async accounting before worker launch and cover repeat/close/error lifecycle | completed | Parent counters reset at each async iteration start; normal process completion still publishes final totals; early close and worker error retain safe current-iteration zeros | lifecycle regressions `3 passed`; focused `60 passed, 3 skipped`; full `61 passed, 3 skipped`; Ruff, lock, diff, Hydra green; re-review pending |
 | 1 | re-review | not exposed by runtime | not exposed by runtime | `99dcfcdf72abb8feeece7fdca803a2452793de56` | Independently verify the failed counter lifecycle and unchanged DATA-001 invariants | PASS WITH NOTE | All roadmap acceptance criteria and selected R1 CHECK sections passed; R2/CUDA and long-document scaling remain explicit later measurement notes | lifecycle `4 passed`; focused `60 passed, 3 skipped`; full `61 passed, 3 skipped`; overlap probe and local/live head parity passed |
-| 2 | integration/reconciliation | not exposed by runtime | not exposed by runtime | DATA head `92e1635`; `origin/main` `10bc18f` after POLICY-001 and EXP-001 | Requested Luna / Extra High; merge current main normally, preserve both histories and policy, reconcile roadmap/ledger, and repeat DATA-001 gates | completed; independent review pending | PR returned to draft; main merged without rebase/force; ledger conflict resolved by retaining POLICY-001, EXP-001, and DATA-001 rows and combining aggregate counts; EXP-001 and DATA-001 marked Done without prematurely unlocking CFG-001 | ticket-focused `23 passed`; focused `60 passed, 3 skipped`; full `61 passed, 3 skipped`; Ruff/changed-file format/lock/diff/Hydra passed |
+| 2 | integration/reconciliation | not exposed by runtime | not exposed by runtime | DATA head `92e1635`; `origin/main` `10bc18f` after POLICY-001 and EXP-001 | Requested Luna / Extra High; merge current main normally, preserve both histories and policy, reconcile roadmap/ledger, and repeat DATA-001 gates | completed | PR returned to draft; main merged without rebase/force; ledger conflict resolved by retaining POLICY-001, EXP-001, and DATA-001 rows and combining aggregate counts; EXP-001 and DATA-001 marked Done without prematurely unlocking CFG-001 | ticket-focused `23 passed`; focused `60 passed, 3 skipped`; full `61 passed, 3 skipped`; Ruff/changed-file format/lock/diff/Hydra passed |
+| 2 | independent integration review | not exposed by runtime | not exposed by runtime | exact head `bab5cd5a3a962675665c1ace25b3c9c345d359e6`; DATA-001, PHILOSOPHY, CHECK §§1, 4.1, 4.3, 6.1, 7, 11, and guarded merge policy | Requested available heavier model / Extra Thinking; independently review integrated implementation and evidence | PASS WITH NOTE | No actionable findings; causal-boundary, accounting, objective, policy/history, and evidence gates pass; CUDA/real-source R2 and pre-existing list-prefix scaling remain explicit deferred measurements | independent review handoff; exact runtime model/mode not exposed; prior focused/full and ticket evidence independently assessed |
 
 ## Integration and guarded merge handoff
 
@@ -62,16 +65,17 @@
   instructed the agent to review, make ready, and self-merge the bounded open
   roadmap PR series #10-#15. This authorization includes PR #11 but does not
   waive any guarded merge gate.
-- Current merge path: `guarded agent self-merge`, only after a fresh independent
-  review returns PASS or justified PASS WITH NOTE for the exact integrated head.
+- Current merge path: `guarded agent self-merge`; the exact integrated
+  implementation head has a justified `PASS WITH NOTE`, while the final
+  documentation-only handoff still requires primary artifact-parity review.
 - GitHub review inventory before integration: no submitted reviews and zero
   inline review threads; one top-level historical FAIL comment remains as an
   intentionally preserved audit record, not an unresolved review thread.
-- Pending before readiness or merge: exact-head acceptance validation; fresh
-  independent PHILOSOPHY/CHECK review; actionable-finding disposition; required
-  context and configured workflow/check inventories; exact-head status checks;
-  newer-objection check; base currency; mergeability; artifact parity;
-  prohibited-category audit; final audit comment; immediate pre-merge refresh.
+- Pending before readiness or merge: primary parity audit of this documentation
+  finalization; required-context and configured-workflow/check inventories;
+  exact-head statuses; current review/thread/newer-objection refresh; base
+  currency; mergeability; prohibited-category audit; final audit comment; and
+  the immediate pre-merge refresh.
 - This integration cycle does not mark the PR ready and does not merge it.
 
 ### Integration validation
@@ -102,6 +106,38 @@
   integration introduces no data-path code beyond DATA-001. The existing
   repeated list-prefix deletion risk remains recorded; no throughput or R2/DGX
   claim is made from these CPU R1 checks.
+
+### Review cycle 3 — integrated head
+
+- Review model / mode: `not exposed by runtime / not exposed by runtime`;
+  requested an available heavier review model at Extra Thinking.
+- Commit reviewed: `bab5cd5a3a962675665c1ace25b3c9c345d359e6`.
+- Selected `CHECK.md` sections: 1, 4.1, 4.3, 6.1, 7, and 11 DATA-001,
+  plus the guarded self-merge requirements in `PHILOSOPHY.md` and
+  `docs/agent-model-workflow.md`.
+- Ticket acceptance result: PASS; the exact `[2..8]`, `L=3` windows and
+  transition multiset, EOS/quota boundary policy, spans/accounting, process
+  lifecycle, bounded loader proof, and tiny optimizer path remain demonstrated.
+- Philosophy alignment: PASS; the implementation preserves a conventional
+  objective, fails unsafe boundaries explicitly, imports no pretrained
+  capability, and retains failed-review/history evidence through the merge.
+- Complexity / change-surface result: PASS; integration adds no alternate data
+  path, compatibility shim, or speculative abstraction.
+- ML-system result: PASS at R1 with notes; the review found no actionable
+  correctness, evidence, or integration defect.
+- Verdict: `PASS WITH NOTE`.
+- Non-blocking notes:
+  - CUDA and real-source R2 supply behavior remain deferred until the canonical
+    tokenizer and runnable source profile are present on `main`; no throughput
+    claim is made by DATA-001.
+  - Repeated Python list-prefix deletion predates DATA-001 and remains a
+    documented scaling risk to measure on representative long documents before
+    optimizing.
+- Actionable findings: none.
+- Documentation provenance: this section and the ledger finalization are a
+  documentation-only descendant of the reviewed implementation head. They do
+  not modify DATA behavior or evidence. The primary task must confirm exact diff
+  parity and current live-PR state before marking Ready or auditing merge gates.
 
 ## Check selection and verdicts
 
@@ -249,8 +285,8 @@
   correctness, not favorable long-document scaling.
 - Unresolved risks: real-profile throughput, long-document front-deletion
   scaling, and CUDA behavior remain for later dependency tickets.
-- Human decision requested: review the evidence and decide whether to merge; a
-  model review is not merge authority
+- Merge handoff: explicit bounded authorization exists, but the primary merging
+  agent must still pass every guarded final-audit and immediate-refresh gate.
 
 ## Model assessment from this ticket
 
@@ -261,10 +297,12 @@
 | not exposed by runtime / not exposed by runtime | review | Detected stale parent accounting specifically on early-close and worker-error process paths despite green success-path tests | Exact heavier model identity/mode was not exposed | Target `7193fb4`, CHECK 4.3, process accounting marker lifecycle | FAIL; repair required |
 | not exposed by runtime / not exposed by runtime | repair | Localized the lifecycle fix to one reset boundary and added direct failure-path regressions | Requested Luna Extra High identity/mode remained unverifiable | Exact FAIL handoff and mutable local JSONL reproduction | repair completed; later re-review passed with note |
 | not exposed by runtime / not exposed by runtime | re-review | Reproduced lifecycle/overlap behavior and checked full acceptance, CHECK, and live PR parity | Exact heavier model identity/mode remained hidden | Repair commit, failed-review handoff, focused/full tests, live PR | PASS WITH NOTE |
+| not exposed by runtime / not exposed by runtime | integration review | Found no actionable integration defect and independently checked DATA invariants, policy/history retention, evidence claims, and guarded-handoff state | Exact heavier model and requested Extra Thinking mode were not exposed; real-source CUDA R2 remains unavailable at this dependency stage | Exact `bab5cd5` head, full ticket/check/philosophy scope, focused/full/ticket evidence, live PR handoff | PASS WITH NOTE |
 
 ## Ledger update
 
 - [x] Added the PR/ticket row to `docs/model-runs/README.md`.
 - [x] Updated implementation, review, repair, and successful-repair counts.
-- [x] Confirmed the PR execution trail will be synchronized with this final
-  record after the verdict commit is pushed.
+- [x] Updated the integration review count and final verdict.
+- [x] Prepared the PR execution trail for synchronization to the pushed
+  documentation-only handoff head.
