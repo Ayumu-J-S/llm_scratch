@@ -1,6 +1,6 @@
 # GEN-001 - Minimal base-model continuation sampling
 
-- PR: draft — branch pushed; PR URL pending connector creation
+- PR: [#38](https://github.com/Ayumu-J-S/llm_scratch/pull/38) (draft)
 - Branch: `codex/gen-001-base-continuation`
 - Ticket: `GEN-001`
 - Hypothesis: a compact, checkpoint-owned sampler can reconstruct the canonical
@@ -40,7 +40,7 @@
 
 | Cycle | Phase | Exact model identifier | Reasoning mode | Input / requested work | Outcome | Observable findings and evidence |
 | ---: | --- | --- | --- | --- | --- | --- |
-| 1 | implementation | not exposed by runtime | not exposed by runtime | Baseline `924a77a`; requested Luna / Extra High; GEN-001, PHILOSOPHY, CHECK 7.2/8.2/9.1 | in progress | Opened branch and captured provenance before code changes. Planned reconstruction is from the full-state checkpoint's resolved config and pinned canonical tokenizer only; the CLI will accept no manually supplied architecture values. |
+| 1 | implementation | not exposed by runtime | not exposed by runtime | Baseline `924a77a`; requested Luna / Extra High; GEN-001, PHILOSOPHY, CHECK 7.2/8.2/9.1 | implemented; independent exact-head review pending | Added the importable `CheckpointSampler`, `llm-scratch-generate` CLI, verified full-state generation loader, result metadata, and the user-facing generation contract. Reconstruction consumes the checkpoint's `resolved_config`, canonical tokenizer config, matching tokenizer fingerprint, and strict model state only; the CLI has no architecture/tokenizer override. |
 
 ## Runtime provenance block
 
@@ -79,13 +79,30 @@ N/A — no independent review has run.
 
 ## Final evidence
 
-- Resolved command/config: pending.
-- Data/tokenizer/model identity: pending.
-- Validation and measurements: pending.
+- Resolved command/config: `uv run --group dev llm-scratch-generate --checkpoint <full-state-final.pt> --prompt 'Small' --max-new-tokens 7 --json`; the generation command is intentionally direct rather than a second training/runtime config surface.
+- Data/tokenizer/model identity: canonical tokenizer fingerprint `12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b`; sampler reconstructs `SimpleDecoderTransformer` strictly from the saved resolved config and rejects a mismatched tokenizer fingerprint or weight shape.
+- Validation and measurements: `uv run --group dev pytest -q tests/test_generation.py` — 5 passed; independent candidate rerun reported `uv run --group dev pytest -q` — 256 passed, 1 skipped; changed-file Ruff, format, `git diff --check`, and `uv lock --check` passed. The fixtures cover a final-checkpoint round-trip, repeatable greedy decoding, repeatable seeded temperature/top-k sampling, EOS, a truncated context budget, metadata/CLI output, and invalid stochastic options.
+- Bounded canonical memorization-path evidence: an explicit CPU-only
+  `profile=smoke_overfit` run with the pinned memorization manifest, canonical
+  tokenizer, 16-wide/one-layer decoder, batch 2, and `max_steps=1500` writes a
+  CKPT-001 full-state `final.pt`; the CLI then samples it with prompt `Small`.
+  This is a same-manifest memorization path, not held-out validation or a
+  generalization claim. It finished 1,500 optimizer steps / 21,600 target
+  tokens in 66.57 CPU seconds; final train loss `0.03937`, same-manifest
+  memorization loss `0.07385` (perplexity `1.07665`), and the greedy sample
+  stopped at EOS with completion `data.`. The `final.pt` was 20,103,413 bytes,
+  wrote in 0.01178 seconds, verified in 0.00261 seconds, and recorded a
+  0.01503-second checkpoint pause. These numbers demonstrate the bounded
+  fixture path only, not held-out quality or throughput.
 - Performance/resource result if applicable: N/A — no performance claim.
 - Failed attempts retained at: this record.
-- Known trade-offs: pending.
-- Unresolved risks: candidate not yet implemented or independently reviewed.
+- Known trade-offs: `max_new_tokens` is deliberately positive; a zero-token
+  request is rejected because it is not a continuation. The sampler is direct
+  one-request-at-a-time decoding without a KV cache, batching, or a serving
+  layer by ticket scope.
+- Unresolved risks: candidate needs independent exact-head review; bounded CPU
+  memorization evidence cannot establish model quality, real-data performance,
+  GPU behavior, or generation safety.
 - Human decision requested: none.
 
 ## Merge authority and final audit

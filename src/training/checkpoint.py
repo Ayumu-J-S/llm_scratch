@@ -408,6 +408,68 @@ def _torch_load(path: Path) -> Any:
         return torch.load(path, map_location="cpu")
 
 
+def load_checkpoint_for_generation(path: str | Path) -> dict[str, Any]:
+    """Load the verified inference-relevant part of a full-state checkpoint.
+
+    Generation deliberately accepts only repository checkpoint files.  The
+    checkpoint's own resolved config and canonical-tokenizer configuration are
+    the reconstruction authority, so callers cannot quietly substitute model
+    dimensions or tokenizer settings with CLI arguments.
+    """
+
+    checkpoint_path = Path(path)
+    if not checkpoint_path.is_file():
+        raise CheckpointVerificationError(
+            f"generation checkpoint does not exist or is not a file: {checkpoint_path}"
+        )
+    try:
+        payload = _torch_load(checkpoint_path)
+    except Exception as error:  # torch exposes several format-specific error types.
+        raise CheckpointVerificationError(
+            f"unable to read checkpoint {checkpoint_path}: {error}"
+        ) from error
+    if not isinstance(payload, dict):
+        raise CheckpointVerificationError(f"checkpoint {checkpoint_path} is not a mapping")
+    required = {"schema_version", "kind", "identity", "state"}
+    missing = required.difference(payload)
+    if missing:
+        raise CheckpointVerificationError(
+            f"checkpoint {checkpoint_path} is missing {sorted(missing)}"
+        )
+    if payload["schema_version"] != CHECKPOINT_SCHEMA_VERSION:
+        raise CheckpointVerificationError(
+            f"checkpoint {checkpoint_path} has unsupported schema {payload['schema_version']!r}"
+        )
+    if payload["kind"] not in {"recovery", "best", "final", "milestone"}:
+        raise CheckpointVerificationError(
+            f"checkpoint {checkpoint_path} has unknown kind {payload['kind']!r}"
+        )
+    identity = payload["identity"]
+    state = payload["state"]
+    if not isinstance(identity, Mapping) or not isinstance(state, Mapping):
+        raise CheckpointVerificationError(
+            f"checkpoint {checkpoint_path} has invalid identity or state"
+        )
+    _checkpoint_step(state)
+    required_state = {"model", "resolved_config", "run_identity"}
+    missing_state = required_state.difference(state)
+    if missing_state:
+        raise CheckpointVerificationError(
+            f"checkpoint is not a full-state generation checkpoint; missing {sorted(missing_state)}"
+        )
+    if not isinstance(state["model"], Mapping):
+        raise CheckpointVerificationError("checkpoint model state must be a mapping")
+    if not isinstance(state["resolved_config"], Mapping):
+        raise CheckpointVerificationError("checkpoint resolved_config must be a mapping")
+    if not isinstance(state["run_identity"], Mapping):
+        raise CheckpointVerificationError("checkpoint run_identity must be a mapping")
+    if dict(state["run_identity"]) != dict(identity):
+        raise CheckpointCompatibilityError(
+            "checkpoint envelope identity differs from its full-state run_identity"
+        )
+    return payload
+
+
 def _fsync_file(path: Path) -> None:
     with path.open("rb") as handle:
         os.fsync(handle.fileno())
