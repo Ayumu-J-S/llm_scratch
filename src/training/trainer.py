@@ -220,29 +220,37 @@ class Trainer:
         total_loss = 0.0
         total_tokens = 0
         ignore_index = int(self._training_value("ignore_index", -100))
-        with torch.no_grad():
-            for batch in self.validation_loader:
-                input_batch = batch["inputs"].to(self.device)
-                label_batch = batch["labels"].to(self.device)
-                logits = self.model(input_batch)
-                flat_labels = label_batch.reshape(-1)
-                losses = F.cross_entropy(
-                    logits.reshape(-1, logits.size(-1)),
-                    flat_labels,
-                    reduction="none",
-                    ignore_index=ignore_index,
-                )
-                valid = flat_labels != ignore_index
-                count = int(valid.sum().item())
-                if count:
-                    total_loss += float(losses[valid].sum().item())
-                    total_tokens += count
-        self.model.train()
+        try:
+            with torch.no_grad():
+                for batch_index, batch in enumerate(self.validation_loader, start=1):
+                    input_batch = batch["inputs"].to(self.device)
+                    label_batch = batch["labels"].to(self.device)
+                    logits = self.model(input_batch)
+                    flat_labels = label_batch.reshape(-1)
+                    losses = F.cross_entropy(
+                        logits.reshape(-1, logits.size(-1)),
+                        flat_labels,
+                        reduction="none",
+                        ignore_index=ignore_index,
+                    )
+                    if not torch.isfinite(losses).all():
+                        self._record_numeric_failure("validation", batch_index)
+                        raise FloatingPointError(
+                            self._numeric_failure_message("validation", batch_index)
+                        )
+                    valid = flat_labels != ignore_index
+                    count = int(valid.sum().item())
+                    if count:
+                        total_loss += float(losses[valid].sum().item())
+                        total_tokens += count
+        finally:
+            self.model.train()
         if total_tokens == 0:
             raise ValueError("validation loader is empty or contains zero target tokens")
         result = total_loss / total_tokens
         if not math.isfinite(result):
-            raise FloatingPointError("non-finite validation loss")
+            self._record_numeric_failure("validation", None)
+            raise FloatingPointError(self._numeric_failure_message("validation", None))
         return result
 
     def _run_events(
@@ -474,6 +482,7 @@ class Trainer:
     def _record_numeric_failure(self, kind: str, batch_index: int | None) -> None:
         message = self._numeric_failure_message(kind, batch_index)
         logger.error(message)
+        preceding_checkpoint = self.checkpoint_dir / "model_last.pth"
         self._record_metrics(
             {
                 "event": f"nonfinite_{kind}",
@@ -482,6 +491,10 @@ class Trainer:
                 "batch_index": batch_index,
                 "elapsed_seconds": self.elapsed_seconds,
                 "error": message,
+                "preceding_checkpoint_step": self._last_checkpoint_step,
+                "preceding_checkpoint": str(preceding_checkpoint)
+                if preceding_checkpoint.exists()
+                else None,
             },
             send_to_wandb=False,
         )

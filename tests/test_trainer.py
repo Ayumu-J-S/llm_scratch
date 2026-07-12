@@ -42,6 +42,14 @@ class NaNGradientModel(FixedLogitModel):
         return logits.expand(*inputs.shape, -1)
 
 
+class NonFiniteValidationModel(FixedLogitModel):
+    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+        logits = self.logits
+        if not self.training:
+            logits = logits.masked_fill(torch.ones_like(logits, dtype=torch.bool), float("nan"))
+        return logits.expand(*inputs.shape, -1)
+
+
 def _trainer(tmp_path: Path, batches, **training_overrides) -> Trainer:
     model = FixedLogitModel()
     cfg = OmegaConf.create(
@@ -165,6 +173,18 @@ def test_nonfinite_gradient_records_context_before_counters_advance(tmp_path: Pa
     assert trainer.target_tokens == 0
     failure = next(item for item in trainer.metrics if item.get("event") == "nonfinite_gradients")
     assert failure["batch_index"] == 1
+
+
+def test_nonfinite_validation_records_context_and_stops(tmp_path: Path):
+    trainer = _trainer(tmp_path, [_batch([[0, 1]])])
+    trainer.model = NonFiniteValidationModel()
+    trainer.optimizer = torch.optim.SGD(trainer.model.parameters(), lr=0.0)
+    with pytest.raises(FloatingPointError, match="non-finite validation"):
+        trainer.fit()
+    assert trainer.optimizer_step == 1
+    failure = next(item for item in trainer.metrics if item.get("event") == "nonfinite_validation")
+    assert failure["batch_index"] == 1
+    assert failure.get("preceding_checkpoint") is None
 
 
 def test_fractional_step_and_token_budgets_are_rejected(tmp_path: Path):
