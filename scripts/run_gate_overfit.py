@@ -196,11 +196,7 @@ def _run_interrupted_then_resumed(cfg: DictConfig, *, run_dir: Path) -> None:
     def stop_after_recovery(*, epoch_end: bool, train_loss: float | None = None) -> None:
         original_events(epoch_end=epoch_end, train_loss=train_loss)
         recovery = interrupted.checkpoint_dir / f"recovery-step-{INTERRUPT_STEP:012d}.pt"
-        if (
-            not epoch_end
-            and interrupted.optimizer_step == INTERRUPT_STEP
-            and recovery.is_file()
-        ):
+        if not epoch_end and interrupted.optimizer_step == INTERRUPT_STEP and recovery.is_file():
             raise VerifiedInterruption(
                 f"deliberate GATE-001 interruption after verified recovery {recovery.name}"
             )
@@ -258,15 +254,11 @@ def _compare(reference: dict[str, Any], candidate: dict[str, Any]) -> dict[str, 
     same_targets = reference["target_tokens"] == candidate["target_tokens"]
     same_trace = reference["loss_trace"] == candidate["loss_trace"]
     same_identity = (
-        reference["checkpoint"]["identity_sha256"]
-        == candidate["checkpoint"]["identity_sha256"]
+        reference["checkpoint"]["identity_sha256"] == candidate["checkpoint"]["identity_sha256"]
     )
-    same_model = (
-        reference["checkpoint"]["model_sha256"] == candidate["checkpoint"]["model_sha256"]
-    )
+    same_model = reference["checkpoint"]["model_sha256"] == candidate["checkpoint"]["model_sha256"]
     same_samples = all(
-        reference["samples"][language]["completion"]
-        == candidate["samples"][language]["completion"]
+        reference["samples"][language]["completion"] == candidate["samples"][language]["completion"]
         and reference["samples"][language]["generated_token_ids"]
         == candidate["samples"][language]["generated_token_ids"]
         for language in ("japanese", "english")
@@ -324,7 +316,9 @@ def run_proof(*, output_dir: Path, device: str) -> dict[str, Any]:
             "use a fixed fixture whose pass length leaves a real resume suffix"
         )
     if int(cfg.training.epochs) * batches_per_pass < MAX_STEPS:
-        raise GateProofError("profile does not provide enough finite stream passes for the step budget")
+        raise GateProofError(
+            "profile does not provide enough finite stream passes for the step budget"
+        )
 
     try:
         reference_dir = output_dir / "reference"
