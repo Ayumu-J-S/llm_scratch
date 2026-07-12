@@ -302,7 +302,11 @@ review evaluates the stable repair head.
   suites passed. During cycle 5, the first base-to-head formatting invocation
   included deleted Python paths and therefore failed before completing the
   gate; rerunning with `--diff-filter=ACMR` checked the 11 existing changed
-  Python files successfully.
+  Python files successfully. The first cycle-6 canonical run passed 46 tests
+  but failed one historical mutation assertion because the new uniqueness gate
+  now rejected a duplicated EOS ID earlier than the old artifact-mismatch
+  diagnostic; the assertion was updated to the new explicit error, after which
+  all 47 canonical tests passed.
 - Known trade-offs: the selected established tokenizer greatly enlarges the
   current untied embedding/LM head; its measured bilingual compression and
   smaller cost than the other eligible candidate justified selection, but the
