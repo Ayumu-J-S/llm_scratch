@@ -193,7 +193,7 @@ def test_packed_window_cursor_keeps_unemitted_residual_tokens():
 def test_final_short_packed_window_cursor_resumes_exact_suffix(prefetch):
     config = _config(
         output_mode="packed_sequences",
-        max_tokens="max",
+        max_tokens=4,
         sequence_length=5,
         add_eos=False,
         drop_remainder=False,
@@ -213,7 +213,7 @@ def test_final_short_packed_window_cursor_resumes_exact_suffix(prefetch):
     loader = StreamLoader(config)
     iterator = iter(loader)
     prefix = [next(iterator)["input_ids"].tolist()]
-    cursor = loader.state_dict()
+    cursor = json.loads(json.dumps(loader.state_dict()))
     iterator.close()
 
     assert cursor["packed_buffer"] == []
@@ -248,8 +248,5 @@ def test_final_short_packed_window_does_not_pollute_explicit_repeat_pass():
     iterator.close()
 
     assert cursor["packed_buffer"] == []
-    resumed = [
-        sample["input_ids"].tolist()
-        for sample in StreamLoader({**config, "cursor": cursor})
-    ]
-    assert resumed == [[311, 311, 311, 311]]
+    next_pass = [sample["input_ids"].tolist() for sample in loader]
+    assert next_pass == [[311, 311, 311, 311]]

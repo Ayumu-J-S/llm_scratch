@@ -304,6 +304,11 @@ class StreamLoader:
         self._cursor: dict[str, Any] | None = (
             _copy_cursor(supplied_cursor) if supplied_cursor is not None else None
         )
+        # A supplied cursor resumes the suffix on this object's first iterator.
+        # Later iterators on the same loader begin an explicit next pass.
+        self._resume_cursor_pending = bool(
+            self.config.get("_stream_loader_resume_cursor_pending", supplied_cursor is not None)
+        )
         self._pass_index = int(self._cursor.get("pass_index", 0)) if self._cursor else 0
         if supplied_cursor is not None:
             self.config["cursor"] = _copy_cursor(supplied_cursor)
@@ -467,6 +472,7 @@ class StreamLoader:
         self._cursor = _copy_cursor(cursor)
         self._pass_index = int(self._cursor.get("pass_index", 0))
         self.cursor_enabled = True
+        self._resume_cursor_pending = True
         # Process prefetch receives a plain serialized config.  Keep the
         # explicit cursor in that config as well as on the parent so a spawned
         # worker resumes from the requested state rather than its initial
@@ -697,6 +703,10 @@ class StreamLoader:
         self._queue = context.Queue(maxsize=self.prefetch_buffer_size)
         self._stop_event = context.Event()
         process_config = _process_prefetch_config(self.config)
+        # The spawned loader is a new object, so preserve whether its cursor is
+        # a checkpoint resume or this parent's next-pass iteration.
+        process_config["_stream_loader_resume_cursor_pending"] = self._resume_cursor_pending
+        self._resume_cursor_pending = False
         self._process = context.Process(
             target=_process_prefetch_worker,
             args=(process_config, self._queue, self._stop_event),
@@ -833,7 +843,11 @@ class StreamLoader:
         self,
         stop_event: threading.Event | None,
     ) -> Iterator[TokenizedSample]:
+        resume_cursor = self._resume_cursor_pending
+        self._resume_cursor_pending = False
         if self._cursor is not None and self._cursor.get("pass_complete"):
+            if resume_cursor:
+                return
             self._start_next_pass()
         cursor = self._cursor if self.cursor_enabled else None
         rng = random.Random(self.seed)
