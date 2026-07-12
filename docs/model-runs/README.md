@@ -13,7 +13,9 @@ PR URL cannot be created.
 
 | Record | Ticket | PR | Initial implementation model / mode | First review model / mode | Repair cycles | Final verdict | Main failure tags |
 | --- | --- | --- | --- | --- | ---: | --- | --- |
-| [DATA-001 causal boundaries](DATA-001-causal-boundaries.md) | DATA-001 | [#11](https://github.com/Ayumu-J-S/llm_scratch/pull/11) | not exposed by runtime / not exposed by runtime | not exposed by runtime / not exposed by runtime | 1 | PASS WITH NOTE | ml-semantics, stale-accounting, boundary-policy |
+| [DATA-001 causal boundaries](DATA-001-causal-boundaries.md) | DATA-001 | [#11](https://github.com/Ayumu-J-S/llm_scratch/pull/11) | not exposed by runtime / not exposed by runtime | not exposed by runtime / not exposed by runtime | 1 | integration re-review pending (prior PASS WITH NOTE) | ml-semantics, stale-accounting, boundary-policy |
+| [POLICY-001 guarded agent self-merge](POLICY-001-agent-self-merge.md) | POLICY-001 | [#16](https://github.com/Ayumu-J-S/llm_scratch/pull/16) | not exposed by runtime / not exposed by runtime | not exposed by runtime / not exposed by runtime | 1 | PASS WITH NOTE | authorization, review-state, checks, drift |
+| [EXP-001 review record](EXP-001-review-record.md) | EXP-001 | [#10](https://github.com/Ayumu-J-S/llm_scratch/pull/10); related process PR [#9](https://github.com/Ayumu-J-S/llm_scratch/pull/9) | not exposed by runtime / not exposed by runtime | blocked twice, then FAIL; model/mode not exposed | 5 | PASS WITH NOTE | reproducibility, stale-review-target, stale-pr-body, stale-final-status, stale-integration-verdict, provenance-target, review-unavailable, merge-order |
 
 Use short, stable values in `Main failure tags` so results can be aggregated,
 for example `data-starvation`, `cuda-fallback`, `ml-semantics`,
@@ -27,7 +29,7 @@ there are enough observations for meaningful rates.
 
 | Exact model / mode | Implementation attempts | First-review passes | Repair attempts | Successful repairs | Reviews performed | Important strengths observed | Recurring failure modes | Last updated |
 | --- | ---: | ---: | ---: | ---: | ---: | --- | --- | --- |
-| not exposed by runtime / not exposed by runtime | 1 | 0 | 1 | 1 | 2 | Localized DATA-001 semantics; review found process lifecycle defect; repair added direct regressions; re-review verified full R1 acceptance | Runtime provenance hidden; initial stale process-prefetch accounting | 2026-07-11 |
+| not exposed by runtime / not exposed by runtime | 4 | 0 | 8 | 5 | 10 | Produced scoped EXP-001, DATA-001, and guarded-policy changes; localized causal-boundary semantics; independent reviews found evidence, lifecycle, state, authorization, and expected-check defects and verified repairs | One implementation stalled; two review attempts blocked; initial DATA-001 process-prefetch accounting was stale; EXP and policy evidence/state repeatedly needed reconciliation; exact model attribution remains impossible | 2026-07-12 |
 
 ### Counting rules
 
@@ -39,6 +41,8 @@ there are enough observations for meaningful rates.
   `not exposed by runtime / <mode>` rather than guessing.
 - Record blocked runs and tool failures as attempts in the detailed record, but
   do not count them as successes.
+- Count `Reviews performed` only when a reviewer actually returns findings and a
+  verdict; a blocked pre-review invocation remains only in the detailed record.
 - Do not judge model quality from counts alone. Include ticket type, change
   size, and failure tags.
 

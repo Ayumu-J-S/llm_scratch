@@ -9,7 +9,8 @@
 - Experiment record: `N/A — correctness-invariant ticket with bounded fixture
   and tiny CPU smoke evidence; no consequential research run`
 - Started: 2026-07-11T15:31:27Z
-- Final verdict: `PASS WITH NOTE`
+- Previous implementation verdict: `PASS WITH NOTE`
+- Integration verdict: `pending independent exact-head review`
 - Final record owner: primary task; exact runtime identity not exposed
 
 ## Scope and decision context
@@ -40,6 +41,67 @@
 | 1 | review | not exposed by runtime | not exposed by runtime | `7193fb4` | Independent review against DATA-001, philosophy, and selected CHECK sections | FAIL | Process-prefetch counters were copied to the parent only after successful completion, so a later early-closed or failed iteration exposed stale totals from the prior success | Counter lifecycle inspection at `StreamLoader._iter_async` and process accounting marker path |
 | 1 | repair | not exposed by runtime | not exposed by runtime | `7193fb4` plus review cycle 1 handoff | Requested `gpt-5.6-luna` at Extra High; reset async accounting before worker launch and cover repeat/close/error lifecycle | completed | Parent counters reset at each async iteration start; normal process completion still publishes final totals; early close and worker error retain safe current-iteration zeros | lifecycle regressions `3 passed`; focused `60 passed, 3 skipped`; full `61 passed, 3 skipped`; Ruff, lock, diff, Hydra green; re-review pending |
 | 1 | re-review | not exposed by runtime | not exposed by runtime | `99dcfcdf72abb8feeece7fdca803a2452793de56` | Independently verify the failed counter lifecycle and unchanged DATA-001 invariants | PASS WITH NOTE | All roadmap acceptance criteria and selected R1 CHECK sections passed; R2/CUDA and long-document scaling remain explicit later measurement notes | lifecycle `4 passed`; focused `60 passed, 3 skipped`; full `61 passed, 3 skipped`; overlap probe and local/live head parity passed |
+| 2 | integration/reconciliation | not exposed by runtime | not exposed by runtime | DATA head `92e1635`; `origin/main` `10bc18f` after POLICY-001 and EXP-001 | Requested Luna / Extra High; merge current main normally, preserve both histories and policy, reconcile roadmap/ledger, and repeat DATA-001 gates | completed; independent review pending | PR returned to draft; main merged without rebase/force; ledger conflict resolved by retaining POLICY-001, EXP-001, and DATA-001 rows and combining aggregate counts; EXP-001 and DATA-001 marked Done without prematurely unlocking CFG-001 | ticket-focused `23 passed`; focused `60 passed, 3 skipped`; full `61 passed, 3 skipped`; Ruff/changed-file format/lock/diff/Hydra passed |
+
+## Integration and guarded merge handoff
+
+- Integration base: `origin/main` at `10bc18ff853edd4bf45a9967b7cdb8f17f9db271`,
+  which contains the human-merged guarded self-merge policy PR #16 and merged
+  EXP-001 PR #10.
+- Integration method: ordinary merge commit; no rebase, force push, review
+  dismissal, protection bypass, or history deletion.
+- Conflict disposition: `docs/model-runs/README.md` retains all POLICY-001,
+  EXP-001, and DATA-001 rows and combines their aggregate counts.
+- Roadmap reconciliation: EXP-001 and DATA-001 are `Done`; CFG-001 remains
+  `Blocked` because TOK-001 and DATA-002 are not yet merged into `main`.
+- Requested implementation/integration model and mode: Luna / Extra High.
+  Runtime-exposed model identifier and reasoning mode: `not exposed by runtime`
+  / `not exposed by runtime`.
+- Human authorization: on 2026-07-12 in the active Codex task, after the human
+  merged policy PR #16 specifically so agents could self-merge, the user
+  instructed the agent to review, make ready, and self-merge the bounded open
+  roadmap PR series #10-#15. This authorization includes PR #11 but does not
+  waive any guarded merge gate.
+- Current merge path: `guarded agent self-merge`, only after a fresh independent
+  review returns PASS or justified PASS WITH NOTE for the exact integrated head.
+- GitHub review inventory before integration: no submitted reviews and zero
+  inline review threads; one top-level historical FAIL comment remains as an
+  intentionally preserved audit record, not an unresolved review thread.
+- Pending before readiness or merge: exact-head acceptance validation; fresh
+  independent PHILOSOPHY/CHECK review; actionable-finding disposition; required
+  context and configured workflow/check inventories; exact-head status checks;
+  newer-objection check; base currency; mergeability; artifact parity;
+  prohibited-category audit; final audit comment; immediate pre-merge refresh.
+- This integration cycle does not mark the PR ready and does not merge it.
+
+### Integration validation
+
+- Environment setup: the first `uv sync --locked` installed runtime
+  dependencies only, so `uv run pytest` failed to spawn because this project
+  keeps pytest in the optional `dev` dependency group. Re-running
+  `uv sync --locked --all-groups` installed the declared dev tools without a
+  lockfile change. This was a setup-command correction, not a product-code
+  repair, and the failed attempt is retained here.
+- Exact ticket evidence: `23 passed` across the `[2..8]`, `L=3` window/collation
+  example; transition multiset properties; quota/EOS/no-EOS cases; source spans;
+  explicit unique/window/target/dropped accounting; process success,
+  early-close, error and overlap lifecycle; 8,193-token bounded document; and a
+  finite, nonzero-gradient dataloader-to-decoder optimizer step.
+- Focused data suite: `60 passed, 3 skipped in 9.11s`; skips are the opt-in
+  external tokenizer/dataset integrations.
+- Full suite: `61 passed, 3 skipped in 7.69s`.
+- `uv run ruff check .`: passed.
+- `uv run ruff format --check` on all changed Python files: 3 files already
+  formatted.
+- `uv lock --check`: resolved 147 packages with no lock change.
+- `uv run python src/train.py data.mode=streaming --cfg job --resolve`: passed;
+  the streaming train/validation source arrays remain visibly empty and no
+  fallback data path was introduced.
+- `git diff --check`: passed.
+- Supply/performance scope: the bounded 8,193-token loader proof passed and the
+  integration introduces no data-path code beyond DATA-001. The existing
+  repeated list-prefix deletion risk remains recorded; no throughput or R2/DGX
+  claim is made from these CPU R1 checks.
 
 ## Check selection and verdicts
 
