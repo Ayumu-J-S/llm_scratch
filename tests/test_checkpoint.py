@@ -346,3 +346,52 @@ def test_streaming_dataset_cursor_replays_exact_next_prefetched_batch():
     for observed, uninterrupted in zip(actual, expected):
         assert torch.equal(observed["inputs"], uninterrupted["inputs"])
         assert torch.equal(observed["labels"], uninterrupted["labels"])
+
+
+def test_checkpoint_after_completed_stream_pass_resumes_the_next_pass(tmp_path: Path):
+    config = {
+        "tokenizer": {
+            "manifest_path": "assets/tokenizers/llm-jp-v1/manifest.json",
+            "expected_fingerprint": "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b",
+        },
+        "max_tokens": "max",
+        "add_eos": False,
+        "seed": 73,
+        "horizon": {"repeat": True, "shuffle": True, "shuffle_buffer_size": 3},
+        "prefetch": {"enabled": True, "mode": "thread", "buffer_size": 3},
+        "datasets": [
+            {
+                "name": "fixture",
+                "type": "memory",
+                "ratio": 1.0,
+                "documents": [{"text": f"completed pass document {index}"} for index in range(20)],
+            }
+        ],
+    }
+
+    def batches(dataset: StreamingTokenDataset):
+        loader = DataLoader(dataset, batch_size=2, collate_fn=causal_lm_collate_fn)
+        return list(loader)
+
+    uninterrupted = StreamingTokenDataset(config, sequence_length=4)
+    completed_pass = batches(uninterrupted)
+    terminal_cursor = uninterrupted.state_dict()
+    expected_next_pass = batches(uninterrupted)
+    assert completed_pass
+    assert expected_next_pass
+    assert terminal_cursor["pass_complete"] is True
+
+    checkpoint_state = _state(1)
+    checkpoint_state["stream_cursor"] = terminal_cursor
+    manager = CheckpointManager(tmp_path, keep_last_n=2, identity=_identity())
+    checkpoint_path = manager.save_recovery(checkpoint_state)
+    restored_cursor = manager.load_resume(checkpoint_path).payload["state"]["stream_cursor"]
+
+    resumed = StreamingTokenDataset(config, sequence_length=4)
+    resumed.load_state_dict(restored_cursor)
+    actual_next_pass = batches(resumed)
+
+    assert len(actual_next_pass) == len(expected_next_pass)
+    for observed, expected in zip(actual_next_pass, expected_next_pass):
+        assert torch.equal(observed["inputs"], expected["inputs"])
+        assert torch.equal(observed["labels"], expected["labels"])

@@ -1,6 +1,6 @@
 # CKPT-001 - Atomic rotating full-state resume
 
-- PR: draft pending creation by the coordinating session
+- PR: [#36](https://github.com/Ayumu-J-S/llm_scratch/pull/36) (draft)
 - Branch: `codex/ckpt-001-atomic-resume`
 - Ticket: `CKPT-001`
 - Hypothesis: a small direct checkpoint boundary can preserve the full
@@ -9,8 +9,8 @@
 - Experiment record: `N/A` — this is correctness/recovery infrastructure, not
   a model-quality experiment.
 - Started: 2026-07-12
-- Current verdict: implementation and repair complete; independent review
-  pending.
+- Current verdict: formal review failed at `003a8ba6`; the review-driven
+  repairs are complete locally and require an exact-head independent re-review.
 - Record owner: implementation sub-agent `/root/ckpt001_implementation`
 
 ## Scope and decision context
@@ -40,6 +40,9 @@
 | 2 | repair | not exposed by runtime | not exposed by runtime | Failed full-suite handoff: terminal stream cursor was reloaded on normal next epoch, setting StreamLoader resume-pending and returning an empty epoch | implemented | Kept the observable terminal cursor but introduced an explicit resume-pending bit: only interruption/config/checkpoint restore reloads it. Natural iteration starts under the original stream policy. Targeted repair evidence: 47 passed. Reviewer confirmation: 9 targeted passed; full suite 241 passed, 1 skipped. |
 | 3 | repair | not exposed by runtime | not exposed by runtime | Post-instrumentation two-step CPU smoke | implemented | The smoke exposed a duplicated milestone write at step 2: normal event handling and epoch-end handling both selected the same step. Added an independently persisted `_last_milestone_step` guard so resuming preserves de-duplication. Targeted evidence: 48 passed; corrected smoke emitted exactly milestones 1 and 2. |
 | 4 | repair | not exposed by runtime | not exposed by runtime | Resume-safety audit of the local memorization path | implemented | Local map-style smoke loading has no persisted sampler cursor. Rather than silently replay a prefix, exact resume now requires a cursor-aware streaming train loader and rejects a checkpoint without `stream_cursor` before train loader creation. |
+| 5 | independent review | not exposed by runtime | not exposed by runtime | Exact head `003a8ba6af67556005ff32642b54e74d39fcd6aa`; requested heavier / Extra Thinking; ticket, PHILOSOPHY, CHECK 5.4/6.3/9.1 | FAIL | GitHub review `4680194134`: a checkpoint saved after a naturally completed stream pass reloaded the terminal cursor as an interrupted suffix and made the resumed Trainer empty. |
+| 6 | repair | not exposed by runtime | not exposed by runtime | Failed review `4680194134` handoff | implemented; re-review pending | Added public `StreamLoader.load_state_dict(..., resume_completed=False)` semantics for a terminal epoch checkpoint, while interrupted cursors retain exact suffix semantics. Added recovery-file terminal-pass → fresh-dataset next-pass fixture. |
+| 7 | repair | not exposed by runtime | not exposed by runtime | Terminal-resume CPU smoke found shared preview loader consumed the persistent training cursor | implemented; re-review pending | Preview now builds and closes an isolated streaming loader. Regression proves preview and the first actual train batch both equal a fresh first batch. CPU terminal run completed steps 1–7; a fresh resume completed steps 8–14. |
 
 ## Runtime provenance block
 
@@ -79,6 +82,26 @@ review. It remains here for the required repair trail.
   completed iterator, then rerun targeted stream/checkpoint/trainer tests and
   the full suite before review.
 
+### Formal review cycle 1 handoff
+
+- Review: GitHub `4680194134`, verdict `FAIL`, on exact head
+  `003a8ba6af67556005ff32642b54e74d39fcd6aa`.
+- Blocking finding: a full checkpoint recorded at natural stream-epoch end
+  contains `pass_complete=True`. Fresh `StreamingTokenDataset.load_state_dict`
+  previously forced the StreamLoader interrupted-suffix path, which returns an
+  empty iterator for a terminal cursor instead of advancing to the existing
+  deterministic next pass.
+- Required invariant: checkpoint save after natural pass → fresh process
+  resume emits the expected next pass, while mid-pass checkpoint → resume still
+  emits the exact uninterrupted suffix.
+- Selected repair: same available implementation runtime, requested Luna /
+  Extra High. The issue is local cursor lifecycle semantics; no model/data
+  policy or cadence workaround is appropriate.
+- Repair request: expose a small direct StreamLoader contract for terminal
+  cursor handling, use it from the dataset only when `pass_complete=True`, add
+  the two-process recovery fixture, run focused/full/static checks and update
+  this record before independent re-review.
+
 ## Repair result
 
 - Repair cycle: 1.
@@ -114,6 +137,38 @@ review. It remains here for the required repair trail.
 - Local evidence: focused fixture asserts rejection of a missing cursor; exact
   resume equality uses the cursor-aware stream fixture.
 
+### Repair cycle 4 (review-driven)
+
+- Input handoff: formal FAIL `4680194134` above.
+- Changes: `StreamLoader.load_state_dict` now has explicit public
+  `resume_completed` behavior. Dataset passes `False` only for a terminal
+  cursor, so StreamLoader takes its normal next-pass path. A mid-pass cursor
+  still uses the exact suffix path.
+- Local evidence before full revalidation: `uv run pytest -q
+  tests/test_checkpoint.py tests/test_data003_stream_cursor.py
+  tests/test_data_manifests.py tests/test_trainer.py tests/test_config_profiles.py`
+  — 75 passed.
+- Re-review: pending exact new head after full/static/CPU evidence and push.
+
+### Repair cycle 5 (review-driven lifecycle repair)
+
+- Input handoff: the terminal-resume real-path smoke exposed that
+  `preview_batch = next(iter(train_loader))` could checkpoint the shared
+  dataset at a consumed first batch; later training would then continue after
+  the preview instead of from the intended first batch.
+- Changes: `preview_streaming_batch` creates and closes an isolated loader.
+  The training loader is never iterated for display. A regression compares the
+  preview and first training batch with an independently fresh loader.
+- Local evidence: focused checkpoint/stream/train fixtures — 82 passed;
+  repository suite — 246 passed, 1 skipped; changed-file Ruff/format,
+  `git diff --check`, and `uv lock --check` passed.
+- Real CPU streaming path: first bounded finite pass emitted steps 1–7,
+  produced terminal `final.pt` with `pass_complete=True`, and a fresh process
+  resumed it through the deterministic next pass at steps 8–14. The preview
+  regression and this run establish that neither preview nor terminal restore
+  makes the train iterator empty or skips its first batch.
+- Re-review: pending exact pushed head.
+
 ## Final evidence (implementation state; review pending)
 
 - Resolved checkpoint command/config: relative `artifacts.checkpoints_dir`
@@ -125,30 +180,37 @@ review. It remains here for the required repair trail.
   `resume_path` alone is excluded
   from the compatibility hash; model/data/tokenizer/resolved-config changes are
   rejected before train loader creation.
+- Cursor policy: `pretrain_streaming` now explicitly declares `repeat: true`,
+  making its multi-pass horizon and StreamLoader cursor contract explicit. A
+  terminal checkpoint restores into its deterministic next pass; a mid-pass
+  checkpoint restores its exact suffix. Repetition is explicit rather than a
+  silent default.
 - Required fixture coverage: uninterrupted/resumed equality including
   Python/NumPy/Torch RNG and scheduler/optimizer/model state; corrupt-newest
   fallback; write/read-back failure preserving the prior recovery; verified
   replacement before rotation deletion; protected best/final/milestone files;
   identity mismatch rejection; relative resume-path behavior; and the exact
   next prefetched streaming batch.
-- CPU bounded real-path smoke after the per-save metric and milestone repair:
+- CPU bounded real-path smoke after the terminal-cursor and preview repairs:
   `uv run python src/train.py profile=smoke_overfit runtime.device=cpu training.max_steps=2 training.epochs=1 training.batch_size=2 training.checkpoint_every_n_steps=1 training.validation_every_n_steps=null training.milestone_every_n_steps=1 model.embed_size=16 model.num_heads=2 model.num_layers=1 model.dropout=0 wandb.enabled=false artifacts.checkpoints_dir=checkpoints hydra.run.dir=/tmp/ckpt001-smoke-run`.
-  It completed two updates and produced verified 20.10 MB recovery, milestone,
-  best, and final full-state files containing model, optimizer, scheduler,
-  precision, counters, RNG, stream cursor, resolved config, and identity.
-  Recovery write/verification/pause was 12.18/2.33/16.01 ms at step 2
-  (20,104,777 bytes); final write/verification/pause was 12.64/2.21/15.98 ms
-  (20,103,221 bytes). Exactly two milestone events were emitted, at steps 1
-  and 2.
+  The previous small memorization smoke remains retained above. The final
+  streaming CPU run used `profile=pretrain_streaming`, explicit repeat,
+  16-wide/one-layer CPU model, disabled scheduler/W&B, one finite epoch and
+  checkpoint every update. It emitted steps 1–7 / 112 targets and terminal
+  `final.pt`; the fresh command added only `artifacts.resume_path=<final.pt>`
+  and emitted steps 8–14 / 224 total targets. First-run final size/write/
+  verification/pause was 20,111,989 bytes / 14.24 / 2.68 / 17.63 ms; resumed
+  final was 20,112,053 bytes / 14.56 / 2.72 / 18.06 ms.
 - Measurement contract: each checkpoint event now records
   `checkpoint/size_bytes`, write time, read-back verification time, total pause,
   and write bytes/s locally. The tiny CPU smoke is intentionally not a claim
   about full-model DGX save pause, UMA peak, or sustained storage throughput;
   those need a later bounded measured R2 run if they become decision-critical.
-- Final implementation validation: `uv run pytest -q` — 243 passed, 1 skipped;
-  focused checkpoint/trainer/config/stream tests — 58 passed; `uv run ruff
-  check` over changed source/tests, `ruff format --check`, `git diff --check`,
-  and `uv lock --check` passed.
+- Pre-review implementation validation at `003a8ba6`: `uv run pytest -q` —
+  243 passed, 1 skipped; the formal FAIL is retained above rather than
+  overwritten. Repair-head validation: `uv run pytest -q` — 246 passed,
+  1 skipped; changed-file Ruff/format, `git diff --check`, and `uv lock --check`
+  passed.
 - Known trade-offs: recovery saves are synchronous and avoid a deep copy of
   `model.state_dict()` to avoid an avoidable full-model UMA peak. Atomicity is
   the local-filesystem temp-file/read-back/`os.replace` contract, not a network
@@ -177,7 +239,7 @@ review. It remains here for the required repair trail.
 
 | Model / mode | Role | What it handled well | What it missed or made worse | Context that helped | Outcome |
 | --- | --- | --- | --- | --- | --- |
-| not exposed by runtime / not exposed by runtime | implementation and repair | Kept persistence direct, covered atomic failure/fallback/rotation and exact RNG-stream trajectory, and avoided deep-copy checkpoint memory | Initial stream wrapper conflated a terminal normal epoch with an explicit resume, causing one full-suite regression | ticket acceptance criteria, StreamLoader cursor contract, reviewer failure reproduction | repair complete; independent review pending |
+| not exposed by runtime / not exposed by runtime | implementation and repair | Kept persistence direct, covered atomic failure/fallback/rotation and exact RNG-stream trajectory, exposed a public terminal-cursor operation, and isolated display from the training cursor | Initial stream wrapper conflated a terminal normal epoch with an explicit resume; real smoke then exposed preview consumption of the shared cursor | ticket acceptance criteria, StreamLoader cursor contract, reviewer failure reproduction, real CPU terminal-resume run | repair complete; independent re-review pending |
 
 ## Ledger update
 

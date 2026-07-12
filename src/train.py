@@ -181,6 +181,19 @@ def validate_streaming_dataloaders(train_loader, validation_loader) -> None:
     )
 
 
+def preview_streaming_batch(cfg: DictConfig, *, device: torch.device):
+    """Build the human preview from an isolated stream, never the train cursor."""
+
+    preview_loader = build_streaming_dataloader(cfg, "train", device=device)
+    iterator = iter(preview_loader)
+    try:
+        return next(iterator)
+    except StopIteration as error:
+        raise ConfigPreflightError("streaming train profile produced no preview batch") from error
+    finally:
+        Trainer._close_train_iterator(iterator)
+
+
 def log_loader_size(name: str, loader) -> None:
     try:
         size = len(loader.dataset)
@@ -274,7 +287,10 @@ def main(cfg: DictConfig) -> None:
     else:
         raise ValueError("data.mode must be either 'memorization_smoke' or 'streaming'")
 
-    preview_batch = next(iter(train_loader))
+    if data_mode == "streaming":
+        preview_batch = preview_streaming_batch(cfg, device=device)
+    else:
+        preview_batch = next(iter(train_loader))
     log_sample_batch(tokenizer, preview_batch)
     log_loader_size("Training", train_loader)
     log_loader_size("Validation", validation_loader)

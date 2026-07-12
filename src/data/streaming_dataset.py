@@ -28,7 +28,9 @@ class StreamingTokenDataset(IterableDataset):
         CanonicalTokenizer.from_config(self.config.get("tokenizer"))
         self.resolved_manifests = preflight_stream_manifests(self.config)
         self._cursor: dict[str, Any] | None = _optional_cursor(self.config.get("cursor"))
-        self._resume_cursor_pending = self._cursor is not None
+        self._resume_cursor_pending = bool(
+            self._cursor is not None and not self._cursor.get("pass_complete")
+        )
         self._active_loader: StreamLoader | None = None
 
     def __iter__(self):
@@ -36,9 +38,12 @@ class StreamingTokenDataset(IterableDataset):
             self.config,
             resolved_manifests=self.resolved_manifests,
         ) as loader:
-            if self._resume_cursor_pending and self._cursor is not None:
-                loader.load_state_dict(self._cursor)
-                self._resume_cursor_pending = False
+            if self._cursor is not None:
+                loader.load_state_dict(
+                    self._cursor,
+                    resume_completed=self._resume_cursor_pending,
+                )
+            self._resume_cursor_pending = False
             self._active_loader = loader
             completed = False
             try:
@@ -58,23 +63,30 @@ class StreamingTokenDataset(IterableDataset):
                 completed = True
             finally:
                 if self._active_loader is loader:
-                    # Retain every cursor for checkpoint observability, but
-                    # load it only after an interruption or explicit resume.
-                    # Re-loading a terminal cursor sets StreamLoader's
-                    # resume-pending flag and makes a later normal epoch empty.
-                    self._cursor = loader.state_dict()
-                    self._resume_cursor_pending = not completed
+                    # Retain every cursor for checkpoint observability. A
+                    # later terminal restore explicitly asks StreamLoader for
+                    # its next pass; an interrupted cursor resumes its suffix.
+                    if loader.cursor_enabled:
+                        self._cursor = loader.state_dict()
+                        self._resume_cursor_pending = not completed
+                    else:
+                        self._cursor = None
+                        self._resume_cursor_pending = False
                     self._active_loader = None
 
-    def state_dict(self) -> dict[str, Any]:
+    def state_dict(self) -> dict[str, Any] | None:
         """Return the next-sample stream cursor for a trainer checkpoint."""
 
         if self._active_loader is not None:
+            if not self._active_loader.cursor_enabled:
+                return None
             self._cursor = self._active_loader.state_dict()
         if self._cursor is None:
             # Validate and materialize the initial JSON-safe cursor through the
             # existing StreamLoader contract instead of duplicating it here.
             probe = StreamLoader(self.config, resolved_manifests=self.resolved_manifests)
+            if not probe.cursor_enabled:
+                return None
             self._cursor = probe.state_dict()
         return copy.deepcopy(self._cursor)
 
@@ -83,10 +95,16 @@ class StreamingTokenDataset(IterableDataset):
 
         if self._active_loader is not None:
             raise RuntimeError("cannot replace a streaming cursor while iteration is active")
-        probe = StreamLoader(self.config, resolved_manifests=self.resolved_manifests)
-        probe.load_state_dict(state)
+        cursor = _optional_cursor(state)
+        assert cursor is not None
+        config = copy.deepcopy(self.config)
+        # A completed pass has no unconsumed suffix. Its next invocation must
+        # take the existing StreamLoader next-pass path, not treat completion
+        # as a zero-length interrupted suffix.
+        self._resume_cursor_pending = not bool(cursor.get("pass_complete"))
+        probe = StreamLoader(config, resolved_manifests=self.resolved_manifests)
+        probe.load_state_dict(cursor, resume_completed=self._resume_cursor_pending)
         self._cursor = probe.state_dict()
-        self._resume_cursor_pending = True
 
 
 def causal_lm_collate_fn(samples: list[dict[str, torch.Tensor]]) -> dict[str, torch.Tensor]:

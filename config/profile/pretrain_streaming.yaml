@@ -12,6 +12,10 @@ data:
   mode: streaming
   streaming:
     require_manifests: true
+    # Exact checkpoint resume needs StreamLoader's explicit cursor policy.
+    # A completed finite pass starts its deterministic next pass; repeat is
+    # explicit so a bounded optimizer horizon never silently replays a prefix.
+    repeat: true
     cache:
       dir: data/stream_loader_cache
       max_size_bytes: 750000000000
