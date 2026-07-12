@@ -48,12 +48,13 @@
 
 - Review model / mode: not exposed by runtime / not exposed by runtime
 - Commit reviewed: `deb0c1f5cf71a1966804b0269b2f51e77c784bb1` (cycle 2; cycle 1 was `67d9247`)
-- Selected CHECK.md sections: 1 minimum review; 2 R1 smoke; 6 experiment integrity/changeability
-- Major sections marked N/A and why: CHECK 4/5/7/8/9 — no data throughput, CUDA performance, optimizer, checkpoint, or production-run change.
+- Selected CHECK.md sections: 1 minimum review; 2 R1 smoke; 6 experiment integrity/changeability; 8.1 experiment handoff and run-record integrity
+- Major sections marked N/A and why: CHECK 4/5/7/8.2-8.4/9 — no data throughput, CUDA performance, optimizer, checkpoint, W&B, or production-run change; CHECK 8.1 is applicable because this ticket creates the run record.
 - Ticket acceptance result: PASS — same-seed CPU batches/losses reproduce and run directory captures identity/input evidence.
 - Philosophy alignment: PASS — no mutable real input or silent CPU fallback; exact unavailable values are not inferred.
 - Complexity / change-surface result: PASS WITH NOTE — localized runtime/config/train/data-loader changes; no compatibility shim.
 - ML-system result: PASS WITH NOTE — CPU/R1 evidence only; no GPU bitwise determinism claim.
+- Experiment-handoff result (CHECK 8.1): PASS — `run_manifest.json` records experiment ID, Git SHA/dirty state, resolved config and `uv.lock` hashes, hardware/software identity, tokenizer snapshot/hash, and data manifest snapshot/hash; `verify_run_manifest` detects captured-file mutation and can verify source lock/Git identity.
 - Verdict: PASS WITH NOTE (cycle 1 at `4679671936`; cycle 2 exact-head re-review at `4679685771`)
 
 #### Findings
