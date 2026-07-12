@@ -1,0 +1,29 @@
+{
+  "dataset_fingerprint": "21c82c527fb8fafbbba4e2ea2bdf7057aed48ec8ac995a369a356747c70cd05b",
+  "index_path": "memorization.index.json",
+  "index_sha256": "6e58f8f4b4cec21e4e3e5375d42ab3c94364def30bab371630101167e28c57b8",
+  "manifest_fingerprint": "00c3797a7d0eda13950fd699a60c45fcd388829f016479caaeb369438767bd31",
+  "name": "fixture-memorization-v1",
+  "purpose": "memorization_smoke",
+  "schema_version": 1,
+  "source": {
+    "id_field": "id",
+    "kind": "local_jsonl",
+    "path": "memorization.jsonl",
+    "sha256": "15f042efbbb7e7b3fd31b8027cc7f4feb7e94967d494ea7da3e6f2690ee0181d",
+    "size_bytes": 125,
+    "text_field": "text"
+  },
+  "split": {
+    "salt": "llm-scratch-data-002-smoke-v1",
+    "validation_fraction": "0.5"
+  },
+  "split_fingerprints": {
+    "train": "ff6102f16a8da43de3ac9a24aa836ef6efaf67e8a80060d54227d87507feadd1",
+    "validation": "81b4fc6fe1a464d127c78bff14943e47e982977e31b351d04ad9e0f0f8b3ac6e"
+  },
+  "usage": {
+    "license": "CC0-1.0",
+    "terms_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+  }
+}

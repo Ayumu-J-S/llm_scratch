@@ -55,7 +55,10 @@ def main() -> None:
         "--max-doc-chars",
         type=int,
         default=50_000,
-        help="Cap each document before tokenization for preview speed. Use 0 for full documents.",
+        help=(
+            "Cap each non-manifest document before tokenization for preview speed. "
+            "Manifest documents retain their verified text. Use 0 for full documents."
+        ),
     )
     parser.add_argument(
         "--shutdown-grace-seconds",
@@ -183,13 +186,18 @@ def apply_debug_overrides(
     if not prefetch_enabled:
         config.setdefault("prefetch", {})["enabled"] = False
     if max_doc_chars:
+        capped = False
         for dataset in config.get("datasets", []):
+            if dataset.get("type", dataset.get("source", "hf")) == "manifest":
+                continue
             dataset["max_text_chars"] = max_doc_chars
-        print(
-            f"debug: capping each document at {max_doc_chars} chars "
-            "before tokenization; pass --max-doc-chars 0 to disable",
-            file=sys.stderr,
-        )
+            capped = True
+        if capped:
+            print(
+                f"debug: capping each non-manifest document at {max_doc_chars} chars "
+                "before tokenization; pass --max-doc-chars 0 to disable",
+                file=sys.stderr,
+            )
 
 
 def is_hf_source(dataset: Mapping) -> bool:

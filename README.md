@@ -56,8 +56,10 @@ Training uses a decoder-only autoregressive setup built from one corpus:
 - each training input is a contiguous slice of that stream with fixed length
 - labels are the next-token-shifted slice for standard causal language modeling
 
-The default training config now defines `data.train` and `data.val`, with validation pointing to the same `data/inputLearnText.txt` file by default:
-- this is deliberate for short-run memorization checks and explicit overfitting experiments
+The default training config uses the committed `memorization_smoke` manifest
+for both train and validation:
+- a mutable path or a user-provided purpose label cannot authorize same-corpus training
+- the manifest fingerprint, source checksum, document identities, and explicit smoke purpose are verified before tokenization
 - optimizer class selection lives under `training.optimizer._target_`
 - learning-rate scheduler selection lives under `training.scheduler._target_`
 - training logs per-step `train/loss_step` plus epoch-aggregated train/validation loss and perplexity to Weights & Biases
@@ -88,10 +90,25 @@ Useful overrides:
 ```bash
 uv run python src/train.py wandb.mode=offline
 uv run python src/train.py wandb.enabled=false
-uv run python src/train.py data.val=data/inputLearnText.txt
 uv run python src/train.py training.optimizer._target_=torch.optim.SGD training.optimizer.lr=0.1 training.optimizer.momentum=0.9
 uv run python src/train.py training.scheduler.enabled=true training.scheduler._target_=torch.optim.lr_scheduler.CosineAnnealingLR training.scheduler.T_max=10
 ```
+
+### Build an immutable data manifest
+
+Real streaming configs set `require_manifests: true`. Their local or downloaded
+JSONL sources are checked for byte size and SHA-256 before tokenization, then
+document IDs, normalized-content hashes, split assignments, and dataset
+fingerprints are checked against the committed index. Build a local manifest
+and index with:
+
+```bash
+PYTHONPATH=src uv run python scripts/build_data_manifest.py --help
+```
+
+The committed bilingual manifest is only a smoke fixture. The real Japanese
+source remains disabled until its full immutable shard inventory is recorded.
+See `data/manifests/README.md`.
 
 ## Project files
 - `ROADMAP.md`: dependency-ordered engineering and research tickets
@@ -107,6 +124,7 @@ uv run python src/train.py training.scheduler.enabled=true training.scheduler._t
 - `src/tokenizer/canonical.py`: strict offline tokenizer manifest/wrapper validation
 - `assets/tokenizers/llm-jp-v1/`: pinned tokenizer JSON, manifest, source notice, and license
 - `src/data/text_dataset.py`: decoder-only autoregressive dataset and dataloader helpers
+- `src/data/identity.py`, `src/data/manifests.py`, and `src/data/splits.py`: immutable data identity and deterministic split contract
 - `src/data/stream_loader/`: streaming text loaders for large local or Hugging Face datasets
 - `src/data/stream_loader/README.md`: stream loader usage notes, config shape, and large-dataset cautions
 - `scripts/debug_stream_loader.py`: preview streaming batches before training

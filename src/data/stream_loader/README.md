@@ -10,22 +10,34 @@ Preview the default config through the training dataset/collator path, without e
 uv run python scripts/debug_stream_loader.py --config config/stream_loader.yaml --limit 1
 ```
 
-The debug script caps each document to 50,000 characters before tokenization for faster inspection. Use `--max-doc-chars 0` to preview full documents, and `--prefetch` to use the config's prefetch settings.
+The debug script caps legacy non-manifest documents to 50,000 characters before
+tokenization for faster inspection. Manifest documents retain their fully
+verified text. Use `--max-doc-chars 0` to disable the legacy-source cap, and
+`--prefetch` to use the config's prefetch settings.
 It prints the trainer batch contract: `inputs`, `labels`, their shapes, and a shift check showing that labels are derived from the same packed token window.
 
 ## Training Usage
 
-The default training config still uses the small local text path for quick memorization checks:
+The default training config uses the pinned memorization manifest for a quick
+same-corpus check:
 
 ```yaml
 data:
-  mode: local_text
+  mode: memorization_smoke
+  memorization:
+    manifest_path: tests/fixtures/data_manifests/memorization.manifest.json
+    expected_fingerprint: 00c3797a7d0eda13950fd699a60c45fcd388829f016479caaeb369438767bd31
 ```
 
-Switch to the streaming path when you want to train from larger sources without materializing the full corpus locally:
+Switch to the streaming path when you want to exercise the distinct manifest
+selections with the same pinned canonical tokenizer used everywhere else. Keep
+this proof run small:
 
 ```bash
-uv run python src/train.py data.mode=streaming
+uv run python src/train.py data.mode=streaming training.epochs=1 \
+  training.sequence_length=8 training.batch_size=1 \
+  model.embed_size=16 model.num_heads=2 model.num_layers=1 model.dropout=0 \
+  wandb.enabled=false artifacts.checkpoints_dir=/tmp/data002-stream-checkpoints
 ```
 
 `src/train.py` builds streaming train and validation loaders from `data.streaming.train` and `data.streaming.validation`, adds the canonical tokenizer config, packs token windows, and returns the standard trainer batch contract:
@@ -65,7 +77,9 @@ with StreamLoader(cfg) as loader:
         break
 ```
 
-For programmatic tests or small local experiments, pass an in-memory config:
+For programmatic tests or small local experiments, pass an in-memory config.
+Memory and arbitrary iterable sources are fixtures only; they are rejected when
+`require_manifests: true`:
 
 ```python
 from data.stream_loader import StreamLoader
@@ -120,28 +134,29 @@ max_tokens: 5000000000
 sequence_length: 4096
 add_eos: true
 preserve_metadata: true
+require_manifests: true
 seed: 42
 
 prefetch:
   enabled: true
   buffer_size: 16
+  mode: thread
 
 cache:
   dir: data/stream_loader_cache
   max_size_bytes: 750000000000
 
 datasets:
-  - name: japanese_educational_text
-    type: hf
-    path: hotchpotch/fineweb-2-edu-japanese
-    revision: 180ca004c6a89b590daaad86cb062a07a5353c69
-    config_name: sample_10BT
-    split: train
-    text_field: text
+  - name: bilingual_fixture_train
+    type: manifest
+    manifest_path: tests/fixtures/data_manifests/bilingual.manifest.json
+    expected_fingerprint: 47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19
+    selection: train
     ratio: 1.0
 ```
 
-Use `config/stream_loader.yaml` for dataloader/tokenizer/debug work on the `sample_10BT` subset.
+Use `config/stream_loader.yaml` for offline dataloader/tokenizer/debug work on
+the small bilingual fixture.
 
 Required top-level fields:
 
@@ -160,6 +175,39 @@ Common optional fields:
 - `seed`: deterministic source sampling seed.
 - `prefetch.enabled`: load samples in a background worker.
 
+## Manifest Sources
+
+```yaml
+- name: corpus_train
+  type: manifest
+  manifest_path: data/manifests/corpus.manifest.json
+  expected_fingerprint: <64 lowercase hex characters>
+  selection: train
+  ratio: 1.0
+```
+
+Preflight verifies the manifest and index schemas/fingerprints, local or cached
+source checksum and size, every stable document ID and normalized-content hash,
+and the content-derived split. Resolved document metadata is retained in memory
+and no identity hashing or split assignment occurs in the per-epoch sample
+path. Manifest sources use synchronous or thread prefetch; process prefetch is
+rejected so it cannot silently repeat preflight in a child process.
+The PyTorch streaming dataset retains the immutable resolved manifests, so
+constructing a new iterator for another epoch does not reopen, rehash, or
+resplit the source.
+
+Source, index, and HF artifact paths are package-relative and cannot be
+absolute, traverse above the manifest directory, or escape through symlinks.
+URL cache entries are keyed by URL plus expected SHA-256 and use a per-key Linux
+file lock around download and atomic installation.
+
+`pretraining` permits only disjoint `train` and `validation` selections.
+Same-corpus selection requires a manifest whose purpose is explicitly
+`memorization_smoke`. Benchmark manifests are evaluation-only, and reserved
+benchmark data requires a separate explicit evaluation grant.
+Training loader Hydra fields cannot grant benchmark access; evaluation authority
+exists only in the code-level preflight API.
+
 ## Tokenizer identity
 
 Only the repository's canonical manifest config is accepted. Backend aliases,
@@ -172,7 +220,7 @@ reconstructs and revalidates the tokenizer in the child before source access.
 
 ## Source Types
 
-`memory`
+`memory` (fixture only)
 
 ```yaml
 - name: smoke
@@ -182,7 +230,7 @@ reconstructs and revalidates the tokenizer in the child before source access.
     - text: hello world
 ```
 
-`iterable`
+`iterable` (fixture only)
 
 Use this from Python by passing an iterable or callable under `iterable`.
 

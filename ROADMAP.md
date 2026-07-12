@@ -151,11 +151,11 @@ be called a baseline until the following gates exist:
 | ---: | --- | --- | --- | --- | --- |
 | 1 | DATA-001 | P0 | Done | — | Correct packed causal transitions |
 | 2 | TOK-001 | P0 | Done | — | One selected, pinned tokenizer used end to end |
-| 3 | DATA-002 | P0 | Ready | — | Immutable manifests and disjoint split contract |
+| 3 | DATA-002 | P0 | Done | — | Immutable manifests and disjoint split contract |
 | 4 | MODEL-001 | P0 | Ready | — | Protected conventional model invariants |
 | 5 | ENV-001 | P0 | Ready | — | CUDA-capable, reproducible DGX Spark runtime |
 | 6 | EXP-001 | P0 | Done | — | Lightweight experiment and PR handoff contract |
-| 7 | CFG-001 | P0 | Blocked | DATA-001, TOK-001, DATA-002, EXP-001 | Canonical Hydra profiles and commands |
+| 7 | CFG-001 | P0 | Ready | DATA-001, TOK-001, DATA-002, EXP-001 | Canonical Hydra profiles and commands |
 | 8 | REP-001 | P0 | Blocked | CFG-001, TOK-001, DATA-002 | Reproducible run identity and global seed |
 | 9 | LOOP-001 | P0 | Blocked | DATA-001, CFG-001, REP-001 | Step/token trainer and correct scalar metrics |
 | 10 | DATA-003 | P0 | Blocked | DATA-001, DATA-002, REP-001, LOOP-001 | Deterministic stream horizon, shuffle, and cursor |
