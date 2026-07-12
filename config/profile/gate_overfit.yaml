@@ -42,7 +42,10 @@ data:
 
 training:
   sequence_length: 16
-  epochs: 1
+  # A small finite source yields one batch per pass.  The step budget is still
+  # authoritative; enough passes are supplied to reach it without replaying a
+  # partial prefix inside one iterator.
+  epochs: 200
   batch_size: 2
   shuffle: false
   max_steps: 200
@@ -52,7 +55,9 @@ training:
   gradient_accumulation_steps: 1
   max_grad_norm: 10.0
   log_every_n_steps: 1
-  validation_every_n_steps: null
+  # Keep the auxiliary source out of the result: its cadence lies beyond the
+  # bounded step budget, so this gate records memorization only.
+  validation_every_n_steps: 1000
   validation_every_n_tokens: null
   checkpoint_every_n_steps: 100
   checkpoint_every_n_tokens: null

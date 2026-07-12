@@ -300,6 +300,13 @@ def run_proof(*, output_dir: Path, device: str) -> dict[str, Any]:
         raise GateProofError("profile max_steps no longer matches the predeclared GATE-001 budget")
     if int(cfg.training.checkpoint_every_n_steps) != INTERRUPT_STEP:
         raise GateProofError("profile checkpoint cadence no longer matches the resume point")
+    validation_cadence = cfg.training.validation_every_n_steps
+    if validation_cadence is None or int(validation_cadence) <= MAX_STEPS:
+        raise GateProofError(
+            "GATE-001 must not score its auxiliary source within the memorization budget"
+        )
+    if int(cfg.training.epochs) < MAX_STEPS:
+        raise GateProofError("profile does not provide enough finite stream passes for the step budget")
 
     try:
         reference_dir = output_dir / "reference"

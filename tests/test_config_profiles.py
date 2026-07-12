@@ -65,7 +65,7 @@ def test_gate_overfit_uses_versioned_distinct_fixture_manifests_without_validati
 
     assert config.runtime.device == "cuda"
     assert config.training.max_steps == 200
-    assert config.training.validation_every_n_steps is None
+    assert config.training.validation_every_n_steps == 1000
     assert config.training.checkpoint_every_n_steps == 100
     assert config.wandb.enabled is False
     assert config.data.streaming.train.sources[0].selection == "all"
