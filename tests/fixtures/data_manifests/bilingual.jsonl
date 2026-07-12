@@ -1,0 +1,20 @@
+{"id":"ja-001","text":"朝の光が静かな川を照らす。"}
+{"id":"en-001","text":"Morning light crosses the quiet river."}
+{"id":"ja-002","text":"小さなモデルを一から学習する。"}
+{"id":"en-002","text":"We train a small model from random initialization."}
+{"id":"ja-003","text":"実験の条件と結果を記録する。"}
+{"id":"en-003","text":"Record the conditions and results of each experiment."}
+{"id":"ja-004","text":"検証用の文章は学習用と分離する。"}
+{"id":"en-004","text":"Validation documents remain separate from training."}
+{"id":"ja-005","text":"再現可能な手順は研究を強くする。"}
+{"id":"en-005","text":"Reproducible procedures make research stronger."}
+{"id":"ja-006","text":"データの出所を明確に保つ。"}
+{"id":"en-006","text":"Keep the provenance of data explicit."}
+{"id":"ja-007","text":"境界では次のトークンを注意深く扱う。"}
+{"id":"en-007","text":"Handle the next token carefully at boundaries."}
+{"id":"ja-008","text":"単純な基準モデルから始める。"}
+{"id":"en-008","text":"Begin with a simple reference model."}
+{"id":"ja-009","text":"失敗した試行も証拠として残す。"}
+{"id":"en-009","text":"Retain failed attempts as evidence."}
+{"id":"ja-010","text":"評価は学習の最初から重要である。"}
+{"id":"en-010","text":"Evaluation matters from the start of training."}

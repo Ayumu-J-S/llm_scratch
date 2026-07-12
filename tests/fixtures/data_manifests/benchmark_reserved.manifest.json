@@ -1,0 +1,29 @@
+{
+  "dataset_fingerprint": "0445cd035a56965e91e0032b640bd99e07b9c52a33739c3c82020c6408a37472",
+  "index_path": "benchmark_reserved.index.json",
+  "index_sha256": "704c9cc5fab6eed163d9130aa056b6ea3b65851a46d4d0512d75a2a64a0d492c",
+  "manifest_fingerprint": "a12e307b8c3817efe956d8d37c55edcde56f30cf695e83a9e60155ff5949eb79",
+  "name": "fixture-benchmark-reserved-v1",
+  "purpose": "benchmark_reserved",
+  "schema_version": 1,
+  "source": {
+    "id_field": "id",
+    "kind": "local_jsonl",
+    "path": "benchmark_reserved.jsonl",
+    "sha256": "e5933c9331b2d68d4e9a6f12d742c5d5bf9e62dae6c61963189226a513513065",
+    "size_bytes": 77,
+    "text_field": "text"
+  },
+  "split": {
+    "salt": "llm-scratch-data-002-benchmark-v1",
+    "validation_fraction": "0.5"
+  },
+  "split_fingerprints": {
+    "train": "e52a1504de8f892323a0e1049305dd3941665ea60bb7bfd0e377d64b801fc0b0",
+    "validation": "ccbedb7bf0b6463134d4fec27a20da56c9d53664bdccc596f03b4fd104b73f57"
+  },
+  "usage": {
+    "license": "CC0-1.0",
+    "terms_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+  }
+}

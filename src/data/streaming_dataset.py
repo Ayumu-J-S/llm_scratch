@@ -9,6 +9,8 @@ from omegaconf import DictConfig, OmegaConf
 from torch.utils.data import DataLoader, IterableDataset
 
 from data.stream_loader import StreamLoader
+from data.stream_loader.loader import preflight_stream_manifests
+from tokenizer.canonical import CanonicalTokenizer
 
 
 class StreamingTokenDataset(IterableDataset):
@@ -16,7 +18,6 @@ class StreamingTokenDataset(IterableDataset):
         self,
         config: Mapping[str, Any] | DictConfig,
         sequence_length: int,
-        tokenizer: Any | Mapping[str, Any] | None = None,
     ) -> None:
         if sequence_length < 1:
             raise ValueError("sequence_length must be positive")
@@ -24,10 +25,14 @@ class StreamingTokenDataset(IterableDataset):
         self.sequence_length = int(sequence_length)
         self.window_length = self.sequence_length + 1
         self.config = _stream_loader_config(config, window_length=self.window_length)
-        self.tokenizer = tokenizer
+        CanonicalTokenizer.from_config(self.config.get("tokenizer"))
+        self.resolved_manifests = preflight_stream_manifests(self.config)
 
     def __iter__(self):
-        with StreamLoader(self.config, tokenizer=self.tokenizer) as loader:
+        with StreamLoader(
+            self.config,
+            resolved_manifests=self.resolved_manifests,
+        ) as loader:
             for sample in loader:
                 input_ids = torch.as_tensor(sample["input_ids"], dtype=torch.long)
                 if input_ids.numel() != self.window_length:
@@ -54,7 +59,6 @@ def create_streaming_token_dataloader(
     config: Mapping[str, Any] | DictConfig,
     sequence_length: int,
     batch_size: int,
-    tokenizer: Any | Mapping[str, Any] | None = None,
     drop_last: bool = True,
     num_workers: int = 0,
     pin_memory: bool = False,
@@ -62,7 +66,6 @@ def create_streaming_token_dataloader(
     dataset = StreamingTokenDataset(
         config=config,
         sequence_length=sequence_length,
-        tokenizer=tokenizer,
     )
     return DataLoader(
         dataset,

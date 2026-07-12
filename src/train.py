@@ -5,12 +5,13 @@ import torch
 from loguru import logger
 from omegaconf import DictConfig, OmegaConf
 
+from data.manifests import ResolvedManifest, preflight_manifest, validate_disjoint_manifests
 from data.streaming_dataset import create_streaming_token_dataloader
 from data.text_dataset import create_autoregressive_dataloader
 from models.simple_decoder_transformer import SimpleDecoderTransformer
 from training.optimization import build_optimizer, build_scheduler
 from training.trainer import Trainer
-from tokenizer.artifacts import load_text, load_tokenizer
+from tokenizer.canonical import CanonicalTokenizer
 from utils.model import get_parameter_counts
 
 
@@ -33,10 +34,10 @@ def log_sample_batch(tokenizer, batch) -> None:
     )
 
 
-def load_token_ids(input_path: str, tokenizer, split_name: str):
+def load_token_ids(input_path: str, tokenizer, split_name: str) -> list[int]:
     split_label = split_name.capitalize()
     logger.info("Loading {} corpus from: {}", split_name, input_path)
-    text = load_text(input_path)
+    text = (ROOT_DIR / input_path).read_text(encoding="utf-8")
     logger.info("Tokenizing {} corpus...", split_name)
     token_ids = tokenizer.encode(text)
     logger.info("{} corpus length: {} tokens", split_label, len(token_ids))
@@ -44,8 +45,10 @@ def load_token_ids(input_path: str, tokenizer, split_name: str):
 
 
 def build_tokenizer_config(cfg: DictConfig) -> dict[str, str]:
-    tokenizer_path = ROOT_DIR / cfg.artifacts.tokenizers_dir / cfg.artifacts.tokenizer_filename
-    return {"kind": "bpe", "path": str(tokenizer_path)}
+    config = OmegaConf.to_container(cfg.tokenizer, resolve=True)
+    if not isinstance(config, dict):
+        raise TypeError("tokenizer config must resolve to a mapping")
+    return config
 
 
 def to_plain_config(config: DictConfig) -> dict:
@@ -65,15 +68,41 @@ def streaming_split_config(streaming_cfg: DictConfig, split_name: str) -> dict:
         raise TypeError(f"data.streaming.{split_key} must be a mapping")
 
     common_config = {
-        key: value
-        for key, value in config.items()
-        if key not in {"train", "validation"}
+        key: value for key, value in config.items() if key not in {"train", "validation"}
     }
     return {**common_config, **split_config}
 
 
+def resolve_memorization_smoke(data_cfg: DictConfig) -> ResolvedManifest:
+    if data_cfg.get("mode") != "memorization_smoke":
+        raise ValueError("default same-corpus training requires data.mode=memorization_smoke")
+    smoke_cfg = data_cfg.get("memorization")
+    if smoke_cfg is None:
+        raise ValueError("data.memorization is required for memorization_smoke")
+    return preflight_manifest(
+        smoke_cfg.manifest_path,
+        expected_fingerprint=smoke_cfg.expected_fingerprint,
+        selection="all",
+        access="training",
+        allow_reserved_benchmark=False,
+    )
+
+
+def resolved_manifest_token_ids(manifest: ResolvedManifest, tokenizer) -> list[int]:
+    token_ids: list[int] = []
+    for document in manifest.documents:
+        token_ids.extend(tokenizer.encode(document.text))
+        eos_token_id = getattr(tokenizer, "eos_token_id", None)
+        if eos_token_id is not None:
+            token_ids.append(int(eos_token_id))
+    return token_ids
+
+
 def build_streaming_dataloader(cfg: DictConfig, split_name: str):
     stream_config = streaming_split_config(cfg.data.streaming, split_name)
+    if stream_config.get("require_manifests") is False:
+        raise ValueError("streaming training cannot set require_manifests=false")
+    stream_config["require_manifests"] = True
     stream_config["tokenizer"] = build_tokenizer_config(cfg)
     return create_streaming_token_dataloader(
         config=stream_config,
@@ -82,6 +111,13 @@ def build_streaming_dataloader(cfg: DictConfig, split_name: str):
         drop_last=split_name == "train",
         num_workers=0,
         pin_memory=DEVICE.type == "cuda",
+    )
+
+
+def validate_streaming_dataloaders(train_loader, validation_loader) -> None:
+    validate_disjoint_manifests(
+        train_loader.dataset.resolved_manifests,
+        validation_loader.dataset.resolved_manifests,
     )
 
 
@@ -98,31 +134,24 @@ def log_loader_size(name: str, loader) -> None:
 def main(cfg: DictConfig) -> None:
     logger.info("Using device: {}", DEVICE)
 
+    data_mode = cfg.data.get("mode")
     logger.info("Loading tokenizer artifact...")
-    tokenizer = load_tokenizer(
-        cfg.artifacts.tokenizers_dir,
-        cfg.artifacts.tokenizer_filename,
-    )
+    tokenizer = CanonicalTokenizer.from_config(cfg.tokenizer)
     logger.info("Tokenizer vocab size: {}", tokenizer.vocab_size)
+    logger.info("Tokenizer fingerprint: {}", tokenizer.fingerprint)
 
-    data_mode = cfg.data.get("mode", "local_text")
-    if data_mode == "local_text":
-        train_token_ids = load_token_ids(
-            cfg.data.train,
-            tokenizer,
-            "training",
-        )
-        validation_token_ids = load_token_ids(
-            cfg.data.val,
-            tokenizer,
-            "validation",
-        )
+    smoke_manifest = None
+    if data_mode == "memorization_smoke":
+        smoke_manifest = resolve_memorization_smoke(cfg.data)
 
-        if cfg.data.val == cfg.data.train:
-            logger.info(
-                "Validation uses the same corpus as training. "
-                "This run is measuring memorization/overfitting.",
-            )
+    if data_mode == "memorization_smoke":
+        assert smoke_manifest is not None
+        train_token_ids = resolved_manifest_token_ids(smoke_manifest, tokenizer)
+        validation_token_ids = list(train_token_ids)
+        logger.info(
+            "Explicit memorization smoke uses manifest {} for both train and validation",
+            smoke_manifest.manifest_fingerprint,
+        )
 
         logger.info("Building decoder-only autoregressive dataloader...")
         train_loader = create_autoregressive_dataloader(
@@ -141,8 +170,9 @@ def main(cfg: DictConfig) -> None:
         logger.info("Building streaming causal-LM dataloaders...")
         train_loader = build_streaming_dataloader(cfg, "train")
         validation_loader = build_streaming_dataloader(cfg, "validation")
+        validate_streaming_dataloaders(train_loader, validation_loader)
     else:
-        raise ValueError("data.mode must be either 'local_text' or 'streaming'")
+        raise ValueError("data.mode must be either 'memorization_smoke' or 'streaming'")
 
     preview_batch = next(iter(train_loader))
     log_sample_batch(tokenizer, preview_batch)
@@ -163,10 +193,7 @@ def main(cfg: DictConfig) -> None:
     model.train()
     parameter_counts = get_parameter_counts(model)
     logger.info(
-        "Model parameters: "
-        "total={:,} "
-        "trainable={:,} "
-        "frozen={:,}",
+        "Model parameters: total={:,} trainable={:,} frozen={:,}",
         parameter_counts.total,
         parameter_counts.trainable,
         parameter_counts.non_trainable,

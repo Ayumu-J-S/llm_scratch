@@ -8,6 +8,7 @@ import time
 from collections.abc import Mapping
 from pathlib import Path
 
+import hydra
 from omegaconf import OmegaConf
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -54,7 +55,10 @@ def main() -> None:
         "--max-doc-chars",
         type=int,
         default=50_000,
-        help="Cap each document before tokenization for preview speed. Use 0 for full documents.",
+        help=(
+            "Cap each non-manifest document before tokenization for preview speed. "
+            "Manifest documents retain their verified text. Use 0 for full documents."
+        ),
     )
     parser.add_argument(
         "--shutdown-grace-seconds",
@@ -99,7 +103,13 @@ def main() -> None:
 
 
 def load_debug_config(path: Path, *, split: str) -> tuple[dict, int | None]:
-    raw_config = OmegaConf.to_container(OmegaConf.load(path), resolve=True)
+    resolved_path = path.resolve()
+    with hydra.initialize_config_dir(
+        version_base=None,
+        config_dir=str(resolved_path.parent),
+    ):
+        composed = hydra.compose(config_name=resolved_path.stem)
+    raw_config = OmegaConf.to_container(composed, resolve=True)
     if not isinstance(raw_config, Mapping):
         raise TypeError("debug config must be a mapping")
 
@@ -122,22 +132,14 @@ def load_train_streaming_config(config: Mapping, *, split: str) -> tuple[dict, i
         name=f"data.streaming.{split}",
     )
     common_config = {
-        key: value
-        for key, value in streaming_config.items()
-        if key not in {"train", "validation"}
+        key: value for key, value in streaming_config.items() if key not in {"train", "validation"}
     }
     debug_config = {**common_config, **dict(split_config)}
     if "sources" in debug_config and "datasets" not in debug_config:
         debug_config["datasets"] = debug_config.pop("sources")
 
-    artifacts_config = as_optional_mapping(config.get("artifacts"))
-    if artifacts_config is not None and "tokenizer" not in debug_config:
-        tokenizer_path = (
-            ROOT_DIR
-            / str(artifacts_config["tokenizers_dir"])
-            / str(artifacts_config["tokenizer_filename"])
-        )
-        debug_config["tokenizer"] = {"kind": "bpe", "path": str(tokenizer_path)}
+    tokenizer_config = as_mapping(config.get("tokenizer"), name="tokenizer")
+    debug_config["tokenizer"] = dict(tokenizer_config)
 
     training_config = as_optional_mapping(config.get("training"))
     sequence_length = None
@@ -184,13 +186,18 @@ def apply_debug_overrides(
     if not prefetch_enabled:
         config.setdefault("prefetch", {})["enabled"] = False
     if max_doc_chars:
+        capped = False
         for dataset in config.get("datasets", []):
+            if dataset.get("type", dataset.get("source", "hf")) == "manifest":
+                continue
             dataset["max_text_chars"] = max_doc_chars
-        print(
-            f"debug: capping each document at {max_doc_chars} chars "
-            "before tokenization; pass --max-doc-chars 0 to disable",
-            file=sys.stderr,
-        )
+            capped = True
+        if capped:
+            print(
+                f"debug: capping each non-manifest document at {max_doc_chars} chars "
+                "before tokenization; pass --max-doc-chars 0 to disable",
+                file=sys.stderr,
+            )
 
 
 def is_hf_source(dataset: Mapping) -> bool:

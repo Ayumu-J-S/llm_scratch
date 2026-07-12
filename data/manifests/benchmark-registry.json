@@ -1,0 +1,11 @@
+{
+  "benchmarks": [
+    {
+      "manifest_fingerprint": "a12e307b8c3817efe956d8d37c55edcde56f30cf695e83a9e60155ff5949eb79",
+      "manifest_path": "../../tests/fixtures/data_manifests/benchmark_reserved.manifest.json",
+      "name": "fixture-benchmark-reserved-v1",
+      "purpose": "benchmark_reserved"
+    }
+  ],
+  "schema_version": 1
+}
