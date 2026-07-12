@@ -12,6 +12,12 @@ from data.text_dataset import create_autoregressive_dataloader
 from models.simple_decoder_transformer import SimpleDecoderTransformer
 from runtime.device import select_device
 from runtime.config import ConfigPreflightError, validate_training_config
+from runtime.reproducibility import (
+    dataloader_generator,
+    dataloader_worker_init_fn,
+    seed_everything,
+    write_run_manifest,
+)
 from training.optimization import build_optimizer, build_scheduler
 from training.trainer import Trainer
 from tokenizer.canonical import CanonicalTokenizer
@@ -143,11 +149,14 @@ def build_streaming_dataloader(
     *,
     device: torch.device | None = None,
 ):
+    reproducibility_cfg = cfg.get("reproducibility", {})
+    base_seed = int(reproducibility_cfg.get("seed", 0))
     stream_config = streaming_split_config(cfg.data.streaming, split_name)
     if stream_config.get("require_manifests") is False:
         raise ValueError("streaming training cannot set require_manifests=false")
     stream_config["require_manifests"] = True
     stream_config["tokenizer"] = build_tokenizer_config(cfg)
+    stream_config["seed"] = base_seed + (0 if split_name == "train" else 1)
     return create_streaming_token_dataloader(
         config=stream_config,
         sequence_length=cfg.training.sequence_length,
@@ -155,6 +164,8 @@ def build_streaming_dataloader(
         drop_last=split_name == "train",
         num_workers=0,
         pin_memory=(device or torch.device("cpu")).type == "cuda",
+        generator=dataloader_generator(base_seed, stream=split_name),
+        worker_init_fn=dataloader_worker_init_fn,
     )
 
 
@@ -177,6 +188,10 @@ def log_loader_size(name: str, loader) -> None:
 @hydra.main(version_base=None, config_path="../config", config_name="train")
 def main(cfg: DictConfig) -> None:
     validate_training_config(cfg)
+    seed_everything(
+        int(cfg.reproducibility.seed),
+        deterministic=bool(cfg.reproducibility.get("deterministic", True)),
+    )
     device = select_device(cfg.runtime.device)
     logger.info("Using device: {}", device)
     resolved_config_path = save_resolved_config(cfg)
@@ -207,12 +222,16 @@ def main(cfg: DictConfig) -> None:
             seq_len=cfg.training.sequence_length,
             batch_size=cfg.training.batch_size,
             shuffle=cfg.training.shuffle,
+            generator=dataloader_generator(int(cfg.reproducibility.seed), stream="train"),
+            worker_init_fn=dataloader_worker_init_fn,
         )
         validation_loader = create_autoregressive_dataloader(
             token_ids=validation_token_ids,
             seq_len=cfg.training.sequence_length,
             batch_size=cfg.training.batch_size,
             shuffle=False,
+            generator=dataloader_generator(int(cfg.reproducibility.seed), stream="validation"),
+            worker_init_fn=dataloader_worker_init_fn,
         )
     elif data_mode == "streaming":
         logger.info("Building streaming causal-LM dataloaders...")
@@ -223,6 +242,15 @@ def main(cfg: DictConfig) -> None:
         raise ValueError("data.mode must be either 'memorization_smoke' or 'streaming'")
 
     preview_batch = next(iter(train_loader))
+    run_manifest_path = write_run_manifest(
+        cfg=to_plain_config(cfg),
+        run_dir=_run_directory(),
+        root_dir=ROOT_DIR,
+        resolved_config_path=resolved_config_path,
+        tokenizer_manifest_path=tokenizer.manifest_path,
+        tokenizer_expected_fingerprint=tokenizer.fingerprint,
+    )
+    logger.info("Run manifest: {}", run_manifest_path)
     log_sample_batch(tokenizer, preview_batch)
     log_loader_size("Training", train_loader)
     log_loader_size("Validation", validation_loader)
