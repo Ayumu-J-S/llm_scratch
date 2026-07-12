@@ -330,9 +330,9 @@ NOTE` after both repairs.
   integration preparation; must be re-fetched at final audit.
 - Human review dismissed by an agent: no.
 - Unresolved review threads at final audit: one. Historical EXP-001 thread
-  `PRRT_kwDORqx5mc6QHmfn` is resolved/outdated; current actionable thread
-  `PRRT_kwDORqx5mc6QKC1J` remains unresolved until this status repair receives
-  fresh independent review and exact-head parity audit.
+  `PRRT_kwDORqx5mc6QHmfn` is resolved/outdated; repaired thread
+  `PRRT_kwDORqx5mc6QKC1J` remains unresolved. Its repair passed independent
+  re-review; primary exact-head parity audit and thread resolution remain.
 - Branch-protection required-context inventory: pending exact-head audit.
 - Applicable configured workflow/check inventory: pending exact-head audit.
 - Observed exact-head check statuses: pending exact integration head and status
@@ -359,12 +359,13 @@ NOTE` after both repairs.
   self-merge.
 - Final audit PR body/comment location: pending primary parity, thread, check,
   and exact-head audit.
-- Final audit changed reviewed head: N/A — no final audit has been recorded; the
-  target-branch integration deliberately invalidates the earlier reviewed head.
+- Final audit changed reviewed head: N/A — no final audit has been recorded; this
+  docs-only verdict handoff follows reviewed head `cb5f2f4` and requires primary
+  exact-head parity audit.
 - Immediate pre-merge re-fetch/compare observation location: pending.
 - Immediate refresh compared authorization, head, base, review
   decision/objections, threads, expected checks/statuses, and mergeability: no —
-  this is the pre-review integration handoff.
+  pending the primary final audit and immediate pre-merge refresh.
 - Drift found: N/A until the immediate pre-merge refresh.
 - Merge outcome: not merged; PR remains draft pending primary parity audit,
   thread resolution, check inventory/status, readiness, and final refresh.
