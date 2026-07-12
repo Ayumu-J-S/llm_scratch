@@ -3,6 +3,7 @@ from __future__ import annotations
 from contextlib import nullcontext
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import torch
@@ -29,6 +30,42 @@ class ListLoader:
 
     def __iter__(self):
         yield from self.batches
+
+
+class ClosingStreamIterator:
+    def __init__(self, batches: list[dict[str, torch.Tensor]]) -> None:
+        self.batches = batches
+        self.position = 0
+        self.dataset_stream = ClosingDatasetStream()
+        self._dataset_fetcher = SimpleNamespace(dataset_iter=self.dataset_stream)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self.position >= len(self.batches):
+            raise StopIteration
+        batch = self.batches[self.position]
+        self.position += 1
+        return batch
+
+
+class ClosingStreamLoader:
+    def __init__(self, batches: list[dict[str, torch.Tensor]]) -> None:
+        self.batches = batches
+        self.iterator: ClosingStreamIterator | None = None
+
+    def __iter__(self):
+        self.iterator = ClosingStreamIterator(self.batches)
+        return self.iterator
+
+
+class ClosingDatasetStream:
+    def __init__(self) -> None:
+        self.closed = False
+
+    def close(self) -> None:
+        self.closed = True
 
 
 class NaNGradient(torch.autograd.Function):
@@ -156,6 +193,17 @@ def test_max_steps_boundary_does_not_fetch_or_update_extra_batch(tmp_path: Path)
     assert trainer.optimizer_step == 2
     assert trainer.target_tokens == 4
     assert max(item["optimizer_step"] for item in trainer.metrics) == 2
+
+
+def test_budget_stop_closes_the_active_stream_generator(tmp_path: Path):
+    loader = ClosingStreamLoader([_batch([[0, 1]]) for _ in range(3)])
+    trainer = _trainer(tmp_path, [_batch([[0, 1]])], max_steps=1)
+    trainer.train_loader = loader
+
+    trainer.fit()
+
+    assert loader.iterator is not None
+    assert loader.iterator.dataset_stream.closed is True
 
 
 def test_max_tokens_stops_at_exact_partial_batch_boundary(tmp_path: Path):

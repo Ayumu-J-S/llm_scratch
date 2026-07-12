@@ -20,7 +20,6 @@ import wandb
 from loguru import logger
 from omegaconf import DictConfig, OmegaConf
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from tqdm import tqdm
 
 from training.optimization import autocast_context, get_learning_rate
 
@@ -113,51 +112,48 @@ class Trainer:
                 epoch_loss_sum = 0.0
                 epoch_tokens = 0
                 epoch_saw_batch = False
-                iterator = iter(
-                    tqdm(
-                        self.train_loader,
-                        desc=f"epoch {epoch_index + 1}/{self.epochs}",
-                        leave=False,
-                    )
-                )
+                iterator = iter(self.train_loader)
                 batch_index = 0
-                while not self._budget_reached():
-                    self._update_elapsed()
-                    try:
-                        batch = next(iterator)
-                    except StopIteration:
-                        break
-                    batch_index += 1
-                    (
-                        loss_sum,
-                        token_count,
-                        micro_batches,
-                        gradient_norm,
-                        clipped,
-                        learning_rate_used,
-                    ) = self._train_update(
-                        batch,
-                        iterator=iterator,
-                        first_batch_index=batch_index,
-                    )
-                    batch_index += micro_batches - 1
-                    if token_count == 0:
-                        break
-                    epoch_saw_batch = saw_batch = True
-                    epoch_loss_sum += loss_sum
-                    epoch_tokens += token_count
-                    self._update_elapsed()
-                    self._record_step_metrics(
-                        loss_sum / token_count,
-                        token_count,
-                        micro_batches=micro_batches,
-                        gradient_norm=gradient_norm,
-                        clipped=clipped,
-                        learning_rate_used=learning_rate_used,
-                    )
-                    self._run_events(epoch_end=False)
-                    if self._budget_reached():
-                        break
+                try:
+                    while not self._budget_reached():
+                        self._update_elapsed()
+                        try:
+                            batch = next(iterator)
+                        except StopIteration:
+                            break
+                        batch_index += 1
+                        (
+                            loss_sum,
+                            token_count,
+                            micro_batches,
+                            gradient_norm,
+                            clipped,
+                            learning_rate_used,
+                        ) = self._train_update(
+                            batch,
+                            iterator=iterator,
+                            first_batch_index=batch_index,
+                        )
+                        batch_index += micro_batches - 1
+                        if token_count == 0:
+                            break
+                        epoch_saw_batch = saw_batch = True
+                        epoch_loss_sum += loss_sum
+                        epoch_tokens += token_count
+                        self._update_elapsed()
+                        self._record_step_metrics(
+                            loss_sum / token_count,
+                            token_count,
+                            micro_batches=micro_batches,
+                            gradient_norm=gradient_norm,
+                            clipped=clipped,
+                            learning_rate_used=learning_rate_used,
+                        )
+                        self._run_events(epoch_end=False)
+                        if self._budget_reached():
+                            break
+                finally:
+                    self._close_train_iterator(iterator)
 
                 if not epoch_saw_batch:
                     if not saw_batch:
@@ -623,6 +619,23 @@ class Trainer:
         if not norms:
             raise RuntimeError("training update produced no gradients")
         return torch.linalg.vector_norm(torch.stack(norms))
+
+    @staticmethod
+    def _close_train_iterator(iterator) -> None:
+        """Close an interrupted iterable-dataset generator before process exit.
+
+        PyTorch's single-process ``DataLoader`` does not expose a public close
+        method, but retains an iterable dataset's generator in its fetcher. A
+        token/step budget can stop before that generator naturally exhausts;
+        closing it lets ``StreamingTokenDataset`` leave its ``StreamLoader``
+        context and join the non-daemon prefetch worker.
+        """
+
+        fetcher = getattr(iterator, "_dataset_fetcher", None)
+        dataset_iterator = getattr(fetcher, "dataset_iter", None)
+        close = getattr(dataset_iterator, "close", None)
+        if callable(close):
+            close()
 
     def _parameters_are_finite(self) -> bool:
         return all(torch.isfinite(parameter).all().item() for parameter in self.model.parameters())
