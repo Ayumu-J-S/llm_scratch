@@ -1,6 +1,6 @@
 # DATA-003 - P5 post-merge audit
 
-- PR: draft — branch push and GitHub draft creation pending
+- PR: [#32](https://github.com/Ayumu-J-S/llm_scratch/pull/32) (draft)
 - Branch: `codex/data-003-p5-post-merge-audit`
 - Ticket: DATA-003
 - Hypothesis: The merged P5 repair and guarded merge evidence make DATA-003
@@ -30,7 +30,7 @@
 
 | Cycle | Phase | Exact model identifier | Reasoning mode | Input commit/context | Requested work | Outcome | Main findings / changes | Evidence |
 | ---: | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | implementation | not exposed by runtime | not exposed by runtime | merged main `cf827016`; PR #31 comments `4951174771` / `4951175758` | Record post-merge audit and set only DATA-003 Done | implemented; independent docs review pending | Added a docs-only audit record; preserved #29 P2 reopening history and #31 review/audit/merge trail; no unrelated ticket state changed | Static docs checks pending |
+| 1 | implementation | not exposed by runtime | not exposed by runtime | merged main `cf827016`; PR #31 comments `4951174771` / `4951175758` | Record post-merge audit and set only DATA-003 Done | implemented; independent docs review pending | Added a docs-only audit record; preserved #29 P2 reopening history and #31 review/audit/merge trail; no unrelated ticket state changed | `0641607`; Ruff, lock, and diff checks pass |
 | 1 | review | not exposed by runtime | not exposed by runtime | exact audit PR head pending | Independent review against DATA-003, `PHILOSOPHY.md`, and applicable `CHECK.md` handoff/changeability sections | pending | Must verify exact merged evidence, roadmap-only scope, and audit-record consistency | pending |
 
 ## Runtime provenance block
