@@ -7,7 +7,8 @@
   complete without changing any other roadmap ticket state.
 - Experiment record: `N/A` — documentation/audit handoff only; no research run.
 - Started: 2026-07-12
-- Final verdict: FAIL — documentation repair and independent re-review pending
+- Final verdict: PASS WITH NOTE — independent re-review passed; guarded final
+  audit pending on the documentation-record successor
 - Final record owner: `/root/data003_p5_repair`
 
 ## Scope and decision context
@@ -32,7 +33,8 @@
 | ---: | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | implementation | not exposed by runtime | not exposed by runtime | merged main `cf827016`; PR #31 comments `4951174771` / `4951175758` | Record post-merge audit and set only DATA-003 Done | FAIL on independent review | Added a docs-only audit record; retained the resolved P2 history and #31 review/audit/merge trail, but left a stale corrective-status paragraph that contradicted DATA-003 Done | `0641607`, `4b16716`; Ruff, lock, and diff checks pass |
 | 1 | review | not exposed by runtime | not exposed by runtime | audit PR head `4b1671637a37a5cdf2c628e8bd255fe38067ba16` | Independent review against DATA-003, `PHILOSOPHY.md`, and applicable `CHECK.md` handoff/changeability sections | FAIL `4680048999` | The corrective-status paragraph still said DATA-003 was In progress and incorrectly made CKPT-001/DATA-004 blocked by incomplete DATA-003 | Review `4680048999` |
-| 1 | repair | not exposed by runtime | not exposed by runtime | failed review `4680048999` on `4b16716` | Replace only the stale historical correction with the resolved P2/#30/#31 history; update audit ledger counts and handoff | in progress; independent re-review required | No roadmap state outside DATA-003 will be changed; CKPT-001/DATA-004 retain only their remaining explicit dependencies | repair provenance block below; exact repaired head pending |
+| 1 | repair | not exposed by runtime | not exposed by runtime | failed review `4680048999` on `4b16716` | Replace only the stale historical correction with the resolved P2/#30/#31 history; update audit ledger counts and handoff | repaired; independent re-review passed with note | No roadmap state outside DATA-003 changed; CKPT-001/DATA-004 retain only their remaining explicit dependencies | repaired head `cd38b371`; review `4680057481` |
+| 1 | re-review | not exposed by runtime | not exposed by runtime | repaired audit PR head `cd38b371def6b6a64da112643f6591e756131022` | Independently verify the repair against DATA-003, `PHILOSOPHY.md`, and applicable `CHECK.md` handoff/changeability sections | PASS WITH NOTE `4680057481` | The resolved P2/#30/#31 history is consistent; only the normal guarded final audit remains. This record update creates a docs-only successor requiring confirmation. | Review `4680057481`; exact-head docs checks pass |
 
 ## Runtime provenance block
 
@@ -136,6 +138,33 @@
 | --- | --- | --- | --- | --- |
 | Fail | roadmap history | The corrective-status paragraph said DATA-003 was In progress and described CKPT-001/DATA-004 as blocked by incomplete DATA-003, contradicting the Done state and merged P5 repair. | Independent review `4680048999` on `4b16716`. | Replace the paragraph with the resolved P2 → #30 → #31 (`cf827016`) history; retain downstream tickets as blocked only by their remaining explicit dependencies; re-review exact repaired head. |
 
+### Review cycle 2
+
+- Review model / mode: independent reviewer; actual exact model and reasoning
+  mode are not exposed by runtime.
+- Commit reviewed: `cd38b371def6b6a64da112643f6591e756131022`.
+- Selected `CHECK.md` sections: minimum review, 7.1 change surface, and 8.1
+  reproducibility/audit trail.
+- Major sections marked N/A and why: data/packing/GPU/training behavior is
+  unchanged; this remains a documentation-only PR.
+- Ticket acceptance result: PASS WITH NOTE — the resolved P2 history agrees
+  with DATA-003 Done, while downstream tickets retain only their own remaining
+  explicit dependencies.
+- Philosophy alignment: PASS WITH NOTE — failure history and repair evidence
+  are preserved rather than rewritten or hidden.
+- Complexity / change-surface result: PASS WITH NOTE — three documentation
+  files only; no source, test, config, or unrelated ticket-state change.
+- ML-system result: N/A for new behavior; inherited P5 validation/audit
+  evidence is retained accurately.
+- Verdict: PASS WITH NOTE `4680057481`; this documentation-record successor
+  still needs a docs-only confirmation and guarded final audit.
+
+#### Findings
+
+| Severity | Area | What was right | Evidence | Required action |
+| --- | --- | --- | --- | --- |
+| Note | final audit | The fixed corrective text, ledger counts, and retained #31 review/audit evidence are consistent at the reviewed head. | Independent review `4680057481`; exact-head docs checks pass. | Confirm the documentation-record successor, then perform the normal guarded final audit. |
+
 ## Failed-review handoff
 
 | Field | Handoff |
@@ -148,8 +177,10 @@
 
 ## Repair result
 
-Repair cycle 1 is in progress. It changes no source or execution behavior; an
-independent re-review is required before the audit PR can become ready.
+Repair cycle 1 changed no source or execution behavior and produced
+`cd38b371def6b6a64da112643f6591e756131022`. Independent re-review
+`4680057481` returned PASS WITH NOTE. This documentation-record successor
+requires a docs-only confirmation before the guarded final audit.
 
 ## Final evidence
 
@@ -164,8 +195,8 @@ independent re-review is required before the audit PR can become ready.
   checks because it changes no code.
 - Performance/resource result: N/A — docs only.
 - Known trade-offs: none added.
-- Unresolved risks: repair cycle 1 and independent re-review of this new
-  docs-only PR remain pending.
+- Unresolved risks: the record of the PASS WITH NOTE creates a docs-only
+  successor; its confirmation and the guarded final audit remain pending.
 - Human decision requested: none before its review; user authorization remains
   bounded by the roadmap goal and guarded gates.
 
@@ -177,9 +208,12 @@ independent re-review is required before the audit PR can become ready.
 - Authorization evidence location: conversation instruction and final PR audit.
 - Authorization covers this named PR or bounded ticket/goal series: yes — it is
   an ordinary repository documentation audit within the roadmap goal.
-- Exact independently reviewed head SHA: pending.
-- Latest independent verdict / model / mode: pending.
-- All actionable findings repaired and independently re-reviewed: pending.
+- Exact independently reviewed head SHA: `cd38b371def6b6a64da112643f6591e756131022`
+  (the repair head; this record update requires successor confirmation).
+- Latest independent verdict / model / mode: PASS WITH NOTE `4680057481`;
+  independent reviewer, exact model and reasoning mode not exposed by runtime.
+- All actionable findings repaired and independently re-reviewed: yes at
+  `cd38b371`; pending confirmation of this documentation-record successor.
 - Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: pending
   final refresh.
 - Newer human objections since authorization/review: pending final refresh.
@@ -209,12 +243,12 @@ independent re-review is required before the audit PR can become ready.
 
 | Model / mode | Role | What it handled well | What it missed or made worse | Context that helped | Outcome |
 | --- | --- | --- | --- | --- | --- |
-| Codex / GPT-5; exact ID and mode not exposed | post-merge audit implementation | Scoped the completion record to DATA-003 and retained observable merge evidence | Left stale corrective-status text that contradicted the state it set Done; independent review caught it | PR #31 reviews/audit comments, merged main, roadmap dependency table | FAIL; repair/re-review pending |
+| Codex / GPT-5; exact ID and mode not exposed | post-merge audit implementation and repair | Scoped the completion record to DATA-003, retained observable merge evidence, and made the docs-only correction after the finding | Initial audit missed stale corrective-status text; independent review caught it | PR #31 reviews/audit comments, merged main, roadmap dependency table, failed-review handoff | PASS WITH NOTE at `cd38b371`; successor confirmation/final audit pending |
 
 ## Ledger update
 
 - [x] Added the post-merge audit row to `docs/model-runs/README.md`.
-- [x] Updated aggregate counts for the verdict-bearing failed review and active repair.
-- [x] Recorded the failed-review execution trail; repaired-head re-review remains pending.
+- [x] Updated aggregate counts for both verdict-bearing reviews and the successful repair.
+- [x] Recorded the failed-review and repaired-head PASS WITH NOTE execution trails.
 - [ ] Recorded this audit PR's guarded self-merge audit or human merge evidence.
 - [x] Confirmed this is not the bootstrap policy PR.
