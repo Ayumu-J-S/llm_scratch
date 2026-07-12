@@ -4,7 +4,7 @@
 - Branch: `codex/data-004-pinned-baseline-mixture`
 - Draft PR: [#41](https://github.com/Ayumu-J-S/llm_scratch/pull/41)
 - Experiment owner: implementation agent; exact runtime model/reasoning are not exposed
-- Status: predeclared; implementation not started
+- Status: implementation and bounded live evidence complete; independent review pending
 - Started (UTC): 2026-07-12T21:43:54Z
 - Model-run provenance: `docs/model-runs/DATA-004-pinned-baseline-mixture.md`
 
@@ -55,6 +55,18 @@ tool licenses alongside the machine-readable manifests. ODC-By covers database
 rights, not every underlying page's copyright, privacy obligations, or site
 terms; this remains a documented web-corpus limitation rather than a claim of
 unrestricted content rights.
+
+The committed immutable identities are:
+
+| Source | Dataset fingerprint | Manifest fingerprint | First bounded artifact |
+| --- | --- | --- | --- |
+| Japanese | `522b11e5e13d82180e6d47021b66d5262bc1b6fd60a26977444ebd7a8be740db` | `2fc3eb60986c96fcb752b14d740dd5a3f7cea8b52bb5a13cb5834a1f805d6bba` | `data/jpn_Jpan/train/004_00034.parquet`, 329,375,758 bytes |
+| English | `928e21caa4b9647c682c65998f2706dd71dedf583f3a91b832ffb3602fa2af6f` | `626a1eb095e9089e5c62ee2df9c058ab7c6dfc54064eca5c13e4d84e65a8d60a` | `sample/10BT/014_00000.parquet`, 574,962,194 bytes |
+
+Artifact order is deterministic by `(size_bytes, path)`, so bounded evidence
+starts with the audited small shards while the manifest still commits the full
+inventory. The largest selected shard remains 4,844,733,228 bytes and is used
+for disk admission.
 
 ## Predeclared implementation boundary
 
@@ -110,11 +122,63 @@ multi-shard cursor/resume and prefetch fingerprints, cross-source split
 disjointness, cold/warm live reports, a small W&B-disabled real stream run, and
 CHECK all of 4, 5.3, 5.4, 8.2 plus applicable 3/R2/R3.
 
+## Implementation and validation results
+
+The implementation adds lazy schema-v2 manifests, direct verified Parquet
+streaming, artifact/row-group/row cursors, deterministic document policy,
+trained-target debt accounting, process-safe bounded cache admission, and one
+Hydra-driven aggregate preflight. Existing finite schema-v1 fixtures remain
+unchanged. The production profile selects both sources at 0.5 for project train
+and validation, with 262,144 and 65,536 trained-target horizons.
+
+Network-free validation at implementation head `10c7eb1` passed:
+
+- `uv run pytest -q`: 276 passed, 1 skipped.
+- `uv lock --check`, Ruff lint, changed-file format checks, and `git diff --check`.
+- metadata-only `profile=pretrain_streaming` config preflight with no shard access.
+- injected empty, duplicate, control, bad-Unicode, wrong-script, truncation,
+  checksum, cache-floor, lease, exact cursor suffix, and target-accounting tests.
+
+The formal reports are
+`reports/data/DATA-004/live-preflight-cold.{json,md}` and
+`reports/data/DATA-004/live-preflight-warm.{json,md}`.
+
+| Measure | Cold | Warm |
+| --- | ---: | ---: |
+| Accepted train documents | 4,096 | 4,096 |
+| Accepted validation documents | 4,096 | 4,096 |
+| Observed normalized-content overlap | 0 | 0 |
+| Japanese / English trained targets | 131,072 / 131,072 | 131,072 / 131,072 |
+| Ratio deviation | 0.0 pp | 0.0 pp |
+| Cache downloads / bytes | 3 / 1,269,008,673 | 0 / 0 |
+| Cache hits / active leases at exit | 4 / 0 | 7 / 0 |
+| Projected free at full cache plus largest temp | 441,445,139,957 bytes | 441,446,757,877 bytes |
+| Required OS/checkpoint reserve | 256,000,000,000 bytes | 256,000,000,000 bytes |
+
+Cold and warm membership, counts, token totals, fallback/rejection counts, and
+target accounting are identical. Only measured tokenization latencies and
+filesystem observations vary. The reports retain no raw corpus text.
+
+## Failed attempts retained
+
+1. The first 4-document/32-target live integration report at
+   `/tmp/tmp.VVORwKA74Y/data_preflight.{json,md}` exposed two active cache
+   leases after bounded early termination. `ParquetManifestIterator.close()`
+   was added, and a network-free regression proves early close releases the
+   lease and allows cross-instance eviction. Formal reports show zero leases.
+2. The first otherwise-passing warm report marked the tree dirty because the
+   cold report was still untracked. It is retained at
+   `/tmp/data004-preformal-warm-dirty.{json,md}` and was replaced by the formal
+   clean-fingerprint warm run without changing data-path code.
+
 ## Current conclusion
 
-No measurement result yet. The initial source candidates, thresholds, budgets,
-and stop conditions were written before implementation or live data access; the
-source audit then rejected both educational candidates on provenance/licensing
-risk and selected direct non-generative variants. The selected exact-revision
-aggregate inventories reproduce from the official APIs; implementation and
-per-shard manifest capture remain in progress.
+DATA-004 meets its predeclared implementation and bounded-live success
+conditions at the current candidate: exact inventories reproduce, both project
+splits are non-empty and content-disjoint in the observed sample, 262,144
+trained targets reconcile exactly at 50/50, injected defects follow declared
+policy, cold/warm QA reports contain the required identities and counters, and
+cache admission preserves the declared reserve. This conclusion is pending the
+mandatory independent heavy review; it makes no model-quality or perfect-data
+claim. The remaining source-rights and mixed-language filtering limitations are
+explicit rather than silently treated as solved.
