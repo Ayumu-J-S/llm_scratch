@@ -31,10 +31,12 @@ from train import ROOT_DIR, build_streaming_dataloader, prepare_trainer
 MAX_STEPS = 200
 INTERRUPT_STEP = 100
 LOSS_THRESHOLD = 0.20
-JAPANESE_PROMPT = "日本語の合図:"
-JAPANESE_EXPECTED_SUFFIX = "桜は春に咲きます。"
-ENGLISH_PROMPT = "English cue:"
-ENGLISH_EXPECTED_SUFFIX = "small models memorize fixed text."
+# These fixed prefixes leave the trained suffix unambiguous while retaining
+# enough context for a human-readable JP/EN continuation check.
+JAPANESE_PROMPT = "日本語の合図: 桜は"
+JAPANESE_EXPECTED_SUFFIX = "春に咲きます。"
+ENGLISH_PROMPT = "English cue: small models"
+ENGLISH_EXPECTED_SUFFIX = "memorize fixed text."
 
 
 class GateProofError(RuntimeError):

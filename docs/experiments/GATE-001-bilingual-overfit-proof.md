@@ -65,6 +65,26 @@ revision of the original threshold or budget.
   count is fewer than two, divides step 100, or cannot supply 200 updates in
   the declared epoch horizon.
 
+## Sampling-audit retry predeclaration — 2026-07-12
+
+- Retained result: the preceding concentrated-fixture attempt met the unchanged
+  loss condition and exact repeat/resume comparison, but the original short
+  prompts admitted a competing language's first tokens and therefore failed the
+  full-suffix string check despite visibly producing Japanese and English
+  fragments.
+- New hypothesis: the same checkpoint-backed model will complete the exact
+  fixed suffixes when supplied with unambiguous fixed prefixes from the same
+  memorization fixture: `日本語の合図: 桜は` -> `春に咲きます。` and `English cue:
+  small models` -> `memorize fixed text.`.
+- Smallest change: sampling prompts and expected suffixes only. Training
+  fixture, model, tokenizer, seed, 200-step budget, loss threshold, recovery
+  point, comparison requirements, and local-only policy remain unchanged. This
+  is a new predeclared evaluation-prompt selection applied before a full
+  canonical rerun; it does not relabel the retained short-prompt attempt as a
+  pass.
+- Planned command: the same canonical Docker command as the retry above with
+  `--output-dir reports/gate-001/attempt-7 --device cuda`.
+
 ## Conclusion
 
 - Hypothesis result: pending
