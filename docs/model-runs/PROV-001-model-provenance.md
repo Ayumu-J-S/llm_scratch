@@ -26,6 +26,7 @@
 | 1 | implementation | not exposed by runtime | not exposed by runtime | `8a6f94b`; requested Luna / Extra High | Implement PROV-001 and start the live draft PR | completed | Added redaction-safe stdlib capture, schema docs, template/workflow guidance, and focused tests; exact active ID/mode remain unavailable | PR #17 head and focused test run |
 | 1 | review | not exposed by runtime | not exposed by runtime | `c77c8c939b8c68f7fc9e1da995a16ded1743342f`; requested heavier / Extra Thinking | Independently review ticket, philosophy, and applicable `CHECK.md` sections | PASS WITH NOTE | R0 passed: separation, unavailable identity handling, privacy, docs, and tests are sound; source precedence is documented but caller-enforced and JSON-only output is narrower than the initial record wording | Independent review handoff 2026-07-12 |
 | 1 | re-review | not exposed by runtime | not exposed by runtime | `4d6306d555c275e07cbf376bb1cff8c26a74b2f0`; requested heavier / Extra Thinking | Re-review documentation finalization and exact-head provenance parity | PASS WITH NOTE | Confirmed only model-run/ledger finalization changed; record/ledger parity and exact final head were correct after re-review | Independent re-review handoff 2026-07-12 |
+| 2 | repair | not exposed by runtime | not exposed by runtime | `4d6306d555c275e07cbf376bb1cff8c26a74b2f0`; automated P2 handoff | Repair stale exact-head provenance and add the normative-head/finalization-descendant convention | completed | Record-only repair; no implementation/runtime files changed | Repair cycle 1 below |
 | 2 | re-review | not exposed by runtime | not exposed by runtime | `552b74c80643178b346f128dd9ce90679be85f0f`; requested heavier / Extra Thinking | Re-review repair for the stale exact-head field identified by automated P2 review | PASS WITH NOTE | Confirmed the repair changes only the model-run record, aligns the final SHA, and preserves implementation parity; focused tests, full suite, Ruff, and CLI smoke remain passing | Independent repair re-review handoff 2026-07-12 |
 
 Allowed phases: `implementation`, `review`, `repair`, `re-review`, and `handoff`.
@@ -61,10 +62,11 @@ N/A — no failed independent review has occurred.
 
 - Repair model / mode: not exposed by runtime / not exposed by runtime
 - Input handoff: automated GitHub P2 review on PR #17 identifying the stale `c77c8c9` exact-head field in the committed model-run record
-- Changes made: changed the merge-authority field to the exact final head, added explicit re-review rows and final-head model assessment, and retained the original normative `c77c8c9` review entry
+- Changes made: separated the normative reviewed head from later record-only finalization descendants, added explicit re-review rows and final-head model assessment, and retained the original normative `c77c8c9` review entry
 - What was deliberately not changed: implementation, tests, CLI schema, privacy behavior, and runtime/training code
 - Local evidence: `git diff 4d6306d..552b74c` is record-only; focused tests `4 passed`, full suite `144 passed, 1 skipped`, Ruff passed, and CLI smoke remained valid
-- Commit reviewed next: `552b74c80643178b346f128dd9ce90679be85f0f`
+- Normative commit reviewed next: `552b74c80643178b346f128dd9ce90679be85f0f`
+- Finalization parity: later descendants are record/ledger-only; the live PR body/comment records the current branch head and the `git diff` docs-only comparison. A commit cannot contain its own SHA, so this record does not self-reference a future finalization hash.
 - Re-review model / mode: not exposed by runtime / not exposed by runtime
 - Re-review verdict: PASS WITH NOTE
 
@@ -85,7 +87,8 @@ N/A — no failed independent review has occurred.
 - Human authorization: `N/A — human merge remains the default`
 - Authorization evidence location: `N/A`
 - Authorization covers this named PR or bounded ticket/goal series: N/A
-- Exact independently reviewed head SHA: `552b74c80643178b346f128dd9ce90679be85f0f`
+- Exact independently reviewed normative head SHA: `552b74c80643178b346f128dd9ce90679be85f0f`
+- Final branch head audit: recorded in PR #17 body/comment; descendants after the normative head are accepted only when their diff is documentation/ledger-only and independently re-reviewed.
 - Latest independent verdict / model / mode: PASS WITH NOTE / not exposed by runtime / not exposed by runtime (requested Extra Thinking)
 - All actionable findings repaired and independently re-reviewed: yes; two non-blocking notes retained as documented follow-ups
 - Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: pending human review
@@ -99,7 +102,7 @@ N/A — no failed independent review has occurred.
 - No-check evidence when both inventories are empty: pending
 - Target branch and base SHA at final audit: `main` / pending refresh
 - Up-to-date, conflict-free, and mergeable evidence: pending
-- Record, ledger, PR trail, validation, and risks parity: yes for reviewed head; final PR state refresh pending
+- Record, ledger, PR trail, validation, and risks parity: yes for normative reviewed head; final docs-only descendant parity is audited in the live PR body/comment
 - Prohibited self-merge categories: clear for this documentation/tooling change; human merge remains default
 - Admin/bypass/force/disabled-check requirement: no
 - Final audit PR body/comment location: PR #17 review comment and body (after Ready transition)
