@@ -87,6 +87,9 @@
 | 1 | review | not exposed by runtime | not exposed by runtime | `7d929f05fe2dd4bc626b11f0c2b4ea701b47c177` | Requested model: heavier reviewer; requested reasoning: Extra Thinking. Independent `/review` against the ticket, philosophy, and applicable CHECK sections | FAIL | Found a version-suffixed CUDA-provider guard gap, an optimizer-state reporting overclaim, and a final image that predated the exact candidate tree | 58 passed / 3 skips and real GB10 behavior passed, but the committed reproducibility contract did not |
 | 1 | repair | not exposed by runtime | not exposed by runtime | failed cycle-1 review plus `7d929f05fe2dd4bc626b11f0c2b4ea701b47c177` | Requested model: Luna; requested reasoning: Extra High. Close every review finding without broadening ticket scope | completed | Reject version-suffixed CUDA providers, distinguish CUDA Adam moments from CPU step bookkeeping, and prepare an exact clean-commit rebuild | 59 passed / 3 skips; poison/false-positive, lock-parity, Ruff, Hydra, and diff gates passed |
 | 2 | review | not exposed by runtime | not exposed by runtime | `95dee560076258247776ead9940bfbe30e619699` and clean no-cache image `sha256:25a02a5357d3f22339ddea8de78e2b0725a47dc6bbe15f336fa74242889a648b` | Requested model: heavier reviewer; requested reasoning: Extra Thinking. Fresh independent `/review` of the repaired implementation and real GB10 evidence | PASS WITH NOTE | All blocking findings repaired; exact ten-step wiring proof is sufficient for ENV-001 but is not R2 real-data/steady-state evidence | Independent 59 passed / 3 skips, provider adversarial matrix, exact source parity, strict diagnostic/smoke, and no-GPU failures passed |
+| 3 | integration refresh | Codex / GPT-5 | not exposed by runtime | not exposed by runtime | Luna | Extra High | completed | Merged current main normally, preserved canonical training/tokenizer semantics, regenerated the lock-derived runtime export, and separated requested provenance from actual runtime fields | Head `16b93e7`; 168 tests/1 skip, lock, Ruff, and diff gates passed |
+| 3 | repair/integration | Codex / GPT-5 | not exposed by runtime | not exposed by runtime | Luna | Extra High | completed | Reapplied ENV's explicit device gate on top of the canonical `src/train.py`, added fail-before-tokenizer CUDA coverage, and rebuilt the exact candidate image | Head `4875501`; 186 tests/1 skip; exact image `sha256:23a1bee69fe189e77105cdddeee9aeff6ef0763d58a691625fbfcab64efd1887`; diagnostic and ten-step BF16 smoke passed |
+| 3 | independent review | Codex / GPT-5 | not exposed by runtime | not exposed by runtime | heavier reviewer | Extra Thinking | PASS WITH NOTE | Canonical training path, runtime-lock parity, fail-closed device gate, and exact-head GB10 image/smoke passed; CPU override note and pre-existing format drift remain documented | Exact head `4875501`; 186 tests/1 skip; exact image diagnostic/smoke; branch-protection API evidence limitation |
 
 ## Check selection and verdicts
 
@@ -137,6 +140,29 @@
 - Verdict: PASS WITH NOTE. ENV-001's exact ten-step proof is complete, but it
   is not CHECK R2 real-data/steady-state evidence; later stability/training
   tickets retain that responsibility.
+
+### Review cycle 3 — integrated exact head
+
+- Review model / mode: `not exposed by runtime / not exposed by runtime`
+  Requested reviewer: heavier / Extra Thinking.
+- Commit reviewed: `4875501e2d20972052112183014087c00c05908f`
+- Selected `CHECK.md` sections: 1, 2, 3, 5.1, 5.3, 7, and 11 ENV-001.
+- Ticket acceptance result: PASS — canonical training path, explicit device
+  authority, runtime export byte parity, no-GPU fail-closed behavior, and the
+  exact-head ARM64/GB10 diagnostic and ten-step BF16 smoke all passed.
+- Philosophy alignment: PASS — no hidden fallback, no performance overclaim,
+  and the model/runtime boundary remains visible.
+- Complexity / change-surface result: PASS WITH NOTE — conflict resolution was
+  localized; four unrelated pre-existing Ruff-format findings remain outside
+  the ENV diff.
+- ML-system result: PASS within the declared wiring boundary; the exact image
+  was rebuilt from this head, but this ticket still makes no R2/R3/R4 claim.
+- Findings: CPU override with the default 64-token memorization fixture needs
+  `training.sequence_length=8` because the fixture has only 17 tokens; this is
+  a pre-existing configuration/documentation note, not a CUDA/runtime defect.
+  Branch-protection inventory is an evidence limitation because the public API
+  returned 401; workflows/rulesets/statuses were empty.
+- Verdict: PASS WITH NOTE.
 
 ## Failed-review handoff
 
@@ -235,6 +261,11 @@
   to fail with a missing executable. `make sync` now explicitly installs the
   locked `dev` group; the target then restored four packages and the complete
   CPU suite passed.
+- Exact integrated-head rebuild: image `sha256:23a1bee69fe189e77105cdddeee9aeff6ef0763d58a691625fbfcab64efd1887`
+  (linux/arm64) was built without cache from `4875501`; `make dgx-diagnose`
+  reported GB10/CUDA 13.3/BF16 and `make dgx-smoke` passed 10 BF16 optimizer
+  steps with PID visibility. The prior `25a02a...` image remains historical
+  cycle-2 evidence only.
 - Known trade-offs: the supported CUDA environment is containerized while the
   host uv lock remains the explicit CPU development/test environment.
 - Unresolved risks: ENV-001 is only a ten-step wiring proof; STAB-001 and later
@@ -242,6 +273,25 @@
   real-data/stability/resource evidence.
 - Human decision requested: review the PASS WITH NOTE evidence and decide
   whether to merge; a human remains the sole merge authority.
+
+## Merge authority and final audit
+
+- Human authorization: explicit user authorization for all PRs in this bounded
+  roadmap goal on 2026-07-12: “これからはとりあえず全部セルフマージしていいよ”.
+- Merge path: guarded agent self-merge after the exact-head PASS WITH NOTE review.
+- Exact reviewed head: `4875501e2d20972052112183014087c00c05908f`.
+- Latest independent verdict/model/mode: PASS WITH NOTE / not exposed by runtime /
+  not exposed by runtime (requested Extra Thinking).
+- Actionable findings: all repaired and re-reviewed; remaining notes are
+  non-blocking CPU fixture length, pre-existing format drift, and unauthenticated
+  branch-protection evidence.
+- Required/configured checks: public workflow/ruleset/status observations empty;
+  branch-protection endpoint returned 401 and is recorded as an evidence limit.
+- Review threads and blocking objections: pending final GitHub refresh; no known
+  unresolved threads or objections.
+- Target/base: `main` / `5644d4fcc5a7ef5f08520580698a1fd86554f0e6`.
+- Current PR head: `4875501e2d20972052112183014087c00c05908f`.
+- Merge outcome: pending immediate pre-merge refresh.
 
 ## Model assessment from this ticket
 
