@@ -100,8 +100,15 @@ Duplicate this section for every repair.
 - Exact independently reviewed head SHA:
 - Latest independent verdict / model / mode:
 - All actionable findings repaired and independently re-reviewed:
+- Blocking review decision / outstanding `CHANGES_REQUESTED` evidence:
+- Newer human objections since authorization/review: none / details
+- Human review dismissed by an agent: no / yes (yes blocks self-merge)
 - Unresolved review threads at final audit: zero / count
-- Required/configured checks at exact head: names and results / `no checks configured/reported`
+- Branch-protection required-context inventory:
+- Applicable configured workflow/check inventory:
+- Observed exact-head check statuses:
+- Expected checks absent, pending, skipped, cancelled, or non-successful: zero / details
+- No-check evidence when both inventories are empty: evidence / N/A
 - Target branch and base SHA at final audit:
 - Up-to-date, conflict-free, and mergeable evidence:
 - Record, ledger, PR trail, validation, and risks parity:
@@ -109,6 +116,9 @@ Duplicate this section for every repair.
 - Admin/bypass/force/disabled-check requirement: no / yes
 - Final audit PR body/comment location:
 - Final audit changed reviewed head: no / yes (if yes, re-review is required)
+- Immediate pre-merge re-fetch/compare observation location:
+- Immediate refresh compared authorization, head, base, review decision/objections, threads, expected checks/statuses, and mergeability: yes / no
+- Drift found: no / yes (yes aborts merge and requires appropriate update/revalidation/re-review)
 - Merge outcome: pending / human merged / agent merged / not merged
 
 ## Model assessment from this ticket

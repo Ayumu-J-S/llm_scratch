@@ -263,17 +263,28 @@ below is satisfied for the exact head commit:
 
 - an independent review returned `PASS` or a justified `PASS WITH NOTE` against
   the ticket, this philosophy, and applicable `CHECK.md` sections;
-- every actionable finding has been repaired and independently re-reviewed, and
-  no review thread remains unresolved;
-- every required or configured check is green for the reviewed head; when the
-  repository reports no checks, that state is recorded rather than presented as
-  a passing check, and a failed or missing required check is never waived;
+- every actionable finding has been repaired and independently re-reviewed; no
+  blocking review decision, `CHANGES_REQUESTED` review, newer human objection,
+  or review thread remains outstanding; and the agent has not dismissed a human
+  review to clear the gate;
+- branch-protection required contexts and applicable configured workflows and
+  checks have been inventoried, every expected check is present and successful
+  for the reviewed head, and no expected check is absent, pending, skipped,
+  cancelled, or otherwise non-successful; a no-check state is accepted only with
+  evidence that no check is required, configured, or expected, never merely
+  because the current status list is empty;
 - the pull request is up to date with its target branch, conflict-free, and
   reported mergeable;
 - the model-run record, ledger, pull-request execution trail, validation
   evidence, risks, and authorization evidence are complete and agree; and
 - the merging agent performs and records a final audit of these gates in the PR
-  at the exact reviewed head, without creating a new unreviewed commit.
+  at the exact reviewed head, without creating a new unreviewed commit; and
+- immediately before invoking merge, the merging agent re-fetches authorization,
+  head and base identities, review decisions and newer objections, review
+  threads, the expected-check inventory and exact-head statuses, and
+  mergeability; compares them with the final audit; records that observation
+  without changing the head; and aborts for the appropriate update,
+  revalidation, or independent re-review if any compared field drifted.
 
 An agent never uses administrator privileges, disables a rule, bypasses branch
 protection, or force-merges to satisfy these gates. Self-merge is prohibited for
@@ -281,8 +292,11 @@ a change that contains or authorizes secrets or security-control changes,
 publication of private data, a new paid resource, a destructive or unrecoverable
 action, an unresolved legal or licensing question, or another externally
 consequential protected action such as deployment, release, account/permission
-change, or external communication. Those changes require a human merge decision
-even if a broader series authorization exists.
+change, or non-routine external action outside ordinary repository collaboration.
+Routine PR creation, review comments, evidence updates, and issue/PR coordination
+are ordinary repository collaboration, not prohibited external communication.
+Protected actions require a human merge decision even if a broader series
+authorization exists.
 
 The pull request remains the handoff: it should be possible to review the
 hypothesis, diff, run status, plots, result, integrity checks, and proposed next

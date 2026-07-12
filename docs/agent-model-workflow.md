@@ -84,7 +84,9 @@ flowchart TD
     M -->|"Yes"| O{"Guarded merge gates pass<br/>for exact reviewed head?"}
     O -->|"No"| N
     O -->|"Yes"| P["Merging agent records final PR audit<br/>without changing head"]
-    P --> Q["Agent merges without bypass"]
+    P --> R{"Immediate pre-merge re-fetch<br/>matches final audit?"}
+    R -->|"No / drift"| N
+    R -->|"Yes; observation recorded"| Q["Agent merges without bypass"]
 ```
 
 ## Model identity rules
@@ -138,18 +140,31 @@ records the result in the PR body or a PR comment. All of these gates must pass:
 1. The latest independent review is `PASS` or a justified `PASS WITH NOTE` for
    that exact head commit.
 2. Every actionable review finding was repaired and independently re-reviewed.
-   All GitHub review threads are resolved. A note may remain only when it is
+   No GitHub blocking review decision or `CHANGES_REQUESTED` review remains, and
+   no newer human objection supersedes the authorization or passing review. An
+   agent must not dismiss a human review to manufacture a clear decision.
+3. All GitHub review threads are resolved. A note may remain only when it is
    explicitly non-actionable and documented as residual risk.
-3. Every required or configured check is green for that head. If GitHub reports
-   no checks, record `no checks configured/reported`; do not relabel that state
-   as a pass. Never waive or ignore a failed or missing required check.
-4. The PR is up to date with the target branch, conflict-free, and reported
+4. Inventory both branch-protection required contexts and applicable configured
+   workflows/checks. Every expected check must be present and successful for the
+   exact head. An expected check that is absent, pending, skipped, cancelled, or
+   otherwise non-successful blocks merge. If no check is required, configured,
+   or expected, record the inventory evidence and the observed empty status;
+   an empty status list alone is not evidence that the no-check case applies.
+5. The PR is up to date with the target branch, conflict-free, and reported
    mergeable. If updating the branch changes the head, repeat the applicable
    validation and independent review on the new head.
-5. The model-run record, ledger row and aggregate, PR model trail, validation
+6. The model-run record, ledger row and aggregate, PR model trail, validation
    evidence, risks, and authorization evidence are complete and consistent.
-6. The change is outside every prohibited category below, and the merge requires
+7. The change is outside every prohibited category below, and the merge requires
    no administrator action, protection bypass, force merge, or disabled check.
+8. Immediately before invoking merge, re-fetch the human authorization, head and
+   base SHAs, blocking review decision and newer human objections, unresolved
+   threads, expected-check inventory and exact-head statuses, and mergeability.
+   Compare them with the final audit and record the observation in the PR without
+   changing the head. Any drift aborts the merge and triggers the
+   appropriate branch update, validation, evidence update, or independent
+   re-review before the gates are evaluated again.
 
 Self-merge is prohibited when the change contains or authorizes:
 
@@ -159,13 +174,18 @@ Self-merge is prohibited when the change contains or authorizes:
 - a destructive or unrecoverable action;
 - an unresolved legal or licensing question; or
 - another externally consequential protected action, including deployment,
-  release, account or permission changes, or external communication.
+  release, account or permission changes, or a non-routine external action
+  outside ordinary repository collaboration. Routine PR/issue creation, review
+  comments, evidence updates, and repository coordination remain allowed.
 
 The final audit records the authorization scope, reviewed head SHA, independent
-verdict, disposition of findings and threads, exact check state, target/base
-state, mergeability, artifact parity, prohibited-category result, and intended
-non-bypass merge method. Record it without committing to the reviewed branch;
-otherwise the head changes and the review gate must run again.
+verdict, blocking-review and newer-objection state, disposition of findings and
+threads, required-context and configured-workflow inventories, observed
+exact-head statuses, target/base state, mergeability, artifact parity,
+prohibited-category result, and intended non-bypass merge method. Record it
+without committing to the reviewed branch; otherwise the head changes and the
+review gate must run again. The immediate pre-merge refresh is a separate final
+observation of those same mutable fields, also recorded without changing head.
 
 The PR that introduces this policy cannot use it to authorize or merge itself.
 The repository's preceding human-only rule remains in force until a human merges
