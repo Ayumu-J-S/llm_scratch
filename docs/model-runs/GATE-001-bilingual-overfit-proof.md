@@ -69,7 +69,7 @@
 
 ## Failed-review handoff
 
-N/A — no independent review has run, so no review failure handoff exists.
+N/A — the independent review returned PASS WITH NOTE; no failed-review handoff is required.
 
 ## Repair result
 
