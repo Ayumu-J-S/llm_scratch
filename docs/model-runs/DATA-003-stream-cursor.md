@@ -33,6 +33,7 @@
 | 4 | repair | not exposed by runtime | not exposed by runtime | `04ca349` plus cycle-4 finding | Sync acknowledged cursor into process config on each marker; add process same-loader reuse regression | completed; re-review PASS WITH NOTE | Config sync is gated to DATA-003 cursor mode so legacy process fixtures retain repeat behavior | Focused 11 passed; full 223 passed, 1 skipped; static checks clean |
 | 4 | re-review | not exposed by runtime | not exposed by runtime | `9abfeb2e33be6e7e78bd3ac730544c9e29157d4c` | Independent exact-head review | PASS WITH NOTE | Process same-loader reuse and prior async cursor/resume paths pass; bounded cursor-buffer memory remains documented | Review `4679956834`; focused 11 passed; full 223 passed, 1 skipped; static checks clean |
 | 5 | post-merge review | not exposed by runtime | not exposed by runtime | merged `main` at `57266e1`; automated finding `4679969079`, independent audit review `4679980858` | Re-check exact packed-window interruption/resume invariant after merge | FAIL (P2) | `_packed_iter` yields the final partial window before clearing `_packed_cursor_buffer`, so the saved cursor retains already-emitted residual tokens and resume emits them again | Canonical tokenizer; seed 17; four memory docs `text="a"`; `packed_sequences`, `max_tokens=4`, `sequence_length=5`, `add_eos=false`, `drop_remainder=false`, `horizon={repeat:false, shuffle:false}`; full `[[311,311,311,311]]`, resume `[[311,311,311,311,311],[311,311,311,311]]` |
+| 5 | documentation correction | not exposed by runtime | not exposed by runtime | PR #30 correction head `4da78859c99a8400ec6522f746eeee098fd40040`; failed audit `4679980858` | Reopen DATA-003, retain P2 evidence and repair handoff, and remove completion claims without changing code | completed; docs-only re-review PASS WITH NOTE | ROADMAP and ledger now mark DATA-003 In progress and scope link evidence correctly; no repair head or implementation claim added | Review `4679987639`; no source/test or unrelated-roadmap drift; inherited focused tests 11 passed and static checks remain clean |
 
 ## Runtime provenance block
 
@@ -150,22 +151,22 @@
 
 ## Post-merge P2 handoff
 
-- Reviews: post-merge automated finding `4679969079` and independent audit FAIL `4679980858` on the merged DATA-003 lineage.
+- Reviews: post-merge automated finding `4679969079` and independent audit FAIL `4679980858` on the merged DATA-003 lineage. Documentation-only correction review `4679987639` is PASS WITH NOTE on exact head `4da78859c99a8400ec6522f746eeee098fd40040`.
 - Severity and violated acceptance criterion: P2; an interrupted and resumed stream no longer yields the exact uninterrupted suffix in `packed_sequences` output mode.
 - Reproduction: canonical tokenizer; seed `17`; four memory documents with `text="a"`; `output_mode=packed_sequences`, `max_tokens=4`, `sequence_length=5`, `add_eos=false`, `drop_remainder=false`, and `horizon={repeat:false, shuffle:false}`.
 - Expected: the uninterrupted run is `[[311, 311, 311, 311]]`; stopping after that partial output and resuming must produce no additional window.
 - Observed: `state_dict()` retains `packed_buffer=[311, 311, 311, 311]`; resume emits `[[311, 311, 311, 311, 311], [311, 311, 311, 311]]`, so the consumed prefix plus resumed suffix differs from the uninterrupted run.
 - Root cause: `_packed_iter` yields the final partial window before clearing `_packed_cursor_buffer`; the cursor therefore serializes residual tokens that have already been emitted.
-- Repair handoff: clear or otherwise advance packed cursor state before publishing the final partial window, add a regression for interruption after that yield (including JSON cursor serialization), then obtain an independent exact-head review. No repair branch/head is claimed in this record.
+- Repair handoff: clear or otherwise advance packed cursor state before publishing the final partial window, add a regression for interruption after that yield (including JSON cursor serialization), then obtain an independent exact-head review. No code-repair branch/head is claimed in this record; the PASS WITH NOTE review above covers only the documentation correction.
 
-## Historical PR #29 merge audit (superseded for current ticket status)
+## Historical PR #29 merge audit and current documentation-audit status
 
 - Merge path: historical guarded self-merge of PR #29 only; it is not an authorization to merge a future repair without fresh gates.
 - Human authorization: parent task explicitly authorized self-merge for the bounded roadmap goal on 2026-07-12; the authorization and audit apply to the historical #29 merge.
 - Authorization evidence location: parent task messages and final PR #29 audit comment.
 - Authorization covers a repair PR: pending fresh repair PR audit.
 - Exact independently reviewed historical head SHA: `87a64b8a72604ddf67cf9536cb0661cff7a9a663` (docs-only descendant of repair code `93132f7`).
-- Latest current verdict / model / mode: FAIL P2 (`4679980858`, following automated finding `4679969079`) on the merged lineage; exact model and reasoning mode not exposed by runtime. Historical PR #29 re-confirmation was PASS WITH NOTE `4679961413`.
+- Latest implementation verdict / model / mode: FAIL P2 (`4679980858`, following automated finding `4679969079`) on the merged lineage; exact model and reasoning mode not exposed by runtime. Documentation-only correction review `4679987639` is PASS WITH NOTE on `4da78859c99a8400ec6522f746eeee098fd40040` and does not repair the code. Historical PR #29 re-confirmation was PASS WITH NOTE `4679961413`.
 - All actionable findings repaired and independently re-reviewed: no — the post-merge packed-cursor P2 is not repaired.
 - Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: packed-cursor P2 blocks ticket completion and any repair merge until independently re-reviewed.
 - Newer objection/finding after the historical merge audit: yes — automated finding `4679969079`, independently confirmed as FAIL `4679980858`.
@@ -186,6 +187,7 @@
 - Historical immediate pre-merge re-fetch/compare observation location: [`#issuecomment-4951026925`](https://github.com/Ayumu-J-S/llm_scratch/pull/29#issuecomment-4951026925) (with the pre-merge audit at [`#issuecomment-4951019993`](https://github.com/Ayumu-J-S/llm_scratch/pull/29#issuecomment-4951019993)).
 - Historical refresh compared authorization, head, base, review decision/objections, threads, expected checks/statuses, and mergeability: yes; no drift found before merge.
 - Historical merge outcome: PR #29 merged to `main` as `57266e1e843be2d08e10ef5f387da8466b0c590f`; the post-merge P2 re-opened the ticket.
+- Current documentation-audit self-merge authorization: the user's general authorization for the bounded roadmap goal applies to this documentation correction, but a fresh final audit of its exact head is pending. It does not authorize a packed-cursor code repair without that repair PR's own gates.
 
 ## Model assessment from this ticket
 
@@ -196,7 +198,7 @@
 ## Ledger update
 
 - [x] Added the DATA-003 ticket record and PR URL; current verdict is FAIL pending repair.
-- [x] Updated the aggregate review count and DATA-003 summary for the post-merge P2.
-- [x] Confirmed the execution trail retains cycles 1–4 and adds post-merge finding `4679969079` with independent FAIL `4679980858`.
+- [x] Updated the aggregate counts and DATA-003 summary for the post-merge P2 and documentation re-review.
+- [x] Confirmed the execution trail retains cycles 1–4 and adds post-merge finding `4679969079`, independent FAIL `4679980858`, and documentation PASS WITH NOTE `4679987639`.
 - [x] Retained the historical guarded self-merge evidence while recording that it does not clear the new P2.
 - [x] Confirmed no bootstrap policy self-merge rule is being used.
