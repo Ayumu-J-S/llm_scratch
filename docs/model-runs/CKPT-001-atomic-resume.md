@@ -9,8 +9,10 @@
 - Experiment record: `N/A` — this is correctness/recovery infrastructure, not
   a model-quality experiment.
 - Started: 2026-07-12
-- Current verdict: formal re-review failed at `b00ccb0`; the review-driven
-  run-identity repair is in progress and requires an exact-head re-review.
+- Current verdict: `PASS WITH NOTE` — independent re-review `4680237382`
+  accepted exact head `253acdbb4df344ffa671c801fc63b2dbb64d48e4` after the
+  review-driven run-identity repair. A docs-only no-drift confirmation and
+  guarded exact-head final audit remain pending.
 - Record owner: implementation sub-agent `/root/ckpt001_implementation`
 
 ## Scope and decision context
@@ -45,6 +47,7 @@
 | 7 | repair | not exposed by runtime | not exposed by runtime | Terminal-resume CPU smoke found shared preview loader consumed the persistent training cursor | implemented; re-review pending | Preview now builds and closes an isolated streaming loader. Regression proves preview and the first actual train batch both equal a fresh first batch. CPU terminal run completed steps 1–7; a fresh resume completed steps 8–14. |
 | 8 | independent re-review | not exposed by runtime | not exposed by runtime | Exact head `b00ccb0028e656ffe12b99664ec2d3ff66859bd6`; requested heavier / Extra Thinking | FAIL | GitHub review `4680225857`: checkpoint identity omitted run-manifest `experiment_id`, `git.sha`, and `lock.sha256`, allowing code/dependency drift with matching config/data/tokenizer. |
 | 9 | repair | not exposed by runtime | not exposed by runtime | Failed re-review `4680225857` handoff | implemented; re-review pending | Run manifests normalize only `artifacts.resume_path` when deriving their recorded experiment ID. Checkpoint identity now stores and compares that recorded ID plus recorded Git SHA and lock SHA; mutation fixtures require pre-loader rejection. |
+| 10 | independent re-review | not exposed by runtime | not exposed by runtime | Exact head `253acdbb4df344ffa671c801fc63b2dbb64d48e4`; requested heavier / Extra Thinking; ticket, `PHILOSOPHY.md`, selected CHECK 5.4/6.3/9.1 | PASS WITH NOTE | GitHub review `4680237382`: full-state atomic/resume/identity requirements passed. It accepted the recorded bounded CPU evidence and scope; the record makes no DGX-scale, UMA, or long-run performance claim. |
 
 ## Runtime provenance block
 
@@ -212,9 +215,13 @@ review. It remains here for the required repair trail.
   identity. A fresh command whose only config delta was `resume_path` retained
   the same recorded experiment ID while the resolved-config SHA changed, passed
   preflight before loader creation, and resumed steps 8–14 after initial 1–7.
-- Re-review: pending exact pushed head.
+- Independent re-review: `PASS WITH NOTE` — GitHub `4680237382` on exact head
+  `253acdbb4df344ffa671c801fc63b2dbb64d48e4`. The two formal blocking
+  findings are repaired and independently re-reviewed. Its note preserves the
+  bounded CPU evidence boundary; it does not add a DGX-scale, UMA, or long-run
+  claim.
 
-## Final evidence (implementation state; review pending)
+## Final evidence (independent review passed; docs-only confirmation pending)
 
 - Resolved checkpoint command/config: relative `artifacts.checkpoints_dir`
   lives under the Hydra run directory; `artifacts.resume_path` accepts `latest`,
@@ -260,25 +267,35 @@ review. It remains here for the required repair trail.
   passed, 1 skipped; its re-review FAIL is retained above. Final run-identity
   repair validation: `uv run pytest -q` — 248 passed, 1 skipped; changed-file
   Ruff/format, `git diff --check`, and `uv lock --check` passed.
+- Independent review: `PASS WITH NOTE` `4680237382` accepted the exact
+  reviewed implementation head `253acdbb4df344ffa671c801fc63b2dbb64d48e4`.
+  This record reports the already captured validation evidence above; it does
+  not imply that the reviewer reran those commands.
 - Known trade-offs: recovery saves are synchronous and avoid a deep copy of
   `model.state_dict()` to avoid an avoidable full-model UMA peak. Atomicity is
   the local-filesystem temp-file/read-back/`os.replace` contract, not a network
   filesystem guarantee.
-- Unresolved risks: formal independent review, final exact-head checks, a
-  any DGX-scale pause/memory result remain pending.
-- Human decision requested: none; next step is independent CKPT-001 review.
+- Unresolved risks: final exact-head checks and any DGX-scale pause/memory
+  result remain pending. The latter is not required for this bounded
+  correctness ticket.
+- Human decision requested: none; next step is docs-only no-drift review, then
+  the guarded final audit.
 
 ## Merge authority and final audit
 
-- Merge path: guarded agent self-merge only after the independent review and
-  all exact-head gates; pending.
+- Merge path: guarded agent self-merge only after the docs-only no-drift
+  confirmation and every exact-head gate; pending.
 - Human authorization: user instruction on 2026-07-12, “これからはとりあえず
   全部セルフマージしていいよ / とりあえずロードマップ完成させよう”.
 - Authorization covers bounded roadmap series: yes, subject to every guarded
   gate in `PHILOSOPHY.md` and `docs/agent-model-workflow.md`.
-- Exact independently reviewed head / verdict / threads / checks / base /
-  mergeability / final audit: pending. No head will be marked ready or merged
-  until a heavier independent review is recorded for the exact final head.
+- Exact independently reviewed implementation head: `253acdbb4df344ffa671c801fc63b2dbb64d48e4`.
+- Independent verdict: `PASS WITH NOTE` — GitHub review `4680237382`.
+- Actionable review findings: repaired and independently re-reviewed; no
+  finding is dismissed by this record.
+- Threads / expected checks / base / mergeability / final audit: pending a
+  fresh, exact-head audit after the docs-only confirmation. No head will be
+  marked ready or merged until those gates are observed without drift.
 - Prohibited self-merge categories: expected clear for ordinary source/test/doc
   work; final audit must re-confirm no secrets, private data, paid resource,
   destructive action, licensing uncertainty, release/deployment, or account
@@ -288,12 +305,15 @@ review. It remains here for the required repair trail.
 
 | Model / mode | Role | What it handled well | What it missed or made worse | Context that helped | Outcome |
 | --- | --- | --- | --- | --- | --- |
-| not exposed by runtime / not exposed by runtime | implementation and repair | Kept persistence direct, covered atomic failure/fallback/rotation and exact RNG-stream trajectory, exposed a public terminal-cursor operation, isolated display from the training cursor, and preserved/compared recorded run identity | Initial stream wrapper conflated a terminal normal epoch with an explicit resume; real smoke exposed preview consumption; re-review found code/dependency/run-ID comparison missing | ticket acceptance criteria, StreamLoader cursor contract, two formal review handoffs, run-manifest contract, clean CPU identity/resume evidence | run-identity repair complete locally; independent re-review pending |
+| not exposed by runtime / not exposed by runtime | implementation and repair | Kept persistence direct, covered atomic failure/fallback/rotation and exact RNG-stream trajectory, exposed a public terminal-cursor operation, isolated display from the training cursor, and preserved/compared recorded run identity | Initial stream wrapper conflated a terminal normal epoch with an explicit resume; real smoke exposed preview consumption; re-review found code/dependency/run-ID comparison missing | ticket acceptance criteria, StreamLoader cursor contract, two formal review handoffs, run-manifest contract, clean CPU identity/resume evidence | `PASS WITH NOTE` `4680237382` on `253acdb`; docs-only confirmation pending |
 
 ## Ledger update
 
 - [x] Added the in-progress ticket row to `docs/model-runs/README.md`.
 - [x] Retained the failed full-suite cycle and repair handoff.
 - [x] Recorded requested vs actual runtime provenance without inference.
-- [ ] Add the formal independent review, exact-head final audit, and merge result.
+- [x] Added independent re-review `PASS WITH NOTE` `4680237382` for exact
+  implementation head `253acdbb4df344ffa671c801fc63b2dbb64d48e4`.
+- [ ] Add the docs-only no-drift confirmation, exact-head final audit, and
+  merge result.
 - [x] Confirmed this is not the guarded-self-merge policy bootstrap PR.
