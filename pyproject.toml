@@ -15,6 +15,22 @@ dependencies = [
   "wandb>=0.19",
 ]
 
+[project.scripts]
+llm-scratch-train = "cli:train"
+llm-scratch-config-check = "cli:config_check"
+
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+py-modules = ["cli", "train"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+namespaces = true
+
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",

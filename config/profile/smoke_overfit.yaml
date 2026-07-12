@@ -1,0 +1,21 @@
+# @package _global_
+# Explicit CPU-only memorization profile. This is the only profile permitted to
+# use the same manifest for training and validation.
+profile:
+  name: smoke_overfit
+  purpose: memorization_smoke
+
+runtime:
+  device: cpu
+
+data:
+  mode: memorization_smoke
+  memorization:
+    manifest_path: tests/fixtures/data_manifests/memorization.manifest.json
+    expected_fingerprint: 00c3797a7d0eda13950fd699a60c45fcd388829f016479caaeb369438767bd31
+
+training:
+  sequence_length: 8
+  epochs: 50
+  batch_size: 64
+  shuffle: true

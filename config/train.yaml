@@ -1,51 +1,19 @@
 defaults:
   - tokenizer: canonical
+  - profile: smoke_overfit
   - _self_
 
 data:
-  mode: memorization_smoke
-  memorization:
-    manifest_path: tests/fixtures/data_manifests/memorization.manifest.json
-    expected_fingerprint: 00c3797a7d0eda13950fd699a60c45fcd388829f016479caaeb369438767bd31
+  # Keep the canonical stream shape visible in the base config. Profiles fill
+  # the immutable source lists and mode-specific values through composition.
   streaming:
     require_manifests: true
-    cache:
-      dir: data/stream_loader_cache
-      max_size_bytes: 750000000000
-    prefetch:
-      enabled: true
-      buffer_size: 16
     train:
       max_tokens: max
-      add_eos: true
-      seed: 42
-      sources:
-        - name: bilingual_fixture_train
-          type: manifest
-          manifest_path: tests/fixtures/data_manifests/bilingual.manifest.json
-          expected_fingerprint: 47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19
-          selection: train
-          ratio: 1.0
     validation:
       max_tokens: max
-      add_eos: true
-      seed: 43
-      sources:
-        - name: bilingual_fixture_validation
-          type: manifest
-          manifest_path: tests/fixtures/data_manifests/bilingual.manifest.json
-          expected_fingerprint: 47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19
-          selection: validation
-          ratio: 1.0
-
-runtime:
-  device: cuda
 
 training:
-  sequence_length: 64
-  epochs: 50
-  batch_size: 64
-  shuffle: true
   optimizer:
     _target_: torch.optim.AdamW
     lr: 0.001
@@ -76,7 +44,7 @@ wandb:
 
 hydra:
   run:
-    dir: .
+    dir: ${hydra:runtime.cwd}/runs/${profile.name}/${now:%Y%m%d-%H%M%S}
   output_subdir: null
   job:
     chdir: false
