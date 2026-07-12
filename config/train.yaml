@@ -58,7 +58,14 @@ model:
   dropout: 0.1
 
 artifacts:
-  checkpoints_dir: artifacts/checkpoints
+  # Relative paths live beneath Hydra's per-run output directory. An absolute
+  # path is allowed for an operator-managed recovery location.
+  checkpoints_dir: checkpoints
+  keep_last_n: 3
+  # Explicit operational override. It is intentionally excluded from the
+  # experiment identity so the same run may resume from its recovery file.
+  # Use a recovery file/directory or `latest` for this run's checkpoint dir.
+  resume_path: null
 
 wandb:
   enabled: true

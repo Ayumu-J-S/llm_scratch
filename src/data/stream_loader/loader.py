@@ -465,19 +465,36 @@ class StreamLoader:
     def cursor_state(self) -> dict[str, Any]:
         return self.state_dict()
 
-    def load_state_dict(self, cursor: Mapping[str, Any]) -> None:
+    def load_state_dict(
+        self,
+        cursor: Mapping[str, Any],
+        *,
+        resume_completed: bool = True,
+    ) -> None:
+        """Install a cursor before iteration.
+
+        A normal interrupted cursor always resumes its exact unconsumed suffix.
+        ``resume_completed=False`` instead treats a terminal cursor as an
+        epoch boundary and starts the deterministic next pass on first
+        iteration. This is used by full-state checkpoints captured after a
+        natural trainer epoch; it never changes mid-pass cursor semantics.
+        """
+
         if self.is_prefetching:
             raise StreamLoaderError("cannot load a cursor while prefetch is active")
         self._validate_cursor(cursor)
         self._cursor = _copy_cursor(cursor)
         self._pass_index = int(self._cursor.get("pass_index", 0))
         self.cursor_enabled = True
-        self._resume_cursor_pending = True
+        self._resume_cursor_pending = not (
+            bool(self._cursor.get("pass_complete")) and not resume_completed
+        )
         # Process prefetch receives a plain serialized config.  Keep the
         # explicit cursor in that config as well as on the parent so a spawned
         # worker resumes from the requested state rather than its initial
         # position.
         self.config["cursor"] = _copy_cursor(cursor)
+        self.config["_stream_loader_resume_cursor_pending"] = self._resume_cursor_pending
 
     def _initial_cursor(self) -> dict[str, Any]:
         return {
@@ -809,7 +826,11 @@ class StreamLoader:
         elif buffer:
             self.packed_token_counts["dropped_target_count"] += max(len(buffer) - 1, 0)
         self._clear_packed_cursor_residual()
-        if self.cursor_enabled and self._active_source_states is not None and self._active_rng is not None:
+        if (
+            self.cursor_enabled
+            and self._active_source_states is not None
+            and self._active_rng is not None
+        ):
             self._cursor = self._capture_cursor(self._active_source_states, self._active_rng)
 
     def _clear_packed_cursor_residual(self) -> None:
@@ -970,8 +991,7 @@ class StreamLoader:
                 source_position=int(saved.get("source_position", 0)),
                 epoch=epoch,
                 shuffle_buffer=[
-                    _deserialize_document(document)
-                    for document in saved.get("shuffle_buffer", [])
+                    _deserialize_document(document) for document in saved.get("shuffle_buffer", [])
                 ],
                 shuffle_rng=self._source_rng(name, epoch),
             )

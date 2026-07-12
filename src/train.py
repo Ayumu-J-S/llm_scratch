@@ -18,6 +18,11 @@ from runtime.reproducibility import (
     seed_everything,
     write_run_manifest,
 )
+from training.checkpoint import (
+    CheckpointManager,
+    build_checkpoint_identity,
+    require_exact_stream_resume_state,
+)
 from training.optimization import build_optimizer, build_scheduler
 from training.trainer import Trainer
 from tokenizer.canonical import CanonicalTokenizer
@@ -176,6 +181,19 @@ def validate_streaming_dataloaders(train_loader, validation_loader) -> None:
     )
 
 
+def preview_streaming_batch(cfg: DictConfig, *, device: torch.device):
+    """Build the human preview from an isolated stream, never the train cursor."""
+
+    preview_loader = build_streaming_dataloader(cfg, "train", device=device)
+    iterator = iter(preview_loader)
+    try:
+        return next(iterator)
+    except StopIteration as error:
+        raise ConfigPreflightError("streaming train profile produced no preview batch") from error
+    finally:
+        Trainer._close_train_iterator(iterator)
+
+
 def log_loader_size(name: str, loader) -> None:
     try:
         size = len(loader.dataset)
@@ -212,6 +230,24 @@ def main(cfg: DictConfig) -> None:
     tokenizer = CanonicalTokenizer.from_config(cfg.tokenizer)
     logger.info("Tokenizer vocab size: {}", tokenizer.vocab_size)
     logger.info("Tokenizer fingerprint: {}", tokenizer.fingerprint)
+
+    checkpoint_dir = _run_directory() / Path(cfg.artifacts.checkpoints_dir)
+    checkpoint_identity = build_checkpoint_identity(
+        cfg,
+        run_manifest_path=run_manifest_path,
+    )
+    resume_path = cfg.artifacts.get("resume_path")
+    if resume_path is not None:
+        # Read and compare the full checkpoint header before opening the train
+        # stream. Trainer performs the same verified load immediately before
+        # mutation, after model/optimizer construction.
+        resume_checkpoint = CheckpointManager(
+            checkpoint_dir,
+            keep_last_n=int(cfg.artifacts.keep_last_n),
+            identity=checkpoint_identity,
+        ).load_resume(resume_path)
+        require_exact_stream_resume_state(resume_checkpoint.payload["state"])
+        logger.info("Resume checkpoint compatibility preflight passed: {}", resume_path)
 
     smoke_manifest = None
     if data_mode == "memorization_smoke":
@@ -251,7 +287,10 @@ def main(cfg: DictConfig) -> None:
     else:
         raise ValueError("data.mode must be either 'memorization_smoke' or 'streaming'")
 
-    preview_batch = next(iter(train_loader))
+    if data_mode == "streaming":
+        preview_batch = preview_streaming_batch(cfg, device=device)
+    else:
+        preview_batch = next(iter(train_loader))
     log_sample_batch(tokenizer, preview_batch)
     log_loader_size("Training", train_loader)
     log_loader_size("Validation", validation_loader)
@@ -290,7 +329,6 @@ def main(cfg: DictConfig) -> None:
             scheduler_interval,
         )
 
-    checkpoint_dir = ROOT_DIR / cfg.artifacts.checkpoints_dir
     trainer = Trainer(
         model=model,
         optimizer=optimizer,
@@ -300,6 +338,8 @@ def main(cfg: DictConfig) -> None:
         checkpoint_dir=checkpoint_dir,
         cfg=cfg,
         device=device,
+        checkpoint_identity=checkpoint_identity,
+        resume_path=resume_path,
     )
     trainer.fit()
 

@@ -1,0 +1,56 @@
+{
+  "schema_version": "1.0",
+  "captured_at": "2026-07-12T14:03:43.343429Z",
+  "phase": "implementation",
+  "role": "implementation",
+  "task_path": "/root/ckpt001_implementation",
+  "requested": {
+    "model": {
+      "value": "Luna",
+      "source": "explicit invocation/config default",
+      "status": "observed"
+    },
+    "reasoning_mode": {
+      "value": "Extra High",
+      "source": "explicit invocation/config default",
+      "status": "observed"
+    }
+  },
+  "actual": {
+    "product": {
+      "value": "Codex",
+      "source": "active runtime display",
+      "status": "observed"
+    },
+    "displayed_model_family": {
+      "value": "GPT-5",
+      "source": "active runtime display",
+      "status": "observed"
+    },
+    "exact_model_identifier": {
+      "value": "not exposed by runtime",
+      "source": "not exposed by runtime",
+      "status": "unavailable",
+      "unavailable_reason": "The active runtime did not expose an exact deployment/model identifier to the caller."
+    },
+    "reasoning_mode": {
+      "value": "not exposed by runtime",
+      "source": "not exposed by runtime",
+      "status": "unavailable",
+      "unavailable_reason": "The active runtime did not expose a reasoning mode to the caller."
+    }
+  },
+  "environment": {
+    "codex_cli_version": "codex-cli 0.144.1",
+    "branch": "codex/ckpt-001-atomic-resume",
+    "commit": "19dce46b134569de4e29686570fa5bd69560a556",
+    "thread_id": "not recorded (privacy)"
+  },
+  "privacy": {
+    "raw_thread_id_recorded": false,
+    "prompts_recorded": false,
+    "hidden_chain_of_thought_recorded": false,
+    "token_counts_recorded": false,
+    "secrets_recorded": false
+  }
+}

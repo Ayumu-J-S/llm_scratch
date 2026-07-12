@@ -183,6 +183,55 @@ def test_canonical_streaming_fixture_budgets_do_not_exhaust():
     assert cfg.data.streaming.validation.max_tokens == "max"
 
 
+def test_streaming_preview_does_not_consume_the_training_cursor():
+    fixture = Path(__file__).parent / "fixtures" / "data_manifests" / "bilingual.manifest.json"
+    source = {
+        "name": "fixture",
+        "type": "manifest",
+        "manifest_path": str(fixture),
+        "expected_fingerprint": "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19",
+        "selection": "train",
+        "ratio": 1.0,
+    }
+    cfg = OmegaConf.create(
+        {
+            "reproducibility": {"seed": 23},
+            "data": {
+                "streaming": {
+                    "require_manifests": True,
+                    "repeat": True,
+                    "train": {"max_tokens": "max", "add_eos": False, "sources": [source]},
+                    "validation": {
+                        "max_tokens": "max",
+                        "add_eos": False,
+                        "sources": [{**source, "name": "validation", "selection": "validation"}],
+                    },
+                }
+            },
+            "training": {"sequence_length": 4, "batch_size": 1},
+            "tokenizer": TOKENIZER_CONFIG,
+        }
+    )
+    expected_loader = train_module.build_streaming_dataloader(cfg, "train")
+    expected_iterator = iter(expected_loader)
+    try:
+        expected = next(expected_iterator)
+    finally:
+        train_module.Trainer._close_train_iterator(expected_iterator)
+
+    preview = train_module.preview_streaming_batch(cfg, device=torch.device("cpu"))
+    train_loader = train_module.build_streaming_dataloader(cfg, "train")
+    train_iterator = iter(train_loader)
+    try:
+        actual = next(train_iterator)
+    finally:
+        train_module.Trainer._close_train_iterator(train_iterator)
+
+    assert torch.equal(preview["inputs"], expected["inputs"])
+    assert torch.equal(actual["inputs"], expected["inputs"])
+    assert torch.equal(actual["labels"], expected["labels"])
+
+
 def test_cuda_request_fails_before_tokenizer_or_data(monkeypatch):
     with hydra.initialize_config_dir(
         version_base=None,

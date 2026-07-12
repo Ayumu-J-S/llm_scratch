@@ -68,6 +68,35 @@ by the training loop as a hidden fallback. Every training invocation writes
 the fully resolved configuration to `runs/<profile>/<timestamp>/resolved_config.yaml`
 (the installed console wrapper uses `runs/<profile>/manual/`).
 
+### Checkpoint recovery
+
+Checkpoints are full-state local recovery files under the Hydra run directory
+by default: `checkpoints/recovery-step-<step>.pt`, plus separately retained
+`best.pt`, `final.pt`, and milestone files. A recovery write uses a unique
+temporary file, read-back verification, and atomic replacement; only verified
+recovery files participate in `artifacts.keep_last_n` rotation.
+
+Resume the same experiment by selecting a verified recovery file or directory:
+
+```bash
+# An absolute file or directory is explicit and works from any working directory.
+uv run python src/train.py profile=pretrain_streaming \
+  artifacts.resume_path=/absolute/path/to/recovery-step-000000001000.pt
+
+# A non-`latest` relative value resolves beneath artifacts.checkpoints_dir.
+uv run python src/train.py profile=pretrain_streaming \
+  artifacts.resume_path=recovery-step-000000001000.pt
+```
+
+`artifacts.resume_path` is an operational selector, not an experiment change.
+The checkpoint rejects model, tokenizer, data, resolved-config, precision, or
+run-identity mismatch before the train loader opens. Exact resume currently
+requires the cursor-aware manifest-backed streaming path; a local map-style
+loader without persisted sampler state is rejected rather than replaying a
+prefix. `latest` means the newest
+verified recovery in this run's configured checkpoint directory and falls back
+to an older verified recovery if the newest file is corrupt.
+
 ### Run the model training script
 ```bash
 make train
@@ -94,8 +123,8 @@ for both train and validation:
 - training logs per-step `train/loss_step` plus epoch-aggregated train/validation loss and perplexity to Weights & Biases
 - when W&B is enabled, training automatically enables W&B model watching with default settings so gradient panels can be collected
 - this does not add a custom scalar grad-norm line, and short runs may still show little or no gradient data with W&B's default watch behavior
-- when W&B is enabled, training also logs the final `model_last.pth` checkpoint as a model artifact
-- you can additionally log model artifacts during training with `wandb.log_model_every_n_epoch=<n>`
+- local recovery, best, final, and milestone checkpoints remain complete and
+  usable with W&B disabled; CKPT-001 does not define W&B upload/retention policy
 
 At inference time, the model predicts one tokenizer token at a time, not one
 whole word at a time. The canonical vocabulary has 50,570 IDs; BOS is 1, PAD is

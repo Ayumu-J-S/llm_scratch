@@ -27,20 +27,84 @@ class StreamingTokenDataset(IterableDataset):
         self.config = _stream_loader_config(config, window_length=self.window_length)
         CanonicalTokenizer.from_config(self.config.get("tokenizer"))
         self.resolved_manifests = preflight_stream_manifests(self.config)
+        self._cursor: dict[str, Any] | None = _optional_cursor(self.config.get("cursor"))
+        self._resume_cursor_pending = bool(
+            self._cursor is not None and not self._cursor.get("pass_complete")
+        )
+        self._active_loader: StreamLoader | None = None
 
     def __iter__(self):
         with StreamLoader(
             self.config,
             resolved_manifests=self.resolved_manifests,
         ) as loader:
-            for sample in loader:
-                input_ids = torch.as_tensor(sample["input_ids"], dtype=torch.long)
-                if input_ids.numel() != self.window_length:
-                    raise ValueError(
-                        "StreamingTokenDataset expected packed windows of "
-                        f"{self.window_length} tokens, got {input_ids.numel()}"
-                    )
-                yield {"input_ids": input_ids}
+            if self._cursor is not None:
+                loader.load_state_dict(
+                    self._cursor,
+                    resume_completed=self._resume_cursor_pending,
+                )
+            self._resume_cursor_pending = False
+            self._active_loader = loader
+            completed = False
+            try:
+                for sample in loader:
+                    # StreamLoader advances this acknowledgement cursor before
+                    # yielding the sample.  Store it before our own yield so a
+                    # DataLoader batch boundary can be checkpointed without
+                    # replaying its final item on resume.
+                    self._cursor = loader.state_dict()
+                    input_ids = torch.as_tensor(sample["input_ids"], dtype=torch.long)
+                    if input_ids.numel() != self.window_length:
+                        raise ValueError(
+                            "StreamingTokenDataset expected packed windows of "
+                            f"{self.window_length} tokens, got {input_ids.numel()}"
+                        )
+                    yield {"input_ids": input_ids}
+                completed = True
+            finally:
+                if self._active_loader is loader:
+                    # Retain every cursor for checkpoint observability. A
+                    # later terminal restore explicitly asks StreamLoader for
+                    # its next pass; an interrupted cursor resumes its suffix.
+                    if loader.cursor_enabled:
+                        self._cursor = loader.state_dict()
+                        self._resume_cursor_pending = not completed
+                    else:
+                        self._cursor = None
+                        self._resume_cursor_pending = False
+                    self._active_loader = None
+
+    def state_dict(self) -> dict[str, Any] | None:
+        """Return the next-sample stream cursor for a trainer checkpoint."""
+
+        if self._active_loader is not None:
+            if not self._active_loader.cursor_enabled:
+                return None
+            self._cursor = self._active_loader.state_dict()
+        if self._cursor is None:
+            # Validate and materialize the initial JSON-safe cursor through the
+            # existing StreamLoader contract instead of duplicating it here.
+            probe = StreamLoader(self.config, resolved_manifests=self.resolved_manifests)
+            if not probe.cursor_enabled:
+                return None
+            self._cursor = probe.state_dict()
+        return copy.deepcopy(self._cursor)
+
+    def load_state_dict(self, state: Mapping[str, Any]) -> None:
+        """Install a previously captured stream cursor before iteration starts."""
+
+        if self._active_loader is not None:
+            raise RuntimeError("cannot replace a streaming cursor while iteration is active")
+        cursor = _optional_cursor(state)
+        assert cursor is not None
+        config = copy.deepcopy(self.config)
+        # A completed pass has no unconsumed suffix. Its next invocation must
+        # take the existing StreamLoader next-pass path, not treat completion
+        # as a zero-length interrupted suffix.
+        self._resume_cursor_pending = not bool(cursor.get("pass_complete"))
+        probe = StreamLoader(config, resolved_manifests=self.resolved_manifests)
+        probe.load_state_dict(cursor, resume_completed=self._resume_cursor_pending)
+        self._cursor = probe.state_dict()
 
 
 def causal_lm_collate_fn(samples: list[dict[str, torch.Tensor]]) -> dict[str, torch.Tensor]:
@@ -105,3 +169,11 @@ def _to_plain_dict(config: Mapping[str, Any] | DictConfig) -> dict[str, Any]:
     if isinstance(config, Mapping):
         return copy.deepcopy(dict(config))
     raise TypeError("streaming config must be a mapping")
+
+
+def _optional_cursor(value: Any) -> dict[str, Any] | None:
+    if value is None:
+        return None
+    if not isinstance(value, Mapping):
+        raise TypeError("streaming cursor must be a mapping when configured")
+    return copy.deepcopy(dict(value))

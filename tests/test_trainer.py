@@ -234,8 +234,15 @@ def test_validation_and_checkpoint_cadences_are_independent(tmp_path: Path, monk
     monkeypatch.setattr(trainer, "_evaluate", evaluate)
     trainer.fit()
     assert evaluations == [2, 4]
-    assert len(list(tmp_path.glob("model_last.pth"))) == 1
+    assert len(list(tmp_path.glob("recovery-step-*.pt"))) == 1
+    assert (tmp_path / "best.pt").is_file()
+    assert (tmp_path / "final.pt").is_file()
     assert trainer._last_checkpoint_step == 3
+    checkpoint_record = next(item for item in trainer.metrics if item.get("event") == "checkpoint")
+    assert checkpoint_record["checkpoint/size_bytes"] > 0
+    assert checkpoint_record["checkpoint/write_seconds"] >= 0.0
+    assert checkpoint_record["checkpoint/verification_seconds"] >= 0.0
+    assert checkpoint_record["checkpoint/pause_seconds"] >= 0.0
 
 
 def test_token_cadence_records_boundaries_and_local_metrics(tmp_path: Path):
@@ -266,6 +273,24 @@ def test_token_cadence_records_boundaries_and_local_metrics(tmp_path: Path):
         for item in trainer.metrics
     )
     assert (tmp_path / "metrics.jsonl").exists()
+
+
+def test_milestone_checkpoint_is_saved_once_per_step_across_epoch_end(tmp_path: Path):
+    trainer = _trainer(
+        tmp_path,
+        [_batch([[0, 1]]) for _ in range(2)],
+        max_steps=2,
+        milestone_every_n_steps=1,
+    )
+
+    trainer.fit()
+
+    milestones = [item for item in trainer.metrics if item.get("event") == "milestone"]
+    assert [item["optimizer_step"] for item in milestones] == [1, 2]
+    assert sorted(path.name for path in tmp_path.glob("milestone-step-*.pt")) == [
+        "milestone-step-000000000001.pt",
+        "milestone-step-000000000002.pt",
+    ]
 
 
 def test_nonfinite_gradient_records_context_before_counters_advance(tmp_path: Path):

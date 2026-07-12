@@ -112,7 +112,7 @@ _TRAINING = {
     "max_grad_norm",
 }
 _MODEL = {"embed_size", "num_heads", "num_layers", "dropout"}
-_ARTIFACTS = {"checkpoints_dir"}
+_ARTIFACTS = {"checkpoints_dir", "keep_last_n", "resume_path"}
 _WANDB = {"enabled", "project", "entity", "name", "mode", "log_model_every_n_epoch"}
 
 
@@ -360,6 +360,24 @@ def validate_training_config(config: Mapping[str, Any] | DictConfig) -> dict[str
             or cadence_value < 1
         ):
             raise ConfigPreflightError(f"training.{cadence_name} must be positive when configured")
+    artifacts = _plain(cfg.get("artifacts", {}))
+    if artifacts:
+        _required(artifacts, ("checkpoints_dir", "keep_last_n"), "artifacts")
+        if (
+            not isinstance(artifacts["checkpoints_dir"], str)
+            or not artifacts["checkpoints_dir"].strip()
+        ):
+            raise ConfigPreflightError("artifacts.checkpoints_dir must be a non-empty path string")
+        keep_last_n = artifacts["keep_last_n"]
+        if isinstance(keep_last_n, bool) or not isinstance(keep_last_n, int) or keep_last_n < 1:
+            raise ConfigPreflightError("artifacts.keep_last_n must be a positive integer")
+        resume_path = artifacts.get("resume_path")
+        if resume_path is not None and (
+            not isinstance(resume_path, str) or not resume_path.strip()
+        ):
+            raise ConfigPreflightError(
+                "artifacts.resume_path must be null or a non-empty checkpoint path"
+            )
     if data["mode"] == "memorization_smoke":
         if profile.get("purpose") != "memorization_smoke":
             raise ConfigPreflightError(

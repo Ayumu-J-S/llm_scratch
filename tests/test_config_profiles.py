@@ -32,6 +32,7 @@ def test_canonical_profiles_compose_with_real_root_sections():
 def test_streaming_profile_has_distinct_manifest_selections():
     config = compose("profile=pretrain_streaming")
     validate_training_config(config)
+    assert config.data.streaming.repeat is True
     train = config.data.streaming.train.sources[0]
     validation = config.data.streaming.validation.sources[0]
     assert train.selection == "train"
