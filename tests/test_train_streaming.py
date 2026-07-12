@@ -7,16 +7,16 @@ from omegaconf import OmegaConf
 
 import train as train_module
 from data.manifests import ManifestError
-from tokenizer.bpe import BPETokenizer
+from tokenizer.canonical import CanonicalTokenizer
 
 
-def test_streaming_validation_keeps_partial_batch(tmp_path):
-    tokenizer_dir = tmp_path / "tokenizers"
-    tokenizer_dir.mkdir()
-    tokenizer = BPETokenizer(special_tokens=["<eos>"])
-    tokenizer.train("the model learns from data. the model predicts the next token.", vocab_size=40)
-    tokenizer.save(str(tokenizer_dir / "tokenizer.json"))
+TOKENIZER_CONFIG = {
+    "manifest_path": "assets/tokenizers/llm-jp-v1/manifest.json",
+    "expected_fingerprint": "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b",
+}
 
+
+def test_streaming_validation_keeps_partial_batch():
     streaming_split = {
         "max_tokens": "max",
         "add_eos": False,
@@ -52,10 +52,7 @@ def test_streaming_validation_keeps_partial_batch(tmp_path):
                 "sequence_length": 3,
                 "batch_size": 100,
             },
-            "artifacts": {
-                "tokenizers_dir": str(tokenizer_dir),
-                "tokenizer_filename": "tokenizer.json",
-            },
+            "tokenizer": TOKENIZER_CONFIG,
         }
     )
 
@@ -91,15 +88,11 @@ def test_default_smoke_requires_the_pinned_memorization_manifest():
     assert manifest.purpose.value == "memorization_smoke"
     assert len(manifest.documents) == 2
 
-    tokenizer_text = (Path(__file__).parents[1] / "data" / "inputLearnText.txt").read_text(
-        encoding="utf-8"
-    )
-    tokenizer = BPETokenizer(special_tokens=["<pad>", "<bos>", "<eos>"])
-    tokenizer.train(tokenizer_text, vocab_size=len(set(tokenizer_text)) + 3)
+    tokenizer = CanonicalTokenizer.from_config(TOKENIZER_CONFIG)
     assert train_module.resolved_manifest_token_ids(manifest, tokenizer)
 
 
-def test_streaming_train_validation_same_membership_fails_before_iteration(tmp_path):
+def test_streaming_train_validation_same_membership_fails_before_iteration():
     fixture = Path(__file__).parent / "fixtures" / "data_manifests"
     source = {
         "type": "manifest",
@@ -128,10 +121,7 @@ def test_streaming_train_validation_same_membership_fails_before_iteration(tmp_p
                 }
             },
             "training": {"sequence_length": 3, "batch_size": 1},
-            "artifacts": {
-                "tokenizers_dir": str(tmp_path / "unused"),
-                "tokenizer_filename": "unused.json",
-            },
+            "tokenizer": TOKENIZER_CONFIG,
         }
     )
     train_loader = train_module.build_streaming_dataloader(cfg, "train")
@@ -140,7 +130,7 @@ def test_streaming_train_validation_same_membership_fails_before_iteration(tmp_p
         train_module.validate_streaming_dataloaders(train_loader, validation_loader)
 
 
-def test_training_streaming_rejects_false_and_empty_manifest_bypasses(tmp_path):
+def test_training_streaming_rejects_false_and_empty_manifest_bypasses():
     memory_split = {
         "max_tokens": "max",
         "add_eos": False,
@@ -155,10 +145,7 @@ def test_training_streaming_rejects_false_and_empty_manifest_bypasses(tmp_path):
     }
     base = {
         "training": {"sequence_length": 3, "batch_size": 1},
-        "artifacts": {
-            "tokenizers_dir": str(tmp_path / "unused"),
-            "tokenizer_filename": "unused.json",
-        },
+        "tokenizer": TOKENIZER_CONFIG,
     }
     false_cfg = OmegaConf.create(
         {

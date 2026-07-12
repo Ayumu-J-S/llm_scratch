@@ -1,3 +1,7 @@
+defaults:
+  - tokenizer: canonical
+  - _self_
+
 data:
   mode: memorization_smoke
   memorization:
@@ -58,8 +62,6 @@ model:
 
 artifacts:
   checkpoints_dir: artifacts/checkpoints
-  tokenizers_dir: artifacts/tokenizers
-  tokenizer_filename: tokenizer.json
 
 wandb:
   enabled: true

@@ -4,13 +4,10 @@ import hashlib
 import json
 import multiprocessing as mp
 import time
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
-from tokenizers import Tokenizer
-from tokenizers.decoders import Fuse
-from tokenizers.models import WordLevel
-from tokenizers.pre_tokenizers import Split
 
 import data.manifests as manifests_module
 import data.stream_loader.cache as cache_module
@@ -25,6 +22,7 @@ from data.manifests import (
     build_local_jsonl_manifest,
     load_manifest,
     preflight_manifest,
+    validate_disjoint_manifests,
 )
 from data.splits import DataPurpose, assign_split, dataset_fingerprint, split_fingerprint
 from data.stream_loader import BoundedShardCache, StreamLoader
@@ -36,13 +34,10 @@ BILINGUAL_MANIFEST = FIXTURES / "bilingual.manifest.json"
 BILINGUAL_FINGERPRINT = "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19"
 MEMORIZATION_FINGERPRINT = "00c3797a7d0eda13950fd699a60c45fcd388829f016479caaeb369438767bd31"
 BENCHMARK_FINGERPRINT = "a12e307b8c3817efe956d8d37c55edcde56f30cf695e83a9e60155ff5949eb79"
-
-
-def character_tokenizer() -> Tokenizer:
-    tokenizer = Tokenizer(WordLevel({"<unk>": 0}, unk_token="<unk>"))
-    tokenizer.pre_tokenizer = Split(pattern="", behavior="isolated")
-    tokenizer.decoder = Fuse()
-    return tokenizer
+TOKENIZER_CONFIG = {
+    "manifest_path": "assets/tokenizers/llm-jp-v1/manifest.json",
+    "expected_fingerprint": "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b",
+}
 
 
 def _write_json(path: Path, value: object) -> None:
@@ -141,6 +136,33 @@ def test_committed_manifest_is_strict_and_disjoint():
         document.content_sha256 for document in validation.documents
     )
     assert train.dataset_fingerprint == validation.dataset_fingerprint
+
+
+def test_cross_manifest_content_overlap_is_rejected_even_when_ids_differ():
+    train = preflight_manifest(
+        BILINGUAL_MANIFEST,
+        expected_fingerprint=BILINGUAL_FINGERPRINT,
+        selection="train",
+    )
+    validation = preflight_manifest(
+        BILINGUAL_MANIFEST,
+        expected_fingerprint=BILINGUAL_FINGERPRINT,
+        selection="validation",
+    )
+    overlapping_document = replace(
+        validation.documents[0],
+        content_sha256=train.documents[0].content_sha256,
+    )
+    validation_with_content_overlap = replace(
+        validation,
+        documents=(overlapping_document, *validation.documents[1:]),
+    )
+
+    with pytest.raises(ManifestError, match="normalized-content overlap"):
+        validate_disjoint_manifests(
+            {"train": train},
+            {"validation": validation_with_content_overlap},
+        )
 
 
 def test_manifest_schema_and_fingerprint_mutations_fail(tmp_path):
@@ -380,6 +402,7 @@ def test_manifest_loader_propagates_metadata_and_preserves_text(monkeypatch):
 
     monkeypatch.setattr(manifests_module, "normalized_content_sha256", counted)
     config = {
+        "tokenizer": TOKENIZER_CONFIG,
         "output_mode": "raw_text",
         "max_tokens": "max",
         "add_eos": False,
@@ -397,7 +420,7 @@ def test_manifest_loader_propagates_metadata_and_preserves_text(monkeypatch):
             }
         ],
     }
-    loader = StreamLoader(config, tokenizer=character_tokenizer())
+    loader = StreamLoader(config)
     assert calls == 20
     samples = list(loader)
     assert calls == 20
@@ -421,6 +444,7 @@ def test_streaming_dataset_preflights_only_once_across_two_epochs(monkeypatch):
     monkeypatch.setattr(manifests_module, "normalized_content_sha256", counted)
     dataset = StreamingTokenDataset(
         config={
+            "tokenizer": TOKENIZER_CONFIG,
             "max_tokens": "max",
             "add_eos": False,
             "require_manifests": True,
@@ -436,7 +460,6 @@ def test_streaming_dataset_preflights_only_once_across_two_epochs(monkeypatch):
             ],
         },
         sequence_length=8,
-        tokenizer=character_tokenizer(),
     )
     assert calls == 20
     assert list(dataset)
@@ -444,10 +467,44 @@ def test_streaming_dataset_preflights_only_once_across_two_epochs(monkeypatch):
     assert calls == 20
 
 
+def test_streaming_dataset_validates_canonical_tokenizer_before_manifest_source(monkeypatch):
+    calls = 0
+    original = manifests_module.normalized_content_sha256
+
+    def counted(text: str) -> str:
+        nonlocal calls
+        calls += 1
+        return original(text)
+
+    monkeypatch.setattr(manifests_module, "normalized_content_sha256", counted)
+    config = {
+        "tokenizer": {**TOKENIZER_CONFIG, "expected_fingerprint": "0" * 64},
+        "max_tokens": "max",
+        "add_eos": False,
+        "require_manifests": True,
+        "sources": [
+            {
+                "name": "fixture",
+                "type": "manifest",
+                "manifest_path": str(BILINGUAL_MANIFEST),
+                "expected_fingerprint": BILINGUAL_FINGERPRINT,
+                "selection": "train",
+                "ratio": 1.0,
+            }
+        ],
+    }
+
+    with pytest.raises(ValueError, match="canonical tokenizer fingerprint mismatch"):
+        StreamingTokenDataset(config=config, sequence_length=8)
+
+    assert calls == 0
+
+
 def test_stream_loader_rejects_hydra_benchmark_authority_bypass():
     with pytest.raises(ValueError, match="cannot configure evaluation authority"):
         StreamLoader(
             {
+                "tokenizer": TOKENIZER_CONFIG,
                 "output_mode": "raw_text",
                 "max_tokens": "max",
                 "add_eos": False,
@@ -465,12 +522,36 @@ def test_stream_loader_rejects_hydra_benchmark_authority_bypass():
                     }
                 ],
             },
-            tokenizer=character_tokenizer(),
+        )
+
+
+def test_manifest_loader_rejects_process_prefetch():
+    with pytest.raises(ValueError, match="require thread prefetch"):
+        StreamLoader(
+            {
+                "tokenizer": TOKENIZER_CONFIG,
+                "output_mode": "raw_text",
+                "max_tokens": "max",
+                "add_eos": False,
+                "require_manifests": True,
+                "prefetch": {"enabled": True, "mode": "process", "buffer_size": 2},
+                "datasets": [
+                    {
+                        "name": "fixture",
+                        "type": "manifest",
+                        "manifest_path": str(BILINGUAL_MANIFEST),
+                        "expected_fingerprint": BILINGUAL_FINGERPRINT,
+                        "selection": "train",
+                        "ratio": 1.0,
+                    }
+                ],
+            }
         )
 
 
 def test_seed_and_prefetch_do_not_change_manifest_membership():
     base = {
+        "tokenizer": TOKENIZER_CONFIG,
         "output_mode": "raw_text",
         "max_tokens": "max",
         "add_eos": False,
@@ -494,12 +575,7 @@ def test_seed_and_prefetch_do_not_change_manifest_membership():
             "seed": seed,
             "prefetch": {"enabled": enabled, "mode": "thread", "buffer_size": 3},
         }
-        memberships.append(
-            {
-                sample["metadata"]["document_id"]
-                for sample in StreamLoader(config, tokenizer=character_tokenizer())
-            }
-        )
+        memberships.append({sample["metadata"]["document_id"] for sample in StreamLoader(config)})
     assert memberships[0] == memberships[1]
 
 
@@ -508,6 +584,7 @@ def test_real_config_rejects_memory_and_iterable_sources():
         with pytest.raises(ValueError, match="manifest-backed"):
             StreamLoader(
                 {
+                    "tokenizer": TOKENIZER_CONFIG,
                     "require_manifests": True,
                     "output_mode": "raw_text",
                     "add_eos": False,
@@ -521,7 +598,6 @@ def test_real_config_rejects_memory_and_iterable_sources():
                         }
                     ],
                 },
-                tokenizer=character_tokenizer(),
             )
 
 

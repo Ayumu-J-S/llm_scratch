@@ -1,6 +1,6 @@
 # DATA-002 — Immutable Manifests and Disjoint Splits
 
-- PR: [#13](https://github.com/Ayumu-J-S/llm_scratch/pull/13) (ready for human review)
+- PR: [#13](https://github.com/Ayumu-J-S/llm_scratch/pull/13) (draft during dependency integration)
 - Branch: `codex/data-002-immutable-manifests`
 - Ticket: `DATA-002`
 - Hypothesis: immutable source manifests plus deterministic document identity
@@ -8,7 +8,7 @@
   auditable before source access or training without adding per-sample hot-path
   checksum work.
 - Started: 2026-07-11T17:38:46Z
-- Final verdict: PASS WITH NOTE
+- Current verdict: integration review pending; the earlier isolated head was PASS WITH NOTE
 - Final record owner: primary task; exact runtime identity not exposed
 
 ## Scope and decision context
@@ -44,6 +44,71 @@
 | 2 | independent `/review` | not exposed by runtime | not exposed by runtime | `b4bcd7f4b86a8477ff94670cff2f0b387bfb0da8` | Mandatory independent review against DATA-002, philosophy, and selected CHECK sections | FAIL | Training still honored `require_manifests: false` and empty resolved mappings; canonical smoke contained Japanese outside the committed English-project BPE; documented streaming budgets guaranteed fixture exhaustion | Review handoff supplied by primary task; exact model/mode unavailable |
 | 3 | repair | not exposed by runtime | not exposed by runtime | stable review-failed commit `b4bcd7f4` and exact findings | Requested Luna / Extra High or maximum; close only the three review findings and run actual bounded workflows | completed | Training forces manifest-only streaming and rejects explicit false/empty mappings; smoke is pinned English compatible with the current BPE; fixture streaming budgets use `max`; obsolete mutable-path override removed | 64 passed, 3 explicit network skips; actual tokenizer+smoke and bilingual streaming one-epoch CPU commands completed offline |
 | 3 | re-review | not exposed by runtime | not exposed by runtime | `96b2227054177fd245d7c3956392b224f542c6a7` | Independent DATA-002 `/review` of every prior finding and the complete ticket | PASS WITH NOTE | All authority, overlap, tokenizer-compatibility, workflow, split, lifecycle, and documentation findings closed; DATA-004 large-corpus work remains explicitly deferred | 64 passed, 3 explicit network skips; focused 5 passed; two actual bounded CPU workflows; quality/Hydra checks pass |
+| 4 | dependency integration implementation | not exposed by runtime | not exposed by runtime | DATA-002 head `38bc94cfe2fb2a20d010174bc98d693324aa7101`; `origin/main` `073514455a6448c2471c75e433a0fc3c2021b2bc` after PRs #10-#12 | Requested Luna / Extra High; normally merge current main, preserve DATA-001/TOK-001 invariants, compose canonical tokenizer with manifest authority, rerun real bounded workflows, and leave draft for fresh independent review | completed; independent review pending | Normal merge is conflict-resolved; canonical-only tokenizer validation remains before manifest source access; DATA-001 stride, quota boundaries, accounting, and process state remain; DATA-002 adds one-time preflight, disjointness, cache identity, and thread-only manifest prefetch | 140 passed, 1 explicit HF opt-in skip; 20 exact integration regressions; resolved Hydra and debug; canonical memorization/streaming CPU epochs; bounded R1; Ruff/format/lock/diff pass |
+
+## Current merge authorization
+
+- On 2026-07-12, the human explicitly authorized the bounded set of repository
+  PRs #10 through #15 for guarded agent self-merge after human-merging the
+  bootstrap policy PR #16.
+- Authorization alone is not a merge verdict. PR #13 remains a draft during
+  this integration cycle and may not be marked ready or merged until the exact
+  integrated head passes an independent review, all actionable findings are
+  repaired and re-reviewed, expected-check and review-thread inventories are
+  current, and the final no-drift audit required by `PHILOSOPHY.md` succeeds.
+
+## Dependency integration evidence (cycle 4)
+
+- Integration method: normal merge, not rebase or force push. The DATA-002
+  branch started at `38bc94cfe2fb2a20d010174bc98d693324aa7101` and merged
+  `origin/main` `073514455a6448c2471c75e433a0fc3c2021b2bc`, which already
+  contains human-merged PRs #10, #11, and #12.
+- Conflict policy: preserve the canonical two-field tokenizer config and raw
+  reserved-control rejection from TOK-001; preserve stride-`L` over `L+1`, EOS
+  quota boundaries, unique target accounting, and parent-visible process
+  prefetch state from DATA-001; add DATA-002 manifest identity only at the
+  source/dataset/training seams.
+- Offline suite: `HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 WANDB_MODE=disabled
+  uv run --group dev pytest -q` reported 140 passed and one explicit opt-in HF
+  integration skip. The skipped test requires
+  `RUN_HF_DATASET_INTEGRATION=1`; no manifest correctness test skipped.
+- Exact integration regressions: 20 focused tests passed across manifest
+  mutation/checksum/split failures, document-ID and normalized-content overlap,
+  reserved benchmark and Hydra-authority denial, one preflight across two
+  traversals, canonical-tokenizer-before-source ordering, reorder/prefetch
+  membership, URL cache corruption, cross-process URL+SHA locking, manifest
+  process-prefetch rejection, DATA-001 process accounting, stride/carry, quota
+  boundary behavior, and a finite tiny decoder update.
+- Resolved execution paths: default and `data.mode=streaming` Hydra jobs both
+  resolve to the same canonical tokenizer fingerprint
+  `12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b`.
+  The standalone debug command emitted one `(1, 8)` inputs/labels batch with a
+  true shift check from the train manifest selection.
+- Actual canonical memorization workflow: a one-epoch CPU run at sequence
+  length 4, batch size 1, width 16, one layer, W&B disabled completed 13 train
+  and validation windows with finite `train_loss=10.722412` and
+  `val_loss=10.485553`; its final checkpoint was 6,695,029 bytes under `/tmp`.
+- Actual disjoint streaming workflow: the analogous one-epoch CPU run at
+  sequence length 8 completed without quota exhaustion with finite
+  `train_loss=10.946695` and `val_loss=10.821602`; its final checkpoint was
+  6,695,285 bytes under `/tmp`. The run uses the committed 11-document train and
+  9-document validation selections and the same canonical tokenizer.
+- Bounded R1 fixture measurement: 50 train-manifest preflights had 0.375 ms
+  median (0.367-0.798 ms). Dataset construction, including canonical tokenizer
+  validation plus the sole manifest preflight, took 109.026 ms. Thirty complete
+  canonical/thread-prefetched traversals had 123.965 ms median, 14 windows and
+  112 next-token targets each; the identity-hash spy stayed at exactly 20 calls
+  after construction and 32 traversals. Process `ru_maxrss` was 336,496 KiB.
+  This tiny CPU fixture is lifecycle evidence only and makes no real-data, GPU,
+  DGX, or throughput claim.
+- Quality gates: the 11 Python files changed relative to current main pass Ruff
+  check and format check; `uv lock --check`, staged/unstaged diff checks, and
+  all three config/workflow commands pass. A repository-wide format check still
+  identifies three pre-existing main-branch files; they are unchanged by this
+  PR and were not reformatted out of scope.
+- Current handoff: implementation is complete but no verdict is claimed for the
+  integrated head. PR #13 stays draft for a fresh independent `/review` against
+  DATA-002, `PHILOSOPHY.md`, and applicable `CHECK.md` sections.
 
 ## Check selection and verdicts
 
@@ -124,7 +189,11 @@ text, and both fixture horizons are `max`. Actual offline one-epoch smoke and
 streaming commands completed. Independent re-review returned PASS WITH NOTE;
 the note is limited to work explicitly deferred to DATA-004.
 
-## Final evidence
+## Isolated-head evidence (cycles 1-3)
+
+The following evidence is retained as the historical record for the original
+isolated branch. Cycle 4 above supersedes its tokenizer commands and dependency
+merge assumptions for the current PR head.
 
 - Resolved Hydra command/config: `uv run python src/train.py --cfg job
   --resolve`; the default `data.mode: memorization_smoke` names the committed
@@ -200,15 +269,17 @@ the note is limited to work explicitly deferred to DATA-004.
 - Cache boundary: manifested URL entries are keyed by URL plus expected SHA-256
   and installed atomically under a per-key Linux file lock. The repair does not
   claim global cross-key cache-capacity serialization.
-- Merge seam: `src/data/stream_loader/loader.py`, the two Hydra configs, and
-  `src/train.py` overlap unmerged DATA-001/TOK-001 siblings; the portable core
-  is isolated in `src/data/{identity,manifests,splits}.py`.
+- Merge seam at that time: `src/data/stream_loader/loader.py`, the two Hydra
+  configs, and `src/train.py` overlapped then-unmerged DATA-001/TOK-001 sibling
+  work. Cycle 4 resolves that seam while the portable core remains isolated in
+  `src/data/{identity,manifests,splits}.py`.
 - Unresolved risks: no R2/DGX or consequential real-source run; no real-data
   throughput claim. The canonical tokenizer and both bounded training seams
   were exercised with temporary artifacts. Legacy direct sources remain usable
   for component tests, while the training entrypoint forces manifest-only data.
-- Human decision requested: review and merge if the evidence is acceptable;
-  model review is not merge authority.
+- Current merge decision is governed by the explicit cycle-4 authorization and
+  all guarded self-merge gates; the earlier model verdict alone is not merge
+  authority for the integrated head.
 
 ## Model assessment from this ticket
 
@@ -219,11 +290,12 @@ the note is limited to work explicitly deferred to DATA-004.
 | not exposed by runtime / not exposed by runtime | initial implementation | Implemented the bounded stdlib core, fail-closed source identity, one loader seam, committed fixtures, mutation/invariance tests, and honest R1 evidence without taking later tickets | Requested Luna/Extra High identity and mode were unavailable; first builder invocation omitted `PYTHONPATH`; large HF streaming remains blocked | Accepted planner handoff, exact acceptance tests, narrow sibling-branch seam, and verified source facts | implementation completed; first reviews failed |
 | not exposed by runtime / not exposed by runtime | precommit audit and repair | Found authority, lifecycle, cross-loader, mutable-smoke, package-path, and process-cache defects that unit-level identity tests missed; repaired each with exact regressions | Runtime did not expose an independent model/mode; the repair still missed a training-entrypoint bypass and runnable-workflow defects | Concrete exploit reproductions and actual two-epoch dataset behavior | initial review FAIL; repair required another cycle |
 | not exposed by runtime / not exposed by runtime | independent review 2, repair 3, and re-review 3 | Identified remaining production authority, tokenizer compatibility, and documented-horizon defects; repair added training-entrypoint guards and actual offline workflow evidence; re-review closed every finding | Previous repair stopped at component tests and did not execute the canonical smoke/streaming commands | Stable reviewed commit, exact failing cases, current BPE corpus, bounded CPU commands, and full acceptance matrix | PASS WITH NOTE; DATA-004 boundary retained |
+| not exposed by runtime / not exposed by runtime | dependency integration implementation | Reconciled the accepted manifest contract with current canonical-tokenizer and causal-stream semantics; retained all three tickets' invariants and executed both real bounded training modes | Exact requested Luna / Extra High identity and mode were not exposed; independent review is still required before any integrated verdict | Stable sibling merge commits, predeclared conflict policy, exact focused regressions, and actual canonical runs | implementation complete; integrated review pending |
 
 ## Ledger update
 
 - [x] Added the PR/ticket row to `docs/model-runs/README.md`.
-- [x] Updated implementation, two failed reviews, two repair-attempt counts, and
-  the passing independent re-review.
-- [x] Confirmed that the PR execution trail matches this record after the final
-  documentation commit.
+- [x] Updated implementation, two failed reviews, three repair/integration
+  attempt counts, and the earlier passing independent re-review.
+- [ ] Reconcile the integrated independent-review verdict and exact reviewed
+  head after cycle 4 review.

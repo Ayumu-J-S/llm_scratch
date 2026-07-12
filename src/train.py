@@ -5,13 +5,13 @@ import torch
 from loguru import logger
 from omegaconf import DictConfig, OmegaConf
 
-from data.streaming_dataset import create_streaming_token_dataloader
 from data.manifests import ResolvedManifest, preflight_manifest, validate_disjoint_manifests
+from data.streaming_dataset import create_streaming_token_dataloader
 from data.text_dataset import create_autoregressive_dataloader
 from models.simple_decoder_transformer import SimpleDecoderTransformer
 from training.optimization import build_optimizer, build_scheduler
 from training.trainer import Trainer
-from tokenizer.artifacts import load_tokenizer
+from tokenizer.canonical import CanonicalTokenizer
 from utils.model import get_parameter_counts
 
 
@@ -34,9 +34,21 @@ def log_sample_batch(tokenizer, batch) -> None:
     )
 
 
+def load_token_ids(input_path: str, tokenizer, split_name: str) -> list[int]:
+    split_label = split_name.capitalize()
+    logger.info("Loading {} corpus from: {}", split_name, input_path)
+    text = (ROOT_DIR / input_path).read_text(encoding="utf-8")
+    logger.info("Tokenizing {} corpus...", split_name)
+    token_ids = tokenizer.encode(text)
+    logger.info("{} corpus length: {} tokens", split_label, len(token_ids))
+    return token_ids
+
+
 def build_tokenizer_config(cfg: DictConfig) -> dict[str, str]:
-    tokenizer_path = ROOT_DIR / cfg.artifacts.tokenizers_dir / cfg.artifacts.tokenizer_filename
-    return {"kind": "bpe", "path": str(tokenizer_path)}
+    config = OmegaConf.to_container(cfg.tokenizer, resolve=True)
+    if not isinstance(config, dict):
+        raise TypeError("tokenizer config must resolve to a mapping")
+    return config
 
 
 def to_plain_config(config: DictConfig) -> dict:
@@ -123,16 +135,14 @@ def main(cfg: DictConfig) -> None:
     logger.info("Using device: {}", DEVICE)
 
     data_mode = cfg.data.get("mode")
+    logger.info("Loading tokenizer artifact...")
+    tokenizer = CanonicalTokenizer.from_config(cfg.tokenizer)
+    logger.info("Tokenizer vocab size: {}", tokenizer.vocab_size)
+    logger.info("Tokenizer fingerprint: {}", tokenizer.fingerprint)
+
     smoke_manifest = None
     if data_mode == "memorization_smoke":
         smoke_manifest = resolve_memorization_smoke(cfg.data)
-
-    logger.info("Loading tokenizer artifact...")
-    tokenizer = load_tokenizer(
-        cfg.artifacts.tokenizers_dir,
-        cfg.artifacts.tokenizer_filename,
-    )
-    logger.info("Tokenizer vocab size: {}", tokenizer.vocab_size)
 
     if data_mode == "memorization_smoke":
         assert smoke_manifest is not None

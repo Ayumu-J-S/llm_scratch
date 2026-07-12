@@ -10,7 +10,10 @@ Preview the default config through the training dataset/collator path, without e
 uv run python scripts/debug_stream_loader.py --config config/stream_loader.yaml --limit 1
 ```
 
-The debug script caps each document to 50,000 characters before tokenization for faster inspection. Use `--max-doc-chars 0` to preview full documents, and `--prefetch` to use the config's prefetch settings.
+The debug script caps legacy non-manifest documents to 50,000 characters before
+tokenization for faster inspection. Manifest documents retain their fully
+verified text. Use `--max-doc-chars 0` to disable the legacy-source cap, and
+`--prefetch` to use the config's prefetch settings.
 It prints the trainer batch contract: `inputs`, `labels`, their shapes, and a shift check showing that labels are derived from the same packed token window.
 
 ## Training Usage
@@ -27,46 +30,45 @@ data:
 ```
 
 Switch to the streaming path when you want to exercise the distinct manifest
-selections. The committed fixture is bilingual, so use a tokenizer artifact
-whose character vocabulary covers that fixture and keep this proof run small:
-
-```bash
-PYTHONPATH=src uv run python - <<'PY'
-import json
-from pathlib import Path
-from tokenizer.bpe import BPETokenizer
-
-source = Path("tests/fixtures/data_manifests/bilingual.jsonl")
-text = "\n".join(json.loads(line)["text"] for line in source.read_text().splitlines())
-tokenizer = BPETokenizer(special_tokens=["<pad>", "<bos>", "<eos>"])
-tokenizer.train(text, vocab_size=512)
-tokenizer.save("/tmp/data002-bilingual-tokenizer/tokenizer.json")
-PY
-```
+selections with the same pinned canonical tokenizer used everywhere else. Keep
+this proof run small:
 
 ```bash
 uv run python src/train.py data.mode=streaming training.epochs=1 \
   training.sequence_length=8 training.batch_size=1 \
   model.embed_size=16 model.num_heads=2 model.num_layers=1 model.dropout=0 \
-  wandb.enabled=false artifacts.tokenizers_dir=/tmp/data002-bilingual-tokenizer \
-  artifacts.checkpoints_dir=/tmp/data002-stream-checkpoints
+  wandb.enabled=false artifacts.checkpoints_dir=/tmp/data002-stream-checkpoints
 ```
 
-`src/train.py` builds streaming train and validation loaders from `data.streaming.train` and `data.streaming.validation`, adds the project tokenizer artifact, packs token windows, and returns the standard trainer batch contract:
+`src/train.py` builds streaming train and validation loaders from `data.streaming.train` and `data.streaming.validation`, adds the canonical tokenizer config, packs token windows, and returns the standard trainer batch contract:
 
 - `inputs`: left-to-right causal-LM input tokens
 - `labels`: the same packed stream shifted by one token
+
+For model context length `L`, `StreamingTokenDataset` requests packed windows of
+`L+1` tokens. Adjacent windows advance by `L` tokens and carry the last token
+into the next window, so the collator trains every continuous next-token
+transition once. For example, `[2,3,4,5,6,7,8]` with `L=3` becomes
+`[2,3,4,5]` and `[5,6,7,8]`.
 
 For a first smoke test, keep `max_tokens` small and use the debug script before a full training run.
 
 ## Python Usage
 
 ```python
+from pathlib import Path
+
+import hydra
 from omegaconf import OmegaConf
 
 from data.stream_loader import StreamLoader
 
-cfg = OmegaConf.to_container(OmegaConf.load("config/stream_loader.yaml"), resolve=True)
+with hydra.initialize_config_dir(
+    version_base=None,
+    config_dir=str(Path("config").resolve()),
+):
+    composed = hydra.compose(config_name="stream_loader")
+cfg = OmegaConf.to_container(composed, resolve=True)
 
 with StreamLoader(cfg) as loader:
     for sample in loader:
@@ -84,9 +86,8 @@ from data.stream_loader import StreamLoader
 
 config = {
     "tokenizer": {
-        "kind": "tokenizers",
-        "path": "artifacts/tokenizers/tokenizer.json",
-        "eos_token": "<eos>",
+        "manifest_path": "assets/tokenizers/llm-jp-v1/manifest.json",
+        "expected_fingerprint": "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b",
     },
     "output_mode": "tokenized_docs",
     "max_tokens": 10_000,
@@ -124,10 +125,9 @@ print(batch["inputs"].shape, batch["labels"].shape)
 ## Config Shape
 
 ```yaml
-tokenizer:
-  kind: qwen
-  name: Qwen/Qwen3-0.6B
-  use_fast: true
+defaults:
+  - tokenizer: canonical
+  - _self_
 
 output_mode: raw_text
 max_tokens: 5000000000
@@ -160,7 +160,8 @@ the small bilingual fixture.
 
 Required top-level fields:
 
-- `tokenizer`: tokenizer mapping, or a tokenizer object passed to `StreamLoader`.
+- `tokenizer`: the serializable canonical mapping with exactly
+  `manifest_path` and `expected_fingerprint`.
 - `datasets`: one or more dataset mappings. `name` values must be unique.
 - `ratio`: each dataset needs a positive ratio, and all ratios must sum to `1.0`.
 
@@ -207,15 +208,15 @@ benchmark data requires a separate explicit evaluation grant.
 Training loader Hydra fields cannot grant benchmark access; evaluation authority
 exists only in the code-level preflight API.
 
-## Tokenizers
+## Tokenizer identity
 
-Supported tokenizer config kinds:
-
-- `tokenizers`: load a local Hugging Face `tokenizers` JSON file.
-- `hf`, `huggingface`, or `qwen`: load a tokenizer with `transformers.AutoTokenizer`.
-- `mistral_tekken` or `tekken`: load a Mistral Tekken tokenizer.
-
-You can pass an already constructed tokenizer object instead of a tokenizer mapping for synchronous or thread-prefetched loading. Process prefetch requires a tokenizer mapping because the worker process needs to construct its own tokenizer.
+Only the repository's canonical manifest config is accepted. Backend aliases,
+remote tokenizer names, inferred tokenizer objects, and project-BPE artifacts
+are rejected. Construction verifies the manifest fingerprint, pinned upstream
+and tokenizer-source revisions, local file sizes and hashes, vocabulary and
+special IDs, normalization/byte fallback, and deterministic probe IDs before a
+data source is opened. Process prefetch serializes the two-field config and
+reconstructs and revalidates the tokenizer in the child before source access.
 
 ## Source Types
 
@@ -283,15 +284,35 @@ Hugging Face sources require `revision` to be a 40-character commit hash so runs
 - Use `max_tokens` for small experimental runs before increasing the budget.
 - Keep `num_workers=0` for the PyTorch `DataLoader` unless worker-aware stream partitioning is added.
 - Keep `prefetch.enabled` off while debugging; enable it only after the single-process path is working.
+- Packed buffering currently deletes each consumed prefix from a Python list.
+  The bounded long-document check protects correctness only; no throughput or
+  favorable scaling claim is made, and repeated front deletion remains a risk
+  to measure against real long documents.
 
 ## Output Modes
 
 - `raw_text`: yields `source`, `token_count`, and `text`.
 - `bytes`: yields `source`, `token_count`, and UTF-8 `bytes`.
 - `tokenized_docs`: yields `source`, `token_count`, and `input_ids` as `np.uint32`.
-- `packed_sequences`: concatenates tokenized documents and yields fixed-length `input_ids` arrays plus `token_count`.
+- `packed_sequences`: concatenates tokenized documents and yields `input_ids`,
+  `window_token_count`, and `target_token_count`. A packed window of `W` tokens
+  advances by `W-1`, carrying its final token into the next window. The
+  ambiguous `token_count` field is intentionally not present in this mode.
 
 When `preserve_metadata` is enabled, document modes include `metadata`. `packed_sequences` includes `source_spans` that identify which source contributed each token span.
+
+After a completed packed iteration, including process-prefetched iteration,
+`loader.packed_token_counts` reports aggregate `window_token_count`,
+`target_token_count`, and `dropped_target_count`. Window tokens include the
+carried token in both adjacent windows; target tokens count trained transitions.
+With `drop_remainder: true`,
+an incomplete tail reports its untrained transitions as dropped; a tail that is
+only the carried token drops zero transitions. These counters and the unique
+per-source `loader.token_counts` reset when each iteration begins. A completed
+process-prefetched iteration publishes its final child-process totals to the
+parent loader. If that iteration is closed early or its worker fails, the
+parent-visible counters remain reset rather than exposing totals from a prior
+successful iteration.
 
 ## Prefetching
 
@@ -315,3 +336,10 @@ with StreamLoader(config) as loader:
 ## Quotas And Exhaustion
 
 When `max_tokens` is an integer, the loader splits the token budget by dataset ratio. For example, `max_tokens: 1000` with ratios `0.7` and `0.3` emits 700 and 300 tokens respectively. If a source exhausts before its quota is met, `StreamLoaderError` is raised.
+
+With `add_eos: true`, quota truncation reserves the source's final quota slot
+for EOS, including an EOS-only sample when one slot remains. This keeps the
+per-source quota exact and gives a truncated fragment an explicit boundary.
+Packed quota truncation with `add_eos: false` raises `StreamLoaderError` because
+joining that fragment to a later document or source would silently invent a
+boundary. Non-packed modes retain prefix truncation when EOS is disabled.
