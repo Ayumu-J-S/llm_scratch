@@ -79,7 +79,12 @@ flowchart TD
     J --> K["Repair implementation"]
     K --> L["Record repair model, changes, and result"]
     L --> E
-    G --> M["Human review and merge decision"]
+    G --> M{"Explicit, recorded self-merge authorization<br/>for this PR or bounded series?"}
+    M -->|"No / ambiguous"| N["Human review and merge decision"]
+    M -->|"Yes"| O{"Guarded merge gates pass<br/>for exact reviewed head?"}
+    O -->|"No"| N
+    O -->|"Yes"| P["Merging agent records final PR audit<br/>without changing head"]
+    P --> Q["Agent merges without bypass"]
 ```
 
 ## Model identity rules
@@ -116,6 +121,55 @@ after the work ends.
    decisions the human reviewer must make.
 
 Use `.github/pull_request_template.md` for the PR body.
+
+## Merge authority and guarded self-merge
+
+Human review and merge is the default. An agent may self-merge only after a
+human explicitly authorizes either the named PR or a bounded ticket/goal series.
+Record the human instruction, its scope, and where it was given in the PR and
+model-run record. Tool access, PR authorship, a broad autonomy request, or the
+implementation agent's own review does not supply or expand that authority.
+When authorization is ambiguous, superseded, or revoked, leave the PR for a
+human to merge.
+
+Before an authorized self-merge, the merging agent audits the exact head and
+records the result in the PR body or a PR comment. All of these gates must pass:
+
+1. The latest independent review is `PASS` or a justified `PASS WITH NOTE` for
+   that exact head commit.
+2. Every actionable review finding was repaired and independently re-reviewed.
+   All GitHub review threads are resolved. A note may remain only when it is
+   explicitly non-actionable and documented as residual risk.
+3. Every required or configured check is green for that head. If GitHub reports
+   no checks, record `no checks configured/reported`; do not relabel that state
+   as a pass. Never waive or ignore a failed or missing required check.
+4. The PR is up to date with the target branch, conflict-free, and reported
+   mergeable. If updating the branch changes the head, repeat the applicable
+   validation and independent review on the new head.
+5. The model-run record, ledger row and aggregate, PR model trail, validation
+   evidence, risks, and authorization evidence are complete and consistent.
+6. The change is outside every prohibited category below, and the merge requires
+   no administrator action, protection bypass, force merge, or disabled check.
+
+Self-merge is prohibited when the change contains or authorizes:
+
+- secrets or security-control changes;
+- publication of private data;
+- a new paid resource;
+- a destructive or unrecoverable action;
+- an unresolved legal or licensing question; or
+- another externally consequential protected action, including deployment,
+  release, account or permission changes, or external communication.
+
+The final audit records the authorization scope, reviewed head SHA, independent
+verdict, disposition of findings and threads, exact check state, target/base
+state, mergeability, artifact parity, prohibited-category result, and intended
+non-bypass merge method. Record it without committing to the reviewed branch;
+otherwise the head changes and the review gate must run again.
+
+The PR that introduces this policy cannot use it to authorize or merge itself.
+The repository's preceding human-only rule remains in force until a human merges
+that bootstrap PR.
 
 ## Failed-review handoff contract
 
@@ -156,3 +210,7 @@ Do not mark a ticket complete until all of the following are true:
 - the final verdict is `PASS` or a justified `PASS WITH NOTE`
 - the detailed record and `docs/model-runs/README.md` aggregate are updated
 - the PR states unresolved risks and decisions for the human reviewer
+- the PR records merge authority as either `human merge` or an explicit,
+  in-scope human authorization for guarded self-merge
+- an authorized self-merge occurs only after the final exact-head audit above;
+  otherwise the completed PR remains ready for a human merge

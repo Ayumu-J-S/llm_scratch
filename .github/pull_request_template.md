@@ -74,4 +74,26 @@ real ML-system observations, measurements, and any tests that were actually nece
 - Next useful hypothesis:
 
 - [ ] The PR is not marked ready while the latest model review is `FAIL`.
-- [ ] A human remains the merge authority.
+
+## Merge authority and final audit — required
+
+- Merge path: `human merge` / `guarded agent self-merge`
+- Human authorization: exact instruction, scope, date/context, or `N/A — human merge`
+- Authorization covers this named PR or bounded ticket/goal series: yes / no / N/A
+- Exact reviewed head SHA:
+- Latest independent verdict / model / mode:
+- Actionable findings repaired and independently re-reviewed:
+- Unresolved review threads: zero / count
+- Required/configured checks for exact head: names and results / `no checks configured/reported`
+- Target branch and current base SHA:
+- Up-to-date, conflict-free, and mergeable evidence:
+- Model-run record, ledger, PR trail, evidence, and risks agree:
+- Prohibited self-merge categories reviewed: clear / blocked (state why)
+- Admin, protection bypass, force merge, or disabled checks required: no / yes
+- Final audit recorded at (PR body/comment URL or `pending human merge`):
+
+- [ ] Human merge remains the default unless the recorded authorization is explicit and in scope.
+- [ ] Tool access, authorship, and self-review were not treated as authorization.
+- [ ] No failed or missing required check was waived.
+- [ ] The final audit did not create an unreviewed head commit.
+- [ ] This is not the bootstrap PR that introduces guarded self-merge.

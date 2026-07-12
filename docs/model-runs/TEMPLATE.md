@@ -91,6 +91,26 @@ Duplicate this section for every repair.
 - Unresolved risks:
 - Human decision requested:
 
+## Merge authority and final audit
+
+- Merge path: `human merge` / `guarded agent self-merge`
+- Human authorization: exact instruction, scope, date/context, or `N/A — human merge`
+- Authorization evidence location:
+- Authorization covers this named PR or bounded ticket/goal series: yes / no / N/A
+- Exact independently reviewed head SHA:
+- Latest independent verdict / model / mode:
+- All actionable findings repaired and independently re-reviewed:
+- Unresolved review threads at final audit: zero / count
+- Required/configured checks at exact head: names and results / `no checks configured/reported`
+- Target branch and base SHA at final audit:
+- Up-to-date, conflict-free, and mergeable evidence:
+- Record, ledger, PR trail, validation, and risks parity:
+- Prohibited self-merge categories: clear / blocked (state why)
+- Admin/bypass/force/disabled-check requirement: no / yes
+- Final audit PR body/comment location:
+- Final audit changed reviewed head: no / yes (if yes, re-review is required)
+- Merge outcome: pending / human merged / agent merged / not merged
+
 ## Model assessment from this ticket
 
 Record observable outcomes, not hidden chain-of-thought.
@@ -103,3 +123,5 @@ Record observable outcomes, not hidden chain-of-thought.
 - [ ] Added the PR/ticket row to `docs/model-runs/README.md`.
 - [ ] Updated per-model attempt, pass, repair, and review counts.
 - [ ] Confirmed that the PR execution trail matches this record.
+- [ ] Recorded human merge or complete guarded self-merge authority/audit evidence.
+- [ ] Confirmed that this bootstrap policy rule was not used before a human merged it.

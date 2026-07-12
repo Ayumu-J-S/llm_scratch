@@ -27,6 +27,7 @@ there are enough observations for meaningful rates.
 
 | Exact model / mode | Implementation attempts | First-review passes | Repair attempts | Successful repairs | Reviews performed | Important strengths observed | Recurring failure modes | Last updated |
 | --- | ---: | ---: | ---: | ---: | ---: | --- | --- | --- |
+| not exposed by runtime / not exposed by runtime | 1 | 0 | 0 | 0 | 0 | Live-PR-first, fail-closed policy edit across the minimal normative and template surfaces | Independent review pending | 2026-07-12 |
 
 ### Counting rules
 

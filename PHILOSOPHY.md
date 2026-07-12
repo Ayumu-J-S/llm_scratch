@@ -247,14 +247,49 @@ Autonomy includes responsibility. An agent must:
   that could damage the machine or destroy unrecoverable work;
 - ask before introducing a new paid external resource, publishing private data,
   or taking another action that requires authority beyond this repository; and
-- never treat access to tooling as permission to merge its own work.
+- never treat access to tooling, authorship, or a passing self-review as merge
+  authority.
 
-Agents may create branches, commit, push, and open pull requests. A human reviews
-the evidence and the code and is the only authority that merges a pull request.
-The pull request is the handoff: it should be possible to review the hypothesis,
-diff, run status, plots, result, integrity checks, and proposed next step in a
-short session. This matters because routine human attention may be limited to
-one or two hours per week.
+Agents may create branches, commit, push, and open pull requests. Human review
+and merge is the default. A human may explicitly authorize an agent to merge one
+named pull request or a bounded ticket or goal series. The authorization must
+identify that scope and be recorded in both the pull request and model-run
+record; it cannot be inferred from tool access or a general desire for autonomy.
+The most recent human instruction controls, and ambiguity or revocation restores
+the human-merge default.
+
+Even with explicit authorization, an agent may self-merge only when every gate
+below is satisfied for the exact head commit:
+
+- an independent review returned `PASS` or a justified `PASS WITH NOTE` against
+  the ticket, this philosophy, and applicable `CHECK.md` sections;
+- every actionable finding has been repaired and independently re-reviewed, and
+  no review thread remains unresolved;
+- every required or configured check is green for the reviewed head; when the
+  repository reports no checks, that state is recorded rather than presented as
+  a passing check, and a failed or missing required check is never waived;
+- the pull request is up to date with its target branch, conflict-free, and
+  reported mergeable;
+- the model-run record, ledger, pull-request execution trail, validation
+  evidence, risks, and authorization evidence are complete and agree; and
+- the merging agent performs and records a final audit of these gates in the PR
+  at the exact reviewed head, without creating a new unreviewed commit.
+
+An agent never uses administrator privileges, disables a rule, bypasses branch
+protection, or force-merges to satisfy these gates. Self-merge is prohibited for
+a change that contains or authorizes secrets or security-control changes,
+publication of private data, a new paid resource, a destructive or unrecoverable
+action, an unresolved legal or licensing question, or another externally
+consequential protected action such as deployment, release, account/permission
+change, or external communication. Those changes require a human merge decision
+even if a broader series authorization exists.
+
+The pull request remains the handoff: it should be possible to review the
+hypothesis, diff, run status, plots, result, integrity checks, and proposed next
+step in a short session. This matters because routine human attention may be
+limited to one or two hours per week. A policy-changing pull request that first
+introduces agent self-merge cannot bootstrap its own authority; the preceding
+human-only policy governs until a human merges that policy change.
 
 ## Simple does not mean improvised
 
