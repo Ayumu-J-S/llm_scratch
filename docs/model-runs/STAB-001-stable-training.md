@@ -9,7 +9,8 @@
 - Experiment record: `N/A` — this is training-system correctness/stability
   evidence, not a quality or generalization result.
 - Started: 2026-07-12
-- Final verdict: implementation complete; independent review pending
+- Final verdict: PASS WITH NOTE at reviewed source head `70ed119`; docs-only
+  no-drift confirmation pending
 - Final record owner: implementation sub-agent `/root/stab001_implementation`
 
 ## Scope and decision context
@@ -39,7 +40,7 @@
 | 1 | implementation | not exposed by runtime | not exposed by runtime | `f73626c`; STAB-001, `PHILOSOPHY.md`, `CHECK.md` 5–7, AGENTS | Requested Luna / Extra High implementation pass | implemented | Added direct BF16/FP32 autocast selection, token-weighted accumulation, norm metrics/clipping, explicit AdamW, optimizer-step warmup/cosine schedule, stability profile, config validation, and focused invariants. | rebased implementation `c390cac`; focused 30 passed; pre-rebase full suite and static checks passed |
 | 2 | repair | not exposed by runtime | not exposed by runtime | first GB10 smoke at pre-rebase `afea743` | Use measured gradient norms to prevent clipping from silently defining every update. | implemented | The first 100-update GB10 run was finite but clipping at `1.0` occurred 95/100 updates (median norm 2.180, p95 8.859). Raised the conventional configured ceiling to `10.0`; the clipping test retains an explicit small threshold. | rebased repair `9af0eb2`; focused 23 passed, Ruff/diff/lock passed |
 | 3 | repair | not exposed by runtime | not exposed by runtime | GB10/CPU runs at pre-rebase `45f61c0` | Stop bounded stream runs without leaving the non-daemon prefetch producer alive. | implemented | Both 2-update CPU and 100-update GB10 commands wrote metrics but stayed alive after a bounded stop. Added explicit closure of the active single-process DataLoader iterable generator; regression fixture proves budget-stop closure. | rebased repair `a65cac3`; exact-tree parity with `39da132`; CPU and GB10 runs then exited cleanly |
-| 4 | handoff | not exposed by runtime | not exposed by runtime | `a65cac3` rebased on `b0f07c0` | Independent review against the ticket, philosophy, and selected CHECK sections. | pending | Rebase changed only inherited documentation relative to the exercised implementation tree; `git diff --exit-code 39da132 a65cac3 -- config src tests` passed. | final local suite/static/config rerun below; independent reviewer pending |
+| 4 | review | not exposed by runtime | not exposed by runtime | exact `70ed11987d88201a633e6f008133938a4fc76f9a` | Requested heavier / Extra Thinking independent review against STAB-001, `PHILOSOPHY.md`, and selected `CHECK.md` sections. | PASS WITH NOTE | All ticket acceptance criteria pass. The bounded GPU smoke, clipping calibration, iterator shutdown, and CPU invariants are sufficient for STAB-001; it does not establish a thermal, throughput, quality, or checkpoint-resume result. | GitHub review `4680137991`; focused 30 passed; full 233 passed, 1 skipped; static and CPU config checks pass |
 
 ## Runtime provenance block
 
@@ -62,24 +63,32 @@ runtime did not expose an exact deployment identifier or reasoning mode.
 
 ### Review cycle 1
 
-- Review model / mode: pending independent reviewer; requested heavier / Extra
-  Thinking. Actual fields will be recorded only if shown by that runtime.
-- Commit reviewed: pending exact final documentation head.
+- Review model / mode: not exposed by runtime / not exposed by runtime;
+  requested heavier / Extra Thinking. Exact runtime model and reasoning fields
+  were not exposed to the reviewer.
+- Commit reviewed: `70ed11987d88201a633e6f008133938a4fc76f9a`.
 - Selected `CHECK.md` sections: 5.1, 5.2, 5.3–5.4, 6.1–6.3, and 7.1–7.4.
 - Major sections marked N/A: data/tokenizer/evaluation/checkpoint semantics are
   unchanged; R3/R4 thermal, storage, or sustained-throughput claims require a
   later pilot and are not implied by the 100-step smoke.
-- Ticket acceptance result: implementation evidence supports all criteria;
-  independent verdict pending.
-- Philosophy alignment / complexity / ML-system result: pending independent
-  review. The implementation remains direct trainer/config/test work and does
-  not add a second execution path.
-- Verdict: pending.
+- Ticket acceptance result: PASS — effective target tokens/update are explicit
+  and logged; BF16, clipping, scheduler, and non-finite behavior are
+  configurable and covered; 100 finite GB10 BF16 updates completed and exited.
+- Philosophy alignment: PASS — the conventional single-machine path remains
+  direct and inspectable, with no model/data/architecture scope expansion.
+- Complexity / change-surface result: PASS WITH NOTE — generator closure uses
+  PyTorch's retained iterable fetcher because its single-process iterator lacks
+  a public close API; the narrow `getattr` path is regression-tested.
+- ML-system result: PASS WITH NOTE — the bounded repeated-fixture smoke proves
+  recipe wiring and numerical health, not thermal stability, throughput, or
+  language quality.
+- Verdict: PASS WITH NOTE — GitHub review `4680137991`.
 
 ## Failed-review handoff
 
-N/A — the independent review has not run. The two implementation-time repairs
-above remain retained as observable negative evidence rather than being erased.
+N/A — the first independent review passed with note. The two implementation-
+time repairs above remain retained as observable negative evidence rather than
+being erased.
 
 ## Repair result
 
@@ -116,12 +125,15 @@ above remain retained as observable negative evidence rather than being erased.
   and four microbatches/update; finite losses `11.1222`, `11.0536`; gradient
   norms `8.8093`, `5.4676`; no clipping at the 10 ceiling; process exited.
 - Focused checks: `uv run pytest -q tests/test_trainer.py tests/test_config_profiles.py tests/test_train_streaming.py` — 30 passed.
-- Full suite: `uv run pytest -q` — passed before and after the implementation
-  work; rerun after the rebase completed successfully.
+- Full suite: independent reviewer rerun `uv run pytest -q` — 233 passed,
+  1 skipped.
 - Static/reproducibility: `uv run ruff check src tests scripts`, focused
   `ruff format --check`, `git diff --check`, and `uv lock --check` passed.
 - Hydra checks: CPU smoke and CPU-resolved stability profile both passed via
   `scripts/config_check.py`; the CUDA profile was exercised above.
+- Review evidence: GitHub independent review `4680137991` returned PASS WITH
+  NOTE on exact head `70ed119`; its focused 30, full 233/1, static, and CPU
+  configuration results agree with the implementation evidence.
 - Artifacts: local `metrics.jsonl` and `model_last.pth` were inspected for
   evidence then removed after every smoke. Ignored `runs/` retains local
   Hydra/run-manifest evidence. No W&B run or artifact was created.
@@ -135,7 +147,8 @@ above remain retained as observable negative evidence rather than being erased.
   regression test.
 - Unresolved risks: 100 steps is a stability smoke, not a 15–60 minute thermal
   pilot or a data/throughput baseline; checkpoints/resume remain CKPT-001.
-- Human decision requested: none while independent review is pending.
+- Human decision requested: none. A docs-only no-drift confirmation remains
+  required before this draft can be marked ready for its guarded final audit.
 
 ## Merge authority and final audit
 
@@ -144,9 +157,11 @@ above remain retained as observable negative evidence rather than being erased.
   全部セルフマージしていいよ / とりあえずロードマップ完成させよう”.
 - Authorization covers this named PR or bounded ticket/goal series: yes — the
   bounded roadmap implementation series includes STAB-001.
-- Exact independently reviewed head SHA: pending.
-- Latest independent verdict / model / mode: pending.
-- All actionable findings repaired and independently re-reviewed: pending.
+- Exact independently reviewed head SHA: `70ed11987d88201a633e6f008133938a4fc76f9a`.
+- Latest independent verdict / model / mode: PASS WITH NOTE / not exposed by
+  runtime / not exposed by runtime; GitHub review `4680137991`.
+- All actionable findings repaired and independently re-reviewed: yes for the
+  reviewed source head; docs-only no-drift confirmation pending.
 - Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: pending.
 - Newer human objections since authorization/review: none observed.
 - Human review dismissed by an agent: no.
@@ -158,23 +173,27 @@ above remain retained as observable negative evidence rather than being erased.
 - No-check evidence when both inventories are empty: pending.
 - Target branch and base SHA at final audit: `main` / `b0f07c0` before final refresh.
 - Up-to-date, conflict-free, and mergeable evidence: pending.
-- Record, ledger, PR trail, validation, and risks parity: pending.
+- Record, ledger, PR trail, validation, and risks parity: source-head parity
+  confirmed at `70ed119`; docs-only successor confirmation pending.
 - Prohibited self-merge categories: clear for intended scope; final audit still
   required. No secrets, security controls, private data, paid resource,
   destructive action, license question, release, deployment, or account change.
 - Admin/bypass/force/disabled-check requirement: must be no.
-- Final audit / immediate refresh / merge outcome: pending exact-head review.
+- Final audit / immediate refresh / merge outcome: pending docs-only no-drift
+  confirmation, then the required exact-head merge audit.
 
 ## Model assessment from this ticket
 
 | Model / mode | Role | What it handled well | What it missed or made worse | Context that helped | Outcome |
 | --- | --- | --- | --- | --- | --- |
-| not exposed by runtime / not exposed by runtime | implementation and repairs | Kept the recipe in direct trainer/Hydra/test surfaces; reproduced GB10 behavior; retained and repaired clipping and shutdown evidence | Initial configuration clipped too frequently; bounded iterable shutdown was not caught before live smoke | ticket scope, CHECK 5–7, exact metrics, GPU process inspection | independent review pending |
+| not exposed by runtime / not exposed by runtime | implementation and repairs | Kept the recipe in direct trainer/Hydra/test surfaces; reproduced GB10 behavior; retained and repaired clipping and shutdown evidence | Initial configuration clipped too frequently; bounded iterable shutdown was not caught before live smoke | ticket scope, CHECK 5–7, exact metrics, GPU process inspection | PASS WITH NOTE |
+| not exposed by runtime / not exposed by runtime | independent review | Verified acceptance, focused/full tests, static checks, and the scoped ML-system boundary without promoting the smoke to a performance or quality result | Exact runtime ID and reasoning mode are unavailable; docs-only successor still needs no-drift confirmation | exact `70ed119`, PR #34 evidence, STAB-001, PHILOSOPHY, CHECK 5–7 | PASS WITH NOTE |
 
 ## Ledger update
 
 - [x] Updated the in-progress PR/ticket row in `docs/model-runs/README.md`.
-- [ ] Update aggregate model counts after independent review/merge outcome.
-- [ ] Confirm final PR execution trail parity after review.
+- [x] Updated aggregate counts for the independent PASS WITH NOTE; final merge
+  audit remains excluded until it occurs.
+- [x] Confirmed source-head PR execution trail parity after review.
 - [ ] Record guarded exact-head audit and merge evidence.
 - [x] Confirmed that this is not the bootstrap self-merge-policy PR.
