@@ -32,7 +32,7 @@
 | ---: | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | implementation | not exposed by runtime | not exposed by runtime | `fbdb086` | Requested Luna / Extra High implementation pass | in progress | Replaced epoch-only averaging with authoritative step/token/time counters, token-weighted NLL, exact token-budget truncation, independent event cadences, scheduler-after-update ordering, finite/empty guards, and W&B-independent JSONL metrics; corrected metric-free scheduler boundaries to avoid forcing validation outside its cadence. | `uv run --group dev pytest -q`: 206 passed, 1 skipped; focused trainer: 4 passed; Ruff and `git diff --check` pass; current head `a024f24` |
 | 1 | review | not exposed by runtime | not exposed by runtime | `5de45e7` | Requested heavier independent Extra Thinking review | FAIL | Found missing post-backward/optimizer non-finite guards, no token-based event cadences, no guaranteed aggregate train/loss/perplexity under step logging, and fractional budget handling that could reach zero-token division. | independent review handoff from `/root/loop001_review` |
-| 2 | repair | not exposed by runtime | not exposed by runtime | `5de45e7` | Repair every actionable finding without broadening scope | in progress | Added gradient/parameter finite checks with contextual local failure records, direct `*_every_n_tokens` cadences, epoch aggregate loss/perplexity records, strict integer step/token budgets, and zero-token boundary handling. | `e972864`; full suite 209 passed, 1 skipped; focused trainer 8 passed |
+| 2 | repair | not exposed by runtime | not exposed by runtime | `5de45e7` | Repair every actionable finding without broadening scope | in progress | Added gradient/parameter finite checks with contextual local failure records, direct `*_every_n_tokens` cadences, epoch aggregate loss/perplexity records, strict integer step/token budgets, and zero-token boundary handling. | `e972864`; full suite 209 passed, 1 skipped; focused trainer 7 passed |
 | 2 | re-review | not exposed by runtime | not exposed by runtime | pending final docs head | Requested independent re-review at exact repair head | pending | Must verify all four failed findings and unchanged acceptance scope. | pending |
 
 ## Runtime provenance block
@@ -123,7 +123,7 @@ display does not expose the exact deployment model or reasoning mode.
 - What was deliberately not changed: checkpoint payload/resume, AMP,
   accumulation, distributed execution, and W&B service semantics.
 - Local evidence: full `uv run --group dev pytest -q` 209 passed, 1 skipped;
-  focused trainer 8 passed; Ruff and diff checks pass.
+  focused trainer 7 passed; Ruff and diff checks pass.
 - Commit reviewed next: `e972864` (docs finalization will create a new exact head)
 - Re-review model / mode: not exposed by runtime / not exposed by runtime
 - Re-review verdict: pending
