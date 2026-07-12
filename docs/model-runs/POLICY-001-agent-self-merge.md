@@ -1,6 +1,6 @@
 # POLICY-001 - Guarded Agent Self-Merge
 
-- PR: draft
+- PR: [#16](https://github.com/Ayumu-J-S/llm_scratch/pull/16) (draft)
 - Branch: `codex/policy-001-agent-self-merge`
 - Ticket: POLICY-001 (explicit repository-policy request; not a `ROADMAP.md` ticket)
 - Hypothesis: Explicit, bounded human authorization plus independent review and fail-closed merge gates can permit routine agent self-merge without turning tool access or a passing self-review into merge authority.
@@ -24,7 +24,7 @@ delete a failed row.
 
 | Cycle | Phase | Exact model identifier | Reasoning mode | Input commit/context | Requested work | Outcome | Main findings / changes | Evidence |
 | ---: | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | implementation | not exposed by runtime | not exposed by runtime | `a05eb1de5656643757a1c3d98047c98dedea8bfa`; requested Luna / Extra High | Implement the explicitly requested guarded self-merge policy and bootstrap it under the current human-only rule | in progress | Started the live record before policy edits | Initial record commit |
+| 1 | implementation | not exposed by runtime | not exposed by runtime | `a05eb1de5656643757a1c3d98047c98dedea8bfa`; requested Luna / Extra High | Implement the explicitly requested guarded self-merge policy and bootstrap it under the current human-only rule | in progress | Started the live record and draft PR before policy edits | Initial record commit `210a433`; draft PR #16 |
 
 Allowed phases: `implementation`, `review`, `repair`, `re-review`, and `handoff`.
 
