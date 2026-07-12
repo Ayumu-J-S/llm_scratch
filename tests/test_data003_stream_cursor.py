@@ -151,6 +151,16 @@ def test_process_prefetch_load_state_dict_propagates_cursor_to_worker():
     ] == full
 
 
+def test_process_prefetch_reuse_continues_completed_pass_cursor():
+    config = _config(prefetch={"enabled": True, "mode": "process", "buffer_size": 2})
+    loader = StreamLoader(config)
+    first = [(item["source"], item["text"]) for item in loader]
+    second = [(item["source"], item["text"]) for item in loader]
+    assert first
+    assert second
+    assert not set(first[:3]).intersection(second[:3])
+
+
 def test_packed_window_cursor_keeps_unemitted_residual_tokens():
     config = _config(
         output_mode="packed_sequences",

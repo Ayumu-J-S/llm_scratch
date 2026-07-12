@@ -29,6 +29,9 @@
 | 3 | review | not exposed by runtime | not exposed by runtime | `13d90f7e8921c0875a7c37ad1bf44a3147d94c09` (PR #29) | Exact-head refresh after ready-state docs update | FAIL | Thread reuse lost `pass_complete` on natural exhaustion; `load_state_dict` cursor was absent from spawned process config | Review `4679929272`; two P2 findings, no merge |
 | 3 | repair | not exposed by runtime | not exposed by runtime | `13d90f7` plus review `4679929272` | Preserve completed async cursor and propagate explicit cursor into process worker; add regressions | completed; re-review pending | Final thread cursor marker preserves completed-pass state; `load_state_dict` updates serialized process config; thread reuse and process load-state tests added | Focused 10 passed; full 222 passed, 1 skipped; static checks clean; repair `bc8ebbc32db56436e37d32550c1ef6d11a56e66` |
 | 3 | re-review | not exposed by runtime | not exposed by runtime | `bc8ebbc32db56436e37d32550c1ef6d11a56e66` | Independent exact-head review after P2 repairs | pending | Must verify thread/process reuse and spawned-worker resume on final head | pending |
+| 4 | review | not exposed by runtime | not exposed by runtime | `04ca349e6257315580d225196cca658a134795ac` | Exact-head refresh of process-prefetch reuse | FAIL | Process prefetch serialized stale `self.config["cursor"]` on loader reuse and repeated the first pass | Reviewer reproduction; repair pending |
+| 4 | repair | not exposed by runtime | not exposed by runtime | `04ca349` plus cycle-4 finding | Sync acknowledged cursor into process config on each marker; add process same-loader reuse regression | completed; re-review pending | Config sync is gated to DATA-003 cursor mode so legacy process fixtures retain repeat behavior | Focused 11 passed; full 223 passed, 1 skipped; static checks clean |
+| 4 | re-review | not exposed by runtime | not exposed by runtime | pending final repair head | Independent exact-head review | pending | Verify process reuse and all prior P2 paths | pending |
 
 ## Runtime provenance block
 
@@ -128,7 +131,7 @@
 
 - Resolved Hydra command/config: `config/stream_loader.yaml` now documents `horizon.repeat: false`, deterministic bounded shuffle, and buffer size; fixture tests exercise equivalent plain mappings.
 - Data/tokenizer identity: canonical tokenizer manifest fingerprint `12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b`; fixture documents are immutable in-memory records for offline invariants.
-- Validation and measurements: `uv run --group dev pytest -q` → `222 passed, 1 skipped`; DATA-003 focused file → `10 passed`; `uv run ruff check .`; `uv lock --check`; `git diff --check`.
+- Validation and measurements: `uv run --group dev pytest -q` → `223 passed, 1 skipped`; DATA-003 focused file → `11 passed`; `uv run ruff check .`; `uv lock --check`; `git diff --check`.
 - Performance/resource result if applicable: N/A; this ticket explicitly defers throughput optimization and DGX measurement.
 - Failed attempts retained at: N/A.
 - Known trade-offs: cursor stores bounded shuffle-buffer documents and Python RNG state so an interrupted stream can resume without source replay ambiguity; it is intentionally separate from CKPT-001 model state.
@@ -141,9 +144,9 @@
 - Human authorization: parent task explicitly authorizes self-merge for the bounded roadmap goal on 2026-07-12; exact parent instruction must be copied into final PR audit.
 - Authorization evidence location: parent task messages and final PR audit comment.
 - Authorization covers this named PR or bounded ticket/goal series: pending final audit.
-- Exact independently reviewed head SHA: `ea2c01e68ab4d120b10b3f8208d1388a0be7d19c` (latest passing code before cycle 3 P2 findings); repair re-review pending.
-- Latest independent verdict / model / mode: cycle 3 refresh FAIL `4679929272`; exact model and reasoning mode not exposed by runtime.
-- All actionable findings repaired and independently re-reviewed: no — cycle 3 P2 repairs await re-review.
+- Exact independently reviewed head SHA: `ea2c01e68ab4d120b10b3f8208d1388a0be7d19c` (latest passing code before cycle 3/4 P2 findings); final repair re-review pending.
+- Latest independent verdict / model / mode: cycle 4 refresh FAIL (process-reuse P2); exact model and reasoning mode not exposed by runtime.
+- All actionable findings repaired and independently re-reviewed: no — cycle 4 process-reuse repair awaits re-review.
 - Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: pending.
 - Newer human objections since authorization/review: pending final refresh.
 - Human review dismissed by an agent: no.

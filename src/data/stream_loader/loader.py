@@ -610,6 +610,12 @@ class StreamLoader:
                 if _is_prefetch_cursor(item):
                     self._cursor = _copy_cursor(item["cursor"])
                     self._consumer_cursor = _copy_cursor(item["cursor"])
+                    # A subsequent process-prefetch pass serializes
+                    # ``self.config`` into a spawned worker.  Keep that plain
+                    # config synchronized with the acknowledged cursor so
+                    # loader reuse continues after the completed pass.
+                    if self.cursor_enabled:
+                        self.config["cursor"] = _copy_cursor(item["cursor"])
                     continue
                 if isinstance(item, BaseException):
                     raise item
