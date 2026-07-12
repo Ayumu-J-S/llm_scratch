@@ -8,7 +8,7 @@
 - Experiment record: `N/A — this ticket validates a fixture and run metadata,
   not a consequential model-quality experiment`
 - Started: 2026-07-12
-- Final verdict: in progress
+- Final verdict: in progress (repair re-review pending)
 - Final record owner: Codex implementation agent
 
 ## Scope and decision context
@@ -24,8 +24,10 @@
 
 | Cycle | Phase | Exact model identifier | Reasoning mode | Input commit/context | Requested work | Outcome | Main findings / changes | Evidence |
 | ---: | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | implementation | not exposed by runtime | not exposed by runtime | `a6c65cd` + REP-001/PHILOSOPHY/CHECK | Requested Luna / Extra High; implement scoped identity, immutable manifests, and global seeding | completed | Added `runtime.reproducibility`, Hydra seed config, DataLoader generators/worker seeding, run snapshots, dirty/mutable-input guards, and focused tests | `bb407cb`; 18 focused tests, Ruff, diff check; CPU smoke run manifest |
-| 1 | review | not exposed by runtime | not exposed by runtime | `bb407cb` | Requested heavier review at Extra Thinking; inspect REP acceptance and CHECK sections 1, 2, 6 | pending | Independent review not yet returned | PR #22 draft |
+| 1 | implementation | not exposed by runtime | not exposed by runtime | `a6c65cd` + REP-001/PHILOSOPHY/CHECK | Requested Luna / Extra High; implement scoped identity, immutable manifests, and global seeding | repaired | Added `runtime.reproducibility`, Hydra seed config, DataLoader generators/worker seeding, run snapshots, dirty/mutable-input guards, and focused tests; moved the guard before tokenizer/data initialization after review | `bb407cb` then repair head pending; focused tests, Ruff, diff check; CPU smoke run manifest |
+| 1 | review | not exposed by runtime | not exposed by runtime | `bb407cb` | Requested heavier review at Extra Thinking; inspect REP acceptance and CHECK sections 1, 2, 6 | PASS WITH NOTE | Same-seed CPU batches/losses, run manifest, mutation and mutable-input guards pass; note that deterministic=False does not reset a prior process-global deterministic setting | PR #22 review `4679671936`; full 198 passed, 1 skipped; Ruff, lock, diff pass |
+| 2 | repair | not exposed by runtime | not exposed by runtime | review `4679671936` | Move dirty/mutable guard before tokenizer/data/model initialization; add regression; retain exact model provenance | completed | Run manifest is now written immediately after config resolution and global seeding, before tokenizer/data setup; dirty real-run regression proves tokenizer is untouched; optional lock/Git verification added | repair commit pending; focused 5 passed |
+| 2 | re-review | not exposed by runtime | not exposed by runtime | repair head pending | Re-run independent review against exact repair head | pending | Pending exact-head re-review | PR #22 |
 
 ## Runtime provenance block
 
@@ -36,7 +38,7 @@
 
 - Capture file/evidence: active Codex context; no exact runtime capture surface was exposed.
 - Codex CLI version: not exposed by runtime
-- Branch/commit: `codex/rep-001-reproducibility` / `bb407cb`
+- Branch/commit: `codex/rep-001-reproducibility` / repair head pending
 - Phase/role/task path: implementation / REP-001 / delegated agent
 - Privacy confirmation: no prompts, hidden chain-of-thought, token counts, secrets, or raw thread ID recorded.
 
@@ -45,28 +47,29 @@
 ### Review cycle 1
 
 - Review model / mode: not exposed by runtime / not exposed by runtime
-- Commit reviewed: pending exact review head
+- Commit reviewed: `bb407cb` (cycle 1); repair re-review pending
 - Selected CHECK.md sections: 1 minimum review; 2 R1 smoke; 6 experiment integrity/changeability
 - Major sections marked N/A and why: CHECK 4/5/7/8/9 — no data throughput, CUDA performance, optimizer, checkpoint, or production-run change.
 - Ticket acceptance result: pending
 - Philosophy alignment: pending
 - Complexity / change-surface result: pending
 - ML-system result: pending
-- Verdict: pending
+- Verdict: PASS WITH NOTE for `bb407cb`; repair re-review pending
 
 #### Findings
 
 | Severity | Area | What was wrong or good | Evidence | Required action |
 | --- | --- | --- | --- | --- |
-| — | — | Independent review pending | — | — |
+| note | determinism toggle | `deterministic=False` does not reset a prior process-global deterministic setting in the same process | reviewer test and static inspection | document or reset explicitly; no acceptance block for canonical one-process runs |
 
 ## Failed-review handoff
 
-N/A — no failed review has been returned.
+Cycle 1 review returned PASS WITH NOTE. Repair was requested to ensure dirty/mutable
+guards run before tokenizer/data initialization; cycle 2 re-review is pending.
 
 ## Final evidence
 
-- Resolved Hydra command/config: `uv run python src/train.py profile=smoke_overfit wandb.enabled=false training.epochs=1`; run manifest was written before model initialization.
+- Resolved Hydra command/config: `uv run python src/train.py profile=smoke_overfit wandb.enabled=false training.epochs=1`; after repair the run manifest is written before tokenizer/data/model initialization.
 - Data/tokenizer/model identity: canonical tokenizer fingerprint `12ccbc02...`; memorization manifest fingerprint `00c3797a...`; config and lock SHA-256 recorded in `run_manifest.json`.
 - Validation and measurements: same-seed fixture reproduced initial batches and the complete loss sequence exactly; focused tests `18 passed`; CPU smoke completed one epoch.
 - Performance/resource result: N/A — REP-001 is an identity/seeding ticket; no DGX throughput claim.

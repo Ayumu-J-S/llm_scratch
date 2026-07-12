@@ -1,5 +1,6 @@
 *.pyc
 *.pth
+*.egg-info/
 .vscode/
 
 model/

@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 import torch
+import hydra
 
 from models.simple_decoder_transformer import SimpleDecoderTransformer
 from runtime.reproducibility import (
@@ -16,6 +17,7 @@ from runtime.reproducibility import (
     write_run_manifest,
 )
 from data.text_dataset import create_autoregressive_dataloader
+import train as train_module
 
 
 ROOT = Path(__file__).parents[1]
@@ -60,6 +62,14 @@ def test_same_seed_reproduces_initial_batches_and_loss_sequence():
         assert torch.equal(first[0], second[0])
         assert torch.equal(first[1], second[1])
     assert first_losses == pytest.approx(second_losses, rel=0, abs=0)
+
+
+def test_deterministic_toggle_is_explicit():
+    seed_everything(123, deterministic=True)
+    assert torch.are_deterministic_algorithms_enabled()
+    seed_everything(123, deterministic=False)
+    assert not torch.are_deterministic_algorithms_enabled()
+    seed_everything(123, deterministic=True)
 
 
 def _manifest_config():
@@ -114,6 +124,31 @@ def test_real_run_rejects_mutable_remote_data():
     }
     with pytest.raises(ReproducibilityError, match="mutable remote"):
         validate_immutable_inputs(config, real_run=True)
+
+
+def test_dirty_real_run_fails_before_tokenizer_or_data(monkeypatch):
+    config_dir = ROOT / "config"
+    with hydra.initialize_config_dir(version_base=None, config_dir=str(config_dir)):
+        config = hydra.compose(
+            config_name="train",
+            overrides=["profile=pretrain_streaming", "runtime.device=cpu"],
+        )
+
+    monkeypatch.setattr(
+        "runtime.reproducibility._git",
+        lambda root: {"sha": "a" * 40, "dirty": True, "status": ["?? sentinel"]},
+    )
+    tokenizer_touched = False
+
+    def fail_if_tokenizer_is_loaded(*args, **kwargs):
+        nonlocal tokenizer_touched
+        tokenizer_touched = True
+        raise AssertionError("dirty real run must stop before tokenizer initialization")
+
+    monkeypatch.setattr(train_module.CanonicalTokenizer, "from_config", fail_if_tokenizer_is_loaded)
+    with pytest.raises(ReproducibilityError, match="clean git worktree"):
+        train_module.main.__wrapped__(config)
+    assert not tokenizer_touched
 
 
 def test_manifest_payload_is_valid_json():

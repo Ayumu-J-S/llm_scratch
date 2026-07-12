@@ -196,6 +196,16 @@ def main(cfg: DictConfig) -> None:
     logger.info("Using device: {}", device)
     resolved_config_path = save_resolved_config(cfg)
     logger.info("Resolved Hydra config: {}", resolved_config_path)
+    tokenizer_config = build_tokenizer_config(cfg)
+    run_manifest_path = write_run_manifest(
+        cfg=to_plain_config(cfg),
+        run_dir=_run_directory(),
+        root_dir=ROOT_DIR,
+        resolved_config_path=resolved_config_path,
+        tokenizer_manifest_path=ROOT_DIR / tokenizer_config["manifest_path"],
+        tokenizer_expected_fingerprint=tokenizer_config.get("expected_fingerprint"),
+    )
+    logger.info("Run manifest: {}", run_manifest_path)
 
     data_mode = cfg.data.get("mode")
     logger.info("Loading tokenizer artifact...")
@@ -242,15 +252,6 @@ def main(cfg: DictConfig) -> None:
         raise ValueError("data.mode must be either 'memorization_smoke' or 'streaming'")
 
     preview_batch = next(iter(train_loader))
-    run_manifest_path = write_run_manifest(
-        cfg=to_plain_config(cfg),
-        run_dir=_run_directory(),
-        root_dir=ROOT_DIR,
-        resolved_config_path=resolved_config_path,
-        tokenizer_manifest_path=tokenizer.manifest_path,
-        tokenizer_expected_fingerprint=tokenizer.fingerprint,
-    )
-    logger.info("Run manifest: {}", run_manifest_path)
     log_sample_batch(tokenizer, preview_batch)
     log_loader_size("Training", train_loader)
     log_loader_size("Validation", validation_loader)

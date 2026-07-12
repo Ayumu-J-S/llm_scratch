@@ -74,6 +74,11 @@ def seed_everything(seed: int, *, deterministic: bool = True) -> torch.Generator
         if hasattr(torch.backends, "cudnn"):
             torch.backends.cudnn.deterministic = True
             torch.backends.cudnn.benchmark = False
+    else:
+        torch.use_deterministic_algorithms(False)
+        if hasattr(torch.backends, "cudnn"):
+            torch.backends.cudnn.deterministic = False
+            torch.backends.cudnn.benchmark = True
     return torch.Generator().manual_seed(seed)
 
 
@@ -273,8 +278,8 @@ def write_run_manifest(
     return destination
 
 
-def verify_run_manifest(run_dir: str | Path) -> dict[str, Any]:
-    """Verify hashes of all captured files and return the manifest payload."""
+def verify_run_manifest(run_dir: str | Path, *, root_dir: str | Path | None = None) -> dict[str, Any]:
+    """Verify captured files and, when supplied, the source lock and Git SHA."""
 
     run_path = Path(run_dir)
     manifest_path = run_path / "run_manifest.json"
@@ -286,6 +291,17 @@ def verify_run_manifest(run_dir: str | Path) -> dict[str, Any]:
     config_file = run_path / str(config_entry.get("path", "resolved_config.yaml")) if isinstance(config_entry, Mapping) else run_path / "resolved_config.yaml"
     if not config_file.is_file() or not isinstance(config_entry, Mapping) or sha256_file(config_file) != config_entry.get("sha256"):
         raise ManifestMismatchError(f"resolved configuration changed: {config_file}")
+    lock_entry = payload.get("lock")
+    if root_dir is not None and isinstance(lock_entry, Mapping):
+        lock_file = Path(root_dir).resolve() / str(lock_entry.get("path", "uv.lock"))
+        if not lock_file.is_file() or sha256_file(lock_file) != lock_entry.get("sha256"):
+            raise ManifestMismatchError(f"dependency lock changed: {lock_file}")
+        recorded_sha = payload.get("git", {}).get("sha") if isinstance(payload.get("git"), Mapping) else None
+        current_git = _git(Path(root_dir).resolve())
+        if recorded_sha and current_git["sha"] != recorded_sha:
+            raise ManifestMismatchError(
+                f"source Git commit changed: expected {recorded_sha}, got {current_git['sha']}"
+            )
     entries = [payload.get("tokenizer")] + list(payload.get("data", []))
     for entry in entries:
         if not isinstance(entry, Mapping):
