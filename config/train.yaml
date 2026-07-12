@@ -36,7 +36,7 @@ training:
   # profiles select BF16 explicitly rather than relying on device defaults.
   precision: fp32
   gradient_accumulation_steps: 1
-  max_grad_norm: 1.0
+  max_grad_norm: 10.0
   optimizer:
     _target_: torch.optim.AdamW
     lr: 0.0003

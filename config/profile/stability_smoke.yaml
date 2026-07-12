@@ -51,7 +51,7 @@ training:
   max_steps: 100
   precision: bf16
   gradient_accumulation_steps: 4
-  max_grad_norm: 1.0
+  max_grad_norm: 10.0
   log_every_n_steps: 10
   validation_every_n_steps: null
   checkpoint_every_n_steps: null

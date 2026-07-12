@@ -46,7 +46,7 @@ def test_stability_smoke_exposes_the_bf16_update_recipe():
     assert config.training.max_steps == 100
     assert config.training.precision == "bf16"
     assert config.training.gradient_accumulation_steps == 4
-    assert config.training.max_grad_norm == 1.0
+    assert config.training.max_grad_norm == 10.0
     assert config.training.optimizer._target_ == "torch.optim.AdamW"
     assert config.training.optimizer.betas == [0.9, 0.95]
     assert config.training.scheduler.interval == "step"

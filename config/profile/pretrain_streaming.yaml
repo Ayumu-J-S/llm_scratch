@@ -48,7 +48,7 @@ training:
   shuffle: true
   precision: bf16
   gradient_accumulation_steps: 4
-  max_grad_norm: 1.0
+  max_grad_norm: 10.0
   scheduler:
     enabled: true
     interval: step
