@@ -1,6 +1,6 @@
 # GATE-001 - Post-merge Finalization
 
-- PR: draft
+- PR: [#40](https://github.com/Ayumu-J-S/llm_scratch/pull/40) (draft)
 - Branch: `codex/gate-001-postmerge-finalize`
 - Ticket: `GATE-001`
 - Hypothesis: a documentation-only follow-up can make the merged outcome, dependency states, ledger, and audit trail agree without changing implementation or evidence.
@@ -34,7 +34,7 @@
 
 - Capture file/evidence: stdout capture at `2026-07-12T21:26:36.057306Z`; safe fields transcribed below.
 - Codex CLI version: `codex-cli 0.144.1`.
-- Branch/commit: `codex/gate-001-postmerge-finalize` / baseline `2e2c4f4`; candidate commit pending.
+- Branch/commit: `codex/gate-001-postmerge-finalize` / candidate `2b53fd29a79ce8bdd47f35b3caf2da361abcdd2b`.
 - Phase/role/task path: implementation / `/root`.
 - Privacy confirmation: no prompts, hidden chain-of-thought, token counts, secrets, or raw thread ID.
 
