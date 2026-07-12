@@ -104,3 +104,21 @@ def test_process_prefetch_interruption_resumes_exact_suffix():
     assert [(item["source"], item["text"]) for item in prefix] + [
         (item["source"], item["text"]) for item in resumed
     ] == full
+
+
+def test_packed_window_cursor_keeps_unemitted_residual_tokens():
+    config = _config(
+        output_mode="packed_sequences",
+        max_tokens=24,
+        sequence_length=5,
+        add_eos=False,
+        horizon={"repeat": False, "shuffle": False},
+    )
+    uninterrupted = [sample["input_ids"].tolist() for sample in StreamLoader(config)]
+    loader = StreamLoader(config)
+    iterator = iter(loader)
+    prefix = [next(iterator)["input_ids"].tolist()]
+    cursor = loader.state_dict()
+    iterator.close()
+    resumed = [sample["input_ids"].tolist() for sample in StreamLoader({**config, "cursor": cursor})]
+    assert prefix + resumed == uninterrupted
