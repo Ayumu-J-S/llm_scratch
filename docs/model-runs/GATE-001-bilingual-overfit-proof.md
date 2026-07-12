@@ -1,12 +1,12 @@
 # GATE-001 - Bilingual Overfit Proof
 
-- PR: pending draft creation
+- PR: [#39](https://github.com/Ayumu-J-S/llm_scratch/pull/39) (draft)
 - Branch: `codex/gate-001-bilingual-overfit-proof`
 - Ticket: `GATE-001`
 - Hypothesis: a bounded random-initialized run can memorize a fixed bilingual fixture, resume exactly, and generate checkpoint-backed base-model continuations.
 - Experiment record: `docs/experiments/GATE-001-bilingual-overfit-proof.md`
 - Started: 2026-07-12
-- Final verdict: in progress
+- Final verdict: candidate complete; independent review pending
 - Final record owner: implementation agent
 
 ## Scope and decision context
@@ -25,6 +25,8 @@
 | 1 | implementation | not exposed by runtime | not exposed by runtime | `7f9c172`; requested Luna/lightweight Extra High | Implement the bounded fixed-fixture memorization/resume/generation gate. | in progress | Actual product/family displayed as Codex / GPT-5; exact deployment ID and reasoning mode are not displayed. | This record and linked predeclared experiment record |
 | 1 | repair | not exposed by runtime | not exposed by runtime | candidate through `8db0b6b`; requested lightweight Extra High | Retain failed bounded attempts, keep the original loss/budget gate, and predeclare the smallest fixture-only retry. | in progress | Host CPU-Torch failure, insufficient windows, terminal-step resume, and diluted English memorization were all retained. Retry uses two repeated JP/EN documents with 11 batches/pass so step 100 has a suffix; no threshold relaxation. | Experiment-record retry predeclaration dated 2026-07-12 |
 | 2 | repair | not exposed by runtime | not exposed by runtime | attempt-6 evidence at candidate `66ec702`; requested lightweight Extra High | Preserve the successful loss/trajectory result but repair the failed full-suffix sampling audit without changing training. | in progress | Retry uses longer, fixed in-fixture prefixes to remove cross-language first-token ambiguity; model/data/optimizer/seed/budget/threshold remain unchanged. | Experiment-record sampling-audit retry predeclaration dated 2026-07-12 |
+| 2 | implementation | not exposed by runtime | not exposed by runtime | exact run head `3d0f4fbdc7c8ad40d30b9e5eb03e448e712d2e2e`; requested Luna/lightweight Extra High | Run the new predeclared prompt selection through the complete reference/repeat/resume proof. | candidate complete | Attempt 7 PASS: all three 200-step traces hashed identically; verified step-100 resume and GEN-001 JP/EN samples passed. | `reports/gate-001/attempt-7/gate_record.json`; experiment record |
+| 2 | handoff | not exposed by runtime | not exposed by runtime | candidate `3d0f4fbdc7c8ad40d30b9e5eb03e448e712d2e2e`; requested heavier reviewer Extra Thinking | Hand off exact implementation evidence for independent PHILOSOPHY/ticket/CHECK review. | ready for review | No hidden reasoning recorded; request is limited to ticket acceptance, selected checks 6/8/9.1/R2, and change surface. | provenance capture 2026-07-12T16:23:21Z |
 
 ## Runtime provenance block
 
@@ -33,18 +35,22 @@
 | requested | Codex | Luna or available lightweight model | not exposed by runtime | Extra High | task request |
 | actual | Codex | GPT-5 | not exposed by runtime | not exposed by runtime | runtime exposes product/family but not deployment ID or reasoning mode |
 
-- Capture file/evidence: pending final implementation capture
-- Codex CLI version: not exposed by runtime
-- Branch/commit: `codex/gate-001-bilingual-overfit-proof` / pending implementation commit
+- Capture file/evidence: `scripts/capture_model_provenance.py` stdout captured at 2026-07-12T16:23:21Z for implementation and handoff; exact fields below.
+- Codex CLI version: `codex-cli 0.144.1`
+- Branch/commit: `codex/gate-001-bilingual-overfit-proof` / `3d0f4fbdc7c8ad40d30b9e5eb03e448e712d2e2e`
 - Phase/role/task path: implementation / `/root/gate001_implementation`
 - Privacy confirmation: no prompts, hidden chain-of-thought, token counts, secrets, or raw thread IDs are recorded.
+
+```json
+{"phase":"implementation","role":"agent","task_path":"/root/gate001_implementation","requested":{"model":"Luna or available lightweight model","reasoning_mode":"Extra High"},"actual":{"product":"Codex","displayed_model_family":"GPT-5","exact_model_identifier":"not exposed by runtime","reasoning_mode":"not exposed by runtime"},"environment":{"codex_cli_version":"codex-cli 0.144.1","branch":"codex/gate-001-bilingual-overfit-proof","commit":"3d0f4fbdc7c8ad40d30b9e5eb03e448e712d2e2e","thread_id":"not recorded (privacy)"}}
+```
 
 ## Check selection and verdicts
 
 ### Review cycle 1
 
 - Review model / mode: pending independent review; requested heavier Extra Thinking, actual fields must be captured by that runtime.
-- Commit reviewed: pending
+- Commit reviewed: pending; handoff source is `3d0f4fbdc7c8ad40d30b9e5eb03e448e712d2e2e` plus this documentation-only evidence commit.
 - Selected `CHECK.md` sections: 6, 8, 9.1 and GATE-001 R2.
 - Major sections marked N/A and why: performance optimization and 15-60-minute thermal pilot are N/A; this is a bounded correctness/memorization gate, not a throughput claim.
 - Ticket acceptance result: pending
@@ -61,22 +67,29 @@
 
 ## Failed-review handoff
 
-N/A — no independent review has run.
+N/A — no independent review has run, so no review failure handoff exists.
 
 ## Repair result
 
-N/A — no repair cycle has run.
+Implementation repairs before review (all retained in the experiment record):
+
+- Cycle 1: replace too-short/terminal fixture passes with a versioned 11-batch
+  pass and reject a recovery point that has no suffix.
+- Cycle 2: concentrate the fixture on its two declared JP/EN continuations;
+  this preserved the NLL threshold rather than relaxing it.
+- Cycle 3: predeclare unambiguous fixed in-fixture continuation prefixes after
+  retaining the short-prompt sampling failure; rerun the full comparison.
 
 ## Final evidence
 
-- Resolved Hydra command/config: pending
-- Data/tokenizer/model identity: pending
-- Validation and measurements: pending; this ticket will record same-corpus memorization rather than validation.
-- Performance/resource result if applicable: pending bounded target smoke; no performance claim planned.
-- Failed attempts retained at: experiment record and local evidence directory, pending.
+- Resolved Hydra command/config: exact Docker command and profile values in the linked experiment record; `profile=gate_overfit`, CUDA BF16, seed 42, 200 updates, step-100 recovery, W&B disabled.
+- Data/tokenizer/model identity: versioned fixture manifest `eb607b8156d75987032d213e62dbb8c76bf61c7521d0a8db51b35c88c57804e9`; tokenizer fingerprint `12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b`; random 3,299,754-parameter decoder.
+- Validation and measurements: this is same-corpus memorization, explicitly not validation. Reference/repeat/resume each: 200 steps, 3,200 targets, NLL `10.8711 -> 0.164456`; common full-trace SHA-256 `8758e770ae67e408c47b6a32e862513cf5b79668d1e45742f73e61ea298c7350`.
+- Performance/resource result if applicable: R2 GB10 target smoke completed; no throughput, thermal, or performance claim is made.
+- Failed attempts retained at: experiment record inventory and ignored local `reports/gate-001/attempt-{1..6}`.
 - Known trade-offs: fixed-fixture loss and samples are intentionally non-generalizing evidence.
-- Unresolved risks: implementation and independent review pending.
-- Human decision requested: review the eventual exact-head gate evidence before guarded merge.
+- Unresolved risks: GPU memory-efficient attention warned that its algorithm is non-deterministic under the current `warn_only` policy; exact equality is demonstrated only on this current environment. Independent review remains required.
+- Human decision requested: perform the independent exact-head review; merge only after the later guarded audit.
 
 ## Merge authority and final audit
 
@@ -112,12 +125,12 @@ N/A — no repair cycle has run.
 
 | Model / mode | Role | What it handled well | What it missed or made worse | Context that helped | Outcome |
 | --- | --- | --- | --- | --- | --- |
-| not exposed by runtime / not exposed by runtime | implementation | pending | pending | Ticket, policy, selected checks, and baseline commit | in progress |
+| not exposed by runtime / not exposed by runtime | implementation | Built a small direct runner on the canonical training/checkpoint/generation paths; retained failures; converged to exact same-seed/recovery evidence | Initial fixture sizing and sampling-prefix choices needed empirical repair; native CPU Torch could not provide CUDA evidence | Ticket, manifest/cursor contracts, predeclared retry records, and GB10 measurements | candidate complete; independent review pending |
 
 ## Ledger update
 
 - [x] Added the draft PR/ticket row to `docs/model-runs/README.md`.
-- [ ] Updated per-model attempt, pass, repair, and review counts after the candidate is complete.
-- [ ] Confirmed that the PR execution trail matches this record.
+- [x] Updated per-model attempt, pass, repair, and review counts for the completed implementation candidate; review counts await the independent verdict.
+- [x] Confirmed that the PR execution trail is ready to be updated from this record.
 - [ ] Recorded complete guarded self-merge authority/audit evidence.
 - [x] Confirmed that this is not the bootstrap self-merge policy PR.

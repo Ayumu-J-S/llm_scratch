@@ -2,11 +2,11 @@
 
 - Roadmap ticket: `GATE-001`
 - Branch: `codex/gate-001-bilingual-overfit-proof`
-- Draft PR: pending — initial provenance commit will open it
+- Draft PR: [#39](https://github.com/Ayumu-J-S/llm_scratch/pull/39)
 - Experiment owner: implementation agent; actual exact runtime model and reasoning are not exposed
-- Status: planned
+- Status: concluded candidate; independent review pending
 - Started (UTC): 2026-07-12
-- Last updated (UTC): 2026-07-12
+- Last updated (UTC): 2026-07-12T16:23:22Z
 - Model-run provenance: `docs/model-runs/GATE-001-bilingual-overfit-proof.md`
 
 ## Predeclared question and decision rule
@@ -30,11 +30,60 @@
 | Checkpoint count and bytes | Recovery every 100 updates, final checkpoint per execution | Resume proof and checkpoint-backed generation |
 | Local / external / W&B storage | Local run directories only; W&B disabled | Gate does not need an external artifact upload |
 
-## Attempt 1 — pending implementation
+## Attempt inventory
 
-No training process has been launched. This section will retain the complete
-resolved Hydra configuration, immutable input identities, counters, checkpoint
-digests, samples, and comparison result after the canonical command exists.
+All attempts remain in local `reports/gate-001/attempt-*`; raw checkpoints are
+ignored because they are recoverable local artifacts rather than repository
+evidence. The compact outcomes below are the durable record.
+
+| Attempt | Candidate condition | Outcome | Retained finding |
+| --- | --- | --- | --- |
+| 1 | Native `uv` CUDA request | Failed before data/model construction | Host Torch was CPU-only; explicit CUDA guard worked. |
+| 2 | First Docker fixture | Failed during preview | Each document was shorter than a packed 17-token window. |
+| 3 | Longer fixture, one epoch | Failed before recovery point | Finite source produced one update/epoch, never reaching step 100. |
+| 4 | 200 finite passes, recovery at 100 | Failed resume | Step 100 landed on the terminal batch, leaving no resumable suffix. |
+| 5 | 11-window heterogeneous fixture | Negative | Exact repeat/resume worked, but final update NLL was `0.7017` and English full suffix was absent. |
+| 6 | Concentrated two-document fixture | Negative sampling audit | Final NLL was `0.1645` and all trajectories matched; short prompts failed the predeclared full-suffix test. |
+| 7 | Same training; new predeclared unambiguous prompts | PASS candidate | Every loss, counter, identity/model digest, and sample comparison passed. |
+
+## Attempt 7 — bounded GB10 fixed-fixture proof
+
+### Launch identity
+
+- Started / ended (UTC): 2026-07-12T16:22:19Z / 2026-07-12T16:22:46Z
+- Outcome: succeeded; `gate_record.json` verdict `PASS`
+- Exact command:
+  ```text
+  docker run --rm --gpus all --ipc=host --ulimit memlock=-1 --ulimit stack=67108864 -v /tmp/llm_scratch-gate001:/tmp/llm_scratch-gate001 -v /home/ayumu/Documents/Proj/llm_scratch/.git:/home/ayumu/Documents/Proj/llm_scratch/.git:ro -w /tmp/llm_scratch-gate001 -e PYTHONPATH=/tmp/llm_scratch-gate001/src -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=/tmp/llm_scratch-gate001 llm-scratch:env-001 python scripts/run_gate_overfit.py --output-dir reports/gate-001/attempt-7 --device cuda
+  ```
+- Resolved Hydra configuration: [`config/profile/gate_overfit.yaml`](../../config/profile/gate_overfit.yaml), with `runtime.device=cuda`, BF16, seed `42`, model `(embed=32, heads=4, layers=1, dropout=0)`, sequence length `16`, batch `1`, `max_steps=200`, `epochs=20`, AdamW `(lr=.02, betas=.9/.95, eps=1e-8, weight_decay=0)`, no scheduler, recovery every 100 steps, no validation within the budget, and W&B disabled.
+- Git commit SHA: `3d0f4fbdc7c8ad40d30b9e5eb03e448e712d2e2e`; clean worktree.
+- Dependency lock identity: `uv.lock` SHA-256 `cc1e1e2fb13e2b6088d3fde9582717dbe9bf08e4bf285229672c9ebf139561b3`.
+- Container/image identity: `llm-scratch:env-001`, NGC base `nvcr.io/nvidia/pytorch@sha256:43c018d6a12963f1a1bad85ef8574b5c2a978eec2be0ebcacfb87f69e0d210e1`.
+
+### Scientific identity
+
+- Model: `SimpleDecoderTransformer`, random initialization, `3,299,754` trainable parameters; no pretrained weights, teacher outputs, or synthetic targets.
+- Tokenizer: canonical `llm-jp-v1`, fingerprint `12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b`.
+- Train fixture: `tests/fixtures/gate_overfit/v1/train.manifest.json`, manifest SHA-256 `0c284a3a2474b9ed2f70891a58e5a852ecdf816bc8061b73e6a3546947036d92`, fingerprint `eb607b8156d75987032d213e62dbb8c76bf61c7521d0a8db51b35c88c57804e9`.
+- Auxiliary manifest: distinct no-overlap source fingerprint `a4cb7820a679cd914e148395daff2dbf6b4f6c6fac18e4addde13dae98640cdb`; it was never scored because its validation cadence is step 1000.
+- Hardware/software: NVIDIA GB10 (CC 12.1), driver `580.159.03`, CUDA runtime `13.3`, Torch `2.13.0a0+8145d630e8.nv26.06`, Python `3.12.3`, ARM64 Ubuntu 24.04.
+- Precision and numerical controls: BF16 autocast, FP32 optimizer state, global clipping at `10.0`, finite-loss/gradient/parameter stops, deterministic algorithms enabled with PyTorch's documented memory-efficient-attention `warn_only` notice.
+
+### Counters, evidence, and integrity
+
+- Reference, independent repeat, and interrupted/resumed runs each reached 200 optimizer steps and 3,200 target tokens (16 targets/update). The common first/final NLLs were `10.8711` and `0.164456`; final-pass mean NLL was `0.192488`.
+- The full step/counter/loss trace hash was `8758e770ae67e408c47b6a32e862513cf5b79668d1e45742f73e61ea298c7350` for all three executions. Every comparison reported true for counters, trace, checkpoint identity, final-model digest, samples, and the NLL threshold.
+- Reference checkpoint identity SHA-256: `02c40cea74bfdff78d9db1723decc6d594aa79dcd909b6f8846155cc0ca479db`; model digest: `0e100e0da66f0710db001064fdab7a5efa363c2f37e4f4336a8f27ef7d8f14c1`. Each final checkpoint was 39,646,677 bytes; the step-100 verified recovery was 39,648,446 bytes.
+- GEN-001 greedy base-model continuations from the final checkpoint: `日本語の合図: 桜は` -> `春に咲きます。日本語の合図`; `English cue: small models` -> `memorize fixed text.`. The first fixed suffix is present in each; no result is a chat response.
+- Local evidence: `reports/gate-001/attempt-7/gate_record.json`, per-run `run_manifest.json`, resolved configs, metrics JSONL, and verified checkpoints. W&B IDs/artifacts: `N/A — disabled`.
+- Integrity: both fixture manifests are versioned/hashed; auxiliary data is disjoint and unscored; no benchmark data, production corpus, held-out metric, or external model capability entered this run.
+
+### Attempt interpretation
+
+- Result against conditions: PASS candidate. The predeclared loss/update budget, same-seed independent repeat, exact-resume trajectory, and checkpoint-backed JP/EN continuation requirements all passed.
+- Failure/anomaly: no non-finite values. The BF16 memory-efficient-attention deterministic warning remains an environment limitation, not a claim of cross-platform bitwise reproducibility.
+- What remains uncertain: this proves only same-fixture memorization on one current GB10 container; it establishes no held-out validation, generalization, benchmark score, throughput, thermal, or production-data claim.
 
 ## Retry predeclaration — 2026-07-12
 
@@ -87,7 +136,7 @@ revision of the original threshold or budget.
 
 ## Conclusion
 
-- Hypothesis result: pending
-- Evidence-backed conclusion: pending implementation and bounded runs
-- Uncertainty and limitations: this gate will demonstrate memorization only; it cannot measure held-out validation, generalization, benchmark ability, or production-data readiness.
-- Exactly one next step: implement the smallest canonical fixture runner and execute the predeclared comparison.
+- Hypothesis result: supported for the fixed fixture only.
+- Evidence-backed conclusion: the current random-initialized model can memorize the versioned bilingual fixture within 200 updates, restore the verified step-100 suffix without trajectory drift, and produce the fixed JP/EN base-model continuations. This is not held-out validation or generalization.
+- Uncertainty and limitations: no production data, benchmark, W&B upload, long pilot, performance comparison, or cross-platform deterministic guarantee was attempted.
+- Exactly one next step: obtain the required independent `CHECK.md` review of PR #39's exact candidate head.
