@@ -1,6 +1,6 @@
 # DATA-002 — Immutable Manifests and Disjoint Splits
 
-- PR: [#13](https://github.com/Ayumu-J-S/llm_scratch/pull/13) (draft during dependency integration)
+- PR: [#13](https://github.com/Ayumu-J-S/llm_scratch/pull/13) (draft pending guarded final audit)
 - Branch: `codex/data-002-immutable-manifests`
 - Ticket: `DATA-002`
 - Hypothesis: immutable source manifests plus deterministic document identity
@@ -8,7 +8,7 @@
   auditable before source access or training without adding per-sample hot-path
   checksum work.
 - Started: 2026-07-11T17:38:46Z
-- Current verdict: integration review pending; the earlier isolated head was PASS WITH NOTE
+- Current verdict: PASS WITH NOTE on the integrated implementation head
 - Final record owner: primary task; exact runtime identity not exposed
 
 ## Scope and decision context
@@ -45,17 +45,17 @@
 | 3 | repair | not exposed by runtime | not exposed by runtime | stable review-failed commit `b4bcd7f4` and exact findings | Requested Luna / Extra High or maximum; close only the three review findings and run actual bounded workflows | completed | Training forces manifest-only streaming and rejects explicit false/empty mappings; smoke is pinned English compatible with the current BPE; fixture streaming budgets use `max`; obsolete mutable-path override removed | 64 passed, 3 explicit network skips; actual tokenizer+smoke and bilingual streaming one-epoch CPU commands completed offline |
 | 3 | re-review | not exposed by runtime | not exposed by runtime | `96b2227054177fd245d7c3956392b224f542c6a7` | Independent DATA-002 `/review` of every prior finding and the complete ticket | PASS WITH NOTE | All authority, overlap, tokenizer-compatibility, workflow, split, lifecycle, and documentation findings closed; DATA-004 large-corpus work remains explicitly deferred | 64 passed, 3 explicit network skips; focused 5 passed; two actual bounded CPU workflows; quality/Hydra checks pass |
 | 4 | dependency integration implementation | not exposed by runtime | not exposed by runtime | DATA-002 head `38bc94cfe2fb2a20d010174bc98d693324aa7101`; `origin/main` `073514455a6448c2471c75e433a0fc3c2021b2bc` after PRs #10-#12 | Requested Luna / Extra High; normally merge current main, preserve DATA-001/TOK-001 invariants, compose canonical tokenizer with manifest authority, rerun real bounded workflows, and leave draft for fresh independent review | completed; independent review pending | Normal merge result `94faa2175b940ea4f373a9cf7b03e4606f98b32c`; canonical-only tokenizer validation remains before manifest source access; DATA-001 stride, quota boundaries, accounting, and process state remain; DATA-002 adds one-time preflight, disjointness, cache identity, and thread-only manifest prefetch | 140 passed, 1 explicit HF opt-in skip; 20 exact integration regressions; resolved Hydra and debug; canonical memorization/streaming CPU epochs; bounded R1; Ruff/format/lock/diff pass |
+| 4 | independent integration `/review` | not exposed by runtime | not exposed by runtime | exact integrated implementation head `38b954764b4c24462d163661174ad02859611b6b` | Requested an available heavier model at Extra Thinking; independently review DATA-002 acceptance, `PHILOSOPHY.md`, applicable `CHECK.md`, sibling invariants, real workflows, and evidence integrity | PASS WITH NOTE | No actionable findings. Immutable authority, canonical-tokenizer ordering, DATA-001 causal/accounting semantics, disjointness, and bounded evidence remain sound. Note is limited to the explicit DATA-004 real-HF inventory/adapter boundary and absence of R2/DGX/throughput evidence. | Independent reviewer handoff to primary task; exact model and mode were not exposed by runtime |
 
 ## Current merge authorization
 
 - On 2026-07-12, the human explicitly authorized the bounded set of repository
   PRs #10 through #15 for guarded agent self-merge after human-merging the
   bootstrap policy PR #16.
-- Authorization alone is not a merge verdict. PR #13 remains a draft during
-  this integration cycle and may not be marked ready or merged until the exact
-  integrated head passes an independent review, all actionable findings are
-  repaired and re-reviewed, expected-check and review-thread inventories are
-  current, and the final no-drift audit required by `PHILOSOPHY.md` succeeds.
+- Authorization and the passing independent review do not alone complete the
+  mutable merge gates. PR #13 remains draft until the exact-head docs parity,
+  expected-check and review-thread inventories, current-base/mergeability, and
+  final no-drift audit required by `PHILOSOPHY.md` are recorded.
 
 ## Dependency integration evidence (cycle 4)
 
@@ -108,9 +108,11 @@
   all three config/workflow commands pass. A repository-wide format check still
   identifies three pre-existing main-branch files; they are unchanged by this
   PR and were not reformatted out of scope.
-- Current handoff: implementation is complete but no verdict is claimed for the
-  integrated head. PR #13 stays draft for a fresh independent `/review` against
-  DATA-002, `PHILOSOPHY.md`, and applicable `CHECK.md` sections.
+- Review handoff: the exact integrated implementation head
+  `38b954764b4c24462d163661174ad02859611b6b` received PASS WITH NOTE with no
+  actionable findings. PR #13 stays draft for the primary task's docs-only
+  parity audit and mutable guarded-merge inventories; this record does not
+  freeze those external observations.
 
 ## Check selection and verdicts
 
@@ -177,19 +179,51 @@ full evidence suite before requesting independent re-review.
   the explicit DATA-004 boundary.
 - Verdict: PASS WITH NOTE
 
+### Independent integration review cycle 4
+
+- Review model / mode: not exposed by runtime / not exposed by runtime
+- Requested review class / mode: available heavier model / Extra Thinking
+- Commit reviewed: `38b954764b4c24462d163661174ad02859611b6b`
+- Selected `CHECK.md` sections: minimum review, 4.1, 4.4, 7, 8.2, and
+  11 DATA-002
+- Ticket acceptance result: PASS; the current-main integration preserves
+  immutable manifest authority, non-empty disjoint production selections,
+  deterministic membership, explicit memorization-only same-corpus use, and
+  benchmark denial.
+- Philosophy alignment: PASS; provenance and benchmark boundaries remain
+  fail-closed, the canonical tokenizer is validated before manifest source
+  access, and the data-to-target causal chain remains auditable.
+- Complexity / change-surface result: PASS; the integration retains one
+  manifest boundary and the existing loader/dataset/training seams without a
+  compatibility tokenizer path or unrelated DATA-003/DATA-004 mechanisms.
+- ML-system result: PASS WITH NOTE; DATA-001 stride, boundary, accounting, and
+  process-prefetch behavior remains covered, and both actual canonical CPU
+  workflows completed with finite loss. The note is limited to DATA-004's real
+  HF inventory/bounded adapter and the intentionally absent R2/DGX/real-source
+  throughput evidence.
+- Actionable findings: none.
+- Verdict: PASS WITH NOTE
+
 ## Repair result
 
 All six findings were repaired in cycle 2. Focused regressions reproduce the old
 benchmark bypass, two-epoch hash repetition, same-selection overlap, mutable
 smoke authority, path escape, and cross-process cache race; all now fail closed
-or exhibit the required one-time behavior. Independent re-review remains
-pending, so no PASS is claimed.
+or exhibit the required one-time behavior. At that point independent re-review
+remained pending, so no PASS was claimed prematurely.
 
 Cycle 3 repaired the independent findings. Manifest-only streaming is now code
 authority, the fingerprinted CC0 smoke uses current-BPE-compatible English
 text, and both fixture horizons are `max`. Actual offline one-epoch smoke and
 streaming commands completed. Independent re-review returned PASS WITH NOTE;
 the note is limited to work explicitly deferred to DATA-004.
+
+Cycle 4 normally merged the human-merged DATA-001/TOK-001 dependencies and
+replaced the historical temporary tokenizer workflows with the repository's
+canonical tokenizer. Independent review of exact implementation head
+`38b954764b4c24462d163661174ad02859611b6b` returned PASS WITH NOTE with no
+actionable findings. No repair cycle follows; only docs provenance/parity and
+mutable guarded-merge observations remain.
 
 ## Isolated-head evidence (cycles 1-3)
 
@@ -293,11 +327,13 @@ merge assumptions for the current PR head.
 | not exposed by runtime / not exposed by runtime | precommit audit and repair | Found authority, lifecycle, cross-loader, mutable-smoke, package-path, and process-cache defects that unit-level identity tests missed; repaired each with exact regressions | Runtime did not expose an independent model/mode; the repair still missed a training-entrypoint bypass and runnable-workflow defects | Concrete exploit reproductions and actual two-epoch dataset behavior | initial review FAIL; repair required another cycle |
 | not exposed by runtime / not exposed by runtime | independent review 2, repair 3, and re-review 3 | Identified remaining production authority, tokenizer compatibility, and documented-horizon defects; repair added training-entrypoint guards and actual offline workflow evidence; re-review closed every finding | Previous repair stopped at component tests and did not execute the canonical smoke/streaming commands | Stable reviewed commit, exact failing cases, current BPE corpus, bounded CPU commands, and full acceptance matrix | PASS WITH NOTE; DATA-004 boundary retained |
 | not exposed by runtime / not exposed by runtime | dependency integration implementation | Reconciled the accepted manifest contract with current canonical-tokenizer and causal-stream semantics; retained all three tickets' invariants and executed both real bounded training modes | Exact requested Luna / Extra High identity and mode were not exposed; independent review is still required before any integrated verdict | Stable sibling merge commits, predeclared conflict policy, exact focused regressions, and actual canonical runs | implementation complete; integrated review pending |
+| not exposed by runtime / not exposed by runtime | independent integration review | Reviewed exact head `38b954764b4c24462d163661174ad02859611b6b` against acceptance, philosophy, CHECK, sibling invariants, and actual bounded evidence; found no actionable defect | Exact requested heavier model and Extra Thinking setting were not exposed; real HF inventory, R2/DGX, and throughput remain intentionally outside DATA-002 | Stable exact head, full offline/focused evidence, resolved configs, two canonical training paths, and bounded lifecycle measurement | PASS WITH NOTE; note only the explicit DATA-004/measurement boundary |
 
 ## Ledger update
 
 - [x] Added the PR/ticket row to `docs/model-runs/README.md`.
 - [x] Updated implementation, two failed reviews, three repair/integration
-  attempt counts, and the earlier passing independent re-review.
-- [ ] Reconcile the integrated independent-review verdict and exact reviewed
-  head after cycle 4 review.
+  attempt counts, two successful repairs/integrations, and all four completed
+  reviews with verdicts.
+- [x] Reconciled the cycle-4 independent verdict and exact reviewed head; the
+  primary task retains the docs-only parity and mutable guarded-merge audit.
