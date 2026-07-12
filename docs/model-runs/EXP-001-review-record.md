@@ -324,9 +324,9 @@ NOTE` after both repairs.
 - Newer human objections since authorization/review: none observed during
   integration preparation; must be re-fetched at final audit.
 - Human review dismissed by an agent: no.
-- Unresolved review threads at final audit: pending; one outdated EXP-001 thread
-  (`PRRT_kwDORqx5mc6QHmfn`) remained unresolved before the integration update
-  and must be resolved only after exact-head review and parity audit.
+- Unresolved review threads at final audit: zero observed after the integration
+  push; EXP-001 thread `PRRT_kwDORqx5mc6QHmfn` was resolved and outdated. The
+  final exact-head audit must refresh this mutable gate and still require zero.
 - Branch-protection required-context inventory: pending exact-head audit.
 - Applicable configured workflow/check inventory: pending exact-head audit.
 - Observed exact-head check statuses: pending exact integration head and status
