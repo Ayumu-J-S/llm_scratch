@@ -1,6 +1,6 @@
 # REP-001 — Reproducible run identity and global seeding
 
-- PR: [#22](https://github.com/Ayumu-J-S/llm_scratch/pull/22) (draft)
+- PR: [#22](https://github.com/Ayumu-J-S/llm_scratch/pull/22) (merged); audit PR: draft
 - Branch: `codex/rep-001-reproducibility`
 - Ticket: REP-001
 - Hypothesis: Capturing immutable code/config/input identity and deriving every
@@ -28,6 +28,7 @@
 | 1 | review | not exposed by runtime | not exposed by runtime | `bb407cb` | Requested heavier review at Extra Thinking; inspect REP acceptance and CHECK sections 1, 2, 6 | PASS WITH NOTE | Same-seed CPU batches/losses, run manifest, mutation and mutable-input guards pass; found guard ordering and deterministic toggle follow-ups | PR #22 review `4679671936`; broader full suite 198 passed, 1 skipped; Ruff, lock, diff pass |
 | 2 | repair | not exposed by runtime | not exposed by runtime | review `4679671936` | Move dirty/mutable guard before tokenizer/data/model initialization; add regression; retain exact model provenance | completed | Run manifest now writes immediately after config resolution/global seeding, before tokenizer/data setup; dirty real-run regression proves tokenizer is untouched; lock/Git verification and deterministic=False reset added; external resolved configs copied into run directory | `2745b67`, then `deb0c1f`; REP-focused 6 passed |
 | 2 | re-review | not exposed by runtime | not exposed by runtime | `deb0c1f` | Re-run independent review against exact repair head | PASS WITH NOTE | Acceptance remains satisfied; no blocking ML/system issue; only note is that GPU bitwise determinism remains out of scope and validation is CPU/R1 | review `4679685771`; exact head `deb0c1f`; full 200 passed, 1 skipped; focused integration 20 passed plus REP-focused 6; Ruff, lock, diff pass |
+| 3 | merge audit / record finalization | not exposed by runtime | not exposed by runtime | PR #22 merge `d5806b2`; docs head `e2153a2` | Record the guarded merge outcome, exact reviewed heads, and final GitHub evidence without changing implementation | completed | PR #22 is closed and merged; `deb0c1f` remains the independently reviewed implementation/repair head and `e2153a2` is the record-only docs descendant; requested Luna / Extra High remains separate from unavailable runtime identity | merge `d5806b2119c03fe4ef8f14c2523748018bd3315c`; review IDs `4679685771`, `4679697456`, `4679696518`; exact-head statuses/workflows/threads empty |
 
 ## Runtime provenance block
 
@@ -83,32 +84,33 @@ Cycle 2 re-review at `deb0c1f` returned PASS WITH NOTE.
 ## Merge authority and final audit
 
 - Merge path: human merge / guarded agent self-merge only after explicit authorization
-- Human authorization: bounded roadmap self-merge authorization from user, if parent agent applies it
-- Authorization evidence location: PR body and parent model-run audit
-- Authorization covers this named PR or bounded ticket/goal series: pending parent audit
-- Exact independently reviewed head SHA: pending
-- Latest independent verdict / model / mode: pending
-- All actionable findings repaired and independently re-reviewed: pending
-- Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: pending
+- Human authorization: bounded roadmap self-merge authorization from the user on 2026-07-12
+- Authorization evidence location: user goal instruction, PR #22 merge audit, and this follow-up record
+- Authorization covers this named PR or bounded ticket/goal series: yes — the user's 2026-07-12 instruction authorizes self-merge for the bounded roadmap completion series; recorded in the parent goal/PR audit and this follow-up
+- Exact independently reviewed implementation head SHA: `deb0c1f5cf71a1966804b0269b2f51e77c784bb1`
+- Record-only docs head SHA: `e2153a2c7d50f72e2805eaebf19876d5a7691dd4`
+- Latest independent verdict / model / mode: PASS WITH NOTE / not exposed by runtime / not exposed by runtime (docs head is record-only; no implementation drift)
+- All actionable findings repaired and independently re-reviewed: yes — review IDs `4679685771`, `4679697456`, and `4679696518` record the exact-head and docs-scope passes
+- Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: none observed; listed reviews are comments with PASS WITH NOTE findings only
 - Newer human objections since authorization/review: none observed
 - Human review dismissed by an agent: no
-- Unresolved review threads at final audit: pending
-- Branch-protection required-context inventory: pending
-- Applicable configured workflow/check inventory: pending
-- Observed exact-head check statuses: pending
-- Expected checks absent, pending, skipped, cancelled, or non-successful: pending
-- No-check evidence when both inventories are empty: pending
-- Target branch and base SHA at final audit: `main` / `a6c65cd` at PR creation
-- Up-to-date, conflict-free, and mergeable evidence: PR created from current main; final refresh pending
-- Record, ledger, PR trail, validation, and risks parity: pending final review
+- Unresolved review threads at final audit: none — `github_list_pull_request_review_threads` returned an empty list for PR #22
+- Branch-protection required-context inventory: not exposed by the connected GitHub surface; no required-context inventory was returned
+- Applicable configured workflow/check inventory: none returned for `deb0c1f`, `e2153a2`, or merge `d5806b2`; `github_fetch_commit_workflow_runs` returned an empty list for each
+- Observed exact-head check statuses: none returned for `deb0c1f`, `e2153a2`, or merge `d5806b2`; `github_get_commit_combined_status` returned an empty status list for each
+- Expected checks absent, pending, skipped, cancelled, or non-successful: none observed; no expected contexts were exposed by the available inventory
+- No-check evidence when both inventories are empty: yes, with the connector evidence limitation above recorded
+- Target branch and base SHA at final audit: `main` / `a6c65cd0f535abc8d83686c83a671ea92054656f` at PR #22 creation; merge commit `d5806b2119c03fe4ef8f14c2523748018bd3315c`
+- Up-to-date, conflict-free, and mergeable evidence: PR #22 was refreshed and merged by GitHub at `d5806b2`; the final merged state is closed/merged and no implementation drift exists in the docs audit
+- Record, ledger, PR trail, validation, and risks parity: complete — PR body, exact reviewed heads, review IDs, empty checks/workflows/threads, and this record agree
 - Prohibited self-merge categories: clear — no secrets/security/deployment/permission changes
 - Admin/bypass/force/disabled-check requirement: no
-- Final audit PR body/comment location: PR #22
+- Final audit PR body/comment location: PR #22 merge body and this follow-up audit PR
 - Final audit changed reviewed head: no
-- Immediate pre-merge re-fetch/compare observation location: pending
-- Immediate refresh compared authorization, head, base, review decision/objections, threads, expected checks/statuses, and mergeability: pending
-- Drift found: pending
-- Merge outcome: pending
+- Immediate pre-merge re-fetch/compare observation location: PR #22 final merge-gate audit in its PR body; merged head `e2153a2c7d50f72e2805eaebf19876d5a7691dd4`
+- Immediate refresh compared authorization, head, base, review decision/objections, threads, expected checks/statuses, and mergeability: yes; no drift was found before GitHub created merge commit `d5806b2`
+- Drift found: none
+- Merge outcome: PR #22 closed/merged; merge commit `d5806b2119c03fe4ef8f14c2523748018bd3315c`
 
 ## Model assessment from this ticket
 
@@ -121,5 +123,5 @@ Cycle 2 re-review at `deb0c1f` returned PASS WITH NOTE.
 - [x] Added the PR/ticket row to `docs/model-runs/README.md`.
 - [x] Updated per-model attempt, pass, repair, and review counts: implementation, one repair, and two independent review cycles recorded.
 - [x] Confirmed that the PR execution trail matches this record.
-- [ ] Recorded human merge or complete guarded self-merge authority/audit evidence.
+- [x] Recorded complete guarded self-merge authority/audit evidence for PR #22; the user authorized the bounded roadmap series and the exact-head merge evidence is retained above.
 - [x] Confirmed that this bootstrap policy rule was not used before a human merged it.
