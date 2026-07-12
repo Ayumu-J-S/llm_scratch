@@ -13,6 +13,7 @@ PR URL cannot be created.
 
 | Record | Ticket | PR | Initial implementation model / mode | First review model / mode | Repair cycles | Final verdict | Main failure tags |
 | --- | --- | --- | --- | --- | ---: | --- | --- |
+| [POLICY-001 guarded agent self-merge](POLICY-001-agent-self-merge.md) | POLICY-001 | [#16](https://github.com/Ayumu-J-S/llm_scratch/pull/16) | not exposed by runtime / not exposed by runtime | not exposed by runtime / not exposed by runtime | 1 | PASS WITH NOTE | authorization, review-state, checks, drift |
 | [EXP-001 review record](EXP-001-review-record.md) | EXP-001 | [#10](https://github.com/Ayumu-J-S/llm_scratch/pull/10); related process PR [#9](https://github.com/Ayumu-J-S/llm_scratch/pull/9) | not exposed by runtime / not exposed by runtime | blocked twice, then FAIL; model/mode not exposed | 3 | PASS WITH NOTE | reproducibility, stale-review-target, stale-pr-body, stale-final-status, review-unavailable, merge-order |
 
 Use short, stable values in `Main failure tags` so results can be aggregated,
@@ -27,7 +28,7 @@ there are enough observations for meaningful rates.
 
 | Exact model / mode | Implementation attempts | First-review passes | Repair attempts | Successful repairs | Reviews performed | Important strengths observed | Recurring failure modes | Last updated |
 | --- | ---: | ---: | ---: | ---: | ---: | --- | --- | --- |
-| not exposed by runtime / not exposed by runtime | 2 | 0 | 4 | 2 | 4 | Produced a scoped EXP-001 plan, documentation repairs, exact resolved-config recapture, and live-handoff/provenance reconciliation; passing reviews verified local/live parity | One implementation stalled; two review attempts returned no verdict; initial evidence retained an unresolved interpolation; PR body and final checklist each lagged the actual review state; exact model attribution impossible | 2026-07-12 |
+| not exposed by runtime / not exposed by runtime | 3 | 0 | 5 | 3 | 6 | Produced scoped EXP-001 and guarded-policy changes, exact resolved-config evidence, and live-handoff/provenance repairs; independent reviews found subtle evidence, state, authorization, and expected-check gaps and verified the repairs | One implementation stalled; two review attempts blocked; initial EXP evidence and handoff status became stale; initial policy conflated review states and under-specified check discovery, drift refresh, and protected-action scope; exact model attribution remains impossible | 2026-07-12 |
 
 ### Counting rules
 

@@ -58,6 +58,7 @@ reported exactly as unavailable rather than inferred.
 | 7 | review-comment repair | not exposed by runtime | not exposed by runtime | GitHub review finding against `176326c07ccb0ce69ae43adc8be808c662895e30` | Remove the final stale-pending contradiction without erasing historical pending states | completed at `6baa1aade77cc7c83db8bc4a13023ecf6df4195d` | Reconciled the cycle-4 result, final checklist, model assessment, and missing cycle-6 handoff; retained all blocked and failed states | Commit `6baa1aade77cc7c83db8bc4a13023ecf6df4195d`; review thread `PRRT_kwDORqx5mc6QHmfn` |
 | 7 | re-review | not exposed by runtime | not exposed by runtime | `6baa1aade77cc7c83db8bc4a13023ecf6df4195d` plus updated PR #10 body | Fresh independent heavier review at requested Extra Thinking against EXP-001, philosophy, and selected R0 checks | PASS WITH NOTE | No actionable findings; provenance is internally consistent and the only note remains that the R0 contract has not been exercised by a consequential training run | Independent reviewer handoff received 2026-07-12 |
 | 8 | handoff | not exposed by runtime | not exposed by runtime | Passing cycle-7 re-review and current docs-only finalization | Append review provenance, update ledger counts, and synchronize the live PR body | completed; primary parity audit pending | Preserved the review target and verdict while making the final metadata-only head visible in the live handoff | This record, ledger, and PR #10 body |
+| 9 | handoff | not exposed by runtime | not exposed by runtime | PR head `f4c4d6dcff0335d1232e9de1710088d4047a0e56`; human-merged guarded policy on `origin/main` at `d5c9a4ec02ac184937e2dea2bd53c977c13d3000` | Convert PR #10 to draft, merge the exact target branch without rebase/force, preserve both ledger histories, and predeclare guarded self-merge gates | integration prepared; fresh review pending | Preserved all policy files from `main`, combined POLICY-001 and EXP-001 ledger rows/counts, and recorded bounded authorization; the exact integration head and every mutable merge gate require post-push review/audit | Local merge state and pre-review audit below |
 
 Allowed outcome interpretation: the two blocked attempts are not reviews
 performed and are not passing reviews. Historical `pending` text records the
@@ -296,3 +297,67 @@ NOTE` after both repairs.
 - The exact final branch head is synchronized in the live PR body after push.
 - Thread `PRRT_kwDORqx5mc6QHmfn` is eligible for resolution after the primary
   parity audit. This handoff neither resolves the thread nor merges the PR.
+
+## Merge authority and final audit
+
+- Merge path: `guarded agent self-merge`
+- Human authorization: explicit user instructions in the active task on
+  2026-07-12: “PR 自分でReviewしてSelf Mergeまでする”, “ここにあるPRをGithub上でMergeして”,
+  and confirmation that PR #16 was human-merged so the agent can self-merge the
+  authorized roadmap PRs.
+- Authorization evidence location: active task messages; repeated here and in
+  the live PR #10 body.
+- Authorization covers this named PR or bounded ticket/goal series: yes — the
+  existing roadmap PR series #10 through #15; it does not authorize unrelated
+  PRs or expand any prohibited category.
+- Exact independently reviewed head SHA: pending — merging `origin/main` changes
+  the head and requires fresh independent review of the pushed integration
+  commit.
+- Latest independent verdict / model / mode: pending for the integration head;
+  the earlier `PASS WITH NOTE` at
+  `6baa1aade77cc7c83db8bc4a13023ecf6df4195d` does not authorize the changed
+  head. Exact review model/mode must be recorded as exposed by the runtime.
+- All actionable findings repaired and independently re-reviewed: yes for the
+  pre-integration head; pending for the integration head.
+- Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: pending
+  fresh GitHub review-state inventory for the exact integration head.
+- Newer human objections since authorization/review: none observed during
+  integration preparation; must be re-fetched at final audit.
+- Human review dismissed by an agent: no.
+- Unresolved review threads at final audit: pending; one outdated EXP-001 thread
+  (`PRRT_kwDORqx5mc6QHmfn`) remained unresolved before the integration update
+  and must be resolved only after exact-head review and parity audit.
+- Branch-protection required-context inventory: pending exact-head audit.
+- Applicable configured workflow/check inventory: pending exact-head audit.
+- Observed exact-head check statuses: pending exact integration head and status
+  refresh.
+- Expected checks absent, pending, skipped, cancelled, or non-successful:
+  pending inventory; none may be waived.
+- No-check evidence when both inventories are empty: pending; an empty status
+  list alone will not be accepted.
+- Target branch and base SHA at final audit: `main` /
+  `d5c9a4ec02ac184937e2dea2bd53c977c13d3000` at integration preparation; must
+  be re-fetched immediately before merge.
+- Up-to-date, conflict-free, and mergeable evidence: exact `origin/main` was
+  merged locally without rebase or force; post-push GitHub mergeability and base
+  parity remain pending.
+- Record, ledger, PR trail, validation, and risks parity: pending post-push
+  synchronization, fresh independent review, and final audit.
+- Prohibited self-merge categories: clear for this documentation-only EXP-001
+  change. It contains no secrets/security-control change, private-data
+  publication, paid resource, destructive/unrecoverable action, unresolved
+  legal/licensing question, release, deployment, account/permission change, or
+  other protected externally consequential action.
+- Admin/bypass/force/disabled-check requirement: no; any such requirement blocks
+  self-merge.
+- Final audit PR body/comment location: pending fresh independent review and
+  exact-head audit.
+- Final audit changed reviewed head: N/A — no final audit has been recorded; the
+  target-branch integration deliberately invalidates the earlier reviewed head.
+- Immediate pre-merge re-fetch/compare observation location: pending.
+- Immediate refresh compared authorization, head, base, review
+  decision/objections, threads, expected checks/statuses, and mergeability: no —
+  this is the pre-review integration handoff.
+- Drift found: N/A until the immediate pre-merge refresh.
+- Merge outcome: not merged; PR remains draft pending fresh independent review
+  and every guarded gate.
