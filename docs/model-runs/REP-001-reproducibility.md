@@ -48,8 +48,8 @@
 
 - Review model / mode: not exposed by runtime / not exposed by runtime
 - Commit reviewed: `deb0c1f5cf71a1966804b0269b2f51e77c784bb1` (cycle 2; cycle 1 was `67d9247`)
-- Selected CHECK.md sections: 1 minimum review; 2 R1 smoke; 6 training loop/numerical health; 8.1 experiment handoff and run-record integrity
-- Major sections marked N/A and why: CHECK 4/5/7/8.2-8.4/9 — no data throughput, CUDA performance, optimizer, checkpoint, W&B, or production-run change; CHECK 8.1 is applicable because this ticket creates the run record.
+- Selected CHECK.md sections: 1 minimum review; 2 R1 smoke; 6 training loop/numerical health; 7.1 change surface; 7.3 repository policy; 8.1 experiment handoff and run-record integrity
+- Major sections marked N/A and why: CHECK 4/5/7.2/7.4/8.2-8.4/9 — no data throughput, CUDA performance, optimizer, checkpoint, W&B, dependency-replacement, or next-change thought-experiment claim; CHECK 8.1 is applicable because this ticket creates the run record.
 - Ticket acceptance result: PASS — same-seed CPU batches/losses reproduce and run directory captures identity/input evidence.
 - Philosophy alignment: PASS — no mutable real input or silent CPU fallback; exact unavailable values are not inferred.
 - Complexity / change-surface result: PASS WITH NOTE — localized runtime/config/train/data-loader changes; no compatibility shim.
