@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 
 from data.stream_loader import StreamLoader
 
@@ -98,6 +99,23 @@ def test_process_prefetch_interruption_resumes_exact_suffix():
     loader = StreamLoader(config)
     iterator = iter(loader)
     prefix = [next(iterator) for _ in range(3)]
+    cursor = loader.state_dict()
+    iterator.close()
+    resumed = list(StreamLoader({**config, "cursor": cursor}))
+    assert [(item["source"], item["text"]) for item in prefix] + [
+        (item["source"], item["text"]) for item in resumed
+    ] == full
+
+
+def test_thread_prefetch_interruption_does_not_capture_ahead_of_consumer():
+    config = _config(prefetch={"enabled": True, "mode": "thread", "buffer_size": 2})
+    full = _sequence(config)
+    loader = StreamLoader(config)
+    iterator = iter(loader)
+    prefix = [next(iterator)]
+    # Give the producer enough time to fill the queue; the parent's cursor
+    # should still refer to the one acknowledged sample above.
+    time.sleep(0.05)
     cursor = loader.state_dict()
     iterator.close()
     resumed = list(StreamLoader({**config, "cursor": cursor}))

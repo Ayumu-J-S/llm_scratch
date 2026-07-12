@@ -309,6 +309,7 @@ class StreamLoader:
             self.config["cursor"] = _copy_cursor(supplied_cursor)
         self._active_source_states: list[SourceState] | None = None
         self._active_rng: random.Random | None = None
+        self._consumer_cursor: dict[str, Any] | None = None
 
         self.sequence_length = int(self.config.get("sequence_length", 4096))
         if self.sequence_length < 1:
@@ -442,7 +443,13 @@ class StreamLoader:
         trainer checkpoint contract.
         """
 
-        if self._active_source_states is not None and self._active_rng is not None:
+        if self.prefetch_enabled and self._consumer_cursor is not None:
+            return _copy_cursor(self._consumer_cursor)
+        if (
+            not self.prefetch_enabled
+            and self._active_source_states is not None
+            and self._active_rng is not None
+        ):
             self._cursor = self._capture_cursor(
                 self._active_source_states,
                 self._active_rng,
@@ -593,11 +600,14 @@ class StreamLoader:
                     continue
                 if _is_prefetch_cursor(item):
                     self._cursor = _copy_cursor(item["cursor"])
+                    self._consumer_cursor = _copy_cursor(item["cursor"])
                     continue
                 if isinstance(item, BaseException):
                     raise item
                 yield item
         finally:
+            if self._consumer_cursor is not None:
+                self._cursor = _copy_cursor(self._consumer_cursor)
             self.close()
 
     def _start_prefetch_worker(self) -> None:
@@ -610,6 +620,7 @@ class StreamLoader:
             raise StreamLoaderError("loader is already being iterated")
 
         self._reset_accounting()
+        self._consumer_cursor = _copy_cursor(self._cursor) if self._cursor else None
         if self.prefetch_mode == "process":
             self._start_process_prefetch_worker()
             return
@@ -627,6 +638,20 @@ class StreamLoader:
                 for item in self._output_iter(stop_event=self._stop_event):
                     if self._stop_event.is_set():
                         break
+                    # Publish an acknowledgement cursor immediately before
+                    # the corresponding sample.  The worker may prefetch ahead
+                    # of the consumer, but the parent's cursor must never do
+                    # so: an interrupted consumer resumes after its last
+                    # yielded item, not after the queue head.
+                    self._put_prefetch_item(
+                        {
+                            _CURSOR_MARKER: True,
+                            "cursor": self._capture_cursor(
+                                self._active_source_states or [],
+                                self._active_rng or random.Random(self.seed),
+                            ),
+                        }
+                    )
                     self._put_prefetch_item(item)
             except BaseException as error:  # noqa: BLE001 - propagate to consumer.
                 self._put_prefetch_item(error)
