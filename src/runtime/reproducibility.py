@@ -232,6 +232,10 @@ def write_run_manifest(
     lock_path = root / "uv.lock"
     if not config_path.is_file() or not lock_path.is_file():
         raise ReproducibilityError("run identity requires resolved_config.yaml and uv.lock")
+    config_snapshot = run_path / "resolved_config.yaml"
+    if config_path.resolve() != config_snapshot.resolve():
+        config_snapshot.write_bytes(config_path.read_bytes())
+    config_path = config_snapshot
     tokenizer_path = Path(tokenizer_manifest_path).resolve()
     tokenizer_snapshot = _copy_manifest(
         tokenizer_path,

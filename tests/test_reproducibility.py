@@ -88,26 +88,30 @@ def _manifest_config():
 
 
 def test_run_manifest_is_self_contained_and_mutation_is_explicit(tmp_path):
-    resolved = tmp_path / "resolved_config.yaml"
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    resolved = source_dir / "resolved_config.yaml"
     resolved.write_text("seed: 123\n", encoding="utf-8")
+    run_dir = tmp_path / "run"
     run_path = write_run_manifest(
         cfg=_manifest_config(),
-        run_dir=tmp_path,
+        run_dir=run_dir,
         root_dir=ROOT,
         resolved_config_path=resolved,
         tokenizer_manifest_path=TOKENIZER,
         tokenizer_expected_fingerprint=TOKENIZER_FINGERPRINT,
     )
-    payload = verify_run_manifest(tmp_path)
+    payload = verify_run_manifest(run_dir)
     assert run_path.name == "run_manifest.json"
     assert payload["experiment_id"].startswith("exp-")
-    assert (tmp_path / "tokenizer_manifest.json").is_file()
-    assert (tmp_path / "data_manifest_0.json").is_file()
+    assert (run_dir / "resolved_config.yaml").is_file()
+    assert (run_dir / "tokenizer_manifest.json").is_file()
+    assert (run_dir / "data_manifest_0.json").is_file()
 
-    captured = tmp_path / "tokenizer_manifest.json"
+    captured = run_dir / "tokenizer_manifest.json"
     captured.write_text(captured.read_text(encoding="utf-8") + "\n", encoding="utf-8")
     with pytest.raises(ManifestMismatchError, match="captured input manifest changed"):
-        verify_run_manifest(tmp_path)
+        verify_run_manifest(run_dir)
 
 
 def test_real_run_rejects_mutable_remote_data():
