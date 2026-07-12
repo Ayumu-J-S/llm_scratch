@@ -1,0 +1,920 @@
+{
+  "dataset_fingerprint": "f3be1fc464fbf74d433344c470791e1fc715ad5317643b3b993410e2db19c41a",
+  "document_policy": {
+    "language": "ja",
+    "max_utf8_bytes": 1048576,
+    "reject_controls": true,
+    "reject_wrong_script": true,
+    "version": 1
+  },
+  "manifest_fingerprint": "949accf3b26e97b7a67d7f232ba22a1e43519ee2c632dcaf63a34bfbabfd66a0",
+  "name": "fineweb2-ja-jpn-jpan-v1",
+  "purpose": "pretraining",
+  "schema_version": 2,
+  "source": {
+    "config_name": "jpn_Jpan",
+    "data_files": [
+      {
+        "path": "data/jpn_Jpan/train/000_00000.parquet",
+        "sha256": "7b049453830d0e91806744d1860d094be533ad43864cd1e6e076c21b95e25e74",
+        "size_bytes": 4844435070
+      },
+      {
+        "path": "data/jpn_Jpan/train/000_00001.parquet",
+        "sha256": "f78775f856444e9c901955499a585a797dcbea624f11e1187483f7be1daffbc3",
+        "size_bytes": 4844331379
+      },
+      {
+        "path": "data/jpn_Jpan/train/000_00002.parquet",
+        "sha256": "b4f82dab57443db60ed100852c1875eb0c5e4e1e147749236a4751ed5c081315",
+        "size_bytes": 4843125703
+      },
+      {
+        "path": "data/jpn_Jpan/train/000_00003.parquet",
+        "sha256": "27bca2f6d03ebfb9478a44d6dbdee93a7b1657c5e81a365dccf2fa0f119c1b9a",
+        "size_bytes": 4844706837
+      },
+      {
+        "path": "data/jpn_Jpan/train/000_00004.parquet",
+        "sha256": "5855cffce01383c83b6804e5e723aaa53e2869bb6b4fe6aa7620bba7716d0156",
+        "size_bytes": 4844077520
+      },
+      {
+        "path": "data/jpn_Jpan/train/000_00005.parquet",
+        "sha256": "db6c9c5ec989d991c09ad1d489b97aef17ffed853f46abf8c8187abecade4bd4",
+        "size_bytes": 4843396587
+      },
+      {
+        "path": "data/jpn_Jpan/train/000_00006.parquet",
+        "sha256": "6dbcd6742e90b445e3dbce7a302de063d765ffa4e6b37ef03b69860814d8fcba",
+        "size_bytes": 4843167328
+      },
+      {
+        "path": "data/jpn_Jpan/train/000_00007.parquet",
+        "sha256": "156f6a1839b782167ea839bc7b4b4c6ced5313dc5d0466feb0c02b5d5a1f62c5",
+        "size_bytes": 4843921422
+      },
+      {
+        "path": "data/jpn_Jpan/train/000_00008.parquet",
+        "sha256": "9fdd64dd70f535173ac5d2aba406e23c8468bd3ff47d668a3ca6c7619195274a",
+        "size_bytes": 4844426885
+      },
+      {
+        "path": "data/jpn_Jpan/train/000_00009.parquet",
+        "sha256": "44c69ae3ffd8a380e3cf53ff35911a50ad22d832fa562388bde4270a92d340f4",
+        "size_bytes": 4843947204
+      },
+      {
+        "path": "data/jpn_Jpan/train/000_00010.parquet",
+        "sha256": "67495af6b4aaac2423965ae2ada52b4a58cf43e73e3989cb9bddd9b2c3421dfb",
+        "size_bytes": 4843492519
+      },
+      {
+        "path": "data/jpn_Jpan/train/000_00011.parquet",
+        "sha256": "152a53a047b234c5c5a3840d06030a20c96f449c695c057bbd3e59b8b78d7e4b",
+        "size_bytes": 4843775026
+      },
+      {
+        "path": "data/jpn_Jpan/train/000_00012.parquet",
+        "sha256": "1e1b1cda9c9296ede008bb2601453ebee58f915e391854ee88ced5ef3fefa7ce",
+        "size_bytes": 4843252884
+      },
+      {
+        "path": "data/jpn_Jpan/train/000_00013.parquet",
+        "sha256": "ef83461228d92ba5e88494d86c8a41523f5f328020f23153f3d48fb6c2a67121",
+        "size_bytes": 4844733200
+      },
+      {
+        "path": "data/jpn_Jpan/train/000_00014.parquet",
+        "sha256": "9b1cd2b604e0d34057987848fa38c849ec73bd512193387d7aff32778f76adbf",
+        "size_bytes": 4843717065
+      },
+      {
+        "path": "data/jpn_Jpan/train/000_00015.parquet",
+        "sha256": "995a5179b0150dc96130929f62eeddcf2ea5ccd036e285a138453fd3e687b7b1",
+        "size_bytes": 4843990089
+      },
+      {
+        "path": "data/jpn_Jpan/train/000_00016.parquet",
+        "sha256": "9df5e34713c8a77d8d195b9e853a49b55256a9421dc92a3fcfe544aeea1db653",
+        "size_bytes": 4844421689
+      },
+      {
+        "path": "data/jpn_Jpan/train/000_00017.parquet",
+        "sha256": "40950c43b38c763fb277a209cdca5cacae1396525309fcd406d549b0b015c23a",
+        "size_bytes": 4843278381
+      },
+      {
+        "path": "data/jpn_Jpan/train/000_00018.parquet",
+        "sha256": "b331b835a6067037283d2af77e42bba94d02ed42f96ad1b667cd8cbc9f81fc40",
+        "size_bytes": 4844373763
+      },
+      {
+        "path": "data/jpn_Jpan/train/000_00019.parquet",
+        "sha256": "c46144d6b561fecea969e5fa9e8c4206b16c89c42ebf7327281cbbb1196cdd4a",
+        "size_bytes": 4844661665
+      },
+      {
+        "path": "data/jpn_Jpan/train/000_00020.parquet",
+        "sha256": "01b9b93faee112f6c4d984374db7f9ffec2e5ed44515a4deec806b362a88feec",
+        "size_bytes": 4844080185
+      },
+      {
+        "path": "data/jpn_Jpan/train/000_00021.parquet",
+        "sha256": "25cb95550e461ae14dbeda0a7382eb0bdfd7d2c05a9bdb8e783abf03aee271d9",
+        "size_bytes": 4843585495
+      },
+      {
+        "path": "data/jpn_Jpan/train/000_00022.parquet",
+        "sha256": "2c3da37208d1e49b5692580462e8ea098a9e31d06083b597ccae0f1d29f5bbad",
+        "size_bytes": 4843828120
+      },
+      {
+        "path": "data/jpn_Jpan/train/000_00023.parquet",
+        "sha256": "3b7d0a0f658e0354f611b36ea7d6508f3e5c34b018471242d4a1962cc8213d17",
+        "size_bytes": 4844733228
+      },
+      {
+        "path": "data/jpn_Jpan/train/000_00024.parquet",
+        "sha256": "ab056247eccb73bfa4a2522834b4611d6975946deca8fa19ba591f3814decdd0",
+        "size_bytes": 4844683324
+      },
+      {
+        "path": "data/jpn_Jpan/train/000_00025.parquet",
+        "sha256": "fe9ffacc2348e90f906dcf200e4f8af82712d4600aa40c098f7e75665dccba78",
+        "size_bytes": 4843026014
+      },
+      {
+        "path": "data/jpn_Jpan/train/000_00026.parquet",
+        "sha256": "d4709edab679cdef330d2c5c9946c83097da8a5ffa0c84fe841c1205b1a7b62d",
+        "size_bytes": 4844643666
+      },
+      {
+        "path": "data/jpn_Jpan/train/000_00027.parquet",
+        "sha256": "142fd11a234034771319bd0beaec7997a2a7d68ac798e113975bad1cb99461c9",
+        "size_bytes": 4844304775
+      },
+      {
+        "path": "data/jpn_Jpan/train/000_00028.parquet",
+        "sha256": "80894250e4aebaefa804524876b7195a6565ef8a888524de222bcb63738bf987",
+        "size_bytes": 4844125650
+      },
+      {
+        "path": "data/jpn_Jpan/train/000_00029.parquet",
+        "sha256": "eed8e1d558b5cf3de1f6b0863f473033008c8707afae16b1518656ac525826fa",
+        "size_bytes": 4844219634
+      },
+      {
+        "path": "data/jpn_Jpan/train/000_00030.parquet",
+        "sha256": "33aa36a9c44b47797a8525e1c403da05ab065dc709134d2b261f10ff4badb05e",
+        "size_bytes": 4843596069
+      },
+      {
+        "path": "data/jpn_Jpan/train/000_00031.parquet",
+        "sha256": "be5306adead393e689d56c293bae701839852e1c52102793f7423cbd6e24f75a",
+        "size_bytes": 4843514080
+      },
+      {
+        "path": "data/jpn_Jpan/train/000_00032.parquet",
+        "sha256": "734afdfb9394f66645ae0cccc32705b4f65514781448b003f0131b2fadeec314",
+        "size_bytes": 4843071590
+      },
+      {
+        "path": "data/jpn_Jpan/train/000_00033.parquet",
+        "sha256": "9c9329e619b5911e1ea808601eb39d69f6f7909842d1ffde292362d9a2e5b3ab",
+        "size_bytes": 4843622683
+      },
+      {
+        "path": "data/jpn_Jpan/train/000_00034.parquet",
+        "sha256": "fb3281f9774e43dd822c396171d9752c6db03f217b2c80650dc21d9675dac910",
+        "size_bytes": 4843512759
+      },
+      {
+        "path": "data/jpn_Jpan/train/001_00000.parquet",
+        "sha256": "dbd79e637e67cb1f5da5b413fdf07bf60c8686e11daca871469a5eeb647364c6",
+        "size_bytes": 4843258367
+      },
+      {
+        "path": "data/jpn_Jpan/train/001_00001.parquet",
+        "sha256": "9054178bea90deba2acece54bbfba845cf360d84d6380fc7263ea0eb733bc99f",
+        "size_bytes": 4842996465
+      },
+      {
+        "path": "data/jpn_Jpan/train/001_00002.parquet",
+        "sha256": "2fb61f7e5171272680a0942b0df1f7d70283721e226b7ec544647b409aab1a57",
+        "size_bytes": 4844183354
+      },
+      {
+        "path": "data/jpn_Jpan/train/001_00003.parquet",
+        "sha256": "1c901d20e708899515649587145f51fa1ec25b2968ea169a0f5afc2875af4ae9",
+        "size_bytes": 4844110071
+      },
+      {
+        "path": "data/jpn_Jpan/train/001_00004.parquet",
+        "sha256": "e3dd38a762dbd13042a8b174718fe271c8570c00f94c7da9f3b3814da482cc4c",
+        "size_bytes": 4843405432
+      },
+      {
+        "path": "data/jpn_Jpan/train/001_00005.parquet",
+        "sha256": "fb4e063b8cb30317dbc86fd569e6f5ab243193e4a1281b445ea3584831a2524d",
+        "size_bytes": 4844430964
+      },
+      {
+        "path": "data/jpn_Jpan/train/001_00006.parquet",
+        "sha256": "1ee10e7d1040b660c2f282c00cf25f4cfc0982f3389418ab7486b71061185253",
+        "size_bytes": 4843269875
+      },
+      {
+        "path": "data/jpn_Jpan/train/001_00007.parquet",
+        "sha256": "dfe351aafd97846f6538c398c905de67083b33118d039d327b8edf20bc517ba7",
+        "size_bytes": 4843758650
+      },
+      {
+        "path": "data/jpn_Jpan/train/001_00008.parquet",
+        "sha256": "5367cbfdda31fce936e08c2b70e48859d9bd7ab677f70c74b354a95109a65b40",
+        "size_bytes": 4843989327
+      },
+      {
+        "path": "data/jpn_Jpan/train/001_00009.parquet",
+        "sha256": "b64182df35819cdf816ecc133093fa448fdc6d93fb90d95b62f40d25b76861a9",
+        "size_bytes": 4843800380
+      },
+      {
+        "path": "data/jpn_Jpan/train/001_00010.parquet",
+        "sha256": "36bdc31251f94fbdd3dfc22cbe67ab421df71cae5df77096a17d1d3ae9b66ded",
+        "size_bytes": 4844013708
+      },
+      {
+        "path": "data/jpn_Jpan/train/001_00011.parquet",
+        "sha256": "5fd614e29500b52829a16b26cb45e820c081355072daebca2dc60bce13d59165",
+        "size_bytes": 4844556766
+      },
+      {
+        "path": "data/jpn_Jpan/train/001_00012.parquet",
+        "sha256": "5fc7003226e41e2650e3140c2edff5fd85994318c2eea69539711630a8e428e9",
+        "size_bytes": 4843587523
+      },
+      {
+        "path": "data/jpn_Jpan/train/001_00013.parquet",
+        "sha256": "1697d710f0719b8cbebd6f9f8f5745cfb70f7a4413004ffaa2c7d092801ec701",
+        "size_bytes": 4843230839
+      },
+      {
+        "path": "data/jpn_Jpan/train/001_00014.parquet",
+        "sha256": "91769cf8a7bef7c684dd0dbf1f8847806fc5b1fd658897ad7313d4a01a7adb81",
+        "size_bytes": 4843994012
+      },
+      {
+        "path": "data/jpn_Jpan/train/001_00015.parquet",
+        "sha256": "cc5d8b247aae6d20d293339b572eace89a52c34d36b2d96713023166f08a4325",
+        "size_bytes": 4844245123
+      },
+      {
+        "path": "data/jpn_Jpan/train/001_00016.parquet",
+        "sha256": "eca4fed1d6f7aa6c7be1e7d717f1164b4f0d33ae940b7b5e6812205d362c6391",
+        "size_bytes": 4844408547
+      },
+      {
+        "path": "data/jpn_Jpan/train/001_00017.parquet",
+        "sha256": "774ae62efc59fae843029a185b11499aeb65b4449a4689deb9b3e806c7aae65e",
+        "size_bytes": 4844231498
+      },
+      {
+        "path": "data/jpn_Jpan/train/001_00018.parquet",
+        "sha256": "72754e8ecf1f7cbde492c17b4989a3c09d8a10ae32bce6459b2efee35196dee4",
+        "size_bytes": 4843144148
+      },
+      {
+        "path": "data/jpn_Jpan/train/001_00019.parquet",
+        "sha256": "ce698546a2a3d55674bebadc6ddd5d147215f844f3a02d0de08fa189f08237e7",
+        "size_bytes": 4843934613
+      },
+      {
+        "path": "data/jpn_Jpan/train/001_00020.parquet",
+        "sha256": "0e82ca8722ede656bc15138d87f1c5a2159832e34099144853d14b9a4aa9404a",
+        "size_bytes": 4844300356
+      },
+      {
+        "path": "data/jpn_Jpan/train/001_00021.parquet",
+        "sha256": "b91c18e1f5a4debf8e5ad04b5168fa3cf109cf5252b7a067a1b32eeec0cee40e",
+        "size_bytes": 4843449969
+      },
+      {
+        "path": "data/jpn_Jpan/train/001_00022.parquet",
+        "sha256": "773329c880061c7667481acb4b71d4bd638c4fee90c5338a1ab107c8a1bf53f9",
+        "size_bytes": 4843992579
+      },
+      {
+        "path": "data/jpn_Jpan/train/001_00023.parquet",
+        "sha256": "749e3f32951c3ac1750865875b65acea1e07b06450e1c90ac27766ac8dcd3f3d",
+        "size_bytes": 4844674676
+      },
+      {
+        "path": "data/jpn_Jpan/train/001_00024.parquet",
+        "sha256": "9eecd012e82b01bd445c0787a07f0d56e78b26656219c6424a331310f54d59ef",
+        "size_bytes": 4843386225
+      },
+      {
+        "path": "data/jpn_Jpan/train/001_00025.parquet",
+        "sha256": "e06de02e3ef628c58f1eb59ce0339764c847c99c7b2bcef938bf7a2acc316852",
+        "size_bytes": 4842985283
+      },
+      {
+        "path": "data/jpn_Jpan/train/001_00026.parquet",
+        "sha256": "76b9075ba22ce556f57bfe79aab9f4a35f72da6a90c6ea5bdb6374972c199f38",
+        "size_bytes": 4843863816
+      },
+      {
+        "path": "data/jpn_Jpan/train/001_00027.parquet",
+        "sha256": "5b408a33982edb6d9736d638276fb32f9a7f81b8954d1c33cd6707b820c35fe1",
+        "size_bytes": 4842984237
+      },
+      {
+        "path": "data/jpn_Jpan/train/001_00028.parquet",
+        "sha256": "522983b6571fce907cad9c426816a690200d508fb84fc68d2748cd6d81e14784",
+        "size_bytes": 4843565653
+      },
+      {
+        "path": "data/jpn_Jpan/train/001_00029.parquet",
+        "sha256": "3d7aa7667839407d46a5d1d7a76282cf5fec995f2633b615d3d3e62a2cd82e28",
+        "size_bytes": 4843989245
+      },
+      {
+        "path": "data/jpn_Jpan/train/001_00030.parquet",
+        "sha256": "f2dd93b7d60411cc04945f03fd0d59e0cde53c8cee090f564d1fe3910ea01ce3",
+        "size_bytes": 4843100728
+      },
+      {
+        "path": "data/jpn_Jpan/train/001_00031.parquet",
+        "sha256": "08cc9401f38eadb16314aaedd96232f103f0ab8a4048d80eb96f176a6b27788e",
+        "size_bytes": 4844497044
+      },
+      {
+        "path": "data/jpn_Jpan/train/001_00032.parquet",
+        "sha256": "f5446318bc1671a022d92a5d4327bba39727f96b31fdc83f8cc9a64b6ac79b13",
+        "size_bytes": 4842996405
+      },
+      {
+        "path": "data/jpn_Jpan/train/001_00033.parquet",
+        "sha256": "6472df155286794eea4d21ef593ee9853db37cc17a5d43c6928abdb1994245fb",
+        "size_bytes": 4842976530
+      },
+      {
+        "path": "data/jpn_Jpan/train/001_00034.parquet",
+        "sha256": "d3ed9417ad3bb75c21e8e7f266641b4ac59625786501c2b07ebcf8cc07f4bf4e",
+        "size_bytes": 4844265732
+      },
+      {
+        "path": "data/jpn_Jpan/train/002_00000.parquet",
+        "sha256": "0faa3ba45e86146f4d35b8535a839cfc1e72151f8add11023a5e9bd810a4d82e",
+        "size_bytes": 4843649984
+      },
+      {
+        "path": "data/jpn_Jpan/train/002_00001.parquet",
+        "sha256": "6a7aab6888ee9e361f7e7171f1e3117612cadb92ce7dff9d8b1159dd0dd411de",
+        "size_bytes": 4843880166
+      },
+      {
+        "path": "data/jpn_Jpan/train/002_00002.parquet",
+        "sha256": "6f73fa693391fa535fc63ae06d122d826daa9d0f4ff2d0c7c83197bc71dc2cf1",
+        "size_bytes": 4844226891
+      },
+      {
+        "path": "data/jpn_Jpan/train/002_00003.parquet",
+        "sha256": "27c17621903554bead3a384576ff6a142c8f95114b648d3abc8e8f5f338e0ea0",
+        "size_bytes": 4844545300
+      },
+      {
+        "path": "data/jpn_Jpan/train/002_00004.parquet",
+        "sha256": "ff6ceece75f6a981d7ef6275c592b32b71580b4597d31ef59c764d011fcc86c2",
+        "size_bytes": 4842919473
+      },
+      {
+        "path": "data/jpn_Jpan/train/002_00005.parquet",
+        "sha256": "470a7204d9a1648f3296a82b177cc825391df4d9d31343fe26bedf367eaaca47",
+        "size_bytes": 4844062387
+      },
+      {
+        "path": "data/jpn_Jpan/train/002_00006.parquet",
+        "sha256": "103b25714b9a8f1cb43494e71d35424103695901f6d972b2bdc3ce93fef4aaa7",
+        "size_bytes": 4842556021
+      },
+      {
+        "path": "data/jpn_Jpan/train/002_00007.parquet",
+        "sha256": "8d403aa538c655f7148b90d47bfa8baa141583ddaccd61755ec6c04f1777efc9",
+        "size_bytes": 4843214770
+      },
+      {
+        "path": "data/jpn_Jpan/train/002_00008.parquet",
+        "sha256": "1bea6c9fb20d38f47e9c5e38544c6ce40b68f856b6ca46dca2683b0f8d3f9ff3",
+        "size_bytes": 4844198891
+      },
+      {
+        "path": "data/jpn_Jpan/train/002_00009.parquet",
+        "sha256": "c891c5fa6ba73933dd0ba574e5990cc2f15a63909da50c6b3786bc1f86dd51ff",
+        "size_bytes": 4842955910
+      },
+      {
+        "path": "data/jpn_Jpan/train/002_00010.parquet",
+        "sha256": "9de61d90d98e643d8e8c2accba9974fc7d13843fb0da551e729a0bee36475532",
+        "size_bytes": 4843735096
+      },
+      {
+        "path": "data/jpn_Jpan/train/002_00011.parquet",
+        "sha256": "4253f1f6718e57d953801bfff6f55bc96e49ef1c21442ed29cfea55b74cd953d",
+        "size_bytes": 4843952846
+      },
+      {
+        "path": "data/jpn_Jpan/train/002_00012.parquet",
+        "sha256": "7fb82d3cdeef87c399f869d24dbde6c0ab8f8849861d458e776189f88d54f671",
+        "size_bytes": 4843088036
+      },
+      {
+        "path": "data/jpn_Jpan/train/002_00013.parquet",
+        "sha256": "bff993a14d2f9ebeb478b363d74b8db3a3daf569aecd97ebb668f5e84510f390",
+        "size_bytes": 4842696414
+      },
+      {
+        "path": "data/jpn_Jpan/train/002_00014.parquet",
+        "sha256": "d98a8792e06220616d8241a50a6325ed357abf46aab01219dfcc5f944c8ab128",
+        "size_bytes": 4844441110
+      },
+      {
+        "path": "data/jpn_Jpan/train/002_00015.parquet",
+        "sha256": "5dc9d29eaa46caaf661642645573d4adb5616fe1730cdcc3dd1996ac8158d7ff",
+        "size_bytes": 4843939307
+      },
+      {
+        "path": "data/jpn_Jpan/train/002_00016.parquet",
+        "sha256": "31299ce281b0acb6c4260084187377e99142917d08649449c562c073e2847dc3",
+        "size_bytes": 4842836815
+      },
+      {
+        "path": "data/jpn_Jpan/train/002_00017.parquet",
+        "sha256": "b26d251f09a0ff162793eca512b248aa32f666b271741eb620e15a0a6916c1b3",
+        "size_bytes": 4843211339
+      },
+      {
+        "path": "data/jpn_Jpan/train/002_00018.parquet",
+        "sha256": "884fbf80df73dac001b08027f85cea8107d916e2175cdbd984ca0fb397cbb923",
+        "size_bytes": 4843134676
+      },
+      {
+        "path": "data/jpn_Jpan/train/002_00019.parquet",
+        "sha256": "1c71a09febfce7a11ca808898752f5071efe4d5b7b23c686e55cfee0e4856573",
+        "size_bytes": 4843406335
+      },
+      {
+        "path": "data/jpn_Jpan/train/002_00020.parquet",
+        "sha256": "10f413dcc90ef0c1cf77ddc838f57b7b7ed96e27bfa0517caa66adb87351eac5",
+        "size_bytes": 4842678747
+      },
+      {
+        "path": "data/jpn_Jpan/train/002_00021.parquet",
+        "sha256": "be3723dffa8b2c5cb6a0b896ece39f77a6cfaea476edce5294cba659292bb54e",
+        "size_bytes": 4842778702
+      },
+      {
+        "path": "data/jpn_Jpan/train/002_00022.parquet",
+        "sha256": "dd39435def27eaeab067e72f050a65f6587543314449677df79e953d93954c43",
+        "size_bytes": 4844264263
+      },
+      {
+        "path": "data/jpn_Jpan/train/002_00023.parquet",
+        "sha256": "4c413d5941c78e7bb81f24489a3ee50a2cccc1c434fc8077f60b4c221313a2a8",
+        "size_bytes": 4843369230
+      },
+      {
+        "path": "data/jpn_Jpan/train/002_00024.parquet",
+        "sha256": "51b32897c9992bac990d787efcd67cb0745c813f3300c3e1e386cbd6c9467eae",
+        "size_bytes": 4842722817
+      },
+      {
+        "path": "data/jpn_Jpan/train/002_00025.parquet",
+        "sha256": "745f3ff5e7da43d5c614d1e0c2be0f425a2da9547ff2cc683b512f59cd327593",
+        "size_bytes": 4843765139
+      },
+      {
+        "path": "data/jpn_Jpan/train/002_00026.parquet",
+        "sha256": "5520bafef7b2018289ad970a3ff4002780ee7b3da3d9777ac29453109b489a0a",
+        "size_bytes": 4843461365
+      },
+      {
+        "path": "data/jpn_Jpan/train/002_00027.parquet",
+        "sha256": "d0455fb66cbd6b7e8628fb642e7e7c445f720d3ba82af4c95eb36ab1f7a67700",
+        "size_bytes": 4843427083
+      },
+      {
+        "path": "data/jpn_Jpan/train/002_00028.parquet",
+        "sha256": "473ea6ed4821f9f3ffb8a8391d583999771d35a9adc79888b70293bea565c13f",
+        "size_bytes": 4842841593
+      },
+      {
+        "path": "data/jpn_Jpan/train/002_00029.parquet",
+        "sha256": "6c2ae24ae194b5e899af81f97a88c93ef4b988a2fb9b22a9502b6003b93c7500",
+        "size_bytes": 4843915696
+      },
+      {
+        "path": "data/jpn_Jpan/train/002_00030.parquet",
+        "sha256": "8110d94f7e487ea51c3f9cde5fe5fd249bc16f2087a8712ac71d8134eef3241e",
+        "size_bytes": 4843883615
+      },
+      {
+        "path": "data/jpn_Jpan/train/002_00031.parquet",
+        "sha256": "68bccf174741f89d990ea6d4c0cec5c02b8e766551a85a4d8f018602ecb80a96",
+        "size_bytes": 4843579726
+      },
+      {
+        "path": "data/jpn_Jpan/train/002_00032.parquet",
+        "sha256": "e80f12d67494d371b84b2c9618f5a4744560f96a937f1de151194372ba4cd2a3",
+        "size_bytes": 4843385698
+      },
+      {
+        "path": "data/jpn_Jpan/train/002_00033.parquet",
+        "sha256": "555c639ac49a765d17c98c151f3e7b4cd0bbba0eef5b899f661d4904b9a0414e",
+        "size_bytes": 4844432415
+      },
+      {
+        "path": "data/jpn_Jpan/train/002_00034.parquet",
+        "sha256": "0069d47867f6b1e259227dc5c5b6240ea30d7b12538affb0b4f8e5c6c5fee2d9",
+        "size_bytes": 4843074552
+      },
+      {
+        "path": "data/jpn_Jpan/train/003_00000.parquet",
+        "sha256": "4a41279688af8ab070292ee521964f75e0aeea50412c4a6c2bb4918f0151dc81",
+        "size_bytes": 4843458487
+      },
+      {
+        "path": "data/jpn_Jpan/train/003_00001.parquet",
+        "sha256": "77e0523f6773823646c115e9cdb0c37914a2927bef5c45ea978a2f9529dd912f",
+        "size_bytes": 4843256161
+      },
+      {
+        "path": "data/jpn_Jpan/train/003_00002.parquet",
+        "sha256": "415214b20d9198b052aa75fe767fdc16a0d514c06dd5d6f2ca7f2dded1df7c44",
+        "size_bytes": 4842748536
+      },
+      {
+        "path": "data/jpn_Jpan/train/003_00003.parquet",
+        "sha256": "cc8cb4d36d14681ba9d81dfaa0a56cbb032489cbb8bd3288523690a10d5dbbdf",
+        "size_bytes": 4843745566
+      },
+      {
+        "path": "data/jpn_Jpan/train/003_00004.parquet",
+        "sha256": "86753427e7b1e01454d0cad1a4a3d7435cb8a50500fdaf9cddc7afc33b7c7019",
+        "size_bytes": 4843515311
+      },
+      {
+        "path": "data/jpn_Jpan/train/003_00005.parquet",
+        "sha256": "262ae157af6e762f74a629bc5cef5d6f00de9466eed1c8c6e9e0961d03f77cdd",
+        "size_bytes": 4842462080
+      },
+      {
+        "path": "data/jpn_Jpan/train/003_00006.parquet",
+        "sha256": "f794e52e0eb59aa4c420a69a16a7563e14bcd163c42f8ac0b1f6ca7593fc53f4",
+        "size_bytes": 4842569234
+      },
+      {
+        "path": "data/jpn_Jpan/train/003_00007.parquet",
+        "sha256": "4b54b708c926dec56bb354c03b0e7492dd71a0612d8a31cf2ccd16f1e03bd146",
+        "size_bytes": 4843839684
+      },
+      {
+        "path": "data/jpn_Jpan/train/003_00008.parquet",
+        "sha256": "8f21cea5f43233ac865c24be14bdccc693ca0bb1a1cc24cd05ea6152e5ec7ebb",
+        "size_bytes": 4843704241
+      },
+      {
+        "path": "data/jpn_Jpan/train/003_00009.parquet",
+        "sha256": "63387f81a76382c3ce494af0402e60f9f827a4253c8aeed385df4e1b544cd9f6",
+        "size_bytes": 4843368124
+      },
+      {
+        "path": "data/jpn_Jpan/train/003_00010.parquet",
+        "sha256": "29f41c37961c7501d71868bf9f187842c8e38353a52712e9dcdd64c24069263f",
+        "size_bytes": 4843673856
+      },
+      {
+        "path": "data/jpn_Jpan/train/003_00011.parquet",
+        "sha256": "1718ed5d6e736f49b23579010fb6482039084c2e4d845227460b706e6fd2962a",
+        "size_bytes": 4842471164
+      },
+      {
+        "path": "data/jpn_Jpan/train/003_00012.parquet",
+        "sha256": "83e21abe23e301880a6f3e0a3cb2b3b7ebc4bf6126116b61f33d04c75dec2a37",
+        "size_bytes": 4843825717
+      },
+      {
+        "path": "data/jpn_Jpan/train/003_00013.parquet",
+        "sha256": "f0bc4d1d1fb6f137e4eb850fcde211410d57d080f8e07ee7693333a525433d1e",
+        "size_bytes": 4842819952
+      },
+      {
+        "path": "data/jpn_Jpan/train/003_00014.parquet",
+        "sha256": "3677ef067b4270dc81e6dbe30b668263a22a6d9f9f73b4cc860873a591e41290",
+        "size_bytes": 4844202873
+      },
+      {
+        "path": "data/jpn_Jpan/train/003_00015.parquet",
+        "sha256": "cfab697d67804363f8663ca9f9b6f11b8a0cf68aa5e37b6412b8a2b46ea58e1c",
+        "size_bytes": 4844242782
+      },
+      {
+        "path": "data/jpn_Jpan/train/003_00016.parquet",
+        "sha256": "26fc7b403516a09064da3a21d2dcf74ad87e971565787fd93298ae634e1a0419",
+        "size_bytes": 4842986887
+      },
+      {
+        "path": "data/jpn_Jpan/train/003_00017.parquet",
+        "sha256": "709d4a994fbc5e9c2a5f435b110cd1d492fe96d68671fe556e982f9f89ece4ce",
+        "size_bytes": 4842407684
+      },
+      {
+        "path": "data/jpn_Jpan/train/003_00018.parquet",
+        "sha256": "9c459766fedc79ec3cb37a590c4c45c3882c2de2e9c85e0370075672ea3ddb09",
+        "size_bytes": 4843737625
+      },
+      {
+        "path": "data/jpn_Jpan/train/003_00019.parquet",
+        "sha256": "0a36ad446fa8109dda1ffe26a96dacba20ab53aece6bcd8f6eb7cb9a72ce8af7",
+        "size_bytes": 4842948602
+      },
+      {
+        "path": "data/jpn_Jpan/train/003_00020.parquet",
+        "sha256": "4883d6d205c56ab9a5fb0eda366a383a9df529756571ac530f2c189ddf3d4227",
+        "size_bytes": 4843099839
+      },
+      {
+        "path": "data/jpn_Jpan/train/003_00021.parquet",
+        "sha256": "596c0a36975e2ff9f963065ed733ac2133b30abeaa5e40009eba5a84c680574d",
+        "size_bytes": 4843745238
+      },
+      {
+        "path": "data/jpn_Jpan/train/003_00022.parquet",
+        "sha256": "e4a4da2e28caaae5042456362a96e82c305047251f32f37e112e6faf279b0f98",
+        "size_bytes": 4843657466
+      },
+      {
+        "path": "data/jpn_Jpan/train/003_00023.parquet",
+        "sha256": "647b4d1df22dd04efe2631e30d0d712e8890357a4f655aef281faa86913f4ebd",
+        "size_bytes": 4842737077
+      },
+      {
+        "path": "data/jpn_Jpan/train/003_00024.parquet",
+        "sha256": "67f904718bc14619c27cb6f6fce45dbced1f1591cedc560dbaa1d3680ff01215",
+        "size_bytes": 4843008861
+      },
+      {
+        "path": "data/jpn_Jpan/train/003_00025.parquet",
+        "sha256": "40e5bb8cd22941fdf4ecfa8de91638acdfabc5877924a712b08d4a6be370f559",
+        "size_bytes": 4843345856
+      },
+      {
+        "path": "data/jpn_Jpan/train/003_00026.parquet",
+        "sha256": "02805de627288f9ebb93dcaa77ec18002e9019c7d8aeb4d79d43c7d663591df6",
+        "size_bytes": 4842311922
+      },
+      {
+        "path": "data/jpn_Jpan/train/003_00027.parquet",
+        "sha256": "30bdff74654fc329eb4e07f5aa2c5422c24ab5f1ebe57ae03b132e035a74bf18",
+        "size_bytes": 4842722539
+      },
+      {
+        "path": "data/jpn_Jpan/train/003_00028.parquet",
+        "sha256": "342fe802f2f8d14fe57fd205e67a6e1c883351eff52fa868d8ab3560781de8ab",
+        "size_bytes": 4842378622
+      },
+      {
+        "path": "data/jpn_Jpan/train/003_00029.parquet",
+        "sha256": "1a20b0d1e24f87f69c493d0b2c9faec7fedcadeb7b7f99172967277f38da0073",
+        "size_bytes": 4843882475
+      },
+      {
+        "path": "data/jpn_Jpan/train/003_00030.parquet",
+        "sha256": "f746e5a725c22cbe4399f952bc5a8a394cbb191771e4907db19d2105e601810e",
+        "size_bytes": 4843810876
+      },
+      {
+        "path": "data/jpn_Jpan/train/003_00031.parquet",
+        "sha256": "2006389a540a716b1ecc4340b80f01af8204dc930ce0fcd45509bc373019f3f5",
+        "size_bytes": 4842254694
+      },
+      {
+        "path": "data/jpn_Jpan/train/003_00032.parquet",
+        "sha256": "c78c52d99b7e363e7fdbad72af2c235001c2bd2877f7cae2787eb7675d7a85d1",
+        "size_bytes": 4842239624
+      },
+      {
+        "path": "data/jpn_Jpan/train/003_00033.parquet",
+        "sha256": "cefad353f0f6c2b869ac8124dc3058e9f958d0f86b66ce325c8c8676f5efcc29",
+        "size_bytes": 4843140554
+      },
+      {
+        "path": "data/jpn_Jpan/train/003_00034.parquet",
+        "sha256": "0584b50a63db0048cabb966b1c0c729cbb15e94259d8bdaf4edf81a9004f37b5",
+        "size_bytes": 4843205043
+      },
+      {
+        "path": "data/jpn_Jpan/train/004_00000.parquet",
+        "sha256": "7d5bf549d1097db85f055c11172ed4a4e71e6e3acb1d73596caffc609beb0c04",
+        "size_bytes": 1903029971
+      },
+      {
+        "path": "data/jpn_Jpan/train/004_00001.parquet",
+        "sha256": "f485b5f4023009a6373bd4f1b4c4e4c982030e104c442d685b7ecfa2a9dad5f7",
+        "size_bytes": 1824411997
+      },
+      {
+        "path": "data/jpn_Jpan/train/004_00002.parquet",
+        "sha256": "4e508610510d687edbe6a6e6c86cbc8587495d5a210acf063cd6b19e46983f5d",
+        "size_bytes": 1766745379
+      },
+      {
+        "path": "data/jpn_Jpan/train/004_00003.parquet",
+        "sha256": "68122e97617fdf07884a1de5a3705aeb2a0dcea13d01fc0b0e09c530569400f4",
+        "size_bytes": 1747573147
+      },
+      {
+        "path": "data/jpn_Jpan/train/004_00004.parquet",
+        "sha256": "9d7119bb58cdbead78aa5df6e69f4ee6a2ae8d29b2259f5191068c48a8516c8f",
+        "size_bytes": 1722100308
+      },
+      {
+        "path": "data/jpn_Jpan/train/004_00005.parquet",
+        "sha256": "d5898178599ca6b934cf3b3440791f272089a7f351d7c6b9dba64d32ebe37ed0",
+        "size_bytes": 1651379413
+      },
+      {
+        "path": "data/jpn_Jpan/train/004_00006.parquet",
+        "sha256": "da22bd8af058c438a213c582f266a02f5eeb742c024a26eb3cf5bc3cdc8ef35b",
+        "size_bytes": 1629581289
+      },
+      {
+        "path": "data/jpn_Jpan/train/004_00007.parquet",
+        "sha256": "e188baef0b1347f1a56ea5b2275531e09a7d00969dc50258b6ef8f26dfe70d43",
+        "size_bytes": 1620375859
+      },
+      {
+        "path": "data/jpn_Jpan/train/004_00008.parquet",
+        "sha256": "b9dd244c964beb2ea74c2ffc05c5e07a953b5026df6ffed33ee095f0e0a6462e",
+        "size_bytes": 1601029315
+      },
+      {
+        "path": "data/jpn_Jpan/train/004_00009.parquet",
+        "sha256": "de7be17912816b9eb10903f2c2438864196390ff465d698238de1a9fef3fcda0",
+        "size_bytes": 1472890699
+      },
+      {
+        "path": "data/jpn_Jpan/train/004_00010.parquet",
+        "sha256": "977f60358b0b4d0ab27e031eecc503a3c1afa998106ad4fa3fe0b74ab9a40e79",
+        "size_bytes": 1513078647
+      },
+      {
+        "path": "data/jpn_Jpan/train/004_00011.parquet",
+        "sha256": "090504935b7a1dfd2efee36f7878bbec77e91d43c00420f88a84c7fd9f8da31d",
+        "size_bytes": 1444121367
+      },
+      {
+        "path": "data/jpn_Jpan/train/004_00012.parquet",
+        "sha256": "960a60d401bdec56bd768dc1d40d81bb46fee4f8545ea8bb993fb46951af1a03",
+        "size_bytes": 1413256624
+      },
+      {
+        "path": "data/jpn_Jpan/train/004_00013.parquet",
+        "sha256": "e02e3d75478b3974c0168c9007360b737c73c4586de7041320390424157fee3b",
+        "size_bytes": 1405671328
+      },
+      {
+        "path": "data/jpn_Jpan/train/004_00014.parquet",
+        "sha256": "312366efc1aeb75a470bf435742d4364abc1f8d607b16d94ab59d5055954e47b",
+        "size_bytes": 1330608816
+      },
+      {
+        "path": "data/jpn_Jpan/train/004_00015.parquet",
+        "sha256": "72bbf716d9704de1f8f03e08de7294d10c1c9185e11b6b07485ba1b1683b61e9",
+        "size_bytes": 1273497481
+      },
+      {
+        "path": "data/jpn_Jpan/train/004_00016.parquet",
+        "sha256": "3e5a6199898863563cb2695608dbe72f9fa458413fd61d87e8a83b4aaa5b8fb5",
+        "size_bytes": 1255607282
+      },
+      {
+        "path": "data/jpn_Jpan/train/004_00017.parquet",
+        "sha256": "0a48af1e94e69c34f28cc2a19098ac8b0a6c9eef3dcba7d9a93b7a30b674f698",
+        "size_bytes": 1272499116
+      },
+      {
+        "path": "data/jpn_Jpan/train/004_00018.parquet",
+        "sha256": "6e59ebfb339c416bf213fd5e0f8762ae1e19a60902514c4e4fdadfa0cf49dede",
+        "size_bytes": 1229964238
+      },
+      {
+        "path": "data/jpn_Jpan/train/004_00019.parquet",
+        "sha256": "91009dfbd51eb363aa68d774b2a0a989597e4a43986abcab2a70632593401b7e",
+        "size_bytes": 1122787494
+      },
+      {
+        "path": "data/jpn_Jpan/train/004_00020.parquet",
+        "sha256": "6489aa2693add31429e0e94143c08c78a8ddc5754c0490ad60e901b0ba7c22fc",
+        "size_bytes": 810555473
+      },
+      {
+        "path": "data/jpn_Jpan/train/004_00021.parquet",
+        "sha256": "08a93b96d88bf4ca07c79c71647b56bd9738fc863e202b5818d00b10c8aceb10",
+        "size_bytes": 750909625
+      },
+      {
+        "path": "data/jpn_Jpan/train/004_00022.parquet",
+        "sha256": "506014eb3756e784297442a36444331ccbc9a85573077ca241629ad201033c25",
+        "size_bytes": 743977944
+      },
+      {
+        "path": "data/jpn_Jpan/train/004_00023.parquet",
+        "sha256": "65dab210174ca530107cd3f6779b5857af16107fcaaaf1109299ad66ad9d5221",
+        "size_bytes": 697991287
+      },
+      {
+        "path": "data/jpn_Jpan/train/004_00024.parquet",
+        "sha256": "bddeddb7b5315c84ec4deedb3f5c1e117be8958e880a7827c3055a160aa0d522",
+        "size_bytes": 655156086
+      },
+      {
+        "path": "data/jpn_Jpan/train/004_00025.parquet",
+        "sha256": "823a06b1dd5e0afa1593ec09776fb4a16a8591b0db25bb364cf71cf0e7d93e18",
+        "size_bytes": 636076986
+      },
+      {
+        "path": "data/jpn_Jpan/train/004_00026.parquet",
+        "sha256": "15ace0e0ab1e83eda112c0f03fe27d2b10201472a151248fc3e59456da90bca4",
+        "size_bytes": 580180988
+      },
+      {
+        "path": "data/jpn_Jpan/train/004_00027.parquet",
+        "sha256": "8438c49b3be6f0a556cc075794ddac4dfac8ded9ec8b3987e8b543747e7d6720",
+        "size_bytes": 544547495
+      },
+      {
+        "path": "data/jpn_Jpan/train/004_00028.parquet",
+        "sha256": "8b48991ca34e896cb83009968ddee30a59e2b4780ff7a9ca65739710b5ff7b97",
+        "size_bytes": 531568881
+      },
+      {
+        "path": "data/jpn_Jpan/train/004_00029.parquet",
+        "sha256": "0bba1197c8e44b4c1f0a9e7928a6ffaa2b53c331fa096e8077a533d7ddbd5ef6",
+        "size_bytes": 476682556
+      },
+      {
+        "path": "data/jpn_Jpan/train/004_00030.parquet",
+        "sha256": "3285416a58b63978a0549f01abe6cb58fbce608f7e7ef79b913c3e5cdf84a358",
+        "size_bytes": 429151647
+      },
+      {
+        "path": "data/jpn_Jpan/train/004_00031.parquet",
+        "sha256": "ea39ed11107357fd469972ec217c89ec40efc14cb032c647fd5aca79420618d0",
+        "size_bytes": 422443010
+      },
+      {
+        "path": "data/jpn_Jpan/train/004_00032.parquet",
+        "sha256": "9059d5ae51336de2456c551d7b5e3f61ed6340a52e4e92ce08726bcfdac5469a",
+        "size_bytes": 364670721
+      },
+      {
+        "path": "data/jpn_Jpan/train/004_00033.parquet",
+        "sha256": "50cb5ab69fe586feed60432f3707170553ab80ba2114fcba8eb3a2e0a5695681",
+        "size_bytes": 376598238
+      },
+      {
+        "path": "data/jpn_Jpan/train/004_00034.parquet",
+        "sha256": "9f11afa871f0b80b98d36d49a6f4b228bc256c419769cbc24881d2af0bd36259",
+        "size_bytes": 329375758
+      }
+    ],
+    "id_field": "id",
+    "kind": "hf_parquet",
+    "metadata_fields": [
+      "dump",
+      "url",
+      "date",
+      "file_path",
+      "language",
+      "language_score",
+      "language_script",
+      "minhash_cluster_size",
+      "top_langs"
+    ],
+    "repo_id": "HuggingFaceFW/fineweb-2",
+    "revision": "af9c13333eb981300149d5ca60a8e9d659b276b9",
+    "split": "train",
+    "text_field": "text"
+  },
+  "split": {
+    "method": "normalized_content_sha256_v1",
+    "salt": "llm-scratch-data-004-split-v1",
+    "validation_fraction": "0.01"
+  },
+  "usage": {
+    "license": "ODC-By-1.0",
+    "terms_url": "https://commoncrawl.org/terms-of-use"
+  }
+}
