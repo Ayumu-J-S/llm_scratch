@@ -25,18 +25,27 @@ filesystem headroom.
 This ticket establishes data supply and QA. It does not claim model quality,
 held-out NLL, benchmark ability, or the final model/time budget.
 
-## Candidate sources requiring primary-source verification
+## Source audit and candidate decision
 
-| Language | Repository / config | Candidate revision | Intended use |
+| Language | Repository / config | Audited revision | Decision |
 | --- | --- | --- | --- |
-| Japanese | `hotchpotch/fineweb-2-edu-japanese` / `sample_10BT` | `180ca004c6a89b590daaad86cb062a07a5353c69` | project train/validation membership from upstream train shards |
-| English | `HuggingFaceFW/fineweb-edu` / `sample-10BT` | `87f09149ef4734204d70ed1d046ddc9ca3f2b8f9` | project train/validation membership from upstream train shards |
+| Japanese | `HuggingFaceFW/fineweb-2` / `jpn_Jpan` | `af9c13333eb981300149d5ca60a8e9d659b276b9` | selected pending final immutable inventory capture |
+| English | `HuggingFaceFW/fineweb` / `sample-10BT` | `9bb295ddab0e05d785b879661af7260fed5140fc` | selected pending final immutable inventory capture |
 
-Before committing inventories, re-fetch exact revisions through the official
-Hugging Face API, record every selected shard path/size/LFS SHA-256, and retain
-dataset cards, ODC-By 1.0, and Common Crawl terms. Exclude upstream test
-artifacts. Record classifier/model-annotation provenance as a limitation;
-annotations or model outputs must not become training targets.
+The predeclared educational candidates were rejected before live data access.
+`HuggingFaceFW/fineweb-edu` uses a classifier trained from Llama 3 70B outputs,
+whose upstream model license documents a restriction on using outputs to
+improve another language model. `hotchpotch/fineweb-2-edu-japanese` uses
+DeepSeek-generated annotations; current DeepSeek terms permit training on
+outputs, but they postdate dataset creation and do not establish the historical
+terms. This ticket therefore prefers the direct heuristic/LID/MinHash FineWeb
+and FineWeb-2 variants and does not train on model-generated quality labels.
+
+Before committing manifests or downloading probe shards, re-fetch the selected
+exact revisions through the official Hugging Face API, record every selected
+train shard path/size/LFS SHA-256, and retain the dataset cards, ODC-By 1.0,
+Common Crawl terms, and relevant filtering-tool licenses. Derive both project
+splits from upstream train with the shared normalized-content rule.
 
 ## Predeclared implementation boundary
 
@@ -94,5 +103,7 @@ CHECK all of 4, 5.3, 5.4, 8.2 plus applicable 3/R2/R3.
 
 ## Current conclusion
 
-No result yet. Source candidates, thresholds, budgets, and stop conditions were
-written before implementation or live data access.
+No measurement result yet. The initial source candidates, thresholds, budgets,
+and stop conditions were written before implementation or live data access; the
+source audit then rejected both educational candidates on provenance/licensing
+risk and selected direct non-generative variants, pending final inventory capture.

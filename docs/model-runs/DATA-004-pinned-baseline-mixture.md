@@ -23,6 +23,7 @@
 | Cycle | Phase | Exact model identifier | Reasoning mode | Input commit/context | Requested work | Outcome | Main findings / changes | Evidence |
 | ---: | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | implementation | not exposed by runtime | not exposed by runtime | `main@7648316`; requested Luna/lightweight Extra High | Implement complete DATA-004 without VAL/DGX/OPS scope expansion. | in progress | Predeclared source candidates, 50/50 target ratio, integrity gates, disk reserve, budgets, and stop conditions. | experiment/model-run records and live draft PR |
+| 1 | source audit | not exposed by runtime | not exposed by runtime | exact official Hugging Face metadata and dataset/model terms | Verify immutable inventories, provenance, licenses, terms, and safer alternatives before live downloads. | candidate pivot | Rejected FineWeb-Edu English because Llama 3 output lineage carries an explicit downstream-LLM restriction; rejected the Japanese Edu derivative because current permissive DeepSeek terms do not prove historical annotation terms. Selected direct FineWeb/FineWeb-2 candidates pending full inventory capture. | primary-source audit retained in experiment record; no corpus downloaded |
 | 1 | review | pending | pending | future stable candidate | Review PHILOSOPHY, acceptance, CHECK all 4/5.3/5.4/8.2 and applicable R2/R3. | pending | pending | pending |
 
 ## Runtime provenance block
@@ -62,7 +63,10 @@ N/A — no review has run.
 - Resolved Hydra config, source inventories, QA, measurements: pending.
 - Failed attempts: retained in experiment record and aggregate evidence.
 - Known trade-off: web-corpus QA reports limitations rather than claiming perfection.
-- Risks: license/terms, classifier provenance, leakage, long tails, network variance, cache temp space.
+- Failed source candidates: educational FineWeb derivatives were rejected before
+  live access because their model-output provenance could not meet this ticket's
+  conservative licensing gate. This did not relax any success condition.
+- Risks: license/terms, filtering provenance, leakage, long tails, network variance, cache temp space.
 
 ## Merge authority and final audit
 
