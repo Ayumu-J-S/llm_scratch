@@ -1,6 +1,6 @@
 # DATA-003 - Packed residual resume repair
 
-- PR: draft — branch push and GitHub draft creation pending
+- PR: [#31](https://github.com/Ayumu-J-S/llm_scratch/pull/31) (draft)
 - Branch: `codex/data-003-packed-resume-repair`
 - Ticket: DATA-003
 - Hypothesis: Once a final short packed window has been yielded, its residual
@@ -24,7 +24,8 @@
   reproducible, inspectable experiments; direct readable implementations; no
   speculative compatibility paths.
 - Baseline commit/run: `57266e1e843be2d08e10ef5f387da8466b0c590f` (merged
-  DATA-003 PR #29).
+  DATA-003 PR #29); the repair is rebased on documentation-audit main
+  `9bf68b0373022309e320db7e8674769a542cc511`.
 - Intended evidence: the reported four one-token-document reproduction, plus
   an uninterrupted-versus-interrupted packed sequence equivalence assertion.
 
@@ -32,8 +33,8 @@
 
 | Cycle | Phase | Exact model identifier | Reasoning mode | Input commit/context | Requested work | Outcome | Main findings / changes | Evidence |
 | ---: | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | repair | not exposed by runtime | not exposed by runtime | `57266e1`; DATA-003 P5 reproduction; `ROADMAP.md`, `PHILOSOPHY.md`, selected `CHECK.md` 4.1/4.3/9.1 | Requested Luna / Extra High repair: make packed `drop_remainder: false` resume exact without broadening DATA-003 | implemented; independent review pending | Clear the packed cursor residual before yielding a final short window. Thread prefetch now publishes the producer's completed cursor instead of constructing an empty source-state cursor after the producer closes. | Focused cursor suite: 15 passed; full suite: 227 passed, 1 skipped; Ruff, lock, and diff checks pass |
-| 1 | re-review | not exposed by runtime | not exposed by runtime | repair head pending | Independent heavier review requested as Extra Thinking against DATA-003, philosophy, and selected checklist sections | pending | Must examine exact repair head and all guarded merge evidence before a ready/self-merge decision | pending |
+| 1 | repair | not exposed by runtime | not exposed by runtime | `57266e1` P2 reproduction; rebased on `9bf68b0`; `ROADMAP.md`, `PHILOSOPHY.md`, selected `CHECK.md` 4.1/4.3/9.1 | Requested Luna / Extra High repair: make packed `drop_remainder: false` resume exact without broadening DATA-003 | implemented; independent review pending | Clear the packed cursor residual before yielding a final short window. Thread prefetch now publishes the producer's completed cursor instead of constructing an empty source-state cursor after the producer closes. | Focused cursor suite: 15 passed; full suite: 227 passed, 1 skipped; Ruff, lock, and diff checks pass |
+| 1 | re-review | not exposed by runtime | not exposed by runtime | exact rebased PR #31 head pending | Independent heavier review requested as Extra Thinking against DATA-003, philosophy, and selected checklist sections | pending | Must examine exact repair head and all guarded merge evidence before a ready/self-merge decision | pending |
 
 ## Runtime provenance block
 
@@ -97,7 +98,7 @@
 
 | Severity | Area | What was wrong or good | Evidence | Required action |
 | --- | --- | --- | --- | --- |
-| P5 | packed cursor | A final partial packed window is yielded while the cursor still contains the same residual tokens, so resume emits an extra full window followed by the original partial window. | Four one-token documents, `max_tokens=4`, `sequence_length=5`, `add_eos=false`, `drop_remainder=false`: full `[[311,311,311,311]]`; interrupted cursor has four residual tokens. | Clear/update the packed cursor before yielding the final short window, then demonstrate exact prefix-plus-resume equivalence. |
+| P2 | packed cursor | A final partial packed window is yielded while the cursor still contains the same residual tokens, so resume emits an extra full window followed by the original partial window. | Four one-token documents, `max_tokens=4`, `sequence_length=5`, `add_eos=false`, `drop_remainder=false`: full `[[311,311,311,311]]`; interrupted cursor has four residual tokens. | Clear/update the packed cursor before yielding the final short window, then demonstrate exact prefix-plus-resume equivalence. |
 
 ## Failed-review handoff
 
@@ -155,7 +156,9 @@
     source but a five-billion-token horizon; it raises the pre-existing
     `Datasets exhausted before max_tokens quota was met` error. This PR neither
     changes that config nor claims that command as passing.
-- Commit reviewed next: pending commit/push.
+- Commit reviewed next: repair code `cae88a5855ed439ffb2265894a51bdc4306f5ec9`
+  plus its current documentation descendant; independent review must name the
+  exact final PR head it examines.
 - Re-review model / mode: requested independent heavier Extra Thinking; actual
   exact identity/mode not exposed by runtime.
 - Re-review verdict: pending.
