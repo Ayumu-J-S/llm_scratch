@@ -38,6 +38,7 @@
 | 1 | validation finding | not exposed by runtime | not exposed by runtime | `bd11955ddf44cac637c5647098cf603cd0a04933`; requested regression expansion | Exercise the exact P2 `max_tokens=4`, `repeat=false` configuration with `json.loads(json.dumps(cursor))` in sync/thread/process modes | FAIL | Residual clearing left `pass_complete=true`; a fresh `StreamLoader(cursor=...)` treated the checkpoint as a next pass and hit the finite-source quota error instead of yielding its empty suffix. | Focused regression failed before an independent PASS could be claimed. |
 | 2 | repair | not exposed by runtime | not exposed by runtime | `bd11955`; cycle-1 validation failure; exact P2 config | Requested Luna / Extra High repair: distinguish a supplied completed checkpoint from a later iterator on the same loader, including process-prefetch serialization | implemented; independent review pending | Added one-shot resume state. A supplied completed cursor returns its empty suffix; later same-loader iteration starts a next pass. Process prefetch receives the parent's one-shot state; final partial residual/producer-marker fixes remain. | Repair code `54f8c591e6264f8da479bcf8893be20b82bf5a0a`; focused 15 passed; full 227 passed, 1 skipped; Ruff, lock, and diff checks pass |
 | 2 | re-review | not exposed by runtime | not exposed by runtime | exact docs head `313ca0a90ca6d4b9be31efd914c21e53ddf8f3e7`; repair code `54f8c591e6264f8da479bcf8893be20b82bf5a0a` | Independent heavier review against DATA-003, philosophy, and selected checklist sections | PASS WITH NOTE | No code defect found. The reviewer manually checked completed-cursor resume in sync, thread, and process modes; its review target/validation matched the repair evidence. | Review `4680026587`; focused 15 passed; full 227 passed, 1 skipped; Ruff, lock, and diff checks pass |
+| 2 | re-review (no drift) | not exposed by runtime | not exposed by runtime | exact docs head `d52f1e527c5d7968ea565eafce9c7c6f842810a3`; repair code remains `54f8c591e6264f8da479bcf8893be20b82bf5a0a` | Confirm the review-record-only descendant did not change the reviewed implementation or evidence | PASS WITH NOTE | No-drift review confirmed the documentation update preserves the accepted code, evidence, and pending audit state. | Review `4680031289`; final connector audit pending |
 
 ## Runtime provenance block
 
@@ -177,6 +178,15 @@
   no DGX or throughput claim is made.
 - Verdict: PASS WITH NOTE (`4680026587`).
 
+### Review cycle 2 no-drift refresh
+
+- Commit reviewed: exact docs head `d52f1e527c5d7968ea565eafce9c7c6f842810a3`;
+  implementation remains `54f8c591e6264f8da479bcf8893be20b82bf5a0a`.
+- Review model / mode: independent reviewer; actual exact model and reasoning
+  mode are not exposed by runtime.
+- Verdict: PASS WITH NOTE (`4680031289`) — no drift from the implementation
+  review or its validation evidence; guarded connector audit remains pending.
+
 #### Findings
 
 | Severity | Area | What was wrong or good | Evidence | Required action |
@@ -271,8 +281,10 @@
   changing the reviewed head.
 - Re-review model / mode: requested independent heavier Extra Thinking; actual
   exact identity/mode not exposed by runtime.
-- Re-review verdict: PASS WITH NOTE (`4680026587`) on exact docs head
-  `313ca0a90ca6d4b9be31efd914c21e53ddf8f3e7`; guarded connector audit pending.
+- Re-review verdict: implementation PASS WITH NOTE (`4680026587`) on exact docs
+  head `313ca0a90ca6d4b9be31efd914c21e53ddf8f3e7`, followed by no-drift PASS
+  WITH NOTE (`4680031289`) on `d52f1e527c5d7968ea565eafce9c7c6f842810a3`;
+  guarded connector audit pending.
 
 ## Final evidence
 
@@ -313,9 +325,10 @@
   must restate the scope and exact-head observation.
 - Authorization covers this named PR or bounded ticket/goal series: yes —
   DATA-003 P5 is ordinary repository collaboration within the roadmap goal.
-- Exact independently reviewed head SHA: `313ca0a90ca6d4b9be31efd914c21e53ddf8f3e7`.
-- Latest independent verdict / model / mode: PASS WITH NOTE `4680026587`; exact
-  model identifier and reasoning mode not exposed by runtime.
+- Exact independently reviewed head SHA: `d52f1e527c5d7968ea565eafce9c7c6f842810a3`
+  (implementation review `4680026587` remains on `313ca0a`).
+- Latest independent verdict / model / mode: no-drift PASS WITH NOTE
+  `4680031289`; exact model identifier and reasoning mode not exposed by runtime.
 - All actionable findings repaired and independently re-reviewed: yes.
 - Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: none
   reported by independent review; final connector refresh pending.
@@ -346,12 +359,13 @@
 
 | Model / mode | Role | What it handled well | What it missed or made worse | Context that helped | Outcome |
 | --- | --- | --- | --- | --- | --- |
-| Codex / GPT-5; exact ID and mode not exposed | repair/review | Localized the final residual and final thread-marker defect, then reproduced and repaired the completed-external-cursor boundary under the exact P2 config | Cycle 1 missed the `max_tokens=4` JSON completed-cursor transition; exact deployment/model ID and reasoning mode remain unavailable | DATA-003 P2 sequence, loader cursor state, selected `CHECK.md` sections, exact JSON round-trip | PASS WITH NOTE `4680026587`; guarded audit pending |
+| Codex / GPT-5; exact ID and mode not exposed | repair/review | Localized the final residual and final thread-marker defect, then reproduced and repaired the completed-external-cursor boundary under the exact P2 config | Cycle 1 missed the `max_tokens=4` JSON completed-cursor transition; exact deployment/model ID and reasoning mode remain unavailable | DATA-003 P2 sequence, loader cursor state, selected `CHECK.md` sections, exact JSON round-trip | Implementation PASS WITH NOTE `4680026587`; no-drift PASS WITH NOTE `4680031289`; guarded audit pending |
 
 ## Ledger update
 
 - [x] Added this per-PR record to `docs/model-runs/README.md`.
 - [x] Updated aggregate counts after independent review.
-- [x] Confirmed the PR execution trail matches this record through review `4680026587`.
+- [x] Confirmed the PR execution trail matches this record through implementation
+  review `4680026587` and no-drift review `4680031289`.
 - [ ] Recorded guarded self-merge audit or human merge evidence.
 - [x] Confirmed this is not the bootstrap policy PR.

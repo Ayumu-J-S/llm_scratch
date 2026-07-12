@@ -38,6 +38,7 @@
 | 6 | repair | not exposed by runtime | not exposed by runtime | post-merge P2 handoff; repair branch rebased on `9bf68b0`; [P5 record](DATA-003-packed-resume-repair.md) | Requested Luna / Extra High repair: consume the final partial packed residual before it can be checkpointed; retain sync/thread/process equivalence | incomplete during validation | PR #31's first repair cleared the terminal residual and fixed the thread producer marker, but it did not distinguish an externally supplied completed cursor from the next pass. | Exact P2 `max_tokens=4` JSON regression on `bd11955` raised finite-source quota exhaustion instead of producing the empty suffix. |
 | 7 | repair | not exposed by runtime | not exposed by runtime | PR #31 cycle-1 validation finding on `bd11955`; [P5 record](DATA-003-packed-resume-repair.md) | Preserve the final residual fix and make a completed supplied cursor resume only its empty suffix, including process-prefetch child state | implemented; independent re-review pending | Added one-shot `_resume_cursor_pending`; same-loader re-iteration still starts an explicit next pass while a fresh completed cursor does not. | Repair code `54f8c591e6264f8da479bcf8893be20b82bf5a0a`; focused 15 passed; full 227 passed, 1 skipped; docs-only successor pending exact review |
 | 7 | re-review | not exposed by runtime | not exposed by runtime | exact PR #31 docs head `313ca0a90ca6d4b9be31efd914c21e53ddf8f3e7`; repair code `54f8c591e6264f8da479bcf8893be20b82bf5a0a` | Independent review of P5 repair | PASS WITH NOTE | No code defect; manual sync/thread/process completed-cursor check matched focused/full/static evidence. | Review `4680026587`; guarded connector audit pending |
+| 7 | re-review (no drift) | not exposed by runtime | not exposed by runtime | exact PR #31 docs head `d52f1e527c5d7968ea565eafce9c7c6f842810a3`; repair code remains `54f8c591e6264f8da479bcf8893be20b82bf5a0a` | Confirm review-record-only docs did not change accepted implementation evidence | PASS WITH NOTE | No drift from the implementation review or validation evidence. | Review `4680031289`; guarded connector audit pending |
 
 ## Runtime provenance block
 
@@ -164,8 +165,9 @@
 - Root cause: `_packed_iter` yields the final partial window before clearing `_packed_cursor_buffer`; the cursor therefore serializes residual tokens that have already been emitted.
 - Repair handoff outcome: PR #31 implements the requested residual advance and
   adds sync/thread/process exact-suffix regressions. Its companion
-  [per-PR record](DATA-003-packed-resume-repair.md) records independent PASS
-  WITH NOTE `4680026587` on exact head `313ca0a`; guarded connector audit remains pending.
+  [per-PR record](DATA-003-packed-resume-repair.md) records implementation PASS
+  WITH NOTE `4680026587` on `313ca0a` and no-drift PASS WITH NOTE `4680031289`
+  on `d52f1e5`; guarded connector audit remains pending.
 
 ## Historical PR #29 merge audit and current documentation-audit status
 
@@ -175,7 +177,9 @@
 - Authorization covers a repair PR: pending fresh repair PR audit.
 - Exact independently reviewed historical head SHA: `87a64b8a72604ddf67cf9536cb0661cff7a9a663` (docs-only descendant of repair code `93132f7`).
 - Latest implementation verdict / model / mode: FAIL P2 (`4679980858`, following automated finding `4679969079`) on the merged lineage; exact model and reasoning mode not exposed by runtime. Documentation-only correction review `4679987639` is PASS WITH NOTE on `4da78859c99a8400ec6522f746eeee098fd40040` and does not repair the code. Historical PR #29 re-confirmation was PASS WITH NOTE `4679961413`.
-- All actionable findings repaired and independently re-reviewed: yes — PR #31 passed independent exact-head review `4680026587`; connector audit remains pending.
+- All actionable findings repaired and independently re-reviewed: yes — PR #31
+  passed implementation review `4680026587` and no-drift review `4680031289`;
+  connector audit remains pending.
 - Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: no code-review block reported; the guarded exact-head connector audit still blocks merge.
 - Newer objection/finding after the historical merge audit: yes — automated finding `4679969079`, independently confirmed as FAIL `4679980858`.
 - Human review dismissed by an agent: no.
@@ -201,12 +205,12 @@
 
 | Model / mode | Role | What it handled well | What it missed or made worse | Context that helped | Outcome |
 | --- | --- | --- | --- | --- | --- |
-| Codex / GPT-5; exact ID and mode not exposed | implementation/review | Localized deterministic source/cursor semantics, bounded shuffle, repeat accounting, consumer-ack protocol, completion preservation, process cursor synchronization, and the P5 residual/completed-cursor repair | Earlier review coverage missed interruption after a final partial packed window; exact deployment/model ID and reasoning mode are unavailable | DATA-003 acceptance, loader internals, DATA-001/DATA-002 boundaries, selected CHECK sections, delayed-consumer and reuse/resume reproductions | P5 PASS WITH NOTE `4680026587`; guarded audit pending |
+| Codex / GPT-5; exact ID and mode not exposed | implementation/review | Localized deterministic source/cursor semantics, bounded shuffle, repeat accounting, consumer-ack protocol, completion preservation, process cursor synchronization, and the P5 residual/completed-cursor repair | Earlier review coverage missed interruption after a final partial packed window; exact deployment/model ID and reasoning mode are unavailable | DATA-003 acceptance, loader internals, DATA-001/DATA-002 boundaries, selected CHECK sections, delayed-consumer and reuse/resume reproductions | P5 implementation PASS WITH NOTE `4680026587`; no-drift PASS WITH NOTE `4680031289`; guarded audit pending |
 
 ## Ledger update
 
 - [x] Added the DATA-003 ticket record and PR URLs; current verdict is in progress pending guarded P5 connector audit.
 - [x] Updated the DATA-003 summary for the post-merge P2, documentation re-review, and PR #31 repair/review handoff.
-- [x] Confirmed the execution trail retains cycles 1–4, post-merge finding `4679969079`, independent FAIL `4679980858`, documentation PASS WITH NOTE `4679987639`, P5 repairs, and review `4680026587`.
+- [x] Confirmed the execution trail retains cycles 1–4, post-merge finding `4679969079`, independent FAIL `4679980858`, documentation PASS WITH NOTE `4679987639`, P5 repairs, implementation review `4680026587`, and no-drift review `4680031289`.
 - [x] Retained the historical guarded self-merge evidence while recording that it does not clear the new P2.
 - [x] Confirmed no bootstrap policy self-merge rule is being used.
