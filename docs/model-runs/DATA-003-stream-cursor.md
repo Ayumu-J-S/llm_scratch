@@ -109,7 +109,7 @@
 - Changes made: thread worker emits `_CURSOR_MARKER` immediately before each queued sample; parent tracks `_consumer_cursor`; async `state_dict()` returns acknowledged state, while process prefetch emits the same marker protocol. Added delayed thread interruption regression and retained process interruption coverage.
 - What was deliberately not changed: source sampling, shuffle algorithm, manifest identity, packed residual semantics, process mode, or model/checkpoint code.
 - Local evidence: DATA-003 focused tests 8 passed; full suite `220 passed, 1 skipped`; Ruff, lock, and diff checks pass.
-- Commit reviewed next: `ea2c01e68ab4d120b10b3f8208d1388a0be7d19c` (code; docs-only follow-up head `21358bc24a1018e7e6105d2cfda77b1df6e6d2b6`).
+- Commit reviewed next: `ea2c01e68ab4d120b10b3f8208d1388a0be7d19c` (code; current docs-only head `9c077d5553c8b2e9010b6b4f9e677ca52de25c1b`).
 - Re-review model / mode: actual exact model and reasoning mode not exposed by runtime.
 - Re-review verdict: PASS WITH NOTE (`4679913983`) on exact `ea2c01e`.
 
