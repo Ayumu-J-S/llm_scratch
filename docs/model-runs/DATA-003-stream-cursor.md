@@ -1,6 +1,6 @@
 # DATA-003 - Deterministic stream horizon, shuffle, and exact cursor
 
-- PR: [#29](https://github.com/Ayumu-J-S/llm_scratch/pull/29) (draft; PASS WITH NOTE, merge pending guarded audit)
+- PR: [#29](https://github.com/Ayumu-J-S/llm_scratch/pull/29) (merged; PASS WITH NOTE; merge `57266e1e843be2d08e10ef5f387da8466b0c590f`)
 - Branch: `codex/data-003-stream-cursor`
 - Ticket: DATA-003
 - Hypothesis: A bounded stream with explicit pass policy and serialized source/RNG cursor can reproduce an uninterrupted suffix while keeping prefetch an execution detail.
@@ -143,38 +143,38 @@
 - Performance/resource result if applicable: N/A; this ticket explicitly defers throughput optimization and DGX measurement.
 - Failed attempts retained at: N/A.
 - Known trade-offs: cursor stores bounded shuffle-buffer documents and Python RNG state so an interrupted stream can resume without source replay ambiguity; it is intentionally separate from CKPT-001 model state.
-- Unresolved risks: bounded shuffle cursor stores buffered documents in memory by design; final connector merge audit and exact-head status refresh remain pending.
-- Human decision requested: review the independent verdict and guarded merge audit after all checks are refreshed.
+- Unresolved risks: bounded shuffle cursor stores buffered documents in memory by design; CKPT-001 still needs to persist this cursor alongside model state.
+- Human decision requested: N/A — the recorded authorization and guarded audit permitted the ordinary repository self-merge.
 
 ## Merge authority and final audit
 
 - Merge path: guarded agent self-merge only if the parent goal authorization is recorded and all gates pass; otherwise human merge.
 - Human authorization: parent task explicitly authorizes self-merge for the bounded roadmap goal on 2026-07-12; exact parent instruction must be copied into final PR audit.
 - Authorization evidence location: parent task messages and final PR audit comment.
-- Authorization covers this named PR or bounded ticket/goal series: pending final audit.
-- Exact independently reviewed head SHA: `9abfeb2e33be6e7e78bd3ac730544c9e29157d4c` (repair code `93132f7` plus docs-only descendant).
-- Latest independent verdict / model / mode: PASS WITH NOTE `4679956834`; exact model and reasoning mode not exposed by runtime.
+- Authorization covers this named PR or bounded ticket/goal series: yes — DATA-003 within the bounded roadmap goal.
+- Exact independently reviewed head SHA: `87a64b8a72604ddf67cf9536cb0661cff7a9a663` (docs-only descendant of repair code `93132f7`).
+- Latest independent verdict / model / mode: PASS WITH NOTE `4679961413` (docs-only exact-head re-confirmation; implementation review `4679956834`); exact model and reasoning mode not exposed by runtime.
 - All actionable findings repaired and independently re-reviewed: yes — cycles 1, 3, and 4 findings were re-reviewed on the exact head.
-- Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: pending.
-- Newer human objections since authorization/review: pending final refresh.
+- Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: none; all submitted reviews are non-blocking comments and no `CHANGES_REQUESTED` review remains.
+- Newer human objections since authorization/review: none observed in the immediate pre-merge refresh.
 - Human review dismissed by an agent: no.
-- Unresolved review threads at final audit: pending.
-- Branch-protection required-context inventory: pending connector refresh.
-- Applicable configured workflow/check inventory: pending connector refresh.
-- Observed exact-head check statuses: pending connector refresh.
-- Expected checks absent, pending, skipped, cancelled, or non-successful: pending.
-- No-check evidence when both inventories are empty: pending.
-- Target branch and base SHA at final audit: pending.
-- Up-to-date, conflict-free, and mergeable evidence: pending.
-- Record, ledger, PR trail, validation, and risks parity: pending final guarded merge audit; implementation/review evidence is current.
+- Unresolved review threads at final audit: zero; both actionable threads were resolved before merge.
+- Branch-protection required-context inventory: no required contexts reported by the connector.
+- Applicable configured workflow/check inventory: no pull-request workflow runs reported for the exact head.
+- Observed exact-head check statuses: empty (`github_get_commit_combined_status` for `87a64b8`).
+- Expected checks absent, pending, skipped, cancelled, or non-successful: zero; the no-check state is evidenced by the empty status and workflow inventories.
+- No-check evidence when both inventories are empty: final audit comment [`#issuecomment-4951026925`](https://github.com/Ayumu-J-S/llm_scratch/pull/29#issuecomment-4951026925) and exact-head connector refresh.
+- Target branch and base SHA at final audit: `main` at `60a6d86482241fff891c8701b9242d2fc0817bb6`.
+- Up-to-date, conflict-free, and mergeable evidence: final refresh recorded Ready, mergeable, and unchanged head before merge.
+- Record, ledger, PR trail, validation, and risks parity: yes; this record and README now identify the merged PR and merge SHA.
 - Prohibited self-merge categories: clear — ordinary repository data-loader code and tests only.
 - Admin/bypass/force/disabled-check requirement: no.
-- Final audit PR body/comment location: pending.
+- Final audit PR body/comment location: [`#issuecomment-4951026925`](https://github.com/Ayumu-J-S/llm_scratch/pull/29#issuecomment-4951026925) (post-merge completion; pre-merge refresh [`#issuecomment-4951019993`](https://github.com/Ayumu-J-S/llm_scratch/pull/29#issuecomment-4951019993)).
 - Final audit changed reviewed head: no (must remain no).
-- Immediate pre-merge re-fetch/compare observation location: pending.
-- Immediate refresh compared authorization, head, base, review decision/objections, threads, expected checks/statuses, and mergeability: pending.
-- Drift found: pending.
-- Merge outcome: pending final guarded audit; latest independent review passes.
+- Immediate pre-merge re-fetch/compare observation location: [`#issuecomment-4951026925`](https://github.com/Ayumu-J-S/llm_scratch/pull/29#issuecomment-4951026925) (with the pre-merge audit at [`#issuecomment-4951019993`](https://github.com/Ayumu-J-S/llm_scratch/pull/29#issuecomment-4951019993)).
+- Immediate refresh compared authorization, head, base, review decision/objections, threads, expected checks/statuses, and mergeability: yes; no drift found.
+- Drift found: no.
+- Merge outcome: merged to `main` as `57266e1e843be2d08e10ef5f387da8466b0c590f`.
 
 ## Model assessment from this ticket
 
@@ -187,5 +187,5 @@
 - [x] Added the DATA-003 ticket record and PR URL; final verdict is PASS WITH NOTE.
 - [x] Updated aggregate implementation/review counts after final verdict.
 - [x] Confirmed PR execution trail matches this record through cycle-4 review `4679956834` and repair `93132f7`.
-- [ ] Recorded complete guarded self-merge authority/audit or human merge evidence.
+- [x] Recorded complete guarded self-merge authority/audit or human merge evidence.
 - [x] Confirmed no bootstrap policy self-merge rule is being used.
