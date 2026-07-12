@@ -1,6 +1,2 @@
-{"id":"gate-ja-001","text":"日本語の合図: 桜は春に咲きます。日本語の合図: 桜は春に咲きます。"}
-{"id":"gate-en-001","text":"English cue: small models memorize fixed text. English cue: small models memorize fixed text."}
-{"id":"gate-ja-002","text":"固定の実験文: 日本語の合図は桜は春に咲きます。固定の実験文: 日本語の合図は桜は春に咲きます。"}
-{"id":"gate-en-002","text":"Fixed experiment text: English cue means small models memorize fixed text. Fixed experiment text: English cue means small models memorize fixed text."}
-{"id":"gate-en-003","text":"English cue: small models memorize fixed text in a short deterministic local experiment record with no validation claim."}
-{"id":"gate-en-004","text":"This fixed text is memorized."}
+{"id":"gate-ja-001","text":"日本語の合図: 桜は春に咲きます。日本語の合図: 桜は春に咲きます。日本語の合図: 桜は春に咲きます。日本語の合図: 桜は春に咲きます。日本語の合図: 桜は春に咲きます。日本語の合図: 桜は春に咲きます。日本語の合図: 桜は春に咲きます。"}
+{"id":"gate-en-001","text":"English cue: small models memorize fixed text. English cue: small models memorize fixed text. English cue: small models memorize fixed text. English cue: small models memorize fixed text. English cue: small models memorize fixed text. English cue: small models memorize fixed text. English cue: small models memorize fixed text."}

@@ -23,6 +23,7 @@
 | Cycle | Phase | Exact model identifier | Reasoning mode | Input commit/context | Requested work | Outcome | Main findings / changes | Evidence |
 | ---: | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | implementation | not exposed by runtime | not exposed by runtime | `7f9c172`; requested Luna/lightweight Extra High | Implement the bounded fixed-fixture memorization/resume/generation gate. | in progress | Actual product/family displayed as Codex / GPT-5; exact deployment ID and reasoning mode are not displayed. | This record and linked predeclared experiment record |
+| 1 | repair | not exposed by runtime | not exposed by runtime | candidate through `8db0b6b`; requested lightweight Extra High | Retain failed bounded attempts, keep the original loss/budget gate, and predeclare the smallest fixture-only retry. | in progress | Host CPU-Torch failure, insufficient windows, terminal-step resume, and diluted English memorization were all retained. Retry uses two repeated JP/EN documents with 11 batches/pass so step 100 has a suffix; no threshold relaxation. | Experiment-record retry predeclaration dated 2026-07-12 |
 
 ## Runtime provenance block
 

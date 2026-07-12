@@ -36,6 +36,35 @@ No training process has been launched. This section will retain the complete
 resolved Hydra configuration, immutable input identities, counters, checkpoint
 digests, samples, and comparison result after the canonical command exists.
 
+## Retry predeclaration — 2026-07-12
+
+The original decision rule above is unchanged: final fixed-fixture NLL must be
+at or below `0.20` at step 200, two independent same-seed runs must agree, and
+the split/resume path must agree. The following is a new planned attempt, not a
+revision of the original threshold or budget.
+
+- Retained failures that motivate this retry: native CUDA stopped before data
+  because the host Torch build is CPU-only; two short-fixture launches exposed
+  zero/terminal suffixes at the step-100 recovery boundary; the first complete
+  GB10 attempt had exact repeat/resume traces but ended at NLL `0.7017` on its
+  final diverse English batch and did not complete the required English suffix.
+  Raw local records are retained in ignored `reports/gate-001/attempt-{1..5}`.
+- New hypothesis: concentrating the same fixed Japanese and English continuations
+  in two versioned documents, each repeated seven times, will satisfy the
+  unchanged step-200 loss and continuation gates without changing architecture,
+  tokenizer, optimizer, seed, precision, or the 100-step recovery boundary.
+- Smallest change: replace six heterogeneous train documents with the two
+  declared JP/EN memorization texts. The new manifest yields exactly 11 packed
+  batches per finite pass, so step 100 is deliberately inside a pass and has a
+  non-empty exact-resume suffix.
+- Planned command: `docker run --rm --gpus all --ipc=host --ulimit memlock=-1 --ulimit stack=67108864 ... llm-scratch:env-001 python scripts/run_gate_overfit.py --output-dir reports/gate-001/attempt-6 --device cuda`.
+- Planned budget: unchanged — two independent 200-update executions plus one
+  100+100 interrupted/resumed execution, all on GB10 BF16, with local-only
+  evidence and W&B disabled.
+- Additional stop condition: abort before optimizer updates if the fixture pass
+  count is fewer than two, divides step 100, or cannot supply 200 updates in
+  the declared epoch horizon.
+
 ## Conclusion
 
 - Hypothesis result: pending
