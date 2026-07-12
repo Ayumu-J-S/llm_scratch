@@ -1,6 +1,6 @@
 # DATA-003 - Deterministic stream horizon, shuffle, and exact cursor
 
-- PR: [#29](https://github.com/Ayumu-J-S/llm_scratch/pull/29) (ready; merge pending parent audit)
+- PR: [#29](https://github.com/Ayumu-J-S/llm_scratch/pull/29) (draft pending cycle-3 re-review)
 - Branch: `codex/data-003-stream-cursor`
 - Ticket: DATA-003
 - Hypothesis: A bounded stream with explicit pass policy and serialized source/RNG cursor can reproduce an uninterrupted suffix while keeping prefetch an execution detail.
@@ -27,8 +27,8 @@
 | 2 | repair | not exposed by runtime | not exposed by runtime | review cycle 1 failure and `883f6d0` | Requested Luna / Extra High repair: make async cursor state consumer-acknowledged without changing sample order; preserve process behavior | completed; re-review PASS WITH NOTE | Added cursor ACK marker before every thread sample and a separate parent `_consumer_cursor`; `state_dict()` returns ACK state while async worker runs; added delayed thread/process interruption regressions | Focused DATA-003 tests 8 passed; full suite 220 passed, 1 skipped; static checks clean |
 | 2 | re-review | not exposed by runtime | not exposed by runtime | `ea2c01e68ab4d120b10b3f8208d1388a0be7d19c` (PR #29) | Re-run independent review on exact repair head | PASS WITH NOTE | Consumer-ack cursor markers close the thread/process ahead-of-consumer defect; cursor buffering remains a documented memory trade-off | Review `4679913983`; focused 8 passed; full 220 passed, 1 skipped; static checks clean |
 | 3 | review | not exposed by runtime | not exposed by runtime | `13d90f7e8921c0875a7c37ad1bf44a3147d94c09` (PR #29) | Exact-head refresh after ready-state docs update | FAIL | Thread reuse lost `pass_complete` on natural exhaustion; `load_state_dict` cursor was absent from spawned process config | Review `4679929272`; two P2 findings, no merge |
-| 3 | repair | not exposed by runtime | not exposed by runtime | `13d90f7` plus review `4679929272` | Preserve completed async cursor and propagate explicit cursor into process worker; add regressions | completed; re-review pending | Final thread cursor marker preserves completed-pass state; `load_state_dict` updates serialized process config; thread reuse and process load-state tests added | Focused 10 passed; full 222 passed, 1 skipped; static checks clean |
-| 3 | re-review | not exposed by runtime | not exposed by runtime | pending repair head | Independent exact-head review after P2 repairs | pending | Must verify thread/process reuse and spawned-worker resume on final head | pending |
+| 3 | repair | not exposed by runtime | not exposed by runtime | `13d90f7` plus review `4679929272` | Preserve completed async cursor and propagate explicit cursor into process worker; add regressions | completed; re-review pending | Final thread cursor marker preserves completed-pass state; `load_state_dict` updates serialized process config; thread reuse and process load-state tests added | Focused 10 passed; full 222 passed, 1 skipped; static checks clean; repair `bc8ebbc32db56436e37d32550c1ef6d11a56e66` |
+| 3 | re-review | not exposed by runtime | not exposed by runtime | `bc8ebbc32db56436e37d32550c1ef6d11a56e66` | Independent exact-head review after P2 repairs | pending | Must verify thread/process reuse and spawned-worker resume on final head | pending |
 
 ## Runtime provenance block
 
@@ -120,7 +120,7 @@
 - Input handoff: exact-head refresh `4679929272` found thread pass-completion cursor overwrite and missing process-worker cursor propagation from `load_state_dict`.
 - Changes made: thread worker emits a final cursor marker after natural exhaustion; `load_state_dict` mirrors the cursor into serialized config; added same-loader thread reuse and process load-state resume regressions.
 - Local evidence: DATA-003 focused 10 passed; full suite 222 passed, 1 skipped; Ruff, lock, and diff checks pass.
-- Commit reviewed next: pending repair commit.
+- Commit reviewed next: `bc8ebbc32db56436e37d32550c1ef6d11a56e66`.
 - Re-review model / mode: pending independent exact-head re-review.
 - Re-review verdict: pending.
 
