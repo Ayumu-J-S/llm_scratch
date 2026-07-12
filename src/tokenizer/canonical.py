@@ -239,6 +239,67 @@ def _validate_manifest_and_load_tokenizer(
     if model_config.get("byte_fallback") is not runtime.get("byte_fallback"):
         raise ValueError("tokenizer byte_fallback does not match the manifest")
 
+    special_tokens = _mapping(manifest.get("special_tokens"), "manifest.special_tokens")
+    if set(special_tokens) != _SPECIAL_ROLES:
+        raise ValueError(f"manifest.special_tokens roles must be {sorted(_SPECIAL_ROLES)}")
+    manifest_special_pairs: list[tuple[str, int]] = []
+    for role in sorted(_SPECIAL_ROLES):
+        token_config = _mapping(special_tokens[role], f"manifest.special_tokens.{role}")
+        if set(token_config) != {"token", "id"}:
+            raise ValueError(f"manifest.special_tokens.{role} must contain token and id")
+        token = token_config["token"]
+        token_id = _integer(token_config["id"], f"manifest.special_tokens.{role}.id")
+        if not isinstance(token, str) or not token:
+            raise TypeError(f"manifest.special_tokens.{role}.token must be a string")
+        manifest_special_pairs.append((token, token_id))
+
+    manifest_special_ids = [token_id for _, token_id in manifest_special_pairs]
+    manifest_special_strings = [token for token, _ in manifest_special_pairs]
+    duplicate_ids = sorted(
+        token_id
+        for token_id in set(manifest_special_ids)
+        if manifest_special_ids.count(token_id) > 1
+    )
+    duplicate_tokens = sorted(
+        token
+        for token in set(manifest_special_strings)
+        if manifest_special_strings.count(token) > 1
+    )
+    if duplicate_ids or duplicate_tokens:
+        raise ValueError(
+            "manifest.special_tokens must use eight unique token strings and IDs: "
+            f"duplicate_tokens={duplicate_tokens}, duplicate_ids={duplicate_ids}"
+        )
+
+    added_tokens = tokenizer_json.get("added_tokens")
+    if not isinstance(added_tokens, list):
+        raise TypeError("tokenizer.added_tokens must be a list")
+    artifact_special_pairs: list[tuple[str, int]] = []
+    for index, added_token_value in enumerate(added_tokens):
+        added_token = _mapping(added_token_value, f"tokenizer.added_tokens[{index}]")
+        if added_token.get("special") is not True:
+            continue
+        content = added_token.get("content")
+        if not isinstance(content, str) or not content:
+            raise TypeError(f"tokenizer.added_tokens[{index}].content must be a string")
+        token_id = _integer(added_token.get("id"), f"tokenizer.added_tokens[{index}].id")
+        artifact_special_pairs.append((content, token_id))
+
+    manifest_special_set = set(manifest_special_pairs)
+    artifact_special_set = set(artifact_special_pairs)
+    if (
+        len(artifact_special_pairs) != len(_SPECIAL_ROLES)
+        or len(artifact_special_set) != len(artifact_special_pairs)
+        or artifact_special_set != manifest_special_set
+    ):
+        raise ValueError(
+            "manifest special-token pairs must exactly match tokenizer artifact "
+            "special added-token pairs: "
+            f"missing_from_manifest={sorted(artifact_special_set - manifest_special_set)}, "
+            f"extra_in_manifest={sorted(manifest_special_set - artifact_special_set)}, "
+            f"artifact_special_count={len(artifact_special_pairs)}"
+        )
+
     tokenizer = Tokenizer.from_file(str(validated_paths["tokenizer"]))
     vocabulary = tokenizer.get_vocab(with_added_tokens=True)
     vocab_size = _integer(runtime.get("vocab_size"), "manifest.runtime.vocab_size")
@@ -250,17 +311,10 @@ def _validate_manifest_and_load_tokenizer(
     if set(vocabulary.values()) != set(range(vocab_size)):
         raise ValueError("canonical tokenizer IDs must be contiguous from zero")
 
-    special_tokens = _mapping(manifest.get("special_tokens"), "manifest.special_tokens")
-    if set(special_tokens) != _SPECIAL_ROLES:
-        raise ValueError(f"manifest.special_tokens roles must be {sorted(_SPECIAL_ROLES)}")
     for role in sorted(_SPECIAL_ROLES):
         token_config = _mapping(special_tokens[role], f"manifest.special_tokens.{role}")
-        if set(token_config) != {"token", "id"}:
-            raise ValueError(f"manifest.special_tokens.{role} must contain token and id")
         token = token_config["token"]
         token_id = _integer(token_config["id"], f"manifest.special_tokens.{role}.id")
-        if not isinstance(token, str) or not token:
-            raise TypeError(f"manifest.special_tokens.{role}.token must be a string")
         if tokenizer.token_to_id(token) != token_id or tokenizer.id_to_token(token_id) != token:
             raise ValueError(f"special token {role} does not match the tokenizer artifact")
 

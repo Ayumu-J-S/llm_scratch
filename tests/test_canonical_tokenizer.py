@@ -253,7 +253,7 @@ def test_loader_appends_one_eod_to_clean_text_without_padding():
         ),
         (
             lambda manifest: manifest["special_tokens"]["eos_eod"].update(id=6),
-            "special token eos_eod",
+            "unique token strings and IDs",
         ),
         (lambda manifest: manifest["runtime"].update(vocab_size=50_569), "vocabulary size"),
         (lambda manifest: manifest["probes"][0]["ids"].append(1), "probe 0 IDs"),
@@ -296,6 +296,60 @@ def test_manifest_and_expected_fingerprint_mutations_are_rejected(tmp_path):
                 "expected_fingerprint": "0" * 64,
             }
         )
+
+
+def test_refingerprinted_manifest_rejects_special_role_alias(tmp_path):
+    install_dir = _copy_install(tmp_path)
+    manifest = _read_manifest(install_dir)
+    manifest["special_tokens"]["additional_eos"] = copy.deepcopy(
+        manifest["special_tokens"]["eos_eod"]
+    )
+    config = _write_refingerprinted_manifest(install_dir, manifest)
+
+    with pytest.raises(ValueError, match="eight unique token strings and IDs"):
+        CanonicalTokenizer.from_config(config)
+
+
+def test_refingerprinted_manifest_rejects_ordinary_vocabulary_substitution(tmp_path):
+    install_dir = _copy_install(tmp_path)
+    manifest = _read_manifest(install_dir)
+    tokenizer_json = _read_tokenizer_json(install_dir)
+    ordinary_token = tokenizer_json["model"]["vocab"][8][0]
+    manifest["special_tokens"]["additional_eos"] = {"token": ordinary_token, "id": 8}
+    config = _write_refingerprinted_manifest(install_dir, manifest)
+
+    with pytest.raises(ValueError, match="must exactly match tokenizer artifact"):
+        CanonicalTokenizer.from_config(config)
+
+
+def test_refingerprinted_artifact_rejects_missing_special_added_token(tmp_path):
+    install_dir = _copy_install(tmp_path)
+    tokenizer_json = _read_tokenizer_json(install_dir)
+    tokenizer_json["added_tokens"][7]["special"] = False
+    config = _write_tokenizer_and_refingerprinted_manifest(install_dir, tokenizer_json)
+
+    with pytest.raises(ValueError, match=r"artifact_special_count=7"):
+        CanonicalTokenizer.from_config(config)
+
+
+def test_refingerprinted_artifact_rejects_extra_special_added_token(tmp_path):
+    install_dir = _copy_install(tmp_path)
+    tokenizer_json = _read_tokenizer_json(install_dir)
+    tokenizer_json["added_tokens"].append(
+        {
+            "id": 8,
+            "content": tokenizer_json["model"]["vocab"][8][0],
+            "single_word": False,
+            "lstrip": False,
+            "rstrip": False,
+            "normalized": False,
+            "special": True,
+        }
+    )
+    config = _write_tokenizer_and_refingerprinted_manifest(install_dir, tokenizer_json)
+
+    with pytest.raises(ValueError, match=r"artifact_special_count=9"):
+        CanonicalTokenizer.from_config(config)
 
 
 def test_missing_moved_and_mutated_artifact_bytes_are_rejected(tmp_path):
@@ -505,6 +559,23 @@ def _copy_install(tmp_path: Path) -> Path:
 
 def _read_manifest(install_dir: Path) -> dict:
     return json.loads((install_dir / "manifest.json").read_text(encoding="utf-8"))
+
+
+def _read_tokenizer_json(install_dir: Path) -> dict:
+    return json.loads((install_dir / "tokenizer.json").read_text(encoding="utf-8"))
+
+
+def _write_tokenizer_and_refingerprinted_manifest(
+    install_dir: Path, tokenizer_json: dict
+) -> dict[str, str]:
+    tokenizer_path = install_dir / "tokenizer.json"
+    tokenizer_path.write_text(json.dumps(tokenizer_json, ensure_ascii=False), encoding="utf-8")
+    manifest = _read_manifest(install_dir)
+    manifest["files"]["tokenizer"]["size_bytes"] = tokenizer_path.stat().st_size
+    manifest["files"]["tokenizer"]["sha256"] = hashlib.sha256(
+        tokenizer_path.read_bytes()
+    ).hexdigest()
+    return _write_refingerprinted_manifest(install_dir, manifest)
 
 
 def _write_refingerprinted_manifest(install_dir: Path, manifest: dict) -> dict[str, str]:
