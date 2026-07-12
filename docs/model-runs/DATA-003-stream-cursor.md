@@ -108,8 +108,8 @@
 - Input handoff: review cycle 1's 10/10 delayed-thread cursor mismatch.
 - Changes made: thread worker emits `_CURSOR_MARKER` immediately before each queued sample; parent tracks `_consumer_cursor`; async `state_dict()` returns acknowledged state, while process prefetch emits the same marker protocol. Added delayed thread interruption regression and retained process interruption coverage.
 - What was deliberately not changed: source sampling, shuffle algorithm, manifest identity, packed residual semantics, process mode, or model/checkpoint code.
-- Local evidence: DATA-003 focused tests 8 passed; full suite and lint pending after final commit.
-- Commit reviewed next: pending repair head.
+- Local evidence: DATA-003 focused tests 8 passed; full suite `218 passed, 1 skipped`; Ruff, lock, and diff checks pass.
+- Commit reviewed next: `897cfb7409b47cac160ae1b669817bacab44e8fc` (current exact repair head).
 - Re-review model / mode: pending independent review.
 - Re-review verdict: pending.
 
@@ -117,7 +117,7 @@
 
 - Resolved Hydra command/config: `config/stream_loader.yaml` now documents `horizon.repeat: false`, deterministic bounded shuffle, and buffer size; fixture tests exercise equivalent plain mappings.
 - Data/tokenizer identity: canonical tokenizer manifest fingerprint `12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b`; fixture documents are immutable in-memory records for offline invariants.
-- Validation and measurements: DATA-003 focused file → `8 passed`; full suite, Ruff, lock, and diff checks pending final repair commit.
+- Validation and measurements: `uv run --group dev pytest -q` → `218 passed, 1 skipped`; DATA-003 focused file → `8 passed`; `uv run ruff check .`; `uv lock --check`; `git diff --check`.
 - Performance/resource result if applicable: N/A; this ticket explicitly defers throughput optimization and DGX measurement.
 - Failed attempts retained at: N/A.
 - Known trade-offs: cursor stores bounded shuffle-buffer documents and Python RNG state so an interrupted stream can resume without source replay ambiguity; it is intentionally separate from CKPT-001 model state.
