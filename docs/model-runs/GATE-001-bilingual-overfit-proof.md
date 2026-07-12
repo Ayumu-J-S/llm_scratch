@@ -6,7 +6,7 @@
 - Hypothesis: a bounded random-initialized run can memorize a fixed bilingual fixture, resume exactly, and generate checkpoint-backed base-model continuations.
 - Experiment record: `docs/experiments/GATE-001-bilingual-overfit-proof.md`
 - Started: 2026-07-12
-- Final verdict: PASS WITH NOTE — independent review `4680390444`; docs-only exact-head confirmation pending
+- Final verdict: PASS WITH NOTE — implementation review `4680390444` and integrated-head review `4680779176`; final docs-only confirmation and guarded audit pending
 - Final record owner: implementation agent
 
 ## Scope and decision context
@@ -29,6 +29,8 @@
 | 2 | handoff | not exposed by runtime | not exposed by runtime | candidate `3d0f4fbdc7c8ad40d30b9e5eb03e448e712d2e2e`; requested heavier reviewer Extra Thinking | Hand off exact implementation evidence for independent PHILOSOPHY/ticket/CHECK review. | ready for review | No hidden reasoning recorded; request is limited to ticket acceptance, selected checks 6/8/9.1/R2, and change surface. | provenance capture 2026-07-12T16:23:21Z |
 | 3 | repair | not exposed by runtime | not exposed by runtime | independent pre-review of `5e33d91`; requested lightweight Extra High | Apply the sole actionable finding: repository formatter layout in the proof runner. | repaired | `ruff format` changed seven insertions/thirteen deletions of line wrapping only; fixture, commands, evidence, and outcomes are unchanged. | `82e1ece`; `ruff format --check`, Ruff lint, 28 focused tests passed |
 | 3 | review | not exposed by runtime | not exposed by runtime | exact head `d48cb8b86c1e394e8343e220c39ece6af861e298`; requested heavier reviewer Extra Thinking | Independently review ticket acceptance, PHILOSOPHY, CHECK 6/8/9.1/R2, and the formatter repair. | PASS WITH NOTE | No actionable findings. Equality is correctly scoped to this GB10/container under the known memory-efficient-attention `warn_only` notice. | GitHub COMMENT review `4680390444`; 258 passed/1 skipped; Ruff lint/format, lock/diff pass; Actions `29200284082` success |
+| 4 | integration | not exposed by runtime | not exposed by runtime | reviewed head `5a7bfb4`; current `main@6836e74`; requested lightweight Extra High | Merge current main normally and reconcile the independent GATE and ROADMAP-maintenance ledger updates without losing either history. | completed | Integration changed only ROADMAP/ledger documentation; aggregate union is `20 / 8 / 43 / 25 / 58`. | merge `6a958c2`; exact-head Actions `29208697924` success |
+| 4 | independent integration review | not exposed by runtime | not exposed by runtime | exact head `6a958c2347b23845dcf92076d351169de68c4354`; requested strongest appropriate GPT-5.6-class reviewer / Extra Thinking | Re-review ticket, PHILOSOPHY, CHECK 6/8/9.1/R2, implementation-blob parity, ledger union, and exact-head validation after main integration. | PASS WITH NOTE | No actionable findings; implementation blobs are byte-identical to the prior reviewed tree, while environment-scoped determinism and inherited base formatting remain non-actionable notes. | GitHub COMMENT review `4680779176`; 258 passed/1 skipped; 57 focused passed; Actions `29208697924` success |
 
 ## Runtime provenance block
 
@@ -67,6 +69,24 @@
 | --- | --- | --- | --- | --- |
 | Note | reproducibility scope | Equality is valid for the measured GB10/container run, not a promise across hardware/PyTorch releases. | Review `4680390444`; PyTorch memory-efficient-attention `warn_only` notice; experiment record limitation. | Retain the limitation; no code repair required. |
 
+### Review cycle 2 — integrated current main
+
+- Review model / mode: not exposed by runtime / not exposed by runtime; requested strongest appropriate GPT-5.6-class reviewer / Extra Thinking.
+- Commit reviewed: `6a958c2347b23845dcf92076d351169de68c4354`.
+- Selected `CHECK.md` sections: 6, 8, 9.1 and GATE-001 R2.
+- Major sections marked N/A and why: unchanged from cycle 1; the integration adds no training, data, tokenizer, performance, or thermal claim.
+- Ticket acceptance result: PASS WITH NOTE — every implementation blob is byte-identical to the prior reviewed tree and the complete bounded GB10 evidence remains applicable.
+- Philosophy alignment: PASS WITH NOTE — the merge preserves the focused experiment, retained failures, dependency truth, and bounded evidence claims.
+- Complexity / change-surface result: PASS — the only integration resolution combines independent ledger histories and current roadmap state.
+- ML-system result: PASS WITH NOTE — full/focused CPU checks and exact-head CI passed; GB10 was not rerun because no implementation/config/data blob changed.
+- Verdict: PASS WITH NOTE (`4680779176`). No actionable findings.
+
+#### Integration notes
+
+- Repository-wide Ruff format reports six files inherited from `main`; none is changed by PR #39. Changed GATE Python files pass formatting.
+- The aggregate union is auditable from the shared `18 / 6 / 39 / 25 / 56` baseline: the GATE parent is `19 / 7 / 43 / 25 / 57`, the ROADMAP-maintenance parent is `19 / 7 / 39 / 25 / 57`, and the merged result is `20 / 8 / 43 / 25 / 58`.
+- The exact deployment/model identifier and reasoning mode were not exposed by the reviewer runtime. No GPT-5.6 identity is inferred from the request.
+
 ## Failed-review handoff
 
 N/A — the independent review returned PASS WITH NOTE; no failed-review handoff is required.
@@ -94,7 +114,7 @@ Implementation repairs before review (all retained in the experiment record):
 - Failed attempts retained at: experiment record inventory and ignored local `reports/gate-001/attempt-{1..6}`.
 - Known trade-offs: fixed-fixture loss and samples are intentionally non-generalizing evidence.
 - Unresolved risks: GPU memory-efficient attention warned that its algorithm is non-deterministic under the current `warn_only` policy; exact equality is demonstrated only on this current environment. This is the independent review's documented PASS WITH NOTE.
-- Human decision requested: perform the later exact-head guarded merge audit; implementation review is complete.
+- Human decision requested: provide an authenticated required-context inventory or merge after reviewing the completed PASS WITH NOTE handoff; self-merge remains blocked until every guarded gate is provable.
 
 ## Merge authority and final audit
 
@@ -102,29 +122,29 @@ Implementation repairs before review (all retained in the experiment record):
 - Human authorization: user instruction in this bounded roadmap series: “これからはとりあえず全部セルフマージしていいよ”; later AGENTS policy requires full guarded gates.
 - Authorization evidence location: parent task context and eventual PR final-audit comment.
 - Authorization covers this named PR or bounded ticket/goal series: yes — roadmap completion series, subject to all guarded gates.
-- Exact independently reviewed head SHA: `d48cb8b86c1e394e8343e220c39ece6af861e298`
-- Latest independent verdict / model / mode: PASS WITH NOTE / not exposed by runtime / not exposed by runtime; GitHub review `4680390444`.
+- Exact independently reviewed implementation/integration head SHA: `6a958c2347b23845dcf92076d351169de68c4354`; the documentation successor that records it still requires no-drift confirmation.
+- Latest independent verdict / model / mode: PASS WITH NOTE / not exposed by runtime / not exposed by runtime; GitHub review `4680779176`.
 - All actionable findings repaired and independently re-reviewed: yes — formatter finding repaired in `82e1ece`, then reviewed at `d48cb8b`.
-- Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: none observed at implementation handoff; final audit must re-fetch.
-- Newer human objections since authorization/review: none known at implementation start
+- Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: none observed through the integrated-head review; final audit must re-fetch.
+- Newer human objections since authorization/review: none observed through the integrated-head review; final audit must re-fetch.
 - Human review dismissed by an agent: no
-- Unresolved review threads at final audit: pending
-- Branch-protection required-context inventory: pending
-- Applicable configured workflow/check inventory: pending
-- Observed exact-head check statuses: pending
-- Expected checks absent, pending, skipped, cancelled, or non-successful: pending
-- No-check evidence when both inventories are empty: pending
-- Target branch and base SHA at final audit: `main` / pending
-- Up-to-date, conflict-free, and mergeable evidence: pending
-- Record, ledger, PR trail, validation, and risks parity: pending
-- Prohibited self-merge categories: pending final audit; expected clear (no secrets, paid resource, deployment, or release).
+- Unresolved review threads at integrated-head audit: zero; final audit must re-fetch.
+- Branch-protection required-context inventory: blocked — public rulesets are empty, but the legacy `main` protection endpoint returned HTTP 401 and no authenticated branch-protection tool/token is available.
+- Applicable configured workflow/check inventory: active `PR quality gate` applies to pull requests; `Network integration` is schedule/manual only and does not apply to this PR.
+- Observed exact-head check statuses: Actions `29208697924` succeeded for `6a958c2`; legacy commit statuses are empty.
+- Expected checks absent, pending, skipped, cancelled, or non-successful: cannot certify zero until the authenticated required-context inventory is available.
+- No-check evidence when both inventories are empty: N/A — one applicable workflow exists and passed.
+- Target branch and base SHA at integrated-head audit: `main` / `6836e748d17507b8d232a84bf1a6ccc854177876`.
+- Up-to-date, conflict-free, and mergeable evidence: `main` is an ancestor of `6a958c2`, branch is zero commits behind, and GitHub reported mergeable; final audit must re-fetch.
+- Record, ledger, PR trail, validation, and risks parity: integrated-head review recorded; this documentation successor requires no-drift confirmation.
+- Prohibited self-merge categories: clear — no secrets, security controls, private-data publication, paid resource, destructive action, licensing issue, release, deployment, or permission change.
 - Admin/bypass/force/disabled-check requirement: no
 - Final audit PR body/comment location: pending
 - Final audit changed reviewed head: no
 - Immediate pre-merge re-fetch/compare observation location: pending
 - Immediate refresh compared authorization, head, base, review decision/objections, threads, expected checks/statuses, and mergeability: pending
-- Drift found: pending
-- Merge outcome: not merged — implementation agent cannot Ready or merge.
+- Drift found: yes during the first audit (`main` advanced); repaired by normal merge and independent integration re-review. No later merge is authorized until a fresh zero-drift audit passes.
+- Merge outcome: not merged; PR remains draft because the authenticated branch-protection inventory is unavailable.
 
 ## Model assessment from this ticket
 
@@ -137,5 +157,5 @@ Implementation repairs before review (all retained in the experiment record):
 - [x] Added the draft PR/ticket row to `docs/model-runs/README.md`.
 - [x] Updated per-model attempt, pass, repair, and review counts for the independent verdict.
 - [x] Confirmed that the PR execution trail is ready to be updated from this record.
-- [ ] Recorded complete guarded self-merge authority/audit evidence.
+- [ ] Recorded complete guarded self-merge authority/audit evidence — blocked on authenticated branch-protection required-context inventory.
 - [x] Confirmed that this is not the bootstrap self-merge policy PR.
