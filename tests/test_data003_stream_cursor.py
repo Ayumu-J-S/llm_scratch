@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import time
 
+import pytest
+
 from data.stream_loader import StreamLoader
 
 
@@ -177,3 +179,74 @@ def test_packed_window_cursor_keeps_unemitted_residual_tokens():
     iterator.close()
     resumed = [sample["input_ids"].tolist() for sample in StreamLoader({**config, "cursor": cursor})]
     assert prefix + resumed == uninterrupted
+
+
+@pytest.mark.parametrize(
+    "prefetch",
+    [
+        {"enabled": False},
+        {"enabled": True, "mode": "thread", "buffer_size": 2},
+        {"enabled": True, "mode": "process", "buffer_size": 2},
+    ],
+    ids=["sync", "thread", "process"],
+)
+def test_final_short_packed_window_cursor_resumes_exact_suffix(prefetch):
+    config = _config(
+        output_mode="packed_sequences",
+        max_tokens=4,
+        sequence_length=5,
+        add_eos=False,
+        drop_remainder=False,
+        horizon={"repeat": False, "shuffle": False},
+        prefetch=prefetch,
+        datasets=[
+            {
+                "name": "fixture",
+                "type": "memory",
+                "ratio": 1.0,
+                "documents": [{"text": "a"} for _ in range(4)],
+            }
+        ],
+    )
+    uninterrupted = [sample["input_ids"].tolist() for sample in StreamLoader(config)]
+
+    loader = StreamLoader(config)
+    iterator = iter(loader)
+    prefix = [next(iterator)["input_ids"].tolist()]
+    cursor = json.loads(json.dumps(loader.state_dict()))
+    iterator.close()
+
+    assert cursor["packed_buffer"] == []
+    resumed = [
+        sample["input_ids"].tolist()
+        for sample in StreamLoader({**config, "cursor": cursor})
+    ]
+    assert prefix + resumed == uninterrupted
+
+
+def test_final_short_packed_window_does_not_pollute_explicit_repeat_pass():
+    config = _config(
+        output_mode="packed_sequences",
+        max_tokens=4,
+        sequence_length=5,
+        add_eos=False,
+        drop_remainder=False,
+        horizon={"repeat": True, "shuffle": False},
+        datasets=[
+            {
+                "name": "fixture",
+                "type": "memory",
+                "ratio": 1.0,
+                "documents": [{"text": "a"} for _ in range(4)],
+            }
+        ],
+    )
+    loader = StreamLoader(config)
+    iterator = iter(loader)
+    assert next(iterator)["input_ids"].tolist() == [311, 311, 311, 311]
+    cursor = loader.state_dict()
+    iterator.close()
+
+    assert cursor["packed_buffer"] == []
+    next_pass = [sample["input_ids"].tolist() for sample in loader]
+    assert next_pass == [[311, 311, 311, 311]]
