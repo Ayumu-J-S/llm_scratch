@@ -203,7 +203,16 @@ review. It remains here for the required repair trail.
   fixture keeps the recorded experiment ID stable despite distinct resolved
   config file hashes; experiment/Git/lock mutation fixtures each reject resume
   with their changed identity field.
-- Re-review: pending exact new head after full/static/CPU evidence and push.
+- Local validation: focused run-identity/checkpoint/stream tests — 37 passed;
+  repository suite — 248 passed, 1 skipped; changed-file Ruff/format,
+  `git diff --check`, and `uv lock --check` passed.
+- Clean CPU evidence: the committed initial stream run recorded experiment ID
+  `exp-20711b9a2b0d0b0da083`, Git `ee85bfa10324b47bfb7fe78cda0921cf103a5415`,
+  and lock `cc1e1e2f…139561b3` both in `run_manifest.json` and checkpoint
+  identity. A fresh command whose only config delta was `resume_path` retained
+  the same recorded experiment ID while the resolved-config SHA changed, passed
+  preflight before loader creation, and resumed steps 8–14 after initial 1–7.
+- Re-review: pending exact pushed head.
 
 ## Final evidence (implementation state; review pending)
 
@@ -237,6 +246,9 @@ review. It remains here for the required repair trail.
   and emitted steps 8–14 / 224 total targets. First-run final size/write/
   verification/pause was 20,111,989 bytes / 14.24 / 2.68 / 17.63 ms; resumed
   final was 20,112,053 bytes / 14.56 / 2.72 / 18.06 ms.
+  The final clean run-identity confirmation measured initial final
+  20,112,181 bytes / 15.54 / 2.72 / 19.77 ms and resumed final 20,112,245 bytes
+  / 19.94 / 2.78 / 26.79 ms.
 - Measurement contract: each checkpoint event now records
   `checkpoint/size_bytes`, write time, read-back verification time, total pause,
   and write bytes/s locally. The tiny CPU smoke is intentionally not a claim
@@ -246,7 +258,8 @@ review. It remains here for the required repair trail.
   243 passed, 1 skipped; the formal FAIL is retained above rather than
   overwritten. `b00ccb0` repair-head validation: `uv run pytest -q` — 246
   passed, 1 skipped; its re-review FAIL is retained above. Final run-identity
-  repair validation is pending this new head.
+  repair validation: `uv run pytest -q` — 248 passed, 1 skipped; changed-file
+  Ruff/format, `git diff --check`, and `uv lock --check` passed.
 - Known trade-offs: recovery saves are synchronous and avoid a deep copy of
   `model.state_dict()` to avoid an avoidable full-model UMA peak. Atomicity is
   the local-filesystem temp-file/read-back/`os.replace` contract, not a network
@@ -275,7 +288,7 @@ review. It remains here for the required repair trail.
 
 | Model / mode | Role | What it handled well | What it missed or made worse | Context that helped | Outcome |
 | --- | --- | --- | --- | --- | --- |
-| not exposed by runtime / not exposed by runtime | implementation and repair | Kept persistence direct, covered atomic failure/fallback/rotation and exact RNG-stream trajectory, exposed a public terminal-cursor operation, isolated display from the training cursor, and preserved recorded run identity | Initial stream wrapper conflated a terminal normal epoch with an explicit resume; real smoke exposed preview consumption; re-review found code/dependency/run-ID comparison missing | ticket acceptance criteria, StreamLoader cursor contract, two formal review handoffs, run-manifest contract | run-identity repair in progress; independent re-review pending |
+| not exposed by runtime / not exposed by runtime | implementation and repair | Kept persistence direct, covered atomic failure/fallback/rotation and exact RNG-stream trajectory, exposed a public terminal-cursor operation, isolated display from the training cursor, and preserved/compared recorded run identity | Initial stream wrapper conflated a terminal normal epoch with an explicit resume; real smoke exposed preview consumption; re-review found code/dependency/run-ID comparison missing | ticket acceptance criteria, StreamLoader cursor contract, two formal review handoffs, run-manifest contract, clean CPU identity/resume evidence | run-identity repair complete locally; independent re-review pending |
 
 ## Ledger update
 
