@@ -1,0 +1,334 @@
+{
+  "cache": {
+    "active_leases": 0,
+    "corruptions": 0,
+    "downloaded_bytes": 0,
+    "downloads": 0,
+    "evictions": 0,
+    "free_bytes": 525022482432,
+    "hits": 7,
+    "misses": 0,
+    "retries": 0,
+    "size_bytes": 1269008673,
+    "wait_timeouts": 0
+  },
+  "disk": {
+    "cache_cap_bytes": 80000000000,
+    "cache_cap_limit_bytes": 200000000000,
+    "cache_cap_within_limit": true,
+    "current_managed_cache_bytes": 1269008673,
+    "filesystem_free_bytes": 525022482432,
+    "filesystem_total_bytes": 982819848192,
+    "filesystem_used_bytes": 407797329920,
+    "headroom_admission_passed": true,
+    "largest_shard_temp_bytes": 4844733228,
+    "projected_free_at_full_cache_bytes": 446291491105,
+    "projected_free_at_full_cache_with_largest_temp_bytes": 441446757877,
+    "reserved_os_checkpoint_bytes": 256000000000
+  },
+  "fingerprints": {
+    "code": {
+      "dirty": false,
+      "git_commit": "8548c4e73985640d77b009ac8414e9e936dffc75"
+    },
+    "config": "c70b557b1d07fbb52871d8b43b60c872d7fedd88f34ede2a5f2bf2032840ea33",
+    "data": {
+      "fineweb2_ja_train:train": {
+        "dataset": "522b11e5e13d82180e6d47021b66d5262bc1b6fd60a26977444ebd7a8be740db",
+        "manifest": "2fc3eb60986c96fcb752b14d740dd5a3f7cea8b52bb5a13cb5834a1f805d6bba",
+        "selection": "train"
+      },
+      "fineweb2_ja_validation:validation": {
+        "dataset": "522b11e5e13d82180e6d47021b66d5262bc1b6fd60a26977444ebd7a8be740db",
+        "manifest": "2fc3eb60986c96fcb752b14d740dd5a3f7cea8b52bb5a13cb5834a1f805d6bba",
+        "selection": "validation"
+      },
+      "fineweb_en_train:train": {
+        "dataset": "928e21caa4b9647c682c65998f2706dd71dedf583f3a91b832ffb3602fa2af6f",
+        "manifest": "626a1eb095e9089e5c62ee2df9c058ab7c6dfc54064eca5c13e4d84e65a8d60a",
+        "selection": "train"
+      },
+      "fineweb_en_validation:validation": {
+        "dataset": "928e21caa4b9647c682c65998f2706dd71dedf583f3a91b832ffb3602fa2af6f",
+        "manifest": "626a1eb095e9089e5c62ee2df9c058ab7c6dfc54064eca5c13e4d84e65a8d60a",
+        "selection": "validation"
+      }
+    },
+    "tokenizer": "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b"
+  },
+  "integrity": {
+    "manifest_disjointness_validated": true,
+    "observed_normalized_content_overlap": 0,
+    "raw_text_retained": false
+  },
+  "limits": {
+    "max_documents_per_split": 4096,
+    "max_target_tokens": 262144
+  },
+  "mode": "warm",
+  "packing": {
+    "accounting_reconciled": true,
+    "expected_ratios": {
+      "fineweb2_ja_train": 0.5,
+      "fineweb_en_train": 0.5
+    },
+    "ratio_deviations": {
+      "fineweb2_ja_train": 0.0,
+      "fineweb_en_train": 0.0
+    },
+    "ratio_tolerance": 0.01,
+    "ratios_within_tolerance": true,
+    "realized_ratios": {
+      "fineweb2_ja_train": 0.5,
+      "fineweb_en_train": 0.5
+    },
+    "source_trained_targets": {
+      "fineweb2_ja_train": 131072,
+      "fineweb_en_train": 131072
+    },
+    "trained_targets": 262144,
+    "window_tokens": 294912,
+    "windows": 32768
+  },
+  "schema_version": 1,
+  "splits": {
+    "train": {
+      "bounded": true,
+      "documents": 4096,
+      "max_documents": 4096,
+      "sources": {
+        "fineweb2_ja_train": {
+          "canonical_tokens": 1644568,
+          "documents": 2008,
+          "eos_tokens": 2008,
+          "languages": {
+            "en": 0,
+            "ja": 367,
+            "mixed": 1641,
+            "other": 0
+          },
+          "quality": {
+            "duplicates": 0,
+            "fallback_document_ids": 0,
+            "rejections": {
+              "control_character": 0,
+              "empty": 0,
+              "empty_after_truncation": 0,
+              "invalid_unicode": 0,
+              "non_string": 0,
+              "other_split_validation": 27,
+              "wrong_script": 0
+            },
+            "truncated": 0
+          },
+          "scripts": {
+            "japanese": 2205983,
+            "latin": 94818,
+            "other_letters": 3427
+          },
+          "tails": {
+            "document_tokens": {
+              "count": 2008,
+              "max": 39345.0,
+              "p50": 465.0,
+              "p95": 2370.0,
+              "p99": 6585.0
+            },
+            "document_utf8_bytes": {
+              "count": 2008,
+              "max": 198274.0,
+              "p50": 2067.0,
+              "p95": 10824.0,
+              "p99": 30375.0
+            },
+            "tokenization_latency_ms": {
+              "count": 2008,
+              "max": 40.59947,
+              "p50": 0.523696,
+              "p95": 7.219523,
+              "p99": 12.585796
+            }
+          },
+          "tokenization_failures": 0,
+          "tokenizer_byte_fallback_tokens": 3481,
+          "utf8_bytes": 7433823
+        },
+        "fineweb_en_train": {
+          "canonical_tokens": 1532968,
+          "documents": 2088,
+          "eos_tokens": 2088,
+          "languages": {
+            "en": 2082,
+            "ja": 0,
+            "mixed": 6,
+            "other": 0
+          },
+          "quality": {
+            "duplicates": 0,
+            "fallback_document_ids": 0,
+            "rejections": {
+              "control_character": 0,
+              "empty": 0,
+              "empty_after_truncation": 0,
+              "invalid_unicode": 0,
+              "non_string": 0,
+              "other_split_validation": 21,
+              "wrong_script": 0
+            },
+            "truncated": 0
+          },
+          "scripts": {
+            "japanese": 264,
+            "latin": 4647944,
+            "other_letters": 1727
+          },
+          "tails": {
+            "document_tokens": {
+              "count": 2088,
+              "max": 21670.0,
+              "p50": 457.0,
+              "p95": 2135.0,
+              "p99": 4623.0
+            },
+            "document_utf8_bytes": {
+              "count": 2088,
+              "max": 54893.0,
+              "p50": 1776.0,
+              "p95": 8253.0,
+              "p99": 18429.0
+            },
+            "tokenization_latency_ms": {
+              "count": 2088,
+              "max": 24.750025,
+              "p50": 0.8268,
+              "p95": 8.831427,
+              "p99": 13.199941
+            }
+          },
+          "tokenization_failures": 0,
+          "tokenizer_byte_fallback_tokens": 998,
+          "utf8_bytes": 5913121
+        }
+      }
+    },
+    "validation": {
+      "bounded": true,
+      "documents": 4096,
+      "max_documents": 4096,
+      "sources": {
+        "fineweb2_ja_validation": {
+          "canonical_tokens": 1943924,
+          "documents": 2015,
+          "eos_tokens": 2015,
+          "languages": {
+            "en": 0,
+            "ja": 359,
+            "mixed": 1656,
+            "other": 0
+          },
+          "quality": {
+            "duplicates": 0,
+            "fallback_document_ids": 0,
+            "rejections": {
+              "control_character": 0,
+              "empty": 0,
+              "empty_after_truncation": 0,
+              "invalid_unicode": 0,
+              "non_string": 0,
+              "other_split_train": 200856,
+              "wrong_script": 0
+            },
+            "truncated": 0
+          },
+          "scripts": {
+            "japanese": 2562843,
+            "latin": 153875,
+            "other_letters": 3268
+          },
+          "tails": {
+            "document_tokens": {
+              "count": 2015,
+              "max": 18861.0,
+              "p50": 533.0,
+              "p95": 3121.0,
+              "p99": 8310.0
+            },
+            "document_utf8_bytes": {
+              "count": 2015,
+              "max": 89751.0,
+              "p50": 2408.0,
+              "p95": 13879.0,
+              "p99": 37525.0
+            },
+            "tokenization_latency_ms": {
+              "count": 2015,
+              "max": 66.935394,
+              "p50": 0.741729,
+              "p95": 3.526434,
+              "p99": 16.148775
+            }
+          },
+          "tokenization_failures": 0,
+          "tokenizer_byte_fallback_tokens": 6196,
+          "utf8_bytes": 8679080
+        },
+        "fineweb_en_validation": {
+          "canonical_tokens": 1635723,
+          "documents": 2081,
+          "eos_tokens": 2081,
+          "languages": {
+            "en": 2078,
+            "ja": 0,
+            "mixed": 3,
+            "other": 0
+          },
+          "quality": {
+            "duplicates": 0,
+            "fallback_document_ids": 0,
+            "rejections": {
+              "control_character": 0,
+              "empty": 0,
+              "empty_after_truncation": 0,
+              "invalid_unicode": 0,
+              "non_string": 0,
+              "other_split_train": 203959,
+              "wrong_script": 0
+            },
+            "truncated": 0
+          },
+          "scripts": {
+            "japanese": 74,
+            "latin": 4923900,
+            "other_letters": 550
+          },
+          "tails": {
+            "document_tokens": {
+              "count": 2081,
+              "max": 39149.0,
+              "p50": 473.0,
+              "p95": 2233.0,
+              "p99": 5403.0
+            },
+            "document_utf8_bytes": {
+              "count": 2081,
+              "max": 141457.0,
+              "p50": 1803.0,
+              "p95": 9072.0,
+              "p99": 19273.0
+            },
+            "tokenization_latency_ms": {
+              "count": 2081,
+              "max": 118.146378,
+              "p50": 0.996624,
+              "p95": 10.40799,
+              "p99": 34.790797
+            }
+          },
+          "tokenization_failures": 0,
+          "tokenizer_byte_fallback_tokens": 786,
+          "utf8_bytes": 6266452
+        }
+      }
+    }
+  }
+}
