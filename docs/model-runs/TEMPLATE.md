@@ -34,6 +34,23 @@ delete a failed row.
 
 Allowed phases: `implementation`, `review`, `repair`, `re-review`, and `handoff`.
 
+## Runtime provenance block
+
+Attach the JSON emitted by `scripts/capture_model_provenance.py` for every
+phase. Keep requested/default values separate from actual runtime display; do
+not infer an exact deployment ID or reasoning mode.
+
+| Namespace | Product | Displayed family | Exact model identifier | Reasoning mode | Source / unavailable reason |
+| --- | --- | --- | --- | --- | --- |
+| requested |  |  |  |  | invocation/config default |
+| actual |  |  |  |  | runtime display or `not exposed by runtime` |
+
+- Capture file/evidence:
+- Codex CLI version:
+- Branch/commit:
+- Phase/role/task path:
+- Privacy confirmation: no prompts, hidden chain-of-thought, token counts, secrets, or raw thread ID.
+
 ## Check selection and verdicts
 
 ### Review cycle 1

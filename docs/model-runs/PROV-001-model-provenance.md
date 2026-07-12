@@ -1,6 +1,6 @@
 # PROV-001 - Make Codex model provenance visible
 
-- PR: draft / to be created
+- PR: [#17](https://github.com/Ayumu-J-S/llm_scratch/pull/17) (draft)
 - Branch: `codex/prov-001-model-provenance`
 - Ticket: PROV-001 (repository provenance contract requested after the first roadmap wave)
 - Hypothesis: a small, redaction-safe capture command that separates requested/default model settings from explicitly supplied runtime display will make each agent phase auditable without guessing hidden model identity or leaking prompts, tokens, or secrets.
@@ -23,7 +23,7 @@
 | Cycle | Phase | Exact model identifier | Reasoning mode | Input commit/context | Requested work | Outcome | Main findings / changes | Evidence |
 | ---: | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | planning | not exposed by runtime | not exposed by runtime | `8a6f94b`; requested Sol / Ultra planning | Define a minimal provenance schema and safe capture boundary | completed | Separate requested/default fields from explicit runtime display; never infer exact ID or mode | Planner handoff 2026-07-12 |
-| 1 | implementation | not exposed by runtime | not exposed by runtime | `8a6f94b`; requested Luna / Extra High | Implement PROV-001 and start the live draft PR | in progress | Initial record; implementation pending | This record |
+| 1 | implementation | not exposed by runtime | not exposed by runtime | `8a6f94b`; requested Luna / Extra High | Implement PROV-001 and start the live draft PR | completed | Added redaction-safe stdlib capture, schema docs, template/workflow guidance, and focused tests; exact active ID/mode remain unavailable | PR #17 head and focused test run |
 | 1 | review | not exposed by runtime | not exposed by runtime | pending implementation head; requested heavier / Extra Thinking | Independently review ticket, philosophy, and applicable `CHECK.md` sections | pending | Must verify schema separation, redaction, and live handoff parity | Pending |
 
 Allowed phases: `implementation`, `review`, `repair`, `re-review`, and `handoff`.
@@ -60,7 +60,7 @@ N/A — no repair cycle has occurred.
 
 - Resolved Hydra command/config: `N/A` — no Hydra/runtime training path changed.
 - Data/tokenizer/model identity: `N/A` — no scientific run.
-- Validation and measurements: pending implementation and review.
+- Validation and measurements: `uv run --project /tmp/llm_scratch-provenance-001 --group dev pytest tests/test_model_provenance.py -q` → `4 passed`; CLI smoke capture emitted valid JSON with requested `gpt-5.6-sol`/`xhigh` separate from actual `Codex`/`GPT-5` and unavailable exact ID/mode.
 - Performance/resource result if applicable: `N/A` — small local stdlib command.
 - Failed attempts retained at: execution timeline and future failed-review sections.
 - Known trade-offs: requested/default values from `~/.codex/config.toml` are useful context but are not evidence of the active model; actual fields remain unavailable unless explicitly passed by the runtime display.
@@ -104,7 +104,7 @@ Record observable outcomes, not hidden chain-of-thought.
 | Model / mode | Role | What it handled well | What it missed or made worse | Context that helped | Outcome |
 | --- | --- | --- | --- | --- | --- |
 | not exposed by runtime / not exposed by runtime | planning | Scoped explicit runtime-display provenance and redaction boundaries | Exact planning identity unavailable | Ticket, PHILOSOPHY.md, workflow, and template | completed |
-| not exposed by runtime / not exposed by runtime | implementation | pending | pending | pending | in progress |
+| not exposed by runtime / not exposed by runtime | implementation | Kept requested/default and actual runtime namespaces separate; added safe capture and tests | Exact deployment ID and reasoning mode unavailable; system Python lacked pytest and the project uv dev group was used | Ticket, docs, and explicit runtime display values | completed |
 
 ## Ledger update
 
