@@ -33,6 +33,12 @@ uv run python src/train.py data.mode=streaming
 - `inputs`: left-to-right causal-LM input tokens
 - `labels`: the same packed stream shifted by one token
 
+For model context length `L`, `StreamingTokenDataset` requests packed windows of
+`L+1` tokens. Adjacent windows advance by `L` tokens and carry the last token
+into the next window, so the collator trains every continuous next-token
+transition once. For example, `[2,3,4,5,6,7,8]` with `L=3` becomes
+`[2,3,4,5]` and `[5,6,7,8]`.
+
 For a first smoke test, keep `max_tokens` small and use the debug script before a full training run.
 
 ## Python Usage
@@ -223,15 +229,35 @@ Hugging Face sources require `revision` to be a 40-character commit hash so runs
 - Use `max_tokens` for small experimental runs before increasing the budget.
 - Keep `num_workers=0` for the PyTorch `DataLoader` unless worker-aware stream partitioning is added.
 - Keep `prefetch.enabled` off while debugging; enable it only after the single-process path is working.
+- Packed buffering currently deletes each consumed prefix from a Python list.
+  The bounded long-document check protects correctness only; no throughput or
+  favorable scaling claim is made, and repeated front deletion remains a risk
+  to measure against real long documents.
 
 ## Output Modes
 
 - `raw_text`: yields `source`, `token_count`, and `text`.
 - `bytes`: yields `source`, `token_count`, and UTF-8 `bytes`.
 - `tokenized_docs`: yields `source`, `token_count`, and `input_ids` as `np.uint32`.
-- `packed_sequences`: concatenates tokenized documents and yields fixed-length `input_ids` arrays plus `token_count`.
+- `packed_sequences`: concatenates tokenized documents and yields `input_ids`,
+  `window_token_count`, and `target_token_count`. A packed window of `W` tokens
+  advances by `W-1`, carrying its final token into the next window. The
+  ambiguous `token_count` field is intentionally not present in this mode.
 
 When `preserve_metadata` is enabled, document modes include `metadata`. `packed_sequences` includes `source_spans` that identify which source contributed each token span.
+
+After a completed packed iteration, including process-prefetched iteration,
+`loader.packed_token_counts` reports aggregate `window_token_count`,
+`target_token_count`, and `dropped_target_count`. Window tokens include the
+carried token in both adjacent windows; target tokens count trained transitions.
+With `drop_remainder: true`,
+an incomplete tail reports its untrained transitions as dropped; a tail that is
+only the carried token drops zero transitions. These counters and the unique
+per-source `loader.token_counts` reset when each iteration begins. A completed
+process-prefetched iteration publishes its final child-process totals to the
+parent loader. If that iteration is closed early or its worker fails, the
+parent-visible counters remain reset rather than exposing totals from a prior
+successful iteration.
 
 ## Prefetching
 
@@ -255,3 +281,10 @@ with StreamLoader(config) as loader:
 ## Quotas And Exhaustion
 
 When `max_tokens` is an integer, the loader splits the token budget by dataset ratio. For example, `max_tokens: 1000` with ratios `0.7` and `0.3` emits 700 and 300 tokens respectively. If a source exhausts before its quota is met, `StreamLoaderError` is raised.
+
+With `add_eos: true`, quota truncation reserves the source's final quota slot
+for EOS, including an EOS-only sample when one slot remains. This keeps the
+per-source quota exact and gives a truncated fragment an explicit boundary.
+Packed quota truncation with `add_eos: false` raises `StreamLoaderError` because
+joining that fragment to a later document or source would silently invent a
+boundary. Non-packed modes retain prefix truncation when EOS is disabled.
