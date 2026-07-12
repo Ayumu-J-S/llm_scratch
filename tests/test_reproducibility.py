@@ -1,4 +1,5 @@
 import json
+from copy import deepcopy
 from pathlib import Path
 
 import pytest
@@ -16,6 +17,7 @@ from runtime.reproducibility import (
     verify_run_manifest,
     write_run_manifest,
 )
+from training.checkpoint import build_checkpoint_identity
 from data.text_dataset import create_autoregressive_dataloader
 import train as train_module
 
@@ -50,7 +52,11 @@ def _fixture_trace(seed: int):
     for batch in loader:
         batches.append((batch["inputs"].clone(), batch["labels"].clone()))
         logits = model(batch["inputs"])
-        losses.append(torch.nn.functional.cross_entropy(logits.flatten(0, 1), batch["labels"].flatten()).item())
+        losses.append(
+            torch.nn.functional.cross_entropy(
+                logits.flatten(0, 1), batch["labels"].flatten()
+            ).item()
+        )
     return batches, losses
 
 
@@ -114,6 +120,58 @@ def test_run_manifest_is_self_contained_and_mutation_is_explicit(tmp_path):
         verify_run_manifest(run_dir)
 
 
+def test_resume_path_is_the_only_normalized_run_identity_config_delta(monkeypatch, tmp_path):
+    config = _manifest_config()
+    config["artifacts"] = {
+        "checkpoints_dir": "checkpoints",
+        "keep_last_n": 2,
+        "resume_path": None,
+    }
+    resumed = deepcopy(config)
+    resumed["artifacts"]["resume_path"] = "/tmp/previous/recovery-step-000000000010.pt"
+    monkeypatch.setattr(
+        "runtime.reproducibility._git",
+        lambda root: {"sha": "a" * 40, "dirty": False, "status": []},
+    )
+    first_source = tmp_path / "first-source"
+    resumed_source = tmp_path / "resumed-source"
+    first_source.mkdir()
+    resumed_source.mkdir()
+    first_resolved = first_source / "resolved_config.yaml"
+    resumed_resolved = resumed_source / "resolved_config.yaml"
+    first_resolved.write_text("artifacts:\n  resume_path: null\n", encoding="utf-8")
+    resumed_resolved.write_text(
+        "artifacts:\n  resume_path: /tmp/previous/recovery-step-000000000010.pt\n",
+        encoding="utf-8",
+    )
+    first_run = tmp_path / "first-run"
+    resumed_run = tmp_path / "resumed-run"
+    first_manifest_path = write_run_manifest(
+        cfg=config,
+        run_dir=first_run,
+        root_dir=ROOT,
+        resolved_config_path=first_resolved,
+        tokenizer_manifest_path=TOKENIZER,
+        tokenizer_expected_fingerprint=TOKENIZER_FINGERPRINT,
+    )
+    resumed_manifest_path = write_run_manifest(
+        cfg=resumed,
+        run_dir=resumed_run,
+        root_dir=ROOT,
+        resolved_config_path=resumed_resolved,
+        tokenizer_manifest_path=TOKENIZER,
+        tokenizer_expected_fingerprint=TOKENIZER_FINGERPRINT,
+    )
+    first_manifest = json.loads(first_manifest_path.read_text(encoding="utf-8"))
+    resumed_manifest = json.loads(resumed_manifest_path.read_text(encoding="utf-8"))
+
+    assert first_manifest["config"]["sha256"] != resumed_manifest["config"]["sha256"]
+    assert first_manifest["experiment_id"] == resumed_manifest["experiment_id"]
+    assert build_checkpoint_identity(config, run_manifest_path=first_manifest_path) == (
+        build_checkpoint_identity(resumed, run_manifest_path=resumed_manifest_path)
+    )
+
+
 def test_verify_run_manifest_rejects_dirty_source_worktree(monkeypatch, tmp_path):
     source_dir = tmp_path / "source"
     source_dir.mkdir()
@@ -165,7 +223,13 @@ def test_real_run_rejects_mutable_remote_data():
         "mode": "streaming",
         "streaming": {
             "train": {
-                "sources": [{"name": "remote", "type": "url_jsonl", "url": "https://example.invalid/data.jsonl"}]
+                "sources": [
+                    {
+                        "name": "remote",
+                        "type": "url_jsonl",
+                        "url": "https://example.invalid/data.jsonl",
+                    }
+                ]
             },
             "validation": {"sources": []},
         },

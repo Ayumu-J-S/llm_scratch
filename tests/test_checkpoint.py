@@ -12,6 +12,7 @@ from omegaconf import OmegaConf
 import training.checkpoint as checkpoint_module
 from training.checkpoint import (
     CheckpointCompatibilityError,
+    CheckpointError,
     CheckpointManager,
     CheckpointVerificationError,
     build_checkpoint_identity,
@@ -269,7 +270,7 @@ def test_resume_path_is_operational_but_model_config_remains_identity_critical()
     assert build_checkpoint_identity(base) != build_checkpoint_identity(changed_model)
 
 
-def test_checkpoint_identity_ignores_new_invocation_id_but_keeps_input_ids(tmp_path: Path):
+def test_checkpoint_identity_requires_recorded_run_identity_fields(tmp_path: Path):
     config = OmegaConf.create(
         {
             "model": {"embed_size": 8},
@@ -279,19 +280,44 @@ def test_checkpoint_identity_ignores_new_invocation_id_but_keeps_input_ids(tmp_p
         }
     )
     manifest = {
-        "experiment_id": "invocation-one",
+        "experiment_id": "exp-recorded-run",
+        "git": {"sha": "a" * 40},
+        "lock": {"sha256": "b" * 64},
         "tokenizer": {"fingerprint": "tokenizer"},
         "data": [{"fingerprint": "train"}, {"fingerprint": "validation"}],
     }
     first = tmp_path / "first.json"
-    second = tmp_path / "second.json"
+    same = tmp_path / "same.json"
     first.write_text(json.dumps(manifest), encoding="utf-8")
-    manifest["experiment_id"] = "invocation-two"
-    second.write_text(json.dumps(manifest), encoding="utf-8")
+    same.write_text(json.dumps(manifest), encoding="utf-8")
 
-    assert build_checkpoint_identity(config, run_manifest_path=first) == build_checkpoint_identity(
-        config, run_manifest_path=second
-    )
+    baseline = build_checkpoint_identity(config, run_manifest_path=first)
+    assert baseline == build_checkpoint_identity(config, run_manifest_path=same)
+
+    for name, mutation, expected_field in (
+        ("experiment", ("experiment_id", "exp-different-run"), "experiment_id"),
+        ("git", ("git", {"sha": "c" * 40}), "git_sha"),
+        ("lock", ("lock", {"sha256": "d" * 64}), "lock_sha256"),
+    ):
+        changed = dict(manifest)
+        changed[mutation[0]] = mutation[1]
+        path = tmp_path / f"{name}.json"
+        path.write_text(json.dumps(changed), encoding="utf-8")
+        changed_identity = build_checkpoint_identity(config, run_manifest_path=path)
+        assert changed_identity != baseline
+        manager = CheckpointManager(tmp_path / name, keep_last_n=2, identity=baseline)
+        manager.save_recovery(_state(1))
+        with pytest.raises(CheckpointCompatibilityError, match=expected_field):
+            CheckpointManager(
+                tmp_path / name, keep_last_n=2, identity=changed_identity
+            ).load_resume("latest")
+
+
+def test_checkpoint_identity_rejects_incomplete_run_manifest(tmp_path: Path):
+    path = tmp_path / "incomplete.json"
+    path.write_text(json.dumps({"experiment_id": "exp-only"}), encoding="utf-8")
+    with pytest.raises(CheckpointError, match="experiment_id, git.sha, and lock.sha256"):
+        build_checkpoint_identity(OmegaConf.create({}), run_manifest_path=path)
 
 
 def test_relative_resume_path_is_resolved_from_checkpoint_directory(tmp_path: Path):

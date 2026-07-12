@@ -159,11 +159,27 @@ def build_checkpoint_identity(
         else None,
         "data_fingerprints": data_fingerprints,
     }
-    # The run manifest's invocation ID includes the literal resolved config.
-    # A resume command necessarily changes only ``artifacts.resume_path``;
-    # derive the checkpoint run ID from the normalized identity instead so that
-    # operational selector cannot turn the same experiment into a mismatch.
-    identity["experiment_id"] = "checkpoint-" + _sha256_json(identity)[:20]
+    if run_manifest_path is not None:
+        git = run_manifest.get("git")
+        lock = run_manifest.get("lock")
+        experiment_id = run_manifest.get("experiment_id")
+        if (
+            not isinstance(experiment_id, str)
+            or not experiment_id
+            or not isinstance(git, Mapping)
+            or not isinstance(git.get("sha"), str)
+            or not git["sha"]
+            or not isinstance(lock, Mapping)
+            or not isinstance(lock.get("sha256"), str)
+            or not lock["sha256"]
+        ):
+            raise CheckpointError(
+                "run manifest for checkpoint identity requires experiment_id, git.sha, and lock.sha256"
+            )
+        # These are the recorded immutable run values, not inferred substitutes.
+        identity["experiment_id"] = experiment_id
+        identity["git_sha"] = git["sha"]
+        identity["lock_sha256"] = lock["sha256"]
     return identity
 
 

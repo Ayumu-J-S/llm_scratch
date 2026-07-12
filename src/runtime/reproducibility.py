@@ -112,7 +112,9 @@ def _git(root_dir: Path) -> dict[str, Any]:
                 timeout=10,
             )
         except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
-            raise ReproducibilityError(f"unable to inspect git repository: git {' '.join(args)}") from error
+            raise ReproducibilityError(
+                f"unable to inspect git repository: git {' '.join(args)}"
+            ) from error
         return result.stdout.strip()
 
     status = run("status", "--porcelain", "--untracked-files=all")
@@ -129,6 +131,20 @@ def _plain(value: Any) -> Any:
     if isinstance(value, (list, tuple)):
         return [_plain(item) for item in value]
     return value
+
+
+def _experiment_identity_config(cfg: Mapping[str, Any]) -> dict[str, Any]:
+    """Normalize only the explicit operational resume selector for run identity."""
+
+    normalized = _plain(cfg)
+    if not isinstance(normalized, dict):
+        raise ReproducibilityError("run identity requires a mapping configuration")
+    artifacts = normalized.get("artifacts")
+    if isinstance(artifacts, Mapping):
+        normalized_artifacts = dict(artifacts)
+        normalized_artifacts.pop("resume_path", None)
+        normalized["artifacts"] = normalized_artifacts
+    return normalized
 
 
 def _manifest_payload(path: Path, expected_fingerprint: str | None = None) -> dict[str, Any]:
@@ -158,7 +174,11 @@ def _collect_manifest_configs(cfg: Mapping[str, Any]) -> list[dict[str, Any]]:
     mode = data.get("mode")
     if mode == "memorization_smoke":
         smoke = data.get("memorization", {})
-        values = [{"type": "manifest", "name": "memorization", **dict(smoke)}] if isinstance(smoke, Mapping) else []
+        values = (
+            [{"type": "manifest", "name": "memorization", **dict(smoke)}]
+            if isinstance(smoke, Mapping)
+            else []
+        )
     elif mode == "streaming":
         streaming = data.get("streaming", {})
         values = []
@@ -184,7 +204,9 @@ def validate_immutable_inputs(cfg: Mapping[str, Any], *, real_run: bool) -> None
         source_type = source.get("type", source.get("source", "hf"))
         if source_type == "manifest":
             if not source.get("manifest_path") or not source.get("expected_fingerprint"):
-                raise ReproducibilityError("manifest data sources require path and expected_fingerprint")
+                raise ReproducibilityError(
+                    "manifest data sources require path and expected_fingerprint"
+                )
         elif real_run:
             revision = source.get("revision")
             if source_type == "hf" and isinstance(revision, str) and len(revision) == 40:
@@ -197,7 +219,9 @@ def validate_immutable_inputs(cfg: Mapping[str, Any], *, real_run: bool) -> None
 
 def _copy_manifest(path: Path, destination: Path, expected: str | None) -> dict[str, Any]:
     manifest = _manifest_payload(path, expected)
-    destination.write_text(json.dumps(manifest["payload"], ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    destination.write_text(
+        json.dumps(manifest["payload"], ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
     manifest["run_path"] = destination.name
     manifest["run_sha256"] = sha256_file(destination)
     return manifest
@@ -221,7 +245,11 @@ def write_run_manifest(
     git = _git(root)
     real_run = str(cfg.get("profile", {}).get("purpose", "")) == "pretraining"
     reproducibility_cfg = cfg.get("reproducibility", {})
-    reject_dirty = bool(reproducibility_cfg.get("reject_dirty", True)) if isinstance(reproducibility_cfg, Mapping) else True
+    reject_dirty = (
+        bool(reproducibility_cfg.get("reject_dirty", True))
+        if isinstance(reproducibility_cfg, Mapping)
+        else True
+    )
     if real_run and reject_dirty and git["dirty"]:
         raise ReproducibilityError(
             "real runs require a clean git worktree; commit or explicitly use a smoke profile first"
@@ -243,13 +271,19 @@ def write_run_manifest(
         tokenizer_expected_fingerprint,
     )
 
-    configs = data_manifest_configs if data_manifest_configs is not None else _collect_manifest_configs(cfg)
+    configs = (
+        data_manifest_configs
+        if data_manifest_configs is not None
+        else _collect_manifest_configs(cfg)
+    )
     snapshots: list[dict[str, Any]] = []
     for index, source in enumerate(configs):
         if source.get("type", source.get("source", "hf")) != "manifest":
             continue
         path = Path(str(source["manifest_path"])).resolve()
-        snapshot = _copy_manifest(path, run_path / f"data_manifest_{index}.json", source.get("expected_fingerprint"))
+        snapshot = _copy_manifest(
+            path, run_path / f"data_manifest_{index}.json", source.get("expected_fingerprint")
+        )
         snapshot["name"] = source.get("name")
         snapshot["selection"] = source.get("selection")
         snapshots.append(snapshot)
@@ -258,7 +292,11 @@ def write_run_manifest(
     lock_hash = sha256_file(lock_path)
     identity_payload = {
         "git_sha": git["sha"],
-        "config_sha256": config_hash,
+        # The resolved config file remains recorded byte-for-byte below. Only
+        # the explicit operational recovery selector is normalized for the
+        # experiment ID, so resuming the same run does not manufacture a new
+        # identity while every experiment-affecting config change still does.
+        "config_sha256": sha256_bytes(canonical_json_bytes(_experiment_identity_config(cfg))),
         "lock_sha256": lock_hash,
         "seed": int(cfg.get("reproducibility", {}).get("seed", 0)),
         "tokenizer_fingerprint": tokenizer_snapshot["fingerprint"],
@@ -270,6 +308,10 @@ def write_run_manifest(
         "experiment_id": experiment_id,
         "git": git,
         "config": {"path": config_path.name, "sha256": config_hash},
+        "experiment_identity": {
+            "config_sha256": identity_payload["config_sha256"],
+            "operational_exclusions": ["artifacts.resume_path"],
+        },
         "lock": {"path": "uv.lock", "sha256": lock_hash},
         "seed": int(cfg.get("reproducibility", {}).get("seed", 0)),
         "deterministic_algorithms": bool(cfg.get("reproducibility", {}).get("deterministic", True)),
@@ -278,11 +320,15 @@ def write_run_manifest(
         "data": snapshots,
     }
     destination = run_path / "run_manifest.json"
-    destination.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    destination.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     return destination
 
 
-def verify_run_manifest(run_dir: str | Path, *, root_dir: str | Path | None = None) -> dict[str, Any]:
+def verify_run_manifest(
+    run_dir: str | Path, *, root_dir: str | Path | None = None
+) -> dict[str, Any]:
     """Verify captured files and, when supplied, the source lock and Git SHA."""
 
     run_path = Path(run_dir)
@@ -292,8 +338,16 @@ def verify_run_manifest(run_dir: str | Path, *, root_dir: str | Path | None = No
     except (OSError, json.JSONDecodeError) as error:
         raise ManifestMismatchError(f"invalid run manifest: {manifest_path}") from error
     config_entry = payload.get("config")
-    config_file = run_path / str(config_entry.get("path", "resolved_config.yaml")) if isinstance(config_entry, Mapping) else run_path / "resolved_config.yaml"
-    if not config_file.is_file() or not isinstance(config_entry, Mapping) or sha256_file(config_file) != config_entry.get("sha256"):
+    config_file = (
+        run_path / str(config_entry.get("path", "resolved_config.yaml"))
+        if isinstance(config_entry, Mapping)
+        else run_path / "resolved_config.yaml"
+    )
+    if (
+        not config_file.is_file()
+        or not isinstance(config_entry, Mapping)
+        or sha256_file(config_file) != config_entry.get("sha256")
+    ):
         raise ManifestMismatchError(f"resolved configuration changed: {config_file}")
     lock_entry = payload.get("lock")
     if root_dir is not None and isinstance(lock_entry, Mapping):

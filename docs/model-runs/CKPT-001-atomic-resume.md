@@ -9,8 +9,8 @@
 - Experiment record: `N/A` — this is correctness/recovery infrastructure, not
   a model-quality experiment.
 - Started: 2026-07-12
-- Current verdict: formal review failed at `003a8ba6`; the review-driven
-  repairs are complete locally and require an exact-head independent re-review.
+- Current verdict: formal re-review failed at `b00ccb0`; the review-driven
+  run-identity repair is in progress and requires an exact-head re-review.
 - Record owner: implementation sub-agent `/root/ckpt001_implementation`
 
 ## Scope and decision context
@@ -43,6 +43,8 @@
 | 5 | independent review | not exposed by runtime | not exposed by runtime | Exact head `003a8ba6af67556005ff32642b54e74d39fcd6aa`; requested heavier / Extra Thinking; ticket, PHILOSOPHY, CHECK 5.4/6.3/9.1 | FAIL | GitHub review `4680194134`: a checkpoint saved after a naturally completed stream pass reloaded the terminal cursor as an interrupted suffix and made the resumed Trainer empty. |
 | 6 | repair | not exposed by runtime | not exposed by runtime | Failed review `4680194134` handoff | implemented; re-review pending | Added public `StreamLoader.load_state_dict(..., resume_completed=False)` semantics for a terminal epoch checkpoint, while interrupted cursors retain exact suffix semantics. Added recovery-file terminal-pass → fresh-dataset next-pass fixture. |
 | 7 | repair | not exposed by runtime | not exposed by runtime | Terminal-resume CPU smoke found shared preview loader consumed the persistent training cursor | implemented; re-review pending | Preview now builds and closes an isolated streaming loader. Regression proves preview and the first actual train batch both equal a fresh first batch. CPU terminal run completed steps 1–7; a fresh resume completed steps 8–14. |
+| 8 | independent re-review | not exposed by runtime | not exposed by runtime | Exact head `b00ccb0028e656ffe12b99664ec2d3ff66859bd6`; requested heavier / Extra Thinking | FAIL | GitHub review `4680225857`: checkpoint identity omitted run-manifest `experiment_id`, `git.sha`, and `lock.sha256`, allowing code/dependency drift with matching config/data/tokenizer. |
+| 9 | repair | not exposed by runtime | not exposed by runtime | Failed re-review `4680225857` handoff | implemented; re-review pending | Run manifests normalize only `artifacts.resume_path` when deriving their recorded experiment ID. Checkpoint identity now stores and compares that recorded ID plus recorded Git SHA and lock SHA; mutation fixtures require pre-loader rejection. |
 
 ## Runtime provenance block
 
@@ -101,6 +103,25 @@ review. It remains here for the required repair trail.
   cursor handling, use it from the dataset only when `pass_complete=True`, add
   the two-process recovery fixture, run focused/full/static checks and update
   this record before independent re-review.
+
+### Formal review cycle 2 handoff
+
+- Review: GitHub `4680225857`, verdict `FAIL`, on exact head
+  `b00ccb0028e656ffe12b99664ec2d3ff66859bd6`.
+- Blocking finding: checkpoint compatibility extracted only tokenizer/data
+  fingerprints from the run manifest and derived a replacement experiment ID.
+  It did not compare the manifest's `experiment_id`, `git.sha`, or
+  `lock.sha256`, allowing code or dependency drift before resume.
+- Required invariant: only `artifacts.resume_path` is operationally
+  normalized. A changed manifest experiment ID, Git SHA, or lock SHA rejects
+  resume before loader/data/training construction.
+- Selected repair: same available implementation runtime, requested Luna /
+  Extra High. The repository already records these values in its run manifest;
+  preserve and compare them rather than inventing a checkpoint-only surrogate.
+- Repair request: make the recorded manifest experiment ID stable across the
+  single allowed config delta, then persist/compare all three recorded fields,
+  add mutation and operational-delta fixtures, retain all prior cursor fixes,
+  and independently re-review the exact new head.
 
 ## Repair result
 
@@ -169,6 +190,21 @@ review. It remains here for the required repair trail.
   makes the train iterator empty or skips its first batch.
 - Re-review: pending exact pushed head.
 
+### Repair cycle 6 (review-driven run-identity repair)
+
+- Input handoff: formal FAIL `4680225857` above.
+- Changes: `write_run_manifest` retains the byte-exact resolved config hash but
+  derives its *recorded* experiment ID from a config normalized only at
+  `artifacts.resume_path`; it records that normalized config hash and exclusion
+  for audit. `build_checkpoint_identity` now includes the recorded manifest
+  `experiment_id`, `git.sha`, and `lock.sha256` and rejects an incomplete
+  manifest instead of deriving substitutes.
+- Local evidence before full revalidation: operational-resume-path run-manifest
+  fixture keeps the recorded experiment ID stable despite distinct resolved
+  config file hashes; experiment/Git/lock mutation fixtures each reject resume
+  with their changed identity field.
+- Re-review: pending exact new head after full/static/CPU evidence and push.
+
 ## Final evidence (implementation state; review pending)
 
 - Resolved checkpoint command/config: relative `artifacts.checkpoints_dir`
@@ -208,9 +244,9 @@ review. It remains here for the required repair trail.
   those need a later bounded measured R2 run if they become decision-critical.
 - Pre-review implementation validation at `003a8ba6`: `uv run pytest -q` —
   243 passed, 1 skipped; the formal FAIL is retained above rather than
-  overwritten. Repair-head validation: `uv run pytest -q` — 246 passed,
-  1 skipped; changed-file Ruff/format, `git diff --check`, and `uv lock --check`
-  passed.
+  overwritten. `b00ccb0` repair-head validation: `uv run pytest -q` — 246
+  passed, 1 skipped; its re-review FAIL is retained above. Final run-identity
+  repair validation is pending this new head.
 - Known trade-offs: recovery saves are synchronous and avoid a deep copy of
   `model.state_dict()` to avoid an avoidable full-model UMA peak. Atomicity is
   the local-filesystem temp-file/read-back/`os.replace` contract, not a network
@@ -239,7 +275,7 @@ review. It remains here for the required repair trail.
 
 | Model / mode | Role | What it handled well | What it missed or made worse | Context that helped | Outcome |
 | --- | --- | --- | --- | --- | --- |
-| not exposed by runtime / not exposed by runtime | implementation and repair | Kept persistence direct, covered atomic failure/fallback/rotation and exact RNG-stream trajectory, exposed a public terminal-cursor operation, and isolated display from the training cursor | Initial stream wrapper conflated a terminal normal epoch with an explicit resume; real smoke then exposed preview consumption of the shared cursor | ticket acceptance criteria, StreamLoader cursor contract, reviewer failure reproduction, real CPU terminal-resume run | repair complete; independent re-review pending |
+| not exposed by runtime / not exposed by runtime | implementation and repair | Kept persistence direct, covered atomic failure/fallback/rotation and exact RNG-stream trajectory, exposed a public terminal-cursor operation, isolated display from the training cursor, and preserved recorded run identity | Initial stream wrapper conflated a terminal normal epoch with an explicit resume; real smoke exposed preview consumption; re-review found code/dependency/run-ID comparison missing | ticket acceptance criteria, StreamLoader cursor contract, two formal review handoffs, run-manifest contract | run-identity repair in progress; independent re-review pending |
 
 ## Ledger update
 
