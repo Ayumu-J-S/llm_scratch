@@ -532,6 +532,7 @@ def test_process_streamed_jsonl_batch_runs_through_model_with_finite_loss(tmp_pa
 
     logits = model(batch["inputs"])
     loss = functional.cross_entropy(logits.flatten(0, 1), batch["labels"].flatten())
+    loss.backward()
 
     assert batch["inputs"].shape == (2, 4)
     assert logits.shape == (2, 4, tokenizer.vocab_size)
@@ -543,6 +544,11 @@ def test_process_streamed_jsonl_batch_runs_through_model_with_finite_loss(tmp_pa
     assert model.pad_token_id == tokenizer.pad_token_id
     assert model.embedding.token.embedding.padding_idx == tokenizer.pad_token_id
     assert not torch.any(model.make_padding_mask(batch["inputs"]))
+    for name, parameter in model.named_parameters():
+        gradient = parameter.grad
+        assert gradient is not None, f"missing gradient for {name}"
+        assert torch.isfinite(gradient).all(), f"non-finite gradient for {name}"
+        assert torch.count_nonzero(gradient) > 0, f"zero gradient tensor for {name}"
 
     tokens_with_pad = batch["inputs"].clone()
     tokens_with_pad[0, 0] = tokenizer.pad_token_id

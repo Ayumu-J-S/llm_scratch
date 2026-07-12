@@ -152,7 +152,7 @@ be called a baseline until the following gates exist:
 | 1 | DATA-001 | P0 | Done | — | Correct packed causal transitions |
 | 2 | TOK-001 | P0 | Done | — | One selected, pinned tokenizer used end to end |
 | 3 | DATA-002 | P0 | Done | — | Immutable manifests and disjoint split contract |
-| 4 | MODEL-001 | P0 | Ready | — | Protected conventional model invariants |
+| 4 | MODEL-001 | P0 | Done | — | Protected conventional model invariants |
 | 5 | ENV-001 | P0 | Ready | — | CUDA-capable, reproducible DGX Spark runtime |
 | 6 | EXP-001 | P0 | Done | — | Lightweight experiment and PR handoff contract |
 | 7 | CFG-001 | P0 | Ready | DATA-001, TOK-001, DATA-002, EXP-001 | Canonical Hydra profiles and commands |

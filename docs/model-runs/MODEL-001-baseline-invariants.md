@@ -1,13 +1,14 @@
 # MODEL-001 - Conventional Baseline Invariants
 
-- PR: [#14](https://github.com/Ayumu-J-S/llm_scratch/pull/14) (ready for human review)
+- PR: [#14](https://github.com/Ayumu-J-S/llm_scratch/pull/14) (draft; integration
+  review pending)
 - Branch: `codex/model-001-baseline-invariants`
 - Ticket: `MODEL-001`
 - Hypothesis: a compact invariant suite and bounded overfit proof can make the
   current conventional decoder-only Transformer a trustworthy reference without
   redesigning the architecture.
 - Started: 2026-07-11T18:54:00Z
-- Final verdict: PASS WITH NOTE
+- Current verdict: in progress - fresh independent integration review pending
 - Final record owner: primary task; exact runtime identity not exposed
 
 ## Scope and decision context
@@ -21,7 +22,10 @@
 - Relevant `PHILOSOPHY.md` principles: begin with a conventional, inspectable
   model; make the learning causal chain visible; prove tiny overfit and stable
   behavior before expanding complexity; preserve the smallest coherent change.
-- Baseline commit/run: `a05eb1de5656643757a1c3d98047c98dedea8bfa`.
+- Original baseline commit/run: `a05eb1de5656643757a1c3d98047c98dedea8bfa`.
+- Integration baseline: `origin/main` at
+  `8a6f94bcf1c88e65f8c7cda03946ee7d469b9cb6`, after human merges of
+  EXP-001, DATA-001, TOK-001, and DATA-002.
 - Intended evidence: exact invariant tests, predeclared overfit threshold and
   seed, CPU timing/memory reference, and CUDA forward/backward smoke only when
   the ENV-001 runtime is available.
@@ -44,9 +48,16 @@
   over IDs 1-4, AdamW lr 0.02 and weight decay 0, exactly 30 updates, all losses
   finite, final below initial, and final cross-entropy at most 0.02. Planner
   calibration observed 0.002615; the acceptance threshold remains 0.02.
-- R1: current default FP32 CPU model, batch 4/context 64, one thread, two warmups
+- R1: current canonical FP32 CPU model, batch 4/context 64, one thread, two warmups
   and seven forward/loss/backward samples with every time plus median/p95/max and
-  process RSS recorded. R2 CUDA/BF16 is blocked until ENV-001 when CUDA is absent.
+  process RSS recorded.
+- Current canonical oracle after TOK-001: vocabulary 50,570, PAD 4, width 384,
+  six heads/layers, and 49,535,114 trainable parameters. The independent formula
+  is `10,646,784 + 50,570 * 769`; the `vocab=512` / `11,040,512` oracle below is
+  historical pre-TOK evidence only.
+- R2: use the digest-pinned ENV-001 image to run the exact mounted candidate on
+  GB10 with BF16. Record a 10-step correctness smoke and a 50-step, post-warmup,
+  model-only CUDA-event reference without claiming efficiency or speedup.
 
 ## Execution timeline
 
@@ -56,6 +67,8 @@
 | 1 | implementation | not exposed by runtime | not exposed by runtime (requested Luna / Extra High) | `a186aa6ffa954c38bc88ca891bae34394f494737`, accepted predeclared contract | Implement the smallest invariant suite and required direct model fixes; run CPU validation and R1 | completed | Added metadata-only input validation, constructor PAD validation, inferred padding with an all-pad-safe tensor sentinel, zero padded-query hidden states/logits, and one bounded invariant test module; architecture math is unchanged | 20 focused tests; 59 passed/3 opt-in network skips full suite; fixed overfit CE 3.028204918 -> 0.002615080 in 30 updates; R1 retained below |
 | 1 | repair | not exposed by runtime | not exposed by runtime (requested Luna / Extra High) | uncommitted implementation plus primary precommit audit | Complete exact accepted-plan assertions omitted by the first test pass without changing model code | completed | Switched shape evidence to the fixed 4x6 batch; strengthened causal suffix, nonzero-gradient, padded-objective/PAD-gradient, parameter utility, and external-mask-authority assertions | 20 focused tests; 59 passed/3 opt-in network skips; model implementation unchanged |
 | 1 | review | not exposed by runtime | not exposed by runtime | `83315a6f10134f5745dc51a738a1e7a93d1b4a2d` | Independent `/review` against acceptance, philosophy, and applicable CHECK | PASS WITH NOTE | No acceptance or integrity blockers; independently reproduced all invariants, exact overfit trajectory, counts, quality checks, and R1. CUDA R2 remains blocked by ENV-001; per-parameter nonzero-gradient assertion is a non-blocking strengthening note | 20 focused; 59 passed/3 skips; independent R1 median 0.191837724 s and 450,328 KiB RSS |
+| 2 | integration planning | not exposed by runtime | not exposed by runtime (requested Sol / Ultra) | original PR plus merged EXP-001/DATA-001/TOK-001/DATA-002 and guarded merge policy | Reconcile MODEL-001 with the canonical tokenizer/manifests, close the gradient and CUDA notes, and preserve the conventional architecture | completed | Required a normal merge, canonical parameter oracle, per-tensor gradient gates, real streamed backward, canonical CPU R1, and exact-candidate GB10 BF16 R2; excluded model/objective/trainer/data redesign | Accepted plan retained in the parent task and implemented here |
+| 2 | integration implementation | not exposed by runtime | not exposed by runtime (requested Luna / Extra High) | `d71b00645393461689429039e0a3984f4c624661` plus `origin/main` `8a6f94bcf1c88e65f8c7cda03946ee7d469b9cb6` | Merge normally, preserve ledger union, reconcile canonical semantics, close review notes, and run CPU/GPU evidence | implemented; review pending | Normal merge produced `ff1b24df83555fd86c1098b321eb48f227a1789b`; model source and architecture math stayed unchanged. Tests now require a gradient for every trainable tensor, finite values, and nonzero activity per tensor; the canonical oracle is 49,535,114; the streamed canonical batch now runs backward. | 23 focused and 162 full passed/1 opt-in skip; seed-17 CE 3.028204918 -> 0.002615080; canonical CPU R1 and dirty-candidate GB10 R2 retained below; exact stable-head review remains pending |
 
 ## Check selection and verdicts
 
@@ -85,6 +98,20 @@
 | Severity | Area | What was wrong or good | Evidence | Required action |
 | --- | --- | --- | --- | --- |
 
+### Review cycle 2 - pending
+
+- Review model / mode: pending fresh independent heavy `/review` /
+  requested Extra Thinking
+- Commit reviewed: pending stable integration commit
+- Selected `CHECK.md` sections: 5.2, 6.1, 6.2, 7, 8.1, and 11 MODEL-001
+- Required review: re-run the canonical parameter/PAD oracle, streamed
+  forward/backward, exact overfit gate, full offline suite, CPU R1, and GB10 BF16
+  smoke/R2 against the exact committed candidate. Review current manifest and
+  tokenizer authority and confirm no objective, data, tokenizer, trainer, or
+  architecture redesign entered the diff.
+- Current verdict: pending; cycle 1's historical verdict does not authorize the
+  integrated head.
+
 ## Failed-review handoff
 
 N/A - the first independent review passed with notes.
@@ -95,50 +122,109 @@ N/A - the first independent review passed with notes.
   first test draft. The implementation agent strengthened those assertions
   without changing model code; the independent review then passed.
 
-## Final evidence
+## Historical pre-integration evidence
 
-- Resolved Hydra command/config: `uv run python src/train.py --cfg job
-  --resolve` completed successfully; its output retained the current local-text
-  baseline and model/training values described below.
-- Data/tokenizer/model identity: resolved `uv run python src/train.py --cfg job
-  --resolve`; current baseline uses local-text train/validation paths,
-  sequence length 64, vocabulary 512, width 384, six heads, six layers, and
-  dropout 0.1. MODEL-001 did not change data, tokenizer, objective, or model
-  architecture.
-- Validation and measurements: `uv run pytest -q
-  tests/test_simple_decoder_transformer.py` -> 20 passed; `uv run pytest -q` ->
-  59 passed and 3 existing opt-in network tests skipped; changed Python files
-  pass Ruff formatting; `uv run ruff check .`, `uv lock --check`, and
-  `git diff --check` pass. The fixed seed-17 4x6 tiny batch used exactly 30
-  AdamW updates at lr 0.02/weight decay 0; CE moved from 3.028204918 to
-  0.002615080, below the predeclared 0.02 threshold. Independent parameter
-  oracles pass at 2,488 tiny and 11,040,512 default parameters.
-- Performance/resource result if applicable: R1 ran on
-  Linux 6.17.0-1021-nvidia aarch64, Python 3.11.15, PyTorch 2.10.0+cpu, FP32,
-  one Torch thread, default 11,040,512-parameter model, batch 4/context 64,
-  two warmups and seven forward/CE/backward samples. Warmups were 0.348251658
-  and 0.197080849 seconds. Measured samples were 0.203491432, 0.197784442,
-  0.193664565, 0.185591112, 0.188827135, 0.191766092, and 0.193504321
-  seconds; median 0.193504321, nearest-rank p95 0.203491432, maximum
-  0.203491432, and process `ru_maxrss` 450,468 KiB. This is a reference only;
-  no speed comparison or improvement claim is made. Source inspection found
-  no `.item()`, host boolean conversion, or tensor-conditioned Python branch in
-  the changed model hot path.
-- Failed attempts retained at: the first standalone R1 command omitted
-  `PYTHONPATH=src` and failed with `ModuleNotFoundError: No module named
-  'models'`; the corrected command was `PYTHONPATH=src uv run python ...`.
-- Known trade-offs: padded query work is still computed inside attention and
-  then zeroed; this favors a direct, inspectable invariant over a new attention
-  implementation. R1 is a single bounded CPU reference, not a performance
-  conclusion.
-- Unresolved risks: CUDA/DGX validation depends on ENV-001 and must not be
-  fabricated: this runtime exposes PyTorch 2.10.0+cpu and
-  `torch.cuda.is_available() == False`, so R2 is blocked on ENV-001. The durable
-  gradient test proves all gradients finite and collective nonzero activity;
-  independent review additionally observed nonzero activity in every parameter
-  tensor, but that stronger assertion is only a note.
-- Human decision requested: review and merge if the evidence is acceptable; a
-  human remains the sole merge authority.
+- Cycle 1's `vocab=512`, PAD 0, and 11,040,512-parameter result describes only
+  the model before TOK-001. Its CPU timing and `PASS WITH NOTE` remain valid
+  historical evidence but are not the oracle or verdict for the current branch.
+- The historical first standalone R1 command omitted `PYTHONPATH=src` and failed
+  with `ModuleNotFoundError: No module named 'models'`; the corrected command and
+  all original values remain in Git history.
+
+## Integration evidence - pending independent review
+
+- Merge and dependency identity: PR #14 was converted back to draft before a
+  normal, non-rebase merge of `origin/main`
+  `8a6f94bcf1c88e65f8c7cda03946ee7d469b9cb6`. The merge commit is
+  `ff1b24df83555fd86c1098b321eb48f227a1789b`. The integrated head contains the
+  merged heads of PRs #10 through #13; no force push or history rewrite was used.
+- Resolved Hydra command/config: `uv run python src/train.py --cfg job --resolve`
+  passes. It resolves tokenizer fingerprint
+  `12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b`,
+  memorization-smoke manifest
+  `00c3797a7d0eda13950fd699a60c45fcd388829f016479caaeb369438767bd31`,
+  and the distinct streaming train/validation selections in bilingual manifest
+  `47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19`.
+- Canonical model identity: vocab 50,570, PAD 4, width 384, six heads, six
+  layers, dropout 0.1, and 49,535,114 parameters. The independent count is
+  `10,646,784 + 50,570 * (384-token-embedding + 384-head-weight + 1-head-bias)`.
+  The token embedding and LM head are explicitly untied.
+- Architecture/integrity: source still uses conventional
+  `nn.MultiheadAttention`, two LayerNorms per block, residual paths, GELU FFN,
+  sinusoidal positions, and an untied linear LM head. This integration changes
+  tests and provenance, not architecture, objective, manifest, tokenizer,
+  trainer, optimizer, or data code.
+- CPU validation: `uv run --group dev pytest -q` reports 162 passed and one
+  opt-in test skipped. The focused model plus real streaming canonical batch
+  reports 23 passed. Ruff format/check, `uv lock --check`, `git diff --check`,
+  Hydra resolution, canonical PAD/model integration, and immutable manifest
+  guards pass. The streamed fixture now executes forward, CE, and backward and
+  requires every trainable tensor's gradient to be present, finite, and contain
+  nonzero activity.
+- Tiny overfit: seed 17, fixed B4/T6 cyclic batch, AdamW lr 0.02 and weight
+  decay 0, exactly 30 updates; CE 3.028204917907715 ->
+  0.002615080215036869, below the predeclared 0.02 threshold.
+- Canonical CPU R1: Linux 6.17.0-1021-nvidia aarch64, Python 3.11.15,
+  PyTorch 2.10.0+cpu, FP32, one Torch thread, B4/T64, 49,535,114 parameters,
+  seed 17, two warmups and seven forward/CE/backward samples. Warmups were
+  0.549019250 and 0.449708563 seconds. All samples were retained:
+  0.414357343, 0.419365020, 0.415640549, 0.423561233, 0.430795222,
+  0.429438020, and 0.430727222 seconds; median 0.423561233, nearest-rank p95
+  and maximum 0.430795222 seconds, and `ru_maxrss` 1,123,500 KiB. All 75
+  trainable parameter tensors had present, finite, nonzero gradients; the
+  smallest nonzero count in any tensor was 384. This is a reference only, with
+  no speed or efficiency claim.
+- GB10 correctness smoke and R2: exact local candidate files were mounted
+  read-only over pinned ENV-001 image
+  `sha256:25a02a5357d3f22339ddea8de78e2b0725a47dc6bbe15f336fa74242889a648b`,
+  based on NGC digest
+  `sha256:43c018d6a12963f1a1bad85ef8574b5c2a978eec2be0ebcacfb87f69e0d210e1`.
+  GB10 CC 12.1, PyTorch `2.13.0a0+8145d630e8.nv26.06`, compiled CUDA 13.3,
+  and BF16 were observed. The 10-step B4/T64 candidate smoke produced BF16
+  logits, finite losses, and present/finite/nonzero gradients in every
+  trainable tensor on every step; PID 1 was visible in `nvidia-smi`.
+- R2 measurement: after five warmups, 50 model-only forward/CE/backward steps
+  used CUDA events and exactly one host synchronization after the measured
+  window. Every step time is retained in the implementation output; median
+  8.323584 ms, nearest-rank p95 8.989120 ms, max 9.275392 ms, and aggregate
+  30,264.723 target tokens/s for 12,800 targets. This is a target-hardware
+  reference, not a comparison or efficiency claim; optimizer, data, logging,
+  validation, and checkpoint work were excluded.
+- R2 CUDA-event samples in milliseconds, in execution order: 8.086784,
+  8.052640, 8.076384, 8.790144, 8.049824, 8.019040, 8.040704, 8.026144,
+  8.052960, 8.261760, 8.875168, 8.835232, 8.901856, 8.864416, 8.940896,
+  8.989120, 8.796256, 8.688352, 8.954720, 9.046272, 8.275072, 8.745184,
+  9.275392, 8.372096, 8.984064, 8.885568, 8.647648, 8.811744, 8.833184,
+  8.909984, 8.901920, 8.924352, 8.073216, 8.807584, 8.052864, 8.037664,
+  8.047680, 8.030336, 8.026304, 8.696032, 8.043840, 8.030016, 8.057024,
+  8.820800, 8.052864, 8.043616, 8.057952, 8.046784, 8.057024, and
+  8.038176.
+- R2 memory: CUDA allocator peak 692,486,656 bytes allocated and 933,232,640
+  bytes reserved; process `VmRSS` 1,754,608 -> 1,755,000 kB; system
+  `MemAvailable` 120,184,004 -> 120,185,484 kB; swap remained completely free
+  at 16,777,212 kB. Allocator values are not total DGX Spark unified-memory
+  pressure, so process, system, and swap observations are reported together.
+- Failed GPU evidence attempt retained: the first complete mounted-candidate R2
+  reached report generation but failed because the mounted Git worktree's
+  `.git` pointer names a host-only administrative path unavailable inside the
+  container. The rerun passed the host-observed candidate SHA/image identity as
+  explicit environment inputs and completed. No image, cache, or volume was
+  pruned.
+- GitHub state inspected before handoff: PR #14 is open and draft; there were no
+  submitted GitHub reviews and no review threads. No review was dismissed, no
+  thread was resolved, and the PR was not marked ready or merged during this
+  implementation phase.
+- Merge authority: in this task, the human explicitly authorized guarded agent
+  self-merge for the named open roadmap PR series, including PRs #10-#15, after
+  human-merging policy PR #16. Authorization is necessary but not sufficient:
+  PR #14 remains draft until a fresh exact-head independent review and every
+  policy gate pass. This implementation phase does not perform the merge.
+- Known trade-off: padded-query work is computed and then zeroed, favoring an
+  inspectable invariant over a new attention path. CPU and GPU R1/R2 values are
+  bounded single-run references, not conclusions about production training.
+- Current unresolved item: fresh independent heavy review of the stable
+  integration commit and exact-head parity is mandatory before readiness or any
+  guarded merge audit.
 
 ## Model assessment from this ticket
 
@@ -146,10 +232,14 @@ N/A - the first independent review passed with notes.
 | --- | --- | --- | --- | --- | --- |
 | not exposed by runtime / not exposed by runtime (requested Luna / Extra High) | implementation and precommit repair | Kept the change to one model and one invariant test module; satisfied the predeclared causal, numerical, padding, parameter, and overfit checks | The first test pass omitted several exact accepted-plan assertions and the initial standalone R1 probe omitted `PYTHONPATH=src`; both were corrected before the stable implementation commit | Frozen parameter oracle, exact overfit gate, primary precommit audit, single padding authority, and explicit architecture exclusions | completed; independent review PASS WITH NOTE |
 | not exposed by runtime / not exposed by runtime | independent review | Reproduced all ticket invariants, exact overfit trajectory, parameter identities, quality checks, and an independent R1; checked the hot path for host synchronization | CUDA/BF16 could not be reviewed on the CPU-only runtime; identified a non-blocking stronger per-parameter gradient assertion | Stable commit, predeclared contract, failed-attempt record, and adversarial padding cases | PASS WITH NOTE |
+| not exposed by runtime / not exposed by runtime (requested Sol / Ultra) | integration planning | Correctly treated the merged tokenizer, manifests, ENV runtime, and guarded merge policy as current authority; predeclared exact canonical CPU/GPU evidence without redesigning the model | Exact model/mode attribution remains unavailable | Original failure note, current main, canonical identities, and CHECK MODEL-001 priorities | completed |
+| not exposed by runtime / not exposed by runtime (requested Luna / Extra High) | integration implementation | Preserved the source architecture, reconciled the canonical oracle, closed the durable per-tensor gradient note, added real streamed backward, and completed bounded GB10 evidence | First GPU report attempted `git rev-parse` through a host-only worktree pointer inside the container; rerun used explicit observed identities | Accepted integration plan, exact parameter formula, mounted-candidate requirement, and pinned ENV image | implemented; fresh independent review pending |
 
 ## Ledger update
 
 - [x] Added the PR/ticket row to `docs/model-runs/README.md`.
 - [x] Updated per-model attempt, pass, repair, and review counts.
-- [x] Confirmed that the PR execution trail matches this record after the final
-  documentation commit.
+- [ ] Finalize the integration-review counts and verdict after the fresh
+  independent review.
+- [ ] Confirm that the PR execution trail matches the stable reviewed head
+  before readiness or guarded merge audit.

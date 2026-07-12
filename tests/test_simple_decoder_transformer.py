@@ -1,8 +1,14 @@
+from pathlib import Path
+
 import pytest
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
+from omegaconf import OmegaConf
 
+from models.embedding import SinusoidalPositionalEncoding
 from models.simple_decoder_transformer import SimpleDecoderTransformer
+from tokenizer.canonical import CanonicalTokenizer
 from utils.model import get_parameter_counts
 
 
@@ -70,10 +76,11 @@ def test_supported_batch_has_finite_loss_and_gradients():
     loss.backward()
 
     assert torch.isfinite(loss)
-    gradients = [parameter.grad for parameter in model.parameters()]
-    assert all(gradient is not None for gradient in gradients)
-    assert all(torch.isfinite(gradient).all() for gradient in gradients)
-    assert any(torch.count_nonzero(gradient) > 0 for gradient in gradients)
+    for name, parameter in model.named_parameters():
+        gradient = parameter.grad
+        assert gradient is not None, f"missing gradient for {name}"
+        assert torch.isfinite(gradient).all(), f"non-finite gradient for {name}"
+        assert torch.count_nonzero(gradient) > 0, f"zero gradient tensor for {name}"
 
 
 def test_padding_is_inferred_and_padded_query_logits_are_zero():
@@ -163,22 +170,77 @@ def test_tiny_parameter_count_matches_independent_oracle():
     assert counts.trainable == raw_total
 
 
-def test_default_parameter_count_remains_unchanged():
+def test_canonical_model_parameter_count_and_padding_match_tokenizer():
+    root_dir = Path(__file__).resolve().parents[1]
+    tokenizer_config = OmegaConf.load(root_dir / "config/tokenizer/canonical.yaml")
+    tokenizer = CanonicalTokenizer.from_config(tokenizer_config)
     model = SimpleDecoderTransformer(
-        vocab_size=512,
+        vocab_size=tokenizer.vocab_size,
         embed_size=384,
         num_heads=6,
         max_len=64,
         num_layers=6,
         dropout=0.1,
-        pad_token_id=0,
+        pad_token_id=tokenizer.pad_token_id,
     )
     raw_total = sum(parameter.numel() for parameter in model.parameters())
     counts = get_parameter_counts(model)
 
-    assert raw_total == 11_040_512
+    assert tokenizer.vocab_size == 50_570
+    assert tokenizer.pad_token_id == 4
+    assert raw_total == 10_646_784 + tokenizer.vocab_size * 769
+    assert raw_total == 49_535_114
     assert counts.total == raw_total
     assert counts.trainable == raw_total
+    assert model.embedding.token.embedding.padding_idx == tokenizer.pad_token_id
+
+
+def test_conventional_architecture_contract_remains_explicit_and_untied():
+    model = SimpleDecoderTransformer(
+        vocab_size=8,
+        embed_size=16,
+        num_heads=4,
+        max_len=6,
+        num_layers=2,
+        dropout=0.0,
+        dim_feedforward=32,
+        pad_token_id=0,
+    )
+
+    assert isinstance(model.embedding.position, SinusoidalPositionalEncoding)
+    assert isinstance(model.lm_head, nn.Linear)
+    assert model.lm_head.weight is not model.embedding.token.embedding.weight
+    assert model.lm_head.weight.data_ptr() != model.embedding.token.embedding.weight.data_ptr()
+    for layer in model.layers:
+        assert isinstance(layer.self_attention, nn.MultiheadAttention)
+        assert isinstance(layer.attention_norm, nn.LayerNorm)
+        assert isinstance(layer.feedforward_norm, nn.LayerNorm)
+        assert isinstance(layer.feedforward[1], nn.GELU)
+
+
+class _ZeroAttention(nn.Module):
+    def forward(self, query, key, value, **kwargs):
+        del key, value, kwargs
+        return torch.zeros_like(query), None
+
+
+class _ZeroFeedforward(nn.Module):
+    def forward(self, hidden):
+        return torch.zeros_like(hidden)
+
+
+def test_decoder_block_residual_paths_preserve_hidden_when_sublayers_are_zero():
+    block = make_tiny_model().layers[0]
+    block.self_attention = _ZeroAttention()
+    block.attention_norm = nn.Identity()
+    block.feedforward = _ZeroFeedforward()
+    block.feedforward_norm = nn.Identity()
+    hidden = torch.randn(2, 6, 16)
+    causal_mask = torch.zeros(6, 6, dtype=torch.bool)
+
+    output = block(hidden, causal_mask)
+
+    torch.testing.assert_close(output, hidden)
 
 
 def test_fixed_tiny_batch_overfits_within_predeclared_budget():
