@@ -159,7 +159,7 @@ be called a baseline until the following gates exist:
 | 7 | CFG-001 | P0 | Done | DATA-001, TOK-001, DATA-002, EXP-001 | Canonical Hydra profiles and commands |
 | 8 | REP-001 | P0 | Done | CFG-001, TOK-001, DATA-002 | Reproducible run identity and global seed |
 | 9 | LOOP-001 | P0 | Done | DATA-001, CFG-001, REP-001 | Step/token trainer and correct scalar metrics |
-| 10 | DATA-003 | P0 | Blocked | DATA-001, DATA-002, REP-001, LOOP-001 | Deterministic stream horizon, shuffle, and cursor |
+| 10 | DATA-003 | P0 | In progress | DATA-001, DATA-002, REP-001, LOOP-001 | Deterministic stream horizon, shuffle, and cursor |
 | 11 | STAB-001 | P0 | Blocked | ENV-001, LOOP-001 | Stable conventional single-GPU BF16 training recipe |
 | 12 | CKPT-001 | P0 | Blocked | DATA-003, LOOP-001, STAB-001 | Atomic rotating full-state resume |
 | 13 | CI-001 | P0 | Blocked | CFG-001, MODEL-001 | Network-free CPU quality gate |
@@ -397,6 +397,13 @@ work.
   - Prefetch on/off does not change sample order or membership.
 - **Validation:** Sequence fingerprint, interruption/resume, repeat-policy, and
   prefetch-equivalence tests.
+- **Corrective status (2026-07-12):** PR [#29](https://github.com/Ayumu-J-S/llm_scratch/pull/29)
+  merged as `57266e1e843be2d08e10ef5f387da8466b0c590f`, but post-merge review
+  `4679969079` reproduced a P2 packed-cursor resume defect. DATA-003 is back
+  **In progress** until a repair and independent re-review prove the exact
+  suffix invariant. DATA-001, DATA-002, REP-001, and LOOP-001 remain `Done`;
+  CKPT-001 and DATA-004 remain `Blocked` by this incomplete dependency and
+  other unmet prerequisites.
 
 ### LOOP-001 — Introduce step/token budgets and correct metrics
 
