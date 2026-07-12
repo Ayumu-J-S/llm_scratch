@@ -89,6 +89,13 @@ class CheckpointSampler:
         tokenizer_config = _mapping(config.get("tokenizer"), "checkpoint resolved_config.tokenizer")
         tokenizer = CanonicalTokenizer.from_config(tokenizer_config)
         identity = _mapping(payload["identity"], "checkpoint identity")
+        identity_model_config = _mapping(
+            identity.get("model_config"), "checkpoint identity.model_config"
+        )
+        if dict(identity_model_config) != dict(model_config):
+            raise SamplingError(
+                "checkpoint model identity does not match its saved resolved model config"
+            )
         expected_fingerprint = identity.get("tokenizer_fingerprint")
         if expected_fingerprint != tokenizer.fingerprint:
             raise SamplingError(

@@ -40,7 +40,7 @@
 
 | Cycle | Phase | Exact model identifier | Reasoning mode | Input / requested work | Outcome | Observable findings and evidence |
 | ---: | --- | --- | --- | --- | --- | --- |
-| 1 | implementation | not exposed by runtime | not exposed by runtime | Baseline `924a77a`; requested Luna / Extra High; GEN-001, PHILOSOPHY, CHECK 7.2/8.2/9.1 | implemented; independent exact-head review pending | Added the importable `CheckpointSampler`, `llm-scratch-generate` CLI, verified full-state generation loader, result metadata, and the user-facing generation contract. Reconstruction consumes the checkpoint's `resolved_config`, canonical tokenizer config, matching tokenizer fingerprint, and strict model state only; the CLI has no architecture/tokenizer override. |
+| 1 | implementation | not exposed by runtime | not exposed by runtime | Baseline `924a77a`; requested Luna / Extra High; GEN-001, PHILOSOPHY, CHECK 7.2/8.2/9.1 | implemented; independent exact-head review pending | Added the importable `CheckpointSampler`, `llm-scratch-generate` CLI, verified full-state generation loader, result metadata, and the user-facing generation contract. Reconstruction consumes the checkpoint's `resolved_config`, canonical tokenizer config, matching tokenizer fingerprint, and strict model state only; the CLI has no architecture/tokenizer override. A pre-review hardening pass also rejects an envelope `identity.model_config` that differs from `resolved_config.model`, including same-shape dropout disagreement. |
 
 ## Runtime provenance block
 
@@ -81,7 +81,7 @@ N/A — no independent review has run.
 
 - Resolved command/config: `uv run --group dev llm-scratch-generate --checkpoint <full-state-final.pt> --prompt 'Small' --max-new-tokens 7 --json`; the generation command is intentionally direct rather than a second training/runtime config surface.
 - Data/tokenizer/model identity: canonical tokenizer fingerprint `12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b`; sampler reconstructs `SimpleDecoderTransformer` strictly from the saved resolved config and rejects a mismatched tokenizer fingerprint or weight shape.
-- Validation and measurements: `uv run --group dev pytest -q tests/test_generation.py` — 5 passed; independent candidate rerun reported `uv run --group dev pytest -q` — 256 passed, 1 skipped; changed-file Ruff, format, `git diff --check`, and `uv lock --check` passed. The fixtures cover a final-checkpoint round-trip, repeatable greedy decoding, repeatable seeded temperature/top-k sampling, EOS, a truncated context budget, metadata/CLI output, and invalid stochastic options.
+- Validation and measurements: `uv run --group dev pytest -q tests/test_generation.py tests/test_checkpoint.py tests/test_trainer.py tests/test_config_profiles.py` — 43 passed; an earlier independent candidate rerun reported `uv run --group dev pytest -q` — 256 passed, 1 skipped, and will be repeated for the successor head; changed-file Ruff, format, `git diff --check`, and `uv lock --check` passed. The fixtures cover a final-checkpoint round-trip, repeatable greedy decoding, repeatable seeded temperature/top-k sampling, EOS, a truncated context budget, metadata/CLI output, invalid stochastic options, and rejection of a saved-config/identity model mismatch.
 - Bounded canonical memorization-path evidence: an explicit CPU-only
   `profile=smoke_overfit` run with the pinned memorization manifest, canonical
   tokenizer, 16-wide/one-layer decoder, batch 2, and `max_steps=1500` writes a

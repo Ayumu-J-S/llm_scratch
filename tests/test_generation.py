@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 from pathlib import Path
 
@@ -170,3 +171,15 @@ def test_sampler_rejects_manual_sampling_knobs_without_a_seed(tmp_path: Path):
         sampler.generate("base", max_new_tokens=1, temperature=1.0)
     with pytest.raises(SamplingError, match="top_k and seed require"):
         sampler.generate("base", max_new_tokens=1, top_k=1)
+
+
+def test_sampler_rejects_checkpoint_config_that_disagrees_with_its_identity(tmp_path: Path):
+    tokenizer = CanonicalTokenizer.from_config(TOKENIZER_CONFIG)
+    checkpoint, _ = _checkpoint(tmp_path, logits={_normal_token(tokenizer): 5.0})
+    payload = torch.load(checkpoint, map_location="cpu", weights_only=False)
+    payload["state"]["run_identity"] = copy.deepcopy(payload["identity"])
+    payload["state"]["resolved_config"]["model"]["dropout"] = 0.2
+    torch.save(payload, checkpoint)
+
+    with pytest.raises(SamplingError, match="model identity does not match"):
+        CheckpointSampler.from_checkpoint(checkpoint)
