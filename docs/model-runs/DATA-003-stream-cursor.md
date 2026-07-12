@@ -1,6 +1,6 @@
 # DATA-003 - Deterministic stream horizon, shuffle, and exact cursor
 
-- PR: draft / pending creation
+- PR: [#29](https://github.com/Ayumu-J-S/llm_scratch/pull/29) (draft)
 - Branch: `codex/data-003-stream-cursor`
 - Ticket: DATA-003
 - Hypothesis: A bounded stream with explicit pass policy and serialized source/RNG cursor can reproduce an uninterrupted suffix while keeping prefetch an execution detail.
