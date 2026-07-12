@@ -1,6 +1,6 @@
 # CFG-001 - Canonical Hydra profiles and commands
 
-- PR: [#20](https://github.com/Ayumu-J-S/llm_scratch/pull/20) (draft)
+- PR: [#20](https://github.com/Ayumu-J-S/llm_scratch/pull/20) (merged); audit follow-up: [#21](https://github.com/Ayumu-J-S/llm_scratch/pull/21) (draft)
 - Branch: `codex/cfg-001-canonical-hydra`
 - Ticket: CFG-001
 - Hypothesis: Explicit Hydra profiles, one preflight boundary, and one documented command path will make smoke and real-stream runs composable and reject unsafe data configurations before tokenization or training.
@@ -27,6 +27,7 @@
 | 1 | review | not exposed by runtime | not exposed by runtime | `76b92c2` / PR #20 | Independent Extra Thinking review | FAIL | `evaluation.yaml` and README described evaluation as composition-only, but `train.py` accepted it and trained; profile name/mode/purpose could also be mixed by overrides. | reviewer handoff; exact-head review |
 | 2 | repair | not exposed by runtime | not exposed by runtime | `76b92c2` / failed review | Reject evaluation and mismatched canonical profiles before tokenizer/data work | complete | `validate_training_config` now rejects evaluation purpose/task and enforces name↔mode↔purpose pairs; regression tests cover both guards. | `6e874ac`; focused suite |
 | 2 | re-review | not exposed by runtime | not exposed by runtime | `52b89a9` | Independent re-review of evaluation guard and full CFG-001 | PASS WITH NOTE | Review ID `4679636006`: evaluation guard and canonical profile pairs pass; no DGX R2 claim is made for this configuration-wiring ticket. | exact reviewed head `52b89a95a31d7e929ca302c11de0326672b8679c` |
+| 2 | final audit review | not exposed by runtime | not exposed by runtime | `e6aa78f` / PR #20 | Independent exact-head documentation/ledger audit | PASS WITH NOTE | Review ID `4679640736`: docs-only descendant retained the reviewed implementation; runtime-visible Codex/GPT-5 is separated from unavailable exact ID/reasoning and requested values. | exact docs/ledger head `e6aa78f06ffbbbf17fac4590d085dca1cfb5e8bc` |
 
 ## Runtime provenance block
 
@@ -123,29 +124,30 @@ and are not treated as actual runtime provenance.
 - Human authorization: “これからはとりあえず全部セルフマージしていいよ” / user explicitly authorized self-merge for the bounded roadmap goal on 2026-07-12.
 - Authorization evidence location: parent-session user instruction; final PR audit comment to be added by root before merge.
 - Authorization covers this named PR or bounded ticket/goal series: bounded roadmap goal, yes.
-- Exact independently reviewed head SHA: `52b89a95a31d7e929ca302c11de0326672b8679c`
+- Exact independently reviewed head SHA: `52b89a95a31d7e929ca302c11de0326672b8679c`; final docs/ledger audit head: `e6aa78f06ffbbbf17fac4590d085dca1cfb5e8bc`
 - Latest independent verdict / model / mode: PASS WITH NOTE / not exposed by runtime / not exposed by runtime
+- Review IDs: `4679636006` (CFG-001 re-review), `4679640736` (final exact-head audit)
 - All actionable findings repaired and independently re-reviewed: yes
 - Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: none in cycle 2; final refresh required
 - Newer human objections since authorization/review: none observed
 - Human review dismissed by an agent: no
-- Unresolved review threads at final audit: zero observed in cycle 2; root must refresh immediately before merge
-- Branch-protection required-context inventory: connector inventory unavailable in this review context; root must refresh
-- Applicable configured workflow/check inventory: no workflow runs returned at review time; root must refresh
-- Observed exact-head check statuses: no combined statuses returned for reviewed head; evidence limitation, root must refresh
-- Expected checks absent, pending, skipped, cancelled, or non-successful: not established; root must inventory before merge
-- No-check evidence when both inventories are empty: not established; root must inventory before merge
-- Target branch and base SHA at final audit: `main` / `ed83c09634c9b0e11938ecdfba3a281274186e5d` at review; refresh required before merge
-- Up-to-date, conflict-free, and mergeable evidence: pending final refresh
-- Record, ledger, PR trail, validation, and risks parity: pending finalization
+- Unresolved review threads at final audit: zero observed on PR #20; PR #20 is closed/merged
+- Branch-protection required-context inventory: no required-context inventory exposed by the connector; no configured workflow runs were returned
+- Applicable configured workflow/check inventory: no workflow runs returned for exact reviewed head `e6aa78f06ffbbbf17fac4590d085dca1cfb5e8bc`
+- Observed exact-head check statuses: empty combined status for `e6aa78f06ffbbbf17fac4590d085dca1cfb5e8bc`
+- Expected checks absent, pending, skipped, cancelled, or non-successful: none observed; no-check evidence is limited to the empty connector inventories above
+- No-check evidence when both inventories are empty: recorded as an evidence limitation, not inferred branch-protection policy
+- Target branch and base SHA at merge: `main` / `ed83c09634c9b0e11938ecdfba3a281274186e5d`; merged PR #20 commit `e4d5629a3c0ce0216e4cfaf18556cd588034ac61`
+- Up-to-date, conflict-free, and mergeable evidence: PR #20 closed/merged at the recorded exact head; merge result verified by connector
+- Record, ledger, PR trail, validation, and risks parity: complete in PR #20 and this audit follow-up
 - Prohibited self-merge categories: clear — no secrets, security controls, publication, paid resources, destructive actions, release, deployment, account/permission change, or legal/licensing decision.
 - Admin/bypass/force/disabled-check requirement: no
-- Final audit PR body/comment location: pending
-- Final audit changed reviewed head: no
-- Immediate pre-merge re-fetch/compare observation location: root final audit comment
-- Immediate refresh compared authorization, head, base, review decision/objections, threads, expected checks/statuses, and mergeability: required before merge
-- Drift found: none in cycle 2; root must abort if refresh differs
-- Merge outcome: pending
+- Final audit PR body/comment location: PR #21 (draft at record update; final exact head recorded in its body)
+- Final audit changed reviewed head: no; docs-only follow-up after PR #20 merge
+- Immediate pre-merge re-fetch/compare observation location: PR #20 metadata and review/status/thread connector observations above
+- Immediate refresh compared authorization, head, base, review decision/objections, threads, expected checks/statuses, and mergeability: completed for PR #20 before merge
+- Drift found: none between final review head `e6aa78f` and PR #20 merge
+- Merge outcome: PR #20 merged at `e4d5629a3c0ce0216e4cfaf18556cd588034ac61`; audit follow-up PR #21 records this outcome
 
 ## Model assessment from this ticket
 
@@ -160,5 +162,5 @@ Record observable outcomes, not hidden chain-of-thought.
 - [x] Added the PR/ticket row to `docs/model-runs/README.md`.
 - [x] Updated per-model attempt/pass/review counts (cycle 1 FAIL and cycle 2 PASS WITH NOTE recorded).
 - [x] Confirmed that the PR execution trail matches this record.
-- [ ] Recorded human merge or complete guarded self-merge authority/audit evidence.
+- [x] Recorded human authorization and complete guarded self-merge authority/audit evidence for PR #20; merge commit `e4d5629a3c0ce0216e4cfaf18556cd588034ac61`.
 - [x] Confirmed that this bootstrap policy rule was not used before a human merged it.
