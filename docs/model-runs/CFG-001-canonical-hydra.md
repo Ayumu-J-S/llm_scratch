@@ -24,6 +24,9 @@
 | ---: | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | implementation | not exposed by runtime | not exposed by runtime | `ed83c09`, CFG-001 and project policy | Requested Luna / Extra High implementation pass | in progress | Added canonical profiles, strict preflight, snapshots, console wrappers, Make/README commands, and tests. | `f73cc2a`; composition and smoke commands below |
 | 1 | handoff | not exposed by runtime | not exposed by runtime | `f73cc2a` / PR #20 | Prepare exact-head independent review | pending | Draft PR opened; heavy review must inspect PHILOSOPHY, CFG-001 acceptance, and CHECK R0/R1. | PR #20 |
+| 1 | review | not exposed by runtime | not exposed by runtime | `76b92c2` / PR #20 | Independent Extra Thinking review | FAIL | `evaluation.yaml` and README described evaluation as composition-only, but `train.py` accepted it and trained; profile name/mode/purpose could also be mixed by overrides. | reviewer handoff; exact-head review |
+| 2 | repair | not exposed by runtime | not exposed by runtime | `76b92c2` / failed review | Reject evaluation and mismatched canonical profiles before tokenizer/data work | complete | `validate_training_config` now rejects evaluation purpose/task and enforces name↔mode↔purpose pairs; regression tests cover both guards. | repair commit pending |
+| 2 | re-review | not exposed by runtime | not exposed by runtime | repair head | Independent re-review of evaluation guard and full CFG-001 | pending | Awaiting reviewer confirmation on exact repair head. | PR #20 |
 
 ## Runtime provenance block
 
@@ -51,25 +54,49 @@ and are not treated as actual runtime provenance.
 - Commit reviewed: `f73cc2a691fc0b8567012690807339d82916cbf4`
 - Selected `CHECK.md` sections: R0 configuration/changeability and R1 smoke; no DGX R2 claim because this ticket changes profile wiring and command boundaries only.
 - Major sections marked N/A and why: DGX performance, long-run stability, checkpoint/resume, and benchmark integrity are outside CFG-001.
-- Ticket acceptance result: pending independent review
+- Ticket acceptance result: cycle 1 FAIL; evaluation fallback repaired; re-review pending
 - Philosophy alignment: implementation uses Hydra profiles and direct validation; no `config.py`, compatibility aliases, or second training path.
 - Complexity / change-surface result: pending independent review
 - ML-system result: pending independent review
-- Verdict: pending
+- Verdict: FAIL repaired; re-review pending
 
 #### Findings
 
 | Severity | Area | What was wrong or good | Evidence | Required action |
 | --- | --- | --- | --- | --- |
 | info | scope | Profiles and preflight are isolated to CFG-001; evaluation remains composition-only. | `config/profile/*.yaml`, `src/runtime/config.py` | Independent reviewer to confirm no hidden execution fallback. |
+| high | execution path | Evaluation profile was accepted by the training entrypoint despite documentation saying it was composition-only. | Cycle 1 independent review; `train.py` reached training branch for `profile=evaluation`. | Reject evaluation purpose/task during preflight and prove tokenizer/data are untouched. |
+| high | execution path | Evaluation purpose/task is now rejected before tokenizer initialization. | `src/runtime/config.py`, `tests/test_config_profiles.py` | Re-run independent review on the exact repair head. |
+| high | profile integrity | Profile name, mode, and purpose could be overridden into an unsafe mixed profile. | Cycle 1 independent review; no canonical pair invariant. | Enforce canonical pairs for `smoke_overfit` and `pretrain_streaming`, and reject unknown training profile names. |
+| high | profile integrity | Canonical profile pairs are now enforced and unknown training profiles are rejected. | `src/runtime/config.py`, mismatch regression tests. | Re-run independent review on the exact repair head. |
 
 ## Failed-review handoff
 
-N/A — no independent review has returned `FAIL` yet.
+- From review cycle: 1
+- Failed check and why: CHECK R0/R1 execution-path consistency; evaluation was documented as composition-only but the training entrypoint accepted and executed it, and profile name/mode/purpose could be mixed through overrides.
+- Review model / mode: not exposed by runtime / not exposed by runtime
+- Implementation model / mode that produced the failed state: not exposed by runtime / not exposed by runtime
+- Commit/diff to repair: `76b92c2` CFG-001 profile/preflight implementation
+- Reproduction command or evidence: `uv run python src/train.py profile=evaluation` passed validation and proceeded into streaming training setup before repair.
+- Relevant files/config/manifests: `config/profile/evaluation.yaml`, `README.md`, `src/train.py`, `src/runtime/config.py`
+- Attempts already made: one implementation pass; one independent review returned FAIL.
+- Invariants and constraints: evaluation remains composition-only; training must reject it before tokenizer/data initialization; no fallback to another profile.
+- Selected next model / mode: not exposed by runtime / not exposed by runtime
+- Why this model was selected: independent re-review of the exact repair head is required by AGENTS.md.
+- Exact repair request: reject evaluation purpose/task in preflight, enforce canonical profile name↔mode↔purpose pairs, reject unknown training profile names, and add regressions proving the wrapper does not touch tokenizer/data.
+- Completion evidence requested: focused test, full suite, lint/lock checks, and independent PASS or justified PASS WITH NOTE.
 
 ## Repair result
 
-N/A — no repair cycle yet.
+- Repair cycle: 2
+- Repair model / mode: not exposed by runtime / not exposed by runtime
+- Input handoff: cycle 1 FAIL above
+- Changes made: `validate_training_config` rejects `purpose=evaluation` or `task=evaluate_checkpoint`, enforces canonical profile pairs, rejects unknown profile names; tests invoke `main.__wrapped__` and cover evaluation and mismatch guards before tokenizer initialization.
+- What was deliberately not changed: evaluation composition file remains available for future evaluation work; no benchmark/trainer implementation added.
+- Local evidence: focused CFG-001 tests and full suite pending after commit.
+- Commit reviewed next: pending repair commit
+- Re-review model / mode: not exposed by runtime / not exposed by runtime
+- Re-review verdict: pending
 
 ## Final evidence
 
@@ -84,7 +111,7 @@ N/A — no repair cycle yet.
   - `uv run llm-scratch-config-check profile=pretrain_streaming`: passed after editable install.
 - Failed attempts retained at: command output in the implementation handoff; no failed review cycle.
 - Known trade-offs: fixture stream profile uses sequence length 8 so the committed tiny fixture yields complete train and validation batches; production sequence length remains a deliberate later profile decision.
-- Unresolved risks: future evaluation command is composition-only; heavy independent review and exact branch-protection inventory remain pending.
+- Unresolved risks: future evaluation command is composition-only and now rejected by training; heavy independent re-review and exact branch-protection inventory remain pending.
 - Human decision requested: review the draft PR and model-run trail; merge only after all guarded gates pass.
 
 ## Merge authority and final audit

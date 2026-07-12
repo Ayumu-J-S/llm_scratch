@@ -4,6 +4,7 @@ import hydra
 import pytest
 from omegaconf import OmegaConf
 
+import train as train_module
 from runtime.config import ConfigPreflightError, validate_training_config
 
 
@@ -57,4 +58,34 @@ def test_preflight_rejects_unknown_critical_keys():
     OmegaConf.set_struct(config, False)
     config.data.streaming.train.sorces = config.data.streaming.train.sources
     with pytest.raises(ConfigPreflightError, match="unknown critical"):
+        validate_training_config(config)
+
+
+def test_evaluation_profile_is_rejected_by_training_preflight(monkeypatch):
+    config = compose("profile=evaluation")
+    tokenizer_touched = False
+
+    def fail_if_tokenizer_is_loaded(*args, **kwargs):
+        nonlocal tokenizer_touched
+        tokenizer_touched = True
+        raise AssertionError("evaluation profile must stop before tokenizer initialization")
+
+    monkeypatch.setattr(train_module.CanonicalTokenizer, "from_config", fail_if_tokenizer_is_loaded)
+    with pytest.raises(ConfigPreflightError, match="composition-only"):
+        train_module.main.__wrapped__(config)
+    assert not tokenizer_touched
+
+
+@pytest.mark.parametrize(
+    ("profile_name", "mode", "purpose"),
+    [
+        ("smoke_overfit", "streaming", "pretraining"),
+        ("pretrain_streaming", "memorization_smoke", "memorization_smoke"),
+    ],
+)
+def test_preflight_rejects_profile_mode_mismatch(profile_name, mode, purpose):
+    config = compose(f"profile={profile_name}")
+    config.data.mode = mode
+    config.profile.purpose = purpose
+    with pytest.raises(ConfigPreflightError, match="must use data.mode"):
         validate_training_config(config)

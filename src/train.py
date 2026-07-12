@@ -176,9 +176,9 @@ def log_loader_size(name: str, loader) -> None:
 
 @hydra.main(version_base=None, config_path="../config", config_name="train")
 def main(cfg: DictConfig) -> None:
+    validate_training_config(cfg)
     device = select_device(cfg.runtime.device)
     logger.info("Using device: {}", device)
-    validate_training_config(cfg)
     resolved_config_path = save_resolved_config(cfg)
     logger.info("Resolved Hydra config: {}", resolved_config_path)
 

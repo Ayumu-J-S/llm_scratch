@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 import torch
+import hydra
 from omegaconf import OmegaConf
 
 import train as train_module
@@ -183,7 +184,11 @@ def test_canonical_streaming_fixture_budgets_do_not_exhaust():
 
 
 def test_cuda_request_fails_before_tokenizer_or_data(monkeypatch):
-    cfg = OmegaConf.create({"runtime": {"device": "cuda"}})
+    with hydra.initialize_config_dir(
+        version_base=None,
+        config_dir=str(Path(__file__).parents[1] / "config"),
+    ):
+        cfg = hydra.compose(config_name="train", overrides=["runtime.device=cuda"])
     tokenizer_touched = False
 
     def fail_if_tokenizer_is_loaded(*args, **kwargs):

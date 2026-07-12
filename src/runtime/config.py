@@ -143,8 +143,26 @@ def validate_training_config(config: Mapping[str, Any] | DictConfig) -> dict[str
 
     profile = _plain(cfg["profile"])
     _required(profile, ("name",), "profile")
+    profile_name = str(profile["name"])
+    if profile_name == "evaluation" or profile.get("purpose") == "evaluation" or profile.get("task") == "evaluate_checkpoint":
+        raise ConfigPreflightError(
+            "profile=evaluation is composition-only until the evaluation ticket; "
+            "the training entrypoint cannot run it"
+        )
     data = _plain(cfg["data"])
     _required(data, ("mode",), "data")
+    expected_profile = {
+        "smoke_overfit": ("memorization_smoke", "memorization_smoke"),
+        "pretrain_streaming": ("streaming", "pretraining"),
+    }.get(profile_name)
+    if expected_profile is None:
+        raise ConfigPreflightError(f"unknown training profile: {profile_name!r}")
+    expected_mode, expected_purpose = expected_profile
+    if data["mode"] != expected_mode or profile.get("purpose") != expected_purpose:
+        raise ConfigPreflightError(
+            f"profile {profile_name!r} must use data.mode={expected_mode!r} "
+            f"and profile.purpose={expected_purpose!r}"
+        )
     training = _plain(cfg["training"])
     _required(training, ("sequence_length", "epochs", "batch_size"), "training")
     if int(training["sequence_length"]) < 2 or int(training["batch_size"]) < 1 or int(training["epochs"]) < 1:
@@ -179,4 +197,3 @@ def validate_training_config(config: Mapping[str, Any] | DictConfig) -> dict[str
     else:
         raise ConfigPreflightError(f"unsupported data.mode: {data['mode']!r}")
     return cfg
-
