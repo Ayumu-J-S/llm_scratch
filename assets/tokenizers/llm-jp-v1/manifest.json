@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "canonical_id": "llm-jp-v1",
+  "upstream": {
+    "repository": "llm-jp/llm-jp-13b-v1.0",
+    "revision": "c3134b3a958b56d443c1484a3d640502637cfbd2",
+    "revision_url": "https://huggingface.co/llm-jp/llm-jp-13b-v1.0/tree/c3134b3a958b56d443c1484a3d640502637cfbd2",
+    "tokenizer_source_repository": "llm-jp/llm-jp-tokenizer",
+    "tokenizer_source_revision": "132f21625417ed0f3dc6484bf0bc1fb6a433acdd",
+    "tokenizer_source_url": "https://github.com/llm-jp/llm-jp-tokenizer/tree/132f21625417ed0f3dc6484bf0bc1fb6a433acdd"
+  },
+  "license": {
+    "spdx": "Apache-2.0",
+    "url": "https://raw.githubusercontent.com/llm-jp/llm-jp-tokenizer/132f21625417ed0f3dc6484bf0bc1fb6a433acdd/LICENSE"
+  },
+  "files": {
+    "tokenizer": {
+      "path": "tokenizer.json",
+      "size_bytes": 3245878,
+      "sha256": "fefc427dff3323dd8a2fd66f392b90a62896db3b11a031463ad0f4c70fb1de9c"
+    },
+    "license": {
+      "path": "LICENSE",
+      "size_bytes": 11337,
+      "sha256": "8198fdaea7582b717b715a1eb6e38f726f526815681cc1af8f9dd3a7f172d0fd"
+    }
+  },
+  "runtime": {
+    "library": "tokenizers",
+    "vocab_size": 50570,
+    "max_token_id": 50569,
+    "encode_add_special_tokens": false,
+    "decode_skip_special_tokens": false,
+    "byte_fallback": true,
+    "normalization": {
+      "type": "Sequence",
+      "normalizers": [
+        {
+          "type": "Replace",
+          "pattern": {
+            "Regex": "(?<!\\n)^"
+          },
+          "content": "▁"
+        },
+        {
+          "type": "Replace",
+          "pattern": {
+            "Regex": " "
+          },
+          "content": "▁"
+        }
+      ]
+    }
+  },
+  "special_tokens": {
+    "unk": {
+      "token": "<unk|LLM-jp>",
+      "id": 0
+    },
+    "bos": {
+      "token": "<s|LLM-jp>",
+      "id": 1
+    },
+    "additional_eos": {
+      "token": "</s|LLM-jp>",
+      "id": 2
+    },
+    "mask": {
+      "token": "<mask|LLM-jp>",
+      "id": 3
+    },
+    "pad": {
+      "token": "<pad|LLM-jp>",
+      "id": 4
+    },
+    "cls": {
+      "token": "<CLS|LLM-jp>",
+      "id": 5
+    },
+    "sep": {
+      "token": "<SEP|LLM-jp>",
+      "id": 6
+    },
+    "eos_eod": {
+      "token": "<EOD|LLM-jp>",
+      "id": 7
+    }
+  },
+  "probes": [
+    {
+      "text": "日本語とEnglish。",
+      "ids": [31, 26702, 15291, 38106, 25590]
+    },
+    {
+      "text": "Hello, world!",
+      "ids": [18228, 10020, 10147, 10000]
+    },
+    {
+      "text": "記号: []{}<> /\\ +-=_",
+      "ids": [31, 31974, 10011, 31, 10004, 10003, 10009, 10008, 10006, 10012, 31, 10016, 10002, 31, 10001, 10015, 10014, 10022]
+    },
+    {
+      "text": "絵文字🙂🌸🚀",
+      "ids": [31, 27072, 26865, 273, 192, 186, 163, 49867, 273, 192, 187, 161]
+    },
+    {
+      "text": "改行\nタブ\tspace",
+      "ids": [31, 28668, 22995, 32, 35539, 42, 869]
+    }
+  ],
+  "fingerprint": "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b"
+}

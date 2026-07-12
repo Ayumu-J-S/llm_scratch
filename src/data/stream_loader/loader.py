@@ -16,6 +16,7 @@ from typing import Any, Iterable, Iterator, Mapping
 import numpy as np
 
 from data.stream_loader.cache import BoundedShardCache, RetryPolicy, download_url_to_path
+from tokenizer.canonical import CanonicalTokenizer
 
 
 OUTPUT_MODES = {"raw_text", "bytes", "tokenized_docs", "packed_sequences"}
@@ -61,13 +62,6 @@ class SourceState:
         if self.quota is None:
             return None
         return self.quota - self.emitted_tokens
-
-
-@dataclass(frozen=True)
-class TokenizerHandle:
-    tokenizer: Any
-    kind: str
-    eos_token_id: int | None
 
 
 class MemoryTextSource:
@@ -224,11 +218,7 @@ class HuggingFaceTextSource:
 
 
 class StreamLoader:
-    def __init__(
-        self,
-        config: Mapping[str, Any],
-        tokenizer: Any | Mapping[str, Any] | None = None,
-    ) -> None:
+    def __init__(self, config: Mapping[str, Any]) -> None:
         self.config = dict(config)
         self.output_mode = self.config.get("output_mode", "raw_text")
         if self.output_mode not in OUTPUT_MODES:
@@ -250,10 +240,7 @@ class StreamLoader:
         self.preserve_metadata = bool(self.config.get("preserve_metadata", False))
         self.shutdown_timeout_seconds = float(self.config.get("shutdown_timeout_seconds", 5.0))
 
-        tokenizer_config = tokenizer if tokenizer is not None else self.config.get("tokenizer")
-        self.tokenizer = _load_tokenizer(tokenizer_config)
-        if self.add_eos and self.tokenizer.eos_token_id is None:
-            raise ValueError("add_eos requires tokenizer.eos_token_id")
+        self.tokenizer = CanonicalTokenizer.from_config(self.config.get("tokenizer"))
 
         retry_config = self.config.get("retry", {})
         self.retry_policy = RetryPolicy(
@@ -291,14 +278,6 @@ class StreamLoader:
             and _has_hf_datasets(self.dataset_configs)
         ):
             raise ValueError("thread prefetch is unsafe for hf datasets; use process prefetch")
-        if (
-            self.prefetch_enabled
-            and self.prefetch_mode == "process"
-            and tokenizer is not None
-            and _to_plain_mapping(tokenizer) is None
-        ):
-            raise ValueError("process prefetch requires tokenizer to be configured by mapping")
-
         self._thread: threading.Thread | None = None
         self._process: mp.Process | None = None
         self._queue: queue.Queue[Any] | None = None
@@ -562,9 +541,8 @@ class StreamLoader:
                     source_states = [item for item in source_states if not item.exhausted]
                     continue
 
-                token_ids = _encode_text(self.tokenizer, document.text)
+                token_ids = self.tokenizer.encode(document.text)
                 if self.add_eos:
-                    assert self.tokenizer.eos_token_id is not None
                     token_ids.append(int(self.tokenizer.eos_token_id))
                 original_token_count = len(token_ids)
 
@@ -596,7 +574,7 @@ class StreamLoader:
                     decode_ids = list(token_ids)
                     if self.add_eos and decode_ids[-1] == self.tokenizer.eos_token_id:
                         decode_ids = decode_ids[:-1]
-                    text = _decode_tokens(self.tokenizer, decode_ids)
+                    text = self.tokenizer.decode(decode_ids)
 
                 state.emitted_tokens += len(token_ids)
                 self.token_counts[state.name] = state.emitted_tokens
@@ -883,197 +861,3 @@ def _shift_spans(
                 }
             )
     return shifted
-
-
-def _load_tokenizer(config: Any) -> TokenizerHandle:
-    if config is None:
-        raise ValueError("tokenizer config is required")
-
-    config_mapping = _to_plain_mapping(config)
-    if config_mapping is not None:
-        kind = config_mapping.get("kind")
-        if kind is None:
-            if config_mapping.get("path") is not None:
-                kind = "tokenizers"
-            else:
-                raise ValueError("tokenizer config requires kind")
-
-        if kind in {"tokenizers", "hf_tokenizers"}:
-            from tokenizers import Tokenizer
-
-            path = config_mapping.get("path")
-            if path is None:
-                raise ValueError("tokenizers tokenizer config requires path")
-            tokenizer = Tokenizer.from_file(str(path))
-            eos_token = config_mapping.get("eos_token", "<eos>")
-            eos_token_id = None if eos_token is None else tokenizer.token_to_id(eos_token)
-            return TokenizerHandle(
-                tokenizer=tokenizer, kind="tokenizers", eos_token_id=eos_token_id
-            )
-
-        if kind in {"hf", "huggingface", "qwen"}:
-            from transformers import AutoTokenizer
-
-            model_name = config_mapping.get("name")
-            if kind == "qwen" and model_name is None:
-                model_name = "Qwen/Qwen3-0.6B"
-            if model_name is None:
-                raise ValueError("Hugging Face tokenizer config requires name")
-            use_fast = bool(config_mapping.get("use_fast", True))
-            tokenizer = AutoTokenizer.from_pretrained(
-                model_name,
-                use_fast=use_fast,
-                trust_remote_code=bool(config_mapping.get("trust_remote_code", False)),
-                local_files_only=bool(config_mapping.get("local_files_only", False)),
-            )
-            if use_fast and not getattr(tokenizer, "is_fast", False):
-                raise ValueError(f"{model_name} did not load as a fast tokenizer")
-            return TokenizerHandle(
-                tokenizer=tokenizer,
-                kind="transformers",
-                eos_token_id=tokenizer.eos_token_id,
-            )
-
-        if kind in {"mistral_tekken", "tekken"}:
-            from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
-
-            if bool(config_mapping.get("use_builtin_tekken", False)):
-                tokenizer = MistralTokenizer.v3(is_tekken=True)
-            else:
-                tokenizer = MistralTokenizer.from_hf_hub(
-                    config_mapping.get("name", "mistralai/Mistral-Nemo-Base-2407"),
-                    revision=config_mapping.get("revision"),
-                    local_files_only=bool(config_mapping.get("local_files_only", False)),
-                )
-            base_tokenizer = tokenizer.instruct_tokenizer.tokenizer
-            if base_tokenizer.__class__.__name__ != "Tekkenizer":
-                raise ValueError("configured Mistral tokenizer is not Tekken")
-            return TokenizerHandle(
-                tokenizer=tokenizer,
-                kind="mistral_tekken",
-                eos_token_id=int(base_tokenizer.eos_id),
-            )
-
-        if kind in {"bpe", "project_bpe"}:
-            from tokenizer.bpe import BPETokenizer
-
-            path = config_mapping.get("path")
-            if path is None:
-                raise ValueError("bpe tokenizer config requires path")
-            tokenizer = BPETokenizer.load(str(path))
-            return TokenizerHandle(
-                tokenizer=tokenizer,
-                kind="project_bpe",
-                eos_token_id=tokenizer.eos_token_id,
-            )
-
-        raise ValueError(f"Unsupported tokenizer kind: {kind}")
-
-    kind = _infer_tokenizer_kind(config)
-    return TokenizerHandle(
-        tokenizer=config,
-        kind=kind,
-        eos_token_id=_infer_eos_token_id(config, kind),
-    )
-
-
-def _encode_text(handle: TokenizerHandle, text: str) -> list[int]:
-    if handle.kind == "tokenizers":
-        return [int(token_id) for token_id in handle.tokenizer.encode(text).ids]
-    if handle.kind == "mistral_tekken":
-        return [
-            int(token_id)
-            for token_id in handle.tokenizer.instruct_tokenizer.tokenizer.encode(
-                text,
-                bos=False,
-                eos=False,
-            )
-        ]
-    if handle.kind == "transformers":
-        return [
-            int(token_id) for token_id in handle.tokenizer.encode(text, add_special_tokens=False)
-        ]
-    if handle.kind == "project_bpe":
-        return [int(token_id) for token_id in handle.tokenizer.encode(text)]
-    raise TypeError(f"Unsupported tokenizer object: {type(handle.tokenizer)}")
-
-
-def _decode_tokens(handle: TokenizerHandle, token_ids: list[int]) -> str:
-    if handle.kind == "tokenizers":
-        return handle.tokenizer.decode(token_ids, skip_special_tokens=False)
-    if handle.kind == "mistral_tekken":
-        return handle.tokenizer.instruct_tokenizer.tokenizer.decode(token_ids)
-    if handle.kind == "transformers":
-        return handle.tokenizer.decode(token_ids, skip_special_tokens=False)
-    if handle.kind == "project_bpe":
-        return handle.tokenizer.decode(token_ids, skip_special_tokens=False)
-    raise TypeError(f"Unsupported tokenizer object: {type(handle.tokenizer)}")
-
-
-def _infer_tokenizer_kind(tokenizer: Any) -> str:
-    try:
-        from tokenizers import Tokenizer
-    except ImportError:
-        Tokenizer = None
-
-    if Tokenizer is not None and isinstance(tokenizer, Tokenizer):
-        return "tokenizers"
-
-    try:
-        from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
-    except ImportError:
-        MistralTokenizer = None
-
-    if MistralTokenizer is not None and isinstance(tokenizer, MistralTokenizer):
-        return "mistral_tekken"
-
-    try:
-        from transformers import PreTrainedTokenizerBase
-    except ImportError:
-        PreTrainedTokenizerBase = None
-
-    if PreTrainedTokenizerBase is not None and isinstance(tokenizer, PreTrainedTokenizerBase):
-        return "transformers"
-
-    try:
-        from tokenizer.bpe import BPETokenizer
-    except ImportError:
-        BPETokenizer = None
-
-    if BPETokenizer is not None and isinstance(tokenizer, BPETokenizer):
-        return "project_bpe"
-
-    raise TypeError(
-        "tokenizer must come from transformers, tokenizers, mistral-common, "
-        "or tokenizer.bpe.BPETokenizer"
-    )
-
-
-def _infer_eos_token_id(tokenizer: Any, kind: str) -> int | None:
-    if kind == "tokenizers":
-        return tokenizer.token_to_id("<eos>")
-    if kind == "mistral_tekken":
-        return int(tokenizer.instruct_tokenizer.tokenizer.eos_id)
-    if kind == "transformers":
-        return getattr(tokenizer, "eos_token_id", None)
-    if kind == "project_bpe":
-        return getattr(tokenizer, "eos_token_id", None)
-    return None
-
-
-def _to_plain_mapping(config: Any) -> dict[str, Any] | None:
-    try:
-        from omegaconf import DictConfig, OmegaConf
-    except ImportError:
-        pass
-    else:
-        if isinstance(config, DictConfig):
-            container = OmegaConf.to_container(config, resolve=True)
-            if not isinstance(container, dict):
-                raise TypeError("tokenizer config must be a mapping")
-            return container
-
-    if isinstance(config, Mapping):
-        return dict(config)
-
-    return None

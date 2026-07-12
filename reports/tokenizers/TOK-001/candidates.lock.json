@@ -1,0 +1,105 @@
+{
+  "schema_version": 1,
+  "ticket": "TOK-001",
+  "created_date_utc": "2026-07-11",
+  "artifact_policy": {
+    "cache_layout": "<cache-root>/<slug>/<revision>/<local_filename>",
+    "allowlist_only": true,
+    "forbidden": ["model weights", "model configuration", "generation configuration", "chat templates"],
+    "comparison_runtime": "Hugging Face tokenizers JSON loaded directly by tokenizers.Tokenizer"
+  },
+  "measurement": {
+    "warmup_passes": 1,
+    "measured_passes": 5,
+    "embed_size": 384,
+    "batch_size": 64,
+    "sequence_length": 64,
+    "parameter_dtype_bytes": 4,
+    "logit_dtypes_bytes": {"bf16": 2, "fp32": 4},
+    "selection_rule": {
+      "hard_gates": ["redistribution_evidence", "artifact_integrity", "offline_load", "exact_unicode_round_trip", "zero_unknown_tokens", "zero_corpus_exceptions", "deterministic_malformed_rejection", "id_range_agreement"],
+      "pareto_objectives": ["japanese_tokens_per_byte", "english_tokens_per_byte", "vocabulary_parameters", "median_bytes_per_second"],
+      "larger_vocabulary_promotion": "Relative to the smallest eligible vocabulary: improve both Japanese and English tokens/byte by at least 5%, improve at least one by 10%, and keep median bytes/s within the smaller candidate's five-pass observed range.",
+      "tie_break": "Select the smaller vocabulary when no larger candidate clears every promotion threshold."
+    }
+  },
+  "candidates": [
+    {
+      "id": "llm-jp-v1",
+      "slug": "llm-jp--llm-jp-13b-v1.0",
+      "repository": "llm-jp/llm-jp-13b-v1.0",
+      "revision": "c3134b3a958b56d443c1484a3d640502637cfbd2",
+      "revision_url": "https://huggingface.co/llm-jp/llm-jp-13b-v1.0/tree/c3134b3a958b56d443c1484a3d640502637cfbd2",
+      "eligible_to_compare": true,
+      "license": {
+        "spdx": "Apache-2.0",
+        "card_evidence_url": "https://huggingface.co/llm-jp/llm-jp-13b-v1.0/blob/c3134b3a958b56d443c1484a3d640502637cfbd2/README.md#license",
+        "tokenizer_source_revision": "132f21625417ed0f3dc6484bf0bc1fb6a433acdd",
+        "tokenizer_source_url": "https://github.com/llm-jp/llm-jp-tokenizer/tree/132f21625417ed0f3dc6484bf0bc1fb6a433acdd",
+        "license_file_url": "https://raw.githubusercontent.com/llm-jp/llm-jp-tokenizer/132f21625417ed0f3dc6484bf0bc1fb6a433acdd/LICENSE",
+        "redistribution_evidence": true
+      },
+      "files": [
+        {"local_filename": "tokenizer.json", "role": "tokenizer", "url": "https://huggingface.co/llm-jp/llm-jp-13b-v1.0/resolve/c3134b3a958b56d443c1484a3d640502637cfbd2/tokenizer.json", "size_bytes": 3245878, "sha256": "fefc427dff3323dd8a2fd66f392b90a62896db3b11a031463ad0f4c70fb1de9c"},
+        {"local_filename": "tokenizer_config.json", "role": "tokenizer_metadata", "url": "https://huggingface.co/llm-jp/llm-jp-13b-v1.0/resolve/c3134b3a958b56d443c1484a3d640502637cfbd2/tokenizer_config.json", "size_bytes": 529, "sha256": "f2e7afd6c9316cfa59b7262ec4f5f4b2e55f90faf3e91c1e739a63850d7fb6e7"},
+        {"local_filename": "special_tokens_map.json", "role": "tokenizer_metadata", "url": "https://huggingface.co/llm-jp/llm-jp-13b-v1.0/resolve/c3134b3a958b56d443c1484a3d640502637cfbd2/special_tokens_map.json", "size_bytes": 331, "sha256": "12d8611c5c954e65cc6bd58fc9ee86efd3ddbf2a91d256f6ee44a988a8f87856"},
+        {"local_filename": "LICENSE.tokenizer-source", "role": "license", "url": "https://raw.githubusercontent.com/llm-jp/llm-jp-tokenizer/132f21625417ed0f3dc6484bf0bc1fb6a433acdd/LICENSE", "size_bytes": 11337, "sha256": "8198fdaea7582b717b715a1eb6e38f726f526815681cc1af8f9dd3a7f172d0fd"}
+      ]
+    },
+    {
+      "id": "rinna-bilingual",
+      "slug": "rinna--bilingual-gpt-neox-4b",
+      "repository": "rinna/bilingual-gpt-neox-4b",
+      "revision": "803fb7671ac30766ffc6d21139d809b549ee26a3",
+      "revision_url": "https://huggingface.co/rinna/bilingual-gpt-neox-4b/tree/803fb7671ac30766ffc6d21139d809b549ee26a3",
+      "eligible_to_compare": false,
+      "exclusion": "The exact revision declares MIT in README metadata and links the generic MIT text, but contains no repository-owned LICENSE file or tokenizer-specific redistribution notice. The predeclared redistribution/license-file gate therefore excludes it; no SentencePiece runtime or tokenizer artifact was added solely for this candidate.",
+      "license": {
+        "spdx_claim": "MIT",
+        "card_evidence_url": "https://huggingface.co/rinna/bilingual-gpt-neox-4b/blob/803fb7671ac30766ffc6d21139d809b549ee26a3/README.md#license",
+        "license_file_present_at_revision": false,
+        "redistribution_evidence": false
+      },
+      "files": []
+    },
+    {
+      "id": "llm-jp-v3",
+      "slug": "llm-jp--llm-jp-3-13b",
+      "repository": "llm-jp/llm-jp-3-13b",
+      "revision": "cd3823f4c1fcbb0ad2e2af46036ab1b0ca13192a",
+      "revision_url": "https://huggingface.co/llm-jp/llm-jp-3-13b/tree/cd3823f4c1fcbb0ad2e2af46036ab1b0ca13192a",
+      "eligible_to_compare": true,
+      "license": {
+        "spdx": "Apache-2.0",
+        "card_evidence_url": "https://huggingface.co/llm-jp/llm-jp-3-13b/blob/cd3823f4c1fcbb0ad2e2af46036ab1b0ca13192a/README.md#license",
+        "tokenizer_source_revision": "c693f9d89cfd25060c872096809c83756ba58eb0",
+        "tokenizer_source_url": "https://github.com/llm-jp/llm-jp-tokenizer/tree/c693f9d89cfd25060c872096809c83756ba58eb0",
+        "license_file_url": "https://raw.githubusercontent.com/llm-jp/llm-jp-tokenizer/c693f9d89cfd25060c872096809c83756ba58eb0/LICENSE",
+        "redistribution_evidence": true
+      },
+      "files": [
+        {"local_filename": "tokenizer.json", "role": "tokenizer", "url": "https://huggingface.co/llm-jp/llm-jp-3-13b/resolve/cd3823f4c1fcbb0ad2e2af46036ab1b0ca13192a/tokenizer.json", "size_bytes": 6416433, "sha256": "955dc1fa623fab38cc92a3f4ee172423ae6d73201c4207569bfdf5626bc733f0"},
+        {"local_filename": "tokenizer_config.json", "role": "tokenizer_metadata", "url": "https://huggingface.co/llm-jp/llm-jp-3-13b/resolve/cd3823f4c1fcbb0ad2e2af46036ab1b0ca13192a/tokenizer_config.json", "size_bytes": 494, "sha256": "1b457c73c2b6b683cbea24d883f7e5fa56fdd70b7cbf2fc8f42c0fd8de54c7a9"},
+        {"local_filename": "special_tokens_map.json", "role": "tokenizer_metadata", "url": "https://huggingface.co/llm-jp/llm-jp-3-13b/resolve/cd3823f4c1fcbb0ad2e2af46036ab1b0ca13192a/special_tokens_map.json", "size_bytes": 237, "sha256": "f60631bdd138eb0c7db3d306fcf5e475a22d808fa2e2b2ad98cc32d17281194b"},
+        {"local_filename": "LICENSE.tokenizer-source", "role": "license", "url": "https://raw.githubusercontent.com/llm-jp/llm-jp-tokenizer/c693f9d89cfd25060c872096809c83756ba58eb0/LICENSE", "size_bytes": 11337, "sha256": "8198fdaea7582b717b715a1eb6e38f726f526815681cc1af8f9dd3a7f172d0fd"}
+      ]
+    },
+    {
+      "id": "qwen3-control",
+      "slug": "Qwen--Qwen3-0.6B",
+      "repository": "Qwen/Qwen3-0.6B",
+      "revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+      "revision_url": "https://huggingface.co/Qwen/Qwen3-0.6B/tree/c1899de289a04d12100db370d81485cdf75e47ca",
+      "eligible_to_compare": true,
+      "license": {
+        "spdx": "Apache-2.0",
+        "license_file_url": "https://huggingface.co/Qwen/Qwen3-0.6B/blob/c1899de289a04d12100db370d81485cdf75e47ca/LICENSE",
+        "redistribution_evidence": true
+      },
+      "files": [
+        {"local_filename": "tokenizer.json", "role": "tokenizer", "url": "https://huggingface.co/Qwen/Qwen3-0.6B/resolve/c1899de289a04d12100db370d81485cdf75e47ca/tokenizer.json", "size_bytes": 11422654, "sha256": "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4"},
+        {"local_filename": "LICENSE", "role": "license", "url": "https://huggingface.co/Qwen/Qwen3-0.6B/resolve/c1899de289a04d12100db370d81485cdf75e47ca/LICENSE", "size_bytes": 11343, "sha256": "832dd9e00a68dd83b3c3fb9f5588dad7dcf337a0db50f7d9483f310cd292e92e"}
+      ]
+    }
+  ]
+}

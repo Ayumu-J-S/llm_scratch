@@ -12,10 +12,6 @@ from unittest.mock import Mock
 import numpy as np
 import pytest
 from omegaconf import OmegaConf
-from tokenizers import Tokenizer
-from tokenizers.decoders import Fuse
-from tokenizers.models import WordLevel
-from tokenizers.pre_tokenizers import Split
 
 from data.stream_loader import (
     BoundedShardCache,
@@ -23,49 +19,29 @@ from data.stream_loader import (
     StreamLoader,
     StreamLoaderError,
 )
+from tokenizer.canonical import CanonicalTokenizer
 
 
-CHAR_VOCAB = {
-    "<unk>": 0,
-    "<eos>": 1,
-    "a": 2,
-    "b": 3,
-    "c": 4,
-    "d": 5,
-    "e": 6,
-    "f": 7,
-    "g": 8,
-    "h": 9,
-    "l": 10,
-    "m": 11,
-    "o": 12,
-    "p": 13,
-    "s": 14,
-    "t": 15,
-    "x": 16,
-    " ": 17,
-    "日": 18,
-    "本": 19,
-    "語": 20,
+ROOT = Path(__file__).resolve().parents[1]
+TOKENIZER_CONFIG = {
+    "manifest_path": "assets/tokenizers/llm-jp-v1/manifest.json",
+    "expected_fingerprint": "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b",
 }
+TOKENIZER = CanonicalTokenizer.from_config(TOKENIZER_CONFIG)
 
 
-def make_tokenizers_tokenizer():
-    tokenizer = Tokenizer(WordLevel(CHAR_VOCAB, unk_token="<unk>"))
-    tokenizer.pre_tokenizer = Split(pattern="", behavior="isolated")
-    tokenizer.decoder = Fuse()
-    return tokenizer
+def configured(config):
+    config["tokenizer"] = dict(TOKENIZER_CONFIG)
+    return config
 
 
-def tokenizer_config(tmp_path):
-    tokenizer_path = tmp_path / "char_tokenizer.json"
-    make_tokenizers_tokenizer().save(str(tokenizer_path))
-    return {"kind": "tokenizers", "path": str(tokenizer_path), "eos_token": "<eos>"}
+def make_loader(config):
+    return StreamLoader(configured(config))
 
 
-def process_packed_config(tmp_path, dataset):
+def process_packed_config(dataset):
     return {
-        "tokenizer": tokenizer_config(tmp_path),
+        "tokenizer": dict(TOKENIZER_CONFIG),
         "output_mode": "packed_sequences",
         "max_tokens": 7,
         "sequence_length": 4,
@@ -97,13 +73,11 @@ def base_config(**overrides):
         ],
     }
     config.update(overrides)
-    return config
+    return configured(config)
 
 
-def collect(config, tokenizer=None):
-    if tokenizer is None and "tokenizer" not in config:
-        tokenizer = make_tokenizers_tokenizer()
-    return list(StreamLoader(config, tokenizer=tokenizer))
+def collect(config):
+    return list(make_loader(config))
 
 
 def test_ratio_validation_rejects_invalid_sum():
@@ -111,17 +85,17 @@ def test_ratio_validation_rejects_invalid_sum():
     config["datasets"][0]["ratio"] = 0.2
 
     with pytest.raises(ValueError, match="sum to 1.0"):
-        StreamLoader(config, tokenizer=make_tokenizers_tokenizer())
+        make_loader(config)
 
 
 def test_token_quota_enforced_by_token_count():
     config = base_config(max_tokens=10)
     config["datasets"][0]["ratio"] = 0.7
     config["datasets"][1]["ratio"] = 0.3
-    config["datasets"][0]["documents"] = [{"text": "aaaaaaaaaa"}]
-    config["datasets"][1]["documents"] = [{"text": "bbbbbbbbbb"}]
+    config["datasets"][0]["documents"] = [{"text": "b" * 50}]
+    config["datasets"][1]["documents"] = [{"text": "c" * 50}]
 
-    loader = StreamLoader(config, tokenizer=make_tokenizers_tokenizer())
+    loader = make_loader(config)
     samples = list(loader)
 
     counts = {}
@@ -135,7 +109,7 @@ def test_token_quota_enforced_by_token_count():
 def test_max_text_chars_truncates_before_tokenization():
     config = {
         "output_mode": "raw_text",
-        "max_tokens": 3,
+        "max_tokens": "max",
         "add_eos": False,
         "datasets": [
             {
@@ -151,15 +125,15 @@ def test_max_text_chars_truncates_before_tokenization():
     sample = collect(config)[0]
 
     assert sample["text"] == "abc"
-    assert sample["token_count"] == 3
+    assert sample["token_count"] == len(TOKENIZER.encode("abc"))
 
 
 @pytest.mark.parametrize("output_mode", ["raw_text", "bytes", "tokenized_docs", "packed_sequences"])
 def test_output_modes(output_mode):
     config = {
         "output_mode": output_mode,
-        "max_tokens": 4,
-        "sequence_length": 4,
+        "max_tokens": "max",
+        "sequence_length": 3,
         "add_eos": False,
         "datasets": [
             {
@@ -179,19 +153,19 @@ def test_output_modes(output_mode):
         assert sample["bytes"] == b"abcd"
     else:
         assert sample["input_ids"].dtype == np.uint32
-        assert sample["input_ids"].tolist() == [2, 3, 4, 5]
+        assert sample["input_ids"].tolist() == TOKENIZER.encode("abcd")
         if output_mode == "packed_sequences":
             assert "token_count" not in sample
-            assert sample["window_token_count"] == 4
-            assert sample["target_token_count"] == 3
+            assert sample["window_token_count"] == len(TOKENIZER.encode("abcd"))
+            assert sample["target_token_count"] == len(TOKENIZER.encode("abcd")) - 1
 
 
-def test_hydra_dictconfig_tokenizer_config_works_with_default_eos(tmp_path):
+def test_hydra_dictconfig_tokenizer_config_works_with_default_eos():
     config = OmegaConf.create(
         {
-            "tokenizer": tokenizer_config(tmp_path),
+            "tokenizer": TOKENIZER_CONFIG,
             "output_mode": "tokenized_docs",
-            "max_tokens": 4,
+            "max_tokens": len(TOKENIZER.encode("abc")) + 1,
             "datasets": [
                 {
                     "name": "hydra",
@@ -205,7 +179,7 @@ def test_hydra_dictconfig_tokenizer_config_works_with_default_eos(tmp_path):
 
     sample = collect(config)[0]
 
-    assert sample["input_ids"].tolist() == [2, 3, 4, 1]
+    assert sample["input_ids"].tolist() == TOKENIZER.encode("abc") + [TOKENIZER.eos_token_id]
 
 
 def test_debug_cli_runs_from_repo_root(tmp_path):
@@ -213,9 +187,8 @@ def test_debug_cli_runs_from_repo_root(tmp_path):
     config_path.write_text(
         """
 tokenizer:
-  kind: tokenizers
-  path: {tokenizer_path}
-  eos_token: <eos>
+  manifest_path: {manifest_path}
+  expected_fingerprint: {fingerprint}
 output_mode: raw_text
 max_tokens: 5
 add_eos: false
@@ -227,8 +200,11 @@ datasets:
     type: memory
     ratio: 1.0
     documents:
-      - text: hello
-""".format(tokenizer_path=tokenizer_config(tmp_path)["path"]),
+      - text: "hello hello hello hello hello"
+""".format(
+            manifest_path=ROOT / TOKENIZER_CONFIG["manifest_path"],
+            fingerprint=TOKENIZER_CONFIG["expected_fingerprint"],
+        ),
         encoding="utf-8",
     )
 
@@ -289,7 +265,7 @@ def test_deterministic_seeded_sampling():
 
 def test_async_startup_does_not_start_worker_until_iteration():
     config = base_config(
-        max_tokens=6,
+        max_tokens=3,
         prefetch={"enabled": True, "buffer_size": 2},
         datasets=[
             {
@@ -300,7 +276,7 @@ def test_async_startup_does_not_start_worker_until_iteration():
             }
         ],
     )
-    loader = StreamLoader(config, tokenizer=make_tokenizers_tokenizer())
+    loader = make_loader(config)
 
     assert not loader.is_prefetching
     iterator = iter(loader)
@@ -310,11 +286,11 @@ def test_async_startup_does_not_start_worker_until_iteration():
     assert not loader.is_prefetching
 
 
-def test_hf_prefetch_defaults_to_process_mode(tmp_path):
+def test_hf_prefetch_defaults_to_process_mode():
     config = {
-        "tokenizer": tokenizer_config(tmp_path),
+        "tokenizer": TOKENIZER_CONFIG,
         "output_mode": "raw_text",
-        "max_tokens": 1,
+        "max_tokens": 2,
         "prefetch": {"enabled": True},
         "datasets": [
             {
@@ -332,9 +308,9 @@ def test_hf_prefetch_defaults_to_process_mode(tmp_path):
     assert loader.prefetch_mode == "process"
 
 
-def test_hf_thread_prefetch_is_rejected(tmp_path):
+def test_hf_thread_prefetch_is_rejected():
     config = {
-        "tokenizer": tokenizer_config(tmp_path),
+        "tokenizer": TOKENIZER_CONFIG,
         "output_mode": "raw_text",
         "max_tokens": 1,
         "prefetch": {"enabled": True, "mode": "thread"},
@@ -353,11 +329,11 @@ def test_hf_thread_prefetch_is_rejected(tmp_path):
         StreamLoader(config)
 
 
-def test_process_prefetch_emits_samples(tmp_path):
+def test_process_prefetch_emits_samples():
     config = {
-        "tokenizer": tokenizer_config(tmp_path),
+        "tokenizer": TOKENIZER_CONFIG,
         "output_mode": "raw_text",
-        "max_tokens": 3,
+        "max_tokens": 2,
         "add_eos": False,
         "prefetch": {"enabled": True, "mode": "process", "buffer_size": 2},
         "datasets": [
@@ -376,14 +352,13 @@ def test_process_prefetch_emits_samples(tmp_path):
     assert sample["text"] == "abc"
 
 
-def test_process_prefetch_returns_unique_and_packed_accounting(tmp_path):
+def test_process_prefetch_returns_unique_and_packed_accounting():
     config = process_packed_config(
-        tmp_path,
         {
             "name": "process",
             "type": "memory",
             "ratio": 1.0,
-            "documents": [{"text": "abcdefg"}],
+            "documents": [{"text": "改行\nタブ\tspace"}],
         },
     )
     loader = StreamLoader(config)
@@ -400,14 +375,13 @@ def test_process_prefetch_returns_unique_and_packed_accounting(tmp_path):
         }
 
 
-def test_process_prefetch_early_close_clears_previous_accounting(tmp_path):
+def test_process_prefetch_early_close_clears_previous_accounting():
     config = process_packed_config(
-        tmp_path,
         {
             "name": "process",
             "type": "memory",
             "ratio": 1.0,
-            "documents": [{"text": "abcdefg"}],
+            "documents": [{"text": "改行\nタブ\tspace"}],
         },
     )
     loader = StreamLoader(config)
@@ -427,9 +401,11 @@ def test_process_prefetch_early_close_clears_previous_accounting(tmp_path):
 
 def test_process_prefetch_worker_error_clears_previous_accounting(tmp_path):
     source_path = tmp_path / "mutable.jsonl"
-    source_path.write_text('{"text": "abcdefg"}\n', encoding="utf-8")
+    source_path.write_text(
+        '{"text": "改行\\nタブ\\tspace"}\n',
+        encoding="utf-8",
+    )
     config = process_packed_config(
-        tmp_path,
         {
             "name": "process",
             "type": "jsonl",
@@ -457,7 +433,7 @@ def test_process_prefetch_shutdown_terminates_blocked_worker(tmp_path):
     fifo_path = tmp_path / "blocked.jsonl"
     os.mkfifo(fifo_path)
     config = {
-        "tokenizer": tokenizer_config(tmp_path),
+        "tokenizer": TOKENIZER_CONFIG,
         "output_mode": "raw_text",
         "max_tokens": "max",
         "add_eos": False,
@@ -490,7 +466,7 @@ def test_process_prefetch_shutdown_terminates_blocked_worker(tmp_path):
 def test_overlapping_prefetch_iterators_are_rejected_after_worker_exit():
     config = {
         "output_mode": "raw_text",
-        "max_tokens": 1,
+        "max_tokens": 2,
         "add_eos": False,
         "prefetch": {"enabled": True, "buffer_size": 10},
         "datasets": [
@@ -502,7 +478,7 @@ def test_overlapping_prefetch_iterators_are_rejected_after_worker_exit():
             }
         ],
     }
-    loader = StreamLoader(config, tokenizer=make_tokenizers_tokenizer())
+    loader = make_loader(config)
     first_iterator = iter(loader)
 
     try:
@@ -527,7 +503,7 @@ def test_constructor_does_not_touch_dataset_iterable():
         calls["count"] += 1
         yield {"text": "abc"}
 
-    StreamLoader(
+    make_loader(
         {
             "output_mode": "raw_text",
             "max_tokens": 3,
@@ -540,8 +516,7 @@ def test_constructor_does_not_touch_dataset_iterable():
                     "iterable": records,
                 }
             ],
-        },
-        tokenizer=make_tokenizers_tokenizer(),
+        }
     )
 
     assert calls["count"] == 0
@@ -565,7 +540,7 @@ def test_hugging_face_dataset_requires_revision():
     }
 
     with pytest.raises(ValueError, match="hf dataset demo requires revision"):
-        StreamLoader(config, tokenizer=make_tokenizers_tokenizer())
+        make_loader(config)
 
 
 def test_hugging_face_dataset_rejects_moving_revision():
@@ -587,7 +562,7 @@ def test_hugging_face_dataset_rejects_moving_revision():
     }
 
     with pytest.raises(ValueError, match="40-character commit hash"):
-        StreamLoader(config, tokenizer=make_tokenizers_tokenizer())
+        make_loader(config)
 
 
 def test_hugging_face_source_passes_revision_to_load_dataset(monkeypatch):
@@ -601,7 +576,7 @@ def test_hugging_face_source_passes_revision_to_load_dataset(monkeypatch):
     monkeypatch.setitem(sys.modules, "datasets", Mock(load_dataset=fake_load_dataset))
     config = {
         "output_mode": "raw_text",
-        "max_tokens": 3,
+        "max_tokens": 2,
         "add_eos": False,
         "datasets": [
             {
@@ -648,7 +623,7 @@ def test_source_iterators_close_on_early_stop():
         ],
     }
 
-    iterator = iter(StreamLoader(config, tokenizer=make_tokenizers_tokenizer()))
+    iterator = iter(make_loader(config))
 
     assert next(iterator)["text"] == "abc"
     iterator.close()
@@ -674,12 +649,18 @@ def test_finite_quota_exhaustion_raises():
         collect(config)
 
 
-def test_sampling_does_not_reencode_untruncated_documents():
-    tokenizer = make_tokenizers_tokenizer()
-    tokenizer.encode = Mock(wraps=tokenizer.encode)
+def test_sampling_does_not_reencode_untruncated_documents(monkeypatch):
+    original_encode = CanonicalTokenizer.encode
+    calls = {"count": 0}
+
+    def encode(tokenizer, text):
+        calls["count"] += 1
+        return original_encode(tokenizer, text)
+
+    monkeypatch.setattr(CanonicalTokenizer, "encode", encode)
     config = {
         "output_mode": "raw_text",
-        "max_tokens": 4,
+        "max_tokens": 3,
         "add_eos": True,
         "datasets": [
             {
@@ -691,10 +672,10 @@ def test_sampling_does_not_reencode_untruncated_documents():
         ],
     }
 
-    samples = list(StreamLoader(config, tokenizer=tokenizer))
+    samples = collect(config)
 
     assert samples[0]["text"] == "abc"
-    assert tokenizer.encode.call_count == 1
+    assert calls["count"] == 1
 
 
 def test_jsonl_fixture_dataset_preserves_metadata():
@@ -798,7 +779,7 @@ def test_worker_shutdown_is_clean_and_deterministic():
         ],
     }
 
-    loader = StreamLoader(config, tokenizer=make_tokenizers_tokenizer())
+    loader = make_loader(config)
     iterator = iter(loader)
     assert next(iterator)["text"] == "x"
     loader.close()
@@ -825,7 +806,9 @@ def test_packed_sequence_boundaries_and_eod_handling():
 
     sequence = collect(config)[0]
 
-    assert sequence["input_ids"].tolist() == [2, 3, 1, 4]
+    expected = TOKENIZER.encode("ab") + [TOKENIZER.eos_token_id]
+    expected += TOKENIZER.encode("cd") + [TOKENIZER.eos_token_id]
+    assert sequence["input_ids"].tolist() == expected[:4]
     assert sequence["source_spans"] == [
         {"source": "docs", "start": 0, "end": 3},
         {"source": "docs", "start": 3, "end": 4},
@@ -843,28 +826,29 @@ def test_packed_windows_carry_boundary_token_and_preserve_all_transitions():
                 "name": "docs",
                 "type": "memory",
                 "ratio": 1.0,
-                "documents": [{"text": "abcdefg"}],
+                "documents": [{"text": "改行\nタブ\tspace"}],
             }
         ],
     }
 
     windows = collect(config)
 
+    expected_ids = TOKENIZER.encode("改行\nタブ\tspace")
     assert [window["input_ids"].tolist() for window in windows] == [
-        [2, 3, 4, 5],
-        [5, 6, 7, 8],
+        expected_ids[:4],
+        expected_ids[3:7],
     ]
     assert Counter(
         (left, right)
         for window in windows
         for left, right in zip(window["input_ids"][:-1], window["input_ids"][1:])
-    ) == Counter({(2, 3): 1, (3, 4): 1, (4, 5): 1, (5, 6): 1, (6, 7): 1, (7, 8): 1})
+    ) == Counter(zip(expected_ids[:-1], expected_ids[1:]))
 
 
 @pytest.mark.parametrize("target_length", [2, 3, 4, 5])
 def test_packed_transition_multiset_matches_stream_with_repeated_ids(target_length):
-    text = ("abacaba" * target_length)[: 1 + 3 * target_length]
-    expected_ids = make_tokenizers_tokenizer().encode(text).ids
+    text = " ".join("a" for _ in range(1 + 3 * target_length))
+    expected_ids = TOKENIZER.encode(text)
     config = {
         "output_mode": "packed_sequences",
         "max_tokens": len(expected_ids),
@@ -889,16 +873,9 @@ def test_packed_transition_multiset_matches_stream_with_repeated_ids(target_leng
     assert actual == Counter(zip(expected_ids[:-1], expected_ids[1:]))
 
 
-@pytest.mark.parametrize(
-    ("quota", "text", "expected"),
-    [
-        (3, "ab", [2, 3, 1]),
-        (2, "ab", [2, 1]),
-        (3, "abcdef", [2, 3, 1]),
-        (1, "abcdef", [1]),
-    ],
-)
-def test_finite_quota_reserves_final_slot_for_eos(quota, text, expected):
+@pytest.mark.parametrize("quota", [1, 2, 3])
+def test_finite_quota_reserves_final_slot_for_eos(quota):
+    text = "改行\nタブ\tspace"
     config = {
         "output_mode": "tokenized_docs",
         "max_tokens": quota,
@@ -913,9 +890,10 @@ def test_finite_quota_reserves_final_slot_for_eos(quota, text, expected):
         ],
     }
 
-    loader = StreamLoader(config, tokenizer=make_tokenizers_tokenizer())
+    loader = make_loader(config)
     samples = list(loader)
 
+    expected = TOKENIZER.encode(text)[: max(quota - 1, 0)] + [TOKENIZER.eos_token_id]
     assert samples[0]["input_ids"].tolist() == expected
     assert loader.token_counts == {"docs": quota}
 
@@ -931,7 +909,7 @@ def test_packed_quota_truncation_without_eos_fails_explicitly():
                 "name": "docs",
                 "type": "memory",
                 "ratio": 1.0,
-                "documents": [{"text": "abcdef"}],
+                "documents": [{"text": "改行\nタブ\tspace"}],
             }
         ],
     }
@@ -951,17 +929,17 @@ def test_packed_source_quotas_remain_exact_when_truncation_adds_eos():
                 "name": "a",
                 "type": "memory",
                 "ratio": 0.7,
-                "documents": [{"text": "aaaaaaaaaa"}],
+                "documents": [{"text": " ".join("a" for _ in range(10))}],
             },
             {
                 "name": "b",
                 "type": "memory",
                 "ratio": 0.3,
-                "documents": [{"text": "bbbbbbbbbb"}],
+                "documents": [{"text": " ".join("a" for _ in range(10))}],
             },
         ],
     }
-    loader = StreamLoader(config, tokenizer=make_tokenizers_tokenizer())
+    loader = make_loader(config)
 
     list(loader)
 
@@ -981,13 +959,13 @@ def test_packed_source_spans_shift_with_stride_and_retain_carried_source():
                 "name": "a",
                 "type": "memory",
                 "ratio": 0.5,
-                "documents": [{"text": "abc"}],
+                "documents": [{"text": "a a a"}],
             },
             {
                 "name": "b",
                 "type": "memory",
                 "ratio": 0.5,
-                "documents": [{"text": "def"}],
+                "documents": [{"text": "a a a"}],
             },
         ],
     }
@@ -1026,11 +1004,11 @@ def test_packed_accounting_separates_windows_targets_sources_and_dropped_tail(
                 "name": "docs",
                 "type": "memory",
                 "ratio": 1.0,
-                "documents": [{"text": "abcdefgh"[:token_total]}],
+                "documents": [{"text": " ".join("a" for _ in range(token_total))}],
             }
         ],
     }
-    loader = StreamLoader(config, tokenizer=make_tokenizers_tokenizer())
+    loader = make_loader(config)
 
     windows = list(loader)
 
@@ -1055,11 +1033,11 @@ def test_bounded_long_document_packing_sanity():
                 "name": "docs",
                 "type": "memory",
                 "ratio": 1.0,
-                "documents": [{"text": "a" * token_total}],
+                "documents": [{"text": " ".join("a" for _ in range(token_total))}],
             }
         ],
     }
-    loader = StreamLoader(config, tokenizer=make_tokenizers_tokenizer())
+    loader = make_loader(config)
 
     windows = list(loader)
 
@@ -1089,53 +1067,14 @@ def test_tokenized_docs_end_of_document_token():
 
     sample = collect(config)[0]
 
-    assert sample["input_ids"].tolist() == [2, 3, 1]
+    assert sample["input_ids"].tolist() == TOKENIZER.encode("ab") + [TOKENIZER.eos_token_id]
 
 
 def test_tokenizer_round_trip_behavior():
-    tokenizer = make_tokenizers_tokenizer()
     text = "hello 日本語"
 
-    token_ids = tokenizer.encode(text).ids
-    assert tokenizer.decode(token_ids, skip_special_tokens=False) == text
-
-
-def test_builtin_tekken_tokenizer_integration_round_trip():
-    from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
-
-    tokenizer = MistralTokenizer.v3(is_tekken=True).instruct_tokenizer.tokenizer
-    text = "Tokenizer smoke test."
-
-    assert tokenizer.decode(tokenizer.encode(text, bos=False, eos=False)) == text
-
-
-@pytest.mark.skipif(
-    os.getenv("RUN_TOKENIZER_INTEGRATION") != "1",
-    reason="set RUN_TOKENIZER_INTEGRATION=1 to download tokenizer artifacts",
-)
-def test_qwen_tokenizer_integration_round_trip():
-    from transformers import AutoTokenizer
-
-    tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-0.6B", use_fast=True)
-    text = "Qwen tokenizer smoke test."
-
-    assert tokenizer.is_fast
-    assert tokenizer.decode(tokenizer.encode(text, add_special_tokens=False)) == text
-
-
-@pytest.mark.skipif(
-    os.getenv("RUN_TOKENIZER_INTEGRATION") != "1",
-    reason="set RUN_TOKENIZER_INTEGRATION=1 to download tokenizer artifacts",
-)
-def test_mistral_nemo_tekken_tokenizer_integration_round_trip():
-    from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
-
-    tokenizer = MistralTokenizer.from_hf_hub(
-        "mistralai/Mistral-Nemo-Base-2407"
-    ).instruct_tokenizer.tokenizer
-    text = "Tekken tokenizer smoke test."
-
-    assert tokenizer.decode(tokenizer.encode(text, bos=False, eos=False)) == text
+    token_ids = TOKENIZER.encode(text)
+    assert TOKENIZER.decode(token_ids) == text
 
 
 @pytest.mark.skipif(

@@ -1,6 +1,6 @@
 # llm_scratch
 
-A small scratch project for experimenting with a decoder-only autoregressive Transformer and a character-level BPE tokenizer.
+A small scratch project for experimenting with a decoder-only autoregressive Transformer and a pinned Japanese/English tokenizer.
 
 ## Setup
 
@@ -30,19 +30,21 @@ A Make target cannot directly modify the parent shell, so the activation command
 
 ## Common commands
 
-### Train the tokenizer
-```bash
-uv run python src/train_tokenizer.py
-```
+### Canonical tokenizer
 
-This produces the tokenizer artifact configured by `artifacts.tokenizers_dir` and `artifacts.tokenizer_filename`.
+Training, streaming, debugging, model construction, and future generation use
+the vendored LLM-jp v1 tokenizer selected by TOK-001. Hydra selects it through
+`config/tokenizer/canonical.yaml`. Startup validates its manifest fingerprint,
+upstream revisions, Apache-2.0 license, artifact bytes, vocabulary, special
+tokens, and fixed probes entirely offline. There is no project tokenizer
+training command or runtime tokenizer download.
 
 ### Run the model training script
 ```bash
 make train
 ```
 
-This launches the Hydra-based training entrypoint, which expects an already-trained tokenizer artifact:
+This launches the Hydra-based training entrypoint:
 
 ```bash
 uv run python src/train.py
@@ -64,7 +66,10 @@ The default training config now defines `data.train` and `data.val`, with valida
 - when W&B is enabled, training also logs the final `model_last.pth` checkpoint as a model artifact
 - you can additionally log model artifacts during training with `wandb.log_model_every_n_epoch=<n>`
 
-At inference time, the model predicts one tokenizer token at a time, not one whole word at a time. Because the tokenizer is character-level BPE, a word like `give` may be produced over multiple decoding steps such as `g`, `iv`, then `e `.
+At inference time, the model predicts one tokenizer token at a time, not one
+whole word at a time. The canonical vocabulary has 50,570 IDs; BOS is 1, PAD is
+4, and EOS/EOD is 7. The manifest fingerprint is logged so checkpoints and
+future generation can enforce the same tokenizer identity.
 
 You can override runtime values with Hydra arguments, for example:
 
@@ -95,17 +100,17 @@ uv run python src/train.py training.scheduler.enabled=true training.scheduler._t
 - `docs/agent-model-workflow.md`: required implementation, heavy-review, repair, and handoff flow
 - `docs/experiments/`: predeclared experiment plans, per-attempt evidence, and conclusions
 - `docs/model-runs/`: per-PR model execution records and aggregate model outcomes
-- `src/train.py`: Hydra-based decoder-only training script that loads a saved tokenizer
+- `src/train.py`: Hydra-based decoder-only training script using the canonical tokenizer
 - `src/training/trainer.py`: decoder-only trainer loop, validation, checkpointing, and W&B logging
-- `src/train_tokenizer.py`: Hydra-based tokenizer training script
 - `src/models/embedding.py`: token embedding and sinusoidal positional encoding
 - `src/models/simple_decoder_transformer.py`: GPT-style decoder-only Transformer blocks with causal self-attention
-- `src/tokenizer/bpe.py`: character-level BPE tokenizer implementation
+- `src/tokenizer/canonical.py`: strict offline tokenizer manifest/wrapper validation
+- `assets/tokenizers/llm-jp-v1/`: pinned tokenizer JSON, manifest, source notice, and license
 - `src/data/text_dataset.py`: decoder-only autoregressive dataset and dataloader helpers
 - `src/data/stream_loader/`: streaming text loaders for large local or Hugging Face datasets
 - `src/data/stream_loader/README.md`: stream loader usage notes, config shape, and large-dataset cautions
 - `scripts/debug_stream_loader.py`: preview streaming batches before training
 - `config/train.yaml`: model training configuration
+- `config/tokenizer/canonical.yaml`: canonical tokenizer manifest path and expected fingerprint
 - `config/stream_loader.yaml`: standalone streaming loader configuration for preview/debug runs
-- `config/train_tokenizer.yaml`: tokenizer training configuration
 - `data/inputLearnText.txt`: training corpus

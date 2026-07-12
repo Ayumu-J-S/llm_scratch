@@ -150,7 +150,7 @@ be called a baseline until the following gates exist:
 | Order | Ticket | Priority | State | Depends on | Outcome |
 | ---: | --- | --- | --- | --- | --- |
 | 1 | DATA-001 | P0 | Done | — | Correct packed causal transitions |
-| 2 | TOK-001 | P0 | Ready | — | One selected, pinned tokenizer used end to end |
+| 2 | TOK-001 | P0 | Done | — | One selected, pinned tokenizer used end to end |
 | 3 | DATA-002 | P0 | Ready | — | Immutable manifests and disjoint split contract |
 | 4 | MODEL-001 | P0 | Ready | — | Protected conventional model invariants |
 | 5 | ENV-001 | P0 | Ready | — | CUDA-capable, reproducible DGX Spark runtime |

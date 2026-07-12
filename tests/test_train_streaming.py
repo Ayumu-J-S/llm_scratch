@@ -3,16 +3,9 @@ from __future__ import annotations
 from omegaconf import OmegaConf
 
 import train as train_module
-from tokenizer.bpe import BPETokenizer
 
 
-def test_streaming_validation_keeps_partial_batch(tmp_path):
-    tokenizer_dir = tmp_path / "tokenizers"
-    tokenizer_dir.mkdir()
-    tokenizer = BPETokenizer(special_tokens=["<eos>"])
-    tokenizer.train("abcd", vocab_size=5)
-    tokenizer.save(str(tokenizer_dir / "tokenizer.json"))
-
+def test_streaming_validation_keeps_partial_batch():
     streaming_split = {
         "max_tokens": 4,
         "add_eos": False,
@@ -22,7 +15,7 @@ def test_streaming_validation_keeps_partial_batch(tmp_path):
                 "name": "docs",
                 "type": "memory",
                 "ratio": 1.0,
-                "documents": [{"text": "abcd"}],
+                "documents": [{"text": "Hello, world!"}],
             }
         ],
     }
@@ -38,9 +31,11 @@ def test_streaming_validation_keeps_partial_batch(tmp_path):
                 "sequence_length": 3,
                 "batch_size": 2,
             },
-            "artifacts": {
-                "tokenizers_dir": str(tokenizer_dir),
-                "tokenizer_filename": "tokenizer.json",
+            "tokenizer": {
+                "manifest_path": "assets/tokenizers/llm-jp-v1/manifest.json",
+                "expected_fingerprint": (
+                    "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b"
+                ),
             },
         }
     )
