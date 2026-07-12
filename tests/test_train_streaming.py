@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+import torch
 from omegaconf import OmegaConf
 
 import train as train_module
@@ -179,3 +180,25 @@ def test_canonical_streaming_fixture_budgets_do_not_exhaust():
     assert cfg.data.streaming.require_manifests is True
     assert cfg.data.streaming.train.max_tokens == "max"
     assert cfg.data.streaming.validation.max_tokens == "max"
+
+
+def test_cuda_request_fails_before_tokenizer_or_data(monkeypatch):
+    cfg = OmegaConf.create({"runtime": {"device": "cuda"}})
+    tokenizer_touched = False
+
+    def fail_if_tokenizer_is_loaded(*args, **kwargs):
+        nonlocal tokenizer_touched
+        tokenizer_touched = True
+        raise AssertionError("tokenizer must not be loaded")
+
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+    monkeypatch.setattr(
+        train_module.CanonicalTokenizer,
+        "from_config",
+        fail_if_tokenizer_is_loaded,
+    )
+
+    with pytest.raises(RuntimeError, match="CUDA is unavailable"):
+        train_module.main.__wrapped__(cfg)
+
+    assert not tokenizer_touched

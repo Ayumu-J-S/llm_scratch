@@ -38,6 +38,9 @@ data:
           selection: validation
           ratio: 1.0
 
+runtime:
+  device: cuda
+
 training:
   sequence_length: 64
   epochs: 50

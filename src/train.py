@@ -9,6 +9,7 @@ from data.manifests import ResolvedManifest, preflight_manifest, validate_disjoi
 from data.streaming_dataset import create_streaming_token_dataloader
 from data.text_dataset import create_autoregressive_dataloader
 from models.simple_decoder_transformer import SimpleDecoderTransformer
+from runtime.device import select_device
 from training.optimization import build_optimizer, build_scheduler
 from training.trainer import Trainer
 from tokenizer.canonical import CanonicalTokenizer
@@ -16,7 +17,6 @@ from utils.model import get_parameter_counts
 
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def log_sample_batch(tokenizer, batch) -> None:
@@ -98,7 +98,12 @@ def resolved_manifest_token_ids(manifest: ResolvedManifest, tokenizer) -> list[i
     return token_ids
 
 
-def build_streaming_dataloader(cfg: DictConfig, split_name: str):
+def build_streaming_dataloader(
+    cfg: DictConfig,
+    split_name: str,
+    *,
+    device: torch.device | None = None,
+):
     stream_config = streaming_split_config(cfg.data.streaming, split_name)
     if stream_config.get("require_manifests") is False:
         raise ValueError("streaming training cannot set require_manifests=false")
@@ -110,7 +115,7 @@ def build_streaming_dataloader(cfg: DictConfig, split_name: str):
         batch_size=cfg.training.batch_size,
         drop_last=split_name == "train",
         num_workers=0,
-        pin_memory=DEVICE.type == "cuda",
+        pin_memory=(device or torch.device("cpu")).type == "cuda",
     )
 
 
@@ -132,7 +137,8 @@ def log_loader_size(name: str, loader) -> None:
 
 @hydra.main(version_base=None, config_path="../config", config_name="train")
 def main(cfg: DictConfig) -> None:
-    logger.info("Using device: {}", DEVICE)
+    device = select_device(cfg.runtime.device)
+    logger.info("Using device: {}", device)
 
     data_mode = cfg.data.get("mode")
     logger.info("Loading tokenizer artifact...")
@@ -168,8 +174,8 @@ def main(cfg: DictConfig) -> None:
         )
     elif data_mode == "streaming":
         logger.info("Building streaming causal-LM dataloaders...")
-        train_loader = build_streaming_dataloader(cfg, "train")
-        validation_loader = build_streaming_dataloader(cfg, "validation")
+        train_loader = build_streaming_dataloader(cfg, "train", device=device)
+        validation_loader = build_streaming_dataloader(cfg, "validation", device=device)
         validate_streaming_dataloaders(train_loader, validation_loader)
     else:
         raise ValueError("data.mode must be either 'memorization_smoke' or 'streaming'")
@@ -189,7 +195,7 @@ def main(cfg: DictConfig) -> None:
         dropout=cfg.model.dropout,
         pad_token_id=tokenizer.pad_token_id,
     )
-    model.to(DEVICE)
+    model.to(device)
     model.train()
     parameter_counts = get_parameter_counts(model)
     logger.info(
@@ -222,7 +228,7 @@ def main(cfg: DictConfig) -> None:
         validation_loader=validation_loader,
         checkpoint_dir=checkpoint_dir,
         cfg=cfg,
-        device=DEVICE,
+        device=device,
     )
     trainer.fit()
 

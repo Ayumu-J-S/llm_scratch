@@ -115,6 +115,14 @@ defaults, then unavailable. A child agent records its own capture and must not
 inherit the parent's identity. The capture is redaction-safe: no prompts,
 hidden chain-of-thought, tokens, secrets, or raw thread IDs.
 
+In execution tables, the actual model and reasoning columns contain only values
+shown by the runtime (for example `Codex / GPT-5` for the visible product and
+family, or `not exposed by runtime` for exact identity/mode). Put requested
+values such as `Luna` or `Extra High` in a separate requested-model/requested-
+reasoning field or in the request/context column. Do not write combined values
+such as `not exposed by runtime (requested Luna / Extra High)` in an actual
+field.
+
 Hidden chain-of-thought is not part of the record. The useful comparison data
 is the input context, observable engineering rationale, changes, findings,
 evidence, and outcome.
