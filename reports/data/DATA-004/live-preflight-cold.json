@@ -3,9 +3,10 @@
     "active_leases": 0,
     "corruptions": 0,
     "downloaded_bytes": 1269008673,
+    "downloaded_bytes_per_second": 3530096.876817,
     "downloads": 3,
     "evictions": 0,
-    "free_bytes": 525020864512,
+    "free_bytes": 523739623424,
     "hits": 4,
     "misses": 3,
     "retries": 0,
@@ -17,21 +18,21 @@
     "cache_cap_limit_bytes": 200000000000,
     "cache_cap_within_limit": true,
     "current_managed_cache_bytes": 1269008673,
-    "filesystem_free_bytes": 525020864512,
+    "filesystem_free_bytes": 523739623424,
     "filesystem_total_bytes": 982819848192,
-    "filesystem_used_bytes": 407798947840,
+    "filesystem_used_bytes": 409080188928,
     "headroom_admission_passed": true,
     "largest_shard_temp_bytes": 4844733228,
-    "projected_free_at_full_cache_bytes": 446289873185,
-    "projected_free_at_full_cache_with_largest_temp_bytes": 441445139957,
+    "projected_free_at_full_cache_bytes": 445008632097,
+    "projected_free_at_full_cache_with_largest_temp_bytes": 440163898869,
     "reserved_os_checkpoint_bytes": 256000000000
   },
   "fingerprints": {
     "code": {
       "dirty": false,
-      "git_commit": "10c7eb11a7dd993600baca8ce575f1c710a8ba22"
+      "git_commit": "fee0f1a231e24957cee86568d9ef89f04eb4e27d"
     },
-    "config": "771c1dbac5cbb6a15471d8df13bcec7dc409c18c5fe188a97ee6488bd6f00da6",
+    "config": "2399ae1bf1fbd1e8d3bac180280787fda10e43c9506d1585cfba45650cb9efc9",
     "data": {
       "fineweb2_ja_train:train": {
         "dataset": "522b11e5e13d82180e6d47021b66d5262bc1b6fd60a26977444ebd7a8be740db",
@@ -58,6 +59,7 @@
   },
   "integrity": {
     "manifest_disjointness_validated": true,
+    "observed_document_id_overlap": 0,
     "observed_normalized_content_overlap": 0,
     "raw_text_retained": false
   },
@@ -65,12 +67,94 @@
     "max_documents_per_split": 4096,
     "max_target_tokens": 262144
   },
+  "measurement": {
+    "conditions": {
+      "cache_state": "cold",
+      "claim_boundary": "Measures source iteration, filtering, canonical tokenization, packing, cache, and process resources only; it does not measure a model, GPU utilization, host-to-device transfer, end-to-end training consumption, or supply headroom.",
+      "clock": "time.monotonic_ns",
+      "first_sample_definition": "latency of the first external next(loader) call in a phase",
+      "loader_next_definition": "External next(loader) wall time includes source read/filter, production tokenization, packing, prefetch synchronization, and Python overhead; separate instrumented source-read and production-tokenization counters are also reported.",
+      "machine": "aarch64",
+      "pid": 941831,
+      "platform": "Linux-6.17.0-1021-nvidia-aarch64-with-glibc2.39",
+      "process_memory_definition": "current RSS and swap from /proc/self/status; peak RSS and page faults from getrusage(RUSAGE_SELF)",
+      "python": "3.11.15",
+      "rate_denominator": "monotonic elapsed wall time for the named loader-only phase",
+      "scope": "loader_only",
+      "steady_sample_definition": "latencies of all later external next(loader) calls in a phase"
+    },
+    "phases": {
+      "audit_loader_initialization_seconds": 0.243821988,
+      "cache_and_tokenizer_initialization_seconds": 0.106514038,
+      "configuration_validation_seconds": 0.000433856,
+      "packing_loader_initialization_seconds": 0.139491927,
+      "packing_seconds": 47.72747541,
+      "train_audit_seconds": 104.574614866,
+      "validation_audit_seconds": 206.681320465
+    },
+    "process_resources": {
+      "current_rss_bytes": 708542464,
+      "end": {
+        "current_rss_bytes": 708542464,
+        "major_page_faults": 0,
+        "minor_page_faults": 271964,
+        "monotonic_ns": 170209864786011,
+        "peak_rss_bytes": 814043136,
+        "swap_bytes": 0
+      },
+      "major_page_faults": 0,
+      "major_page_faults_per_second": 0.0,
+      "minor_page_faults": 228483,
+      "minor_page_faults_per_second": 635.588347,
+      "peak_rss_bytes": 814043136,
+      "peak_rss_growth_bytes": 566165504,
+      "start": {
+        "current_rss_bytes": 248107008,
+        "major_page_faults": 0,
+        "minor_page_faults": 43481,
+        "monotonic_ns": 169850382109676,
+        "peak_rss_bytes": 247877632,
+        "swap_bytes": 0
+      },
+      "swap_bytes": 0,
+      "swap_growth_bytes": 0
+    },
+    "whole_run_boundary": "Hydra-decorated main entry through completed loader/cache/disk evidence, before report serialization",
+    "whole_run_elapsed_seconds": 359.482676335
+  },
   "mode": "cold",
   "packing": {
     "accounting_reconciled": true,
     "expected_ratios": {
       "fineweb2_ja_train": 0.5,
       "fineweb_en_train": 0.5
+    },
+    "production_timing_by_source": {
+      "fineweb2_ja_train": {
+        "source_read_seconds": 0.204594547,
+        "tokenization_seconds": 0.142976846
+      },
+      "fineweb_en_train": {
+        "source_read_seconds": 0.370673242,
+        "tokenization_seconds": 0.217698984
+      }
+    },
+    "quota_truncation": {
+      "fragments_by_source": {
+        "fineweb2_ja_train": 1,
+        "fineweb_en_train": 1
+      },
+      "policy": "trained-target source quota; distinct from byte-policy document truncation",
+      "removed_tokens_by_source": {
+        "fineweb2_ja_train": 671,
+        "fineweb_en_train": 224
+      },
+      "total_fragments": 2,
+      "total_removed_tokens": 895
+    },
+    "rates": {
+      "target_tokens_per_second": 5492.517627,
+      "windows_per_second": 686.564703
     },
     "ratio_deviations": {
       "fineweb2_ja_train": 0.0,
@@ -86,16 +170,205 @@
       "fineweb2_ja_train": 131072,
       "fineweb_en_train": 131072
     },
+    "timing": {
+      "elapsed_seconds": 47.72747541,
+      "first_sample_loader_next_ms": 156.777485,
+      "loader_next_seconds": 47.632477153,
+      "steady_sample_loader_next_ms": {
+        "count": 32767,
+        "max": 260.973563,
+        "p50": 0.965216,
+        "p95": 3.385934,
+        "p99": 4.254637
+      }
+    },
     "trained_targets": 262144,
     "window_tokens": 294912,
     "windows": 32768
   },
-  "schema_version": 1,
+  "reproduction": {
+    "argv": [
+      "scripts/preflight_data.py",
+      "profile=pretrain_streaming",
+      "data.streaming.cache.dir=/tmp/llm-scratch-data004-repair-cold-fee0f1a",
+      "+preflight.max_documents_per_split=4096",
+      "+preflight.output_dir=/tmp/data004-repair-evidence-fee0f1a",
+      "+preflight.report_stem=live-preflight-cold-v2",
+      "hydra.run.dir=/tmp/data004-repair-hydra-cold-fee0f1a",
+      "--cold"
+    ],
+    "config_sha256": "2399ae1bf1fbd1e8d3bac180280787fda10e43c9506d1585cfba45650cb9efc9",
+    "effective_argv": [
+      "scripts/preflight_data.py",
+      "profile=pretrain_streaming",
+      "data.streaming.cache.dir=/tmp/llm-scratch-data004-repair-cold-fee0f1a",
+      "+preflight.max_documents_per_split=4096",
+      "+preflight.output_dir=/tmp/data004-repair-evidence-fee0f1a",
+      "+preflight.report_stem=live-preflight-cold-v2",
+      "hydra.run.dir=/tmp/data004-repair-hydra-cold-fee0f1a",
+      "+preflight.cold=true"
+    ],
+    "note": "argv/python_command retain operator inputs; effective_argv records internal --cold translation for Hydra. An outer uv launcher is not observable inside Python.",
+    "python_command": "/home/ayumu/Documents/Proj/llm_scratch/.venv/bin/python3 scripts/preflight_data.py profile=pretrain_streaming data.streaming.cache.dir=/tmp/llm-scratch-data004-repair-cold-fee0f1a +preflight.max_documents_per_split=4096 +preflight.output_dir=/tmp/data004-repair-evidence-fee0f1a +preflight.report_stem=live-preflight-cold-v2 hydra.run.dir=/tmp/data004-repair-hydra-cold-fee0f1a --cold",
+    "resolved_hydra_config": {
+      "artifacts": {
+        "checkpoints_dir": "checkpoints",
+        "keep_last_n": 3,
+        "resume_path": null
+      },
+      "data": {
+        "mode": "streaming",
+        "streaming": {
+          "cache": {
+            "dir": "/tmp/llm-scratch-data004-repair-cold-fee0f1a",
+            "max_size_bytes": 80000000000,
+            "min_free_bytes": 256000000000,
+            "wait_timeout_seconds": 120.0
+          },
+          "prefetch": {
+            "buffer_size": 16,
+            "enabled": true
+          },
+          "repeat": true,
+          "require_manifests": true,
+          "train": {
+            "add_eos": true,
+            "max_target_tokens": 262144,
+            "max_tokens": "max",
+            "mixture_basis": "trained_targets",
+            "seed": 42,
+            "sources": [
+              {
+                "expected_fingerprint": "2fc3eb60986c96fcb752b14d740dd5a3f7cea8b52bb5a13cb5834a1f805d6bba",
+                "manifest_path": "data/manifests/fineweb2-ja-jpn-jpan.manifest.json",
+                "name": "fineweb2_ja_train",
+                "ratio": 0.5,
+                "selection": "train",
+                "type": "manifest"
+              },
+              {
+                "expected_fingerprint": "626a1eb095e9089e5c62ee2df9c058ab7c6dfc54064eca5c13e4d84e65a8d60a",
+                "manifest_path": "data/manifests/fineweb-en-sample-10bt.manifest.json",
+                "name": "fineweb_en_train",
+                "ratio": 0.5,
+                "selection": "train",
+                "type": "manifest"
+              }
+            ]
+          },
+          "validation": {
+            "add_eos": true,
+            "max_target_tokens": 65536,
+            "max_tokens": "max",
+            "mixture_basis": "trained_targets",
+            "seed": 43,
+            "sources": [
+              {
+                "expected_fingerprint": "2fc3eb60986c96fcb752b14d740dd5a3f7cea8b52bb5a13cb5834a1f805d6bba",
+                "manifest_path": "data/manifests/fineweb2-ja-jpn-jpan.manifest.json",
+                "name": "fineweb2_ja_validation",
+                "ratio": 0.5,
+                "selection": "validation",
+                "type": "manifest"
+              },
+              {
+                "expected_fingerprint": "626a1eb095e9089e5c62ee2df9c058ab7c6dfc54064eca5c13e4d84e65a8d60a",
+                "manifest_path": "data/manifests/fineweb-en-sample-10bt.manifest.json",
+                "name": "fineweb_en_validation",
+                "ratio": 0.5,
+                "selection": "validation",
+                "type": "manifest"
+              }
+            ]
+          }
+        }
+      },
+      "model": {
+        "dropout": 0.1,
+        "embed_size": 384,
+        "num_heads": 6,
+        "num_layers": 6
+      },
+      "preflight": {
+        "cold": true,
+        "max_documents_per_split": 4096,
+        "output_dir": "/tmp/data004-repair-evidence-fee0f1a",
+        "report_stem": "live-preflight-cold-v2"
+      },
+      "profile": {
+        "name": "pretrain_streaming",
+        "purpose": "pretraining"
+      },
+      "reproducibility": {
+        "deterministic": true,
+        "reject_dirty": true,
+        "seed": 42
+      },
+      "runtime": {
+        "device": "cuda"
+      },
+      "tokenizer": {
+        "expected_fingerprint": "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b",
+        "manifest_path": "assets/tokenizers/llm-jp-v1/manifest.json"
+      },
+      "training": {
+        "batch_size": 2,
+        "checkpoint_every_n_steps": null,
+        "checkpoint_every_n_tokens": null,
+        "epochs": 1,
+        "gradient_accumulation_steps": 4,
+        "log_every_n_steps": 1,
+        "log_every_n_tokens": null,
+        "max_grad_norm": 10.0,
+        "max_steps": null,
+        "max_time": null,
+        "max_tokens": null,
+        "milestone_every_n_steps": null,
+        "milestone_every_n_tokens": null,
+        "optimizer": {
+          "_target_": "torch.optim.AdamW",
+          "betas": [
+            0.9,
+            0.95
+          ],
+          "eps": 1e-08,
+          "lr": 0.0003,
+          "weight_decay": 0.1
+        },
+        "precision": "bf16",
+        "scheduler": {
+          "_target_": "training.optimization.WarmupCosineScheduler",
+          "decay_steps": 10000,
+          "enabled": true,
+          "interval": "step",
+          "min_lr_ratio": 0.1,
+          "warmup_steps": 100
+        },
+        "sequence_length": 8,
+        "shuffle": true,
+        "validation_every_n_steps": null,
+        "validation_every_n_tokens": null
+      },
+      "wandb": {
+        "enabled": true,
+        "entity": "sunday-research",
+        "log_model_every_n_epoch": null,
+        "mode": "online",
+        "name": null,
+        "project": "llm-scratch"
+      }
+    }
+  },
+  "schema_version": 2,
   "splits": {
     "train": {
       "bounded": true,
       "documents": 4096,
       "max_documents": 4096,
+      "rates": {
+        "documents_per_second": 39.168205,
+        "source_rows_per_second": 39.703708
+      },
       "sources": {
         "fineweb2_ja_train": {
           "canonical_tokens": 1644568,
@@ -110,6 +383,10 @@
           "quality": {
             "duplicates": 0,
             "fallback_document_ids": 0,
+            "missing_data": {},
+            "missing_data_event_rate_per_row": 0.0,
+            "missing_data_events": 0,
+            "rejection_rate_per_row": 0.013229,
             "rejections": {
               "control_character": 0,
               "empty": 0,
@@ -119,7 +396,23 @@
               "other_split_validation": 27,
               "wrong_script": 0
             },
+            "source_rows_read": 2041,
             "truncated": 0
+          },
+          "rates": {
+            "canonical_tokens_per_second": 15726.26399,
+            "documents_per_second": 19.201601,
+            "missing_data_events_per_second": 0.0,
+            "production_source_rows_per_second": 60.135883,
+            "production_tokenizer_canonical_tokens_per_second": 980402.570047,
+            "production_tokenizer_documents_per_second": 1197.061089,
+            "production_tokenizer_utf8_bytes_per_second": 4431643.552879,
+            "qa_retokenizer_canonical_tokens_per_second": 578268.696236,
+            "qa_retokenizer_documents_per_second": 706.059915,
+            "qa_retokenizer_utf8_bytes_per_second": 2613906.590823,
+            "rejections_per_second": 0.258189,
+            "source_rows_per_second": 19.517165,
+            "utf8_bytes_per_second": 71086.30531
           },
           "scripts": {
             "japanese": 2205983,
@@ -143,11 +436,17 @@
             },
             "tokenization_latency_ms": {
               "count": 2008,
-              "max": 47.681168,
-              "p50": 0.527375,
-              "p95": 7.714025,
-              "p99": 12.030052
+              "max": 47.882046,
+              "p50": 0.513199,
+              "p95": 7.420472,
+              "p99": 11.877972
             }
+          },
+          "timing": {
+            "loader_next_seconds": 36.123889348,
+            "production_source_read_seconds": 33.939802695,
+            "production_tokenization_seconds": 1.677441543,
+            "qa_retokenization_seconds": 2.843951282
           },
           "tokenization_failures": 0,
           "tokenizer_byte_fallback_tokens": 3481,
@@ -166,6 +465,10 @@
           "quality": {
             "duplicates": 0,
             "fallback_document_ids": 0,
+            "missing_data": {},
+            "missing_data_event_rate_per_row": 0.0,
+            "missing_data_events": 0,
+            "rejection_rate_per_row": 0.009948,
             "rejections": {
               "control_character": 0,
               "empty": 0,
@@ -175,7 +478,23 @@
               "other_split_validation": 21,
               "wrong_script": 0
             },
+            "source_rows_read": 2111,
             "truncated": 0
+          },
+          "rates": {
+            "canonical_tokens_per_second": 14659.083392,
+            "documents_per_second": 19.966605,
+            "missing_data_events_per_second": 0.0,
+            "production_source_rows_per_second": 37.184005,
+            "production_tokenizer_canonical_tokens_per_second": 638469.181203,
+            "production_tokenizer_documents_per_second": 869.635668,
+            "production_tokenizer_utf8_bytes_per_second": 2462768.64437,
+            "qa_retokenizer_canonical_tokens_per_second": 366282.767847,
+            "qa_retokenizer_documents_per_second": 498.900446,
+            "qa_retokenizer_utf8_bytes_per_second": 1412863.364723,
+            "rejections_per_second": 0.200814,
+            "source_rows_per_second": 20.186543,
+            "utf8_bytes_per_second": 56544.516158
           },
           "scripts": {
             "japanese": 264,
@@ -199,15 +518,35 @@
             },
             "tokenization_latency_ms": {
               "count": 2088,
-              "max": 25.875317,
-              "p50": 0.811424,
-              "p95": 8.530887,
-              "p99": 13.459938
+              "max": 24.983958,
+              "p50": 0.795455,
+              "p95": 9.070774,
+              "p99": 13.418786
             }
+          },
+          "timing": {
+            "loader_next_seconds": 58.381486643,
+            "production_source_read_seconds": 56.771722499,
+            "production_tokenization_seconds": 2.401005475,
+            "qa_retokenization_seconds": 4.185203713
           },
           "tokenization_failures": 0,
           "tokenizer_byte_fallback_tokens": 998,
           "utf8_bytes": 5913121
+        }
+      },
+      "timing": {
+        "elapsed_seconds": 104.574614866,
+        "first_sample_loader_next_ms": 55447.874094,
+        "loader_next_fraction": 0.903712,
+        "loader_next_seconds": 94.505375991,
+        "qa_retokenization_seconds": 7.029154995,
+        "steady_sample_loader_next_ms": {
+          "count": 4095,
+          "max": 33223.568944,
+          "p50": 0.764303,
+          "p95": 6.286089,
+          "p99": 10.717813
         }
       }
     },
@@ -215,6 +554,10 @@
       "bounded": true,
       "documents": 4096,
       "max_documents": 4096,
+      "rates": {
+        "documents_per_second": 19.81795,
+        "source_rows_per_second": 1978.466168
+      },
       "sources": {
         "fineweb2_ja_validation": {
           "canonical_tokens": 1943924,
@@ -229,6 +572,10 @@
           "quality": {
             "duplicates": 0,
             "fallback_document_ids": 0,
+            "missing_data": {},
+            "missing_data_event_rate_per_row": 0.0,
+            "missing_data_events": 0,
+            "rejection_rate_per_row": 0.990063,
             "rejections": {
               "control_character": 0,
               "empty": 0,
@@ -238,7 +585,23 @@
               "other_split_train": 200856,
               "wrong_script": 0
             },
+            "source_rows_read": 202872,
             "truncated": 0
+          },
+          "rates": {
+            "canonical_tokens_per_second": 9405.416975,
+            "documents_per_second": 9.749309,
+            "missing_data_events_per_second": 0.0,
+            "production_source_rows_per_second": 2237.342447,
+            "production_tokenizer_canonical_tokens_per_second": 971241.468388,
+            "production_tokenizer_documents_per_second": 1006.753123,
+            "production_tokenizer_utf8_bytes_per_second": 4336323.026752,
+            "qa_retokenizer_canonical_tokens_per_second": 364295.642751,
+            "qa_retokenizer_documents_per_second": 377.615442,
+            "qa_retokenizer_utf8_bytes_per_second": 1626478.724009,
+            "rejections_per_second": 971.814964,
+            "source_rows_per_second": 981.569111,
+            "utf8_bytes_per_second": 41992.570884
           },
           "scripts": {
             "japanese": 2562843,
@@ -262,11 +625,17 @@
             },
             "tokenization_latency_ms": {
               "count": 2015,
-              "max": 74.044152,
-              "p50": 0.729567,
-              "p95": 3.173485,
-              "p99": 14.33892
+              "max": 165.476039,
+              "p50": 0.947295,
+              "p95": 9.451512,
+              "p99": 34.788198
             }
+          },
+          "timing": {
+            "loader_next_seconds": 100.684326274,
+            "production_source_read_seconds": 90.675435163,
+            "production_tokenization_seconds": 2.001483733,
+            "qa_retokenization_seconds": 5.336116527
           },
           "tokenization_failures": 0,
           "tokenizer_byte_fallback_tokens": 6196,
@@ -285,6 +654,10 @@
           "quality": {
             "duplicates": 0,
             "fallback_document_ids": 0,
+            "missing_data": {},
+            "missing_data_event_rate_per_row": 0.0,
+            "missing_data_events": 0,
+            "rejection_rate_per_row": 0.9899,
             "rejections": {
               "control_character": 0,
               "empty": 0,
@@ -294,7 +667,23 @@
               "other_split_train": 203959,
               "wrong_script": 0
             },
+            "source_rows_read": 206040,
             "truncated": 0
+          },
+          "rates": {
+            "canonical_tokens_per_second": 7914.227548,
+            "documents_per_second": 10.068641,
+            "missing_data_events_per_second": 0.0,
+            "production_source_rows_per_second": 1870.306778,
+            "production_tokenizer_canonical_tokens_per_second": 638327.755578,
+            "production_tokenizer_documents_per_second": 812.093526,
+            "production_tokenizer_utf8_bytes_per_second": 2445432.533869,
+            "qa_retokenizer_canonical_tokens_per_second": 169669.129803,
+            "qa_retokenizer_documents_per_second": 215.856511,
+            "qa_retokenizer_utf8_bytes_per_second": 650002.144489,
+            "rejections_per_second": 986.828416,
+            "source_rows_per_second": 996.897056,
+            "utf8_bytes_per_second": 30319.392125
           },
           "scripts": {
             "japanese": 74,
@@ -318,15 +707,35 @@
             },
             "tokenization_latency_ms": {
               "count": 2081,
-              "max": 196.272384,
-              "p50": 0.978351,
-              "p95": 7.846124,
-              "p99": 36.12003
+              "max": 173.300332,
+              "p50": 1.326079,
+              "p95": 22.606619,
+              "p99": 60.689769
             }
+          },
+          "timing": {
+            "loader_next_seconds": 80.774796267,
+            "production_source_read_seconds": 110.163745541,
+            "production_tokenization_seconds": 2.562512731,
+            "qa_retokenization_seconds": 9.640663578
           },
           "tokenization_failures": 0,
           "tokenizer_byte_fallback_tokens": 786,
           "utf8_bytes": 6266452
+        }
+      },
+      "timing": {
+        "elapsed_seconds": 206.681320465,
+        "first_sample_loader_next_ms": 159.66686,
+        "loader_next_fraction": 0.877966,
+        "loader_next_seconds": 181.459122541,
+        "qa_retokenization_seconds": 14.976780105,
+        "steady_sample_loader_next_ms": {
+          "count": 4095,
+          "max": 35311.672599,
+          "p50": 21.969247,
+          "p95": 123.426775,
+          "p99": 209.13055
         }
       }
     }

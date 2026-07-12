@@ -1,0 +1,312 @@
+{
+  "comparison_signature": {
+    "code_commit": "fee0f1a231e24957cee86568d9ef89f04eb4e27d",
+    "data": {
+      "fineweb2_ja_train:train": {
+        "dataset": "522b11e5e13d82180e6d47021b66d5262bc1b6fd60a26977444ebd7a8be740db",
+        "manifest": "2fc3eb60986c96fcb752b14d740dd5a3f7cea8b52bb5a13cb5834a1f805d6bba",
+        "selection": "train"
+      },
+      "fineweb2_ja_validation:validation": {
+        "dataset": "522b11e5e13d82180e6d47021b66d5262bc1b6fd60a26977444ebd7a8be740db",
+        "manifest": "2fc3eb60986c96fcb752b14d740dd5a3f7cea8b52bb5a13cb5834a1f805d6bba",
+        "selection": "validation"
+      },
+      "fineweb_en_train:train": {
+        "dataset": "928e21caa4b9647c682c65998f2706dd71dedf583f3a91b832ffb3602fa2af6f",
+        "manifest": "626a1eb095e9089e5c62ee2df9c058ab7c6dfc54064eca5c13e4d84e65a8d60a",
+        "selection": "train"
+      },
+      "fineweb_en_validation:validation": {
+        "dataset": "928e21caa4b9647c682c65998f2706dd71dedf583f3a91b832ffb3602fa2af6f",
+        "manifest": "626a1eb095e9089e5c62ee2df9c058ab7c6dfc54064eca5c13e4d84e65a8d60a",
+        "selection": "validation"
+      }
+    },
+    "limits": {
+      "max_documents_per_split": 1024,
+      "max_target_tokens": 65536
+    },
+    "machine": "aarch64",
+    "mode": "warm",
+    "platform": "Linux-6.17.0-1021-nvidia-aarch64-with-glibc2.39",
+    "python": "3.11.15",
+    "scope": "loader_only",
+    "semantic_config_sha256": "6364945b907c28e713a384014740f5f8f51a2c9e9656d20927bfb5271467a353",
+    "tokenizer": "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b"
+  },
+  "metrics": {
+    "cache.downloaded_bytes_per_second": {
+      "max": 0.0,
+      "median": 0.0,
+      "min": 0.0,
+      "observations": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spread": 0.0
+    },
+    "packing.target_tokens_per_second": {
+      "max": 5040.064519,
+      "median": 4997.481529,
+      "min": 4961.343854,
+      "observations": [
+        4997.481529,
+        4961.343854,
+        5040.064519
+      ],
+      "spread": 78.720665
+    },
+    "process.current_rss_bytes": {
+      "max": 668049408.0,
+      "median": 667332608.0,
+      "min": 646524928.0,
+      "observations": [
+        646524928.0,
+        668049408.0,
+        667332608.0
+      ],
+      "spread": 21524480.0
+    },
+    "process.major_page_faults_per_second": {
+      "max": 0.0,
+      "median": 0.0,
+      "min": 0.0,
+      "observations": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spread": 0.0
+    },
+    "process.minor_page_faults_per_second": {
+      "max": 2775.912497,
+      "median": 2743.864679,
+      "min": 2576.502478,
+      "observations": [
+        2775.912497,
+        2576.502478,
+        2743.864679
+      ],
+      "spread": 199.410019
+    },
+    "process.peak_rss_bytes": {
+      "max": 723161088.0,
+      "median": 717537280.0,
+      "min": 695148544.0,
+      "observations": [
+        723161088.0,
+        695148544.0,
+        717537280.0
+      ],
+      "spread": 28012544.0
+    },
+    "train.fineweb2_ja_train.canonical_tokens_per_second": {
+      "max": 89680.67763,
+      "median": 84516.931817,
+      "min": 84446.471399,
+      "observations": [
+        89680.67763,
+        84516.931817,
+        84446.471399
+      ],
+      "spread": 5234.206231
+    },
+    "train.fineweb2_ja_train.documents_per_second": {
+      "max": 120.137315,
+      "median": 113.219898,
+      "min": 113.125509,
+      "observations": [
+        120.137315,
+        113.219898,
+        113.125509
+      ],
+      "spread": 7.011806
+    },
+    "train.fineweb2_ja_train.source_rows_per_second": {
+      "max": 123.061549,
+      "median": 116.435068,
+      "min": 116.337998,
+      "observations": [
+        123.061549,
+        116.435068,
+        116.337998
+      ],
+      "spread": 6.723551
+    },
+    "train.fineweb2_ja_train.utf8_bytes_per_second": {
+      "max": 405789.732321,
+      "median": 382424.665435,
+      "min": 382105.844088,
+      "observations": [
+        405789.732321,
+        382424.665435,
+        382105.844088
+      ],
+      "spread": 23683.888233
+    },
+    "train.fineweb_en_train.canonical_tokens_per_second": {
+      "max": 95816.697061,
+      "median": 90299.643875,
+      "min": 90224.362501,
+      "observations": [
+        95816.697061,
+        90299.643875,
+        90224.362501
+      ],
+      "spread": 5592.33456
+    },
+    "train.fineweb_en_train.documents_per_second": {
+      "max": 129.397391,
+      "median": 121.946787,
+      "min": 121.845122,
+      "observations": [
+        129.397391,
+        121.946787,
+        121.845122
+      ],
+      "spread": 7.552269
+    },
+    "train.fineweb_en_train.source_rows_per_second": {
+      "max": 130.859509,
+      "median": 123.324717,
+      "min": 123.221903,
+      "observations": [
+        130.859509,
+        123.324717,
+        123.221903
+      ],
+      "spread": 7.637606
+    },
+    "train.fineweb_en_train.utf8_bytes_per_second": {
+      "max": 376658.261201,
+      "median": 354970.562461,
+      "min": 354674.629162,
+      "observations": [
+        376658.261201,
+        354970.562461,
+        354674.629162
+      ],
+      "spread": 21983.632039
+    },
+    "validation.fineweb2_ja_validation.canonical_tokens_per_second": {
+      "max": 11448.905276,
+      "median": 11389.2759,
+      "min": 11210.020691,
+      "observations": [
+        11448.905276,
+        11210.020691,
+        11389.2759
+      ],
+      "spread": 238.884585
+    },
+    "validation.fineweb2_ja_validation.documents_per_second": {
+      "max": 13.280376,
+      "median": 13.211208,
+      "min": 13.003277,
+      "observations": [
+        13.280376,
+        13.003277,
+        13.211208
+      ],
+      "spread": 0.277099
+    },
+    "validation.fineweb2_ja_validation.source_rows_per_second": {
+      "max": 1325.111844,
+      "median": 1318.210259,
+      "min": 1298.409617,
+      "observations": [
+        1325.111844,
+        1298.409617,
+        1318.210259
+      ],
+      "spread": 26.702227
+    },
+    "validation.fineweb2_ja_validation.utf8_bytes_per_second": {
+      "max": 50800.084009,
+      "median": 50535.501743,
+      "min": 49740.126161,
+      "observations": [
+        50800.084009,
+        49740.126161,
+        50535.501743
+      ],
+      "spread": 1059.957848
+    },
+    "validation.fineweb_en_validation.canonical_tokens_per_second": {
+      "max": 9935.374917,
+      "median": 9883.628467,
+      "min": 9728.070563,
+      "observations": [
+        9935.374917,
+        9728.070563,
+        9883.628467
+      ],
+      "spread": 207.304354
+    },
+    "validation.fineweb_en_validation.documents_per_second": {
+      "max": 12.771549,
+      "median": 12.705031,
+      "min": 12.505067,
+      "observations": [
+        12.771549,
+        12.505067,
+        12.705031
+      ],
+      "spread": 0.266482
+    },
+    "validation.fineweb_en_validation.source_rows_per_second": {
+      "max": 1226.017851,
+      "median": 1219.632378,
+      "min": 1200.436649,
+      "observations": [
+        1226.017851,
+        1200.436649,
+        1219.632378
+      ],
+      "spread": 25.581202
+    },
+    "validation.fineweb_en_validation.utf8_bytes_per_second": {
+      "max": 38392.396647,
+      "median": 38192.437385,
+      "min": 37591.328639,
+      "observations": [
+        38392.396647,
+        37591.328639,
+        38192.437385
+      ],
+      "spread": 801.068008
+    },
+    "whole_run_elapsed_seconds": {
+      "max": 58.185078904,
+      "median": 57.358878219,
+      "min": 56.98054249,
+      "observations": [
+        56.98054249,
+        58.185078904,
+        57.358878219
+      ],
+      "spread": 1.204536414
+    }
+  },
+  "observation_count": 3,
+  "schema_version": 1,
+  "source_reports": [
+    {
+      "code_commit": "fee0f1a231e24957cee86568d9ef89f04eb4e27d",
+      "config_sha256": "bbd4253c4fc904467aa4d68f38c015126b6bdbcd311ae9b21bc0a1b899220d83",
+      "mode": "warm"
+    },
+    {
+      "code_commit": "fee0f1a231e24957cee86568d9ef89f04eb4e27d",
+      "config_sha256": "7e4d1a9ed2e2dc80d8f74cc073e424a439122b4baf219156a01fc23567dbe1c1",
+      "mode": "warm"
+    },
+    {
+      "code_commit": "fee0f1a231e24957cee86568d9ef89f04eb4e27d",
+      "config_sha256": "e7c02b7db9c5d0adcf99261641963836eef393817d0f06342cd038c5ee10dcbd",
+      "mode": "warm"
+    }
+  ]
+}

@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "scope": "DATA-004 real-data R2 target smoke; not a model-quality or DGX-001 sizing result",
+  "status": "pass",
+  "code_commit": "fee0f1a231e24957cee86568d9ef89f04eb4e27d",
+  "command": "docker run --rm --gpus all --ipc=host --ulimit memlock=-1 --ulimit stack=67108864 -v /home/ayumu/Documents/Proj/llm_scratch:/workspace:ro -v /tmp/llm-scratch-data004-repair-cold-fee0f1a:/cache -v /tmp/data004-r2-container-fee0f1a:/evidence -w /workspace -e PYTHONPATH=/workspace/src -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=/workspace llm-scratch:env-001 python src/train.py profile=pretrain_streaming data.streaming.cache.dir=/cache training.max_steps=50 training.max_tokens=null training.max_time=null wandb.enabled=false artifacts.checkpoints_dir=/evidence/checkpoints hydra.run.dir=/evidence/hydra",
+  "failed_host_attempt": {
+    "status": "expected_fail_closed",
+    "reason": "The host uv environment has a CPU-only PyTorch build; runtime.device=cuda failed before loading data.",
+    "evidence_path": "/tmp/data004-r2-fee0f1a"
+  },
+  "environment": {
+    "image_id": "sha256:23a1bee69fe189e77105cdddeee9aeff6ef0763d58a691625fbfcab64efd1887",
+    "base_image": "nvcr.io/nvidia/pytorch@sha256:43c018d6a12963f1a1bad85ef8574b5c2a978eec2be0ebcacfb87f69e0d210e1",
+    "base_arm64_manifest": "sha256:dcae8df08ef61b019b8eb109113428cba4ef0e37484c6e722406150dd5ada759",
+    "architecture": "aarch64",
+    "gpu": "NVIDIA GB10",
+    "compute_capability": "12.1",
+    "driver_version": "580.159.03",
+    "torch": "2.13.0a0+8145d630e8.nv26.06",
+    "compiled_cuda": "13.3",
+    "bf16_supported": true,
+    "unified_memory_bytes": 130596048896,
+    "available_memory_bytes_at_start": 125349380096,
+    "swap_total_bytes": 17179865088,
+    "swap_free_bytes_at_start": 17179865088,
+    "container_process_max_rss_kib": 709120
+  },
+  "identities": {
+    "resolved_config_sha256": "af4e2221e87fbb7ded4d798123c180b11ad1c9e7c6d0341ef3ed8a03518a1a70",
+    "run_manifest_sha256": "1f56031b3c25e5c232696357081485d4454c0dac27157cc8a3805c7e62e2e397",
+    "metrics_sha256": "4633b0e9d4861797416efdacc09da407cbe662899e84703c7546e56df6cfe791",
+    "tokenizer": "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b",
+    "japanese_manifest": "2fc3eb60986c96fcb752b14d740dd5a3f7cea8b52bb5a13cb5834a1f805d6bba",
+    "english_manifest": "626a1eb095e9089e5c62ee2df9c058ab7c6dfc54064eca5c13e4d84e65a8d60a"
+  },
+  "training": {
+    "optimizer_steps": 50,
+    "target_tokens": 3200,
+    "elapsed_to_final_step_seconds": 5.921129708993249,
+    "target_tokens_per_second": 540.4374092902765,
+    "step_seconds": {
+      "median": 0.09309925598790869,
+      "p95": 0.09591508097946644,
+      "max_including_first_step": 1.1572315870143939,
+      "min": 0.08853295000153594
+    },
+    "loss": {
+      "first": 11.029296875,
+      "last": 9.92333984375,
+      "min": 9.70361328125,
+      "max": 11.1171875
+    },
+    "gradient_norm": {
+      "min": 4.200594902038574,
+      "max": 12.728830337524414
+    },
+    "clipped_updates": 5,
+    "nonfinite_values": 0,
+    "validation_loss": 9.679449558258057
+  },
+  "gpu_samples": {
+    "sample_interval_seconds": 1,
+    "temperature_celsius_min": 36,
+    "temperature_celsius_max": 41,
+    "power_watts_min": 4.45,
+    "power_watts_max": 19.45,
+    "sm_clock_mhz_min": 208,
+    "sm_clock_mhz_max": 2411,
+    "utilization_percent_min": 0,
+    "utilization_percent_max": 68,
+    "note": "One-second nvidia-smi samples span container startup, 50 updates, validation/checkpoints, and shutdown; they are observations, not a utilization pass threshold."
+  },
+  "checkpoints": {
+    "best": {
+      "size_bytes": 594569003,
+      "pause_seconds": 1.8862923230044544,
+      "write_bytes_per_second": 322010108.5437139
+    },
+    "recovery": {
+      "size_bytes": 594575993,
+      "pause_seconds": 2.5200470309937373,
+      "write_bytes_per_second": 239723092.7159185
+    },
+    "final": {
+      "size_bytes": 594569312,
+      "pause_seconds": 2.423943634988973,
+      "write_bytes_per_second": 249485148.3856326
+    },
+    "total_local_checkpoint_bytes": 1783745333
+  },
+  "limitations": [
+    "The attention backward path emitted the known memory-efficient-attention non-determinism warning.",
+    "This 50-step smoke establishes real-data CUDA/BF16 wiring and short-term stability only.",
+    "DGX-001 retains model sizing, loader-versus-end-to-end headroom, thermal, and run-budget selection."
+  ]
+}
