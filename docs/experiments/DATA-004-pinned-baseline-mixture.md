@@ -4,7 +4,8 @@
 - Branch: `codex/data-004-pinned-baseline-mixture`
 - Draft PR: [#41](https://github.com/Ayumu-J-S/llm_scratch/pull/41)
 - Experiment owner: implementation agent; exact runtime model/reasoning are not exposed
-- Status: independent review FAIL `4680931313`; repair required
+- Status: review `4680931313` technical repairs and rerun evidence complete;
+  independent re-review pending; agent self-merge remains rights-policy blocked
 - Started (UTC): 2026-07-12T21:43:54Z
 - Model-run provenance: `docs/model-runs/DATA-004-pinned-baseline-mixture.md`
 
@@ -131,9 +132,9 @@ Hydra-driven aggregate preflight. Existing finite schema-v1 fixtures remain
 unchanged. The production profile selects both sources at 0.5 for project train
 and validation, with 262,144 and 65,536 trained-target horizons.
 
-Network-free validation at implementation head `10c7eb1` passed:
+Network-free validation after repair head `fee0f1a` passed:
 
-- `uv run pytest -q`: 276 passed, 1 skipped.
+- `uv run pytest -q`: 287 passed, 1 skipped.
 - `uv lock --check`, Ruff lint, changed-file format checks, and `git diff --check`.
 - metadata-only `profile=pretrain_streaming` config preflight with no shard access.
 - injected empty, duplicate, control, bad-Unicode, wrong-script, truncation,
@@ -143,21 +144,65 @@ The formal reports are
 `reports/data/DATA-004/live-preflight-cold.{json,md}` and
 `reports/data/DATA-004/live-preflight-warm.{json,md}`.
 
+The schema-v2 reports at code head `fee0f1a` replace the original evidence:
+
 | Measure | Cold | Warm |
 | --- | ---: | ---: |
 | Accepted train documents | 4,096 | 4,096 |
 | Accepted validation documents | 4,096 | 4,096 |
-| Observed normalized-content overlap | 0 | 0 |
+| Observed document-ID / normalized-content overlap | 0 / 0 | 0 / 0 |
 | Japanese / English trained targets | 131,072 / 131,072 | 131,072 / 131,072 |
 | Ratio deviation | 0.0 pp | 0.0 pp |
 | Cache downloads / bytes | 3 / 1,269,008,673 | 0 / 0 |
 | Cache hits / active leases at exit | 4 / 0 | 7 / 0 |
-| Projected free at full cache plus largest temp | 441,445,139,957 bytes | 441,446,757,877 bytes |
+| Whole-run elapsed | 359.483 s | 227.570 s |
+| Loader-only packed target rate | 5,492.52/s | 5,613.36/s |
+| Peak RSS / swap | 814,043,136 / 0 bytes | 837,894,144 / 0 bytes |
+| Quota-truncated fragments / removed tokens | 2 / 895 | 2 / 895 |
+| Projected free at full cache plus largest temp | 440,163,898,869 bytes | 440,163,358,197 bytes |
 | Required OS/checkpoint reserve | 256,000,000,000 bytes | 256,000,000,000 bytes |
 
 Cold and warm membership, counts, token totals, fallback/rejection counts, and
 target accounting are identical. Only measured tokenization latencies and
 filesystem observations vary. The reports retain no raw corpus text.
+
+Three comparable warm observations at 1,024 documents per split and 65,536
+targets are retained in `reports/data/DATA-004/warm-repeat-{1,2,3}.{json,md}`
+and `reports/data/DATA-004/warm-repeat-summary.json`. Whole-run elapsed was
+56.981-58.185 seconds (median 57.359; spread 1.205); packed target supply was
+4,961.34-5,040.06/s (median 4,997.48; spread 78.72); peak RSS was
+695,148,544-723,161,088 bytes; swap and major faults were zero.
+
+The representative R3 loader observation is retained in
+`reports/data/DATA-004/representative-r3.{json,md}`. It ran for 1,100.519
+seconds (18.34 minutes) with 4,194,304 exact targets, 50/50 attribution,
+4,594.71 packed targets/s, peak RSS 819,585,024 bytes, zero swap/major faults/
+downloads/retries/leases/missing-data events, and the same three-shard cache.
+It is explicitly loader-only and does not claim GPU supply headroom.
+
+The pinned-container R2 target smoke used the real BF16 CUDA/data path for 50
+optimizer steps. It produced 3,200 targets in 5.921 training seconds (540.44
+targets/s), 93.10 ms median and 95.92 ms p95 step time, finite loss/gradients,
+five clipped updates, held-out validation, and verified best/recovery/final
+checkpoints. GPU samples ranged 36-41 C, 4.45-19.45 W, 208-2,411 MHz, and
+0-68% utilization. These are wiring/stability observations, not a model-quality
+or DGX-001 sizing result. The exact digest-pinned command, environment,
+identities, metrics, and checkpoint measurements are retained in
+`reports/data/DATA-004/r2-summary.{json,md}`, with the complete Hydra config,
+run manifest, and metrics in `r2-resolved-config.yaml`,
+`r2-run-manifest.json`, and `r2-metrics.jsonl` in the same directory.
+
+Every schema-v2 loader report embeds its exact original/effective argv and the
+complete secret-checked resolved Hydra config. Reproduce a committed config
+identity with:
+
+```bash
+uv run python -c 'import json,sys; from data.preflight import config_fingerprint; p=json.load(open(sys.argv[1])); actual=config_fingerprint(p["reproduction"]["resolved_hydra_config"]); assert actual==p["fingerprints"]["config"]==p["reproduction"]["config_sha256"]; print(actual)' reports/data/DATA-004/live-preflight-cold.json
+```
+
+The cold and warm hashes are respectively
+`2399ae1bf1fbd1e8d3bac180280787fda10e43c9506d1585cfba45650cb9efc9`
+and `f4dd39e18620142e78e9809db0ea0223955727ad519ed1ce53a44fae6ebc39e3`.
 
 ## Failed attempts retained
 
@@ -170,16 +215,20 @@ filesystem observations vary. The reports retain no raw corpus text.
    cold report was still untracked. It is retained at
    `/tmp/data004-preformal-warm-dirty.{json,md}` and was replaced by the formal
    clean-fingerprint warm run without changing data-path code.
+3. The first R2 command used the host uv environment and failed before data
+   loading because its PyTorch build has no CUDA. The failure is retained at
+   `/tmp/data004-r2-fee0f1a`; the exact profile was then run in the repository's
+   digest-pinned `llm-scratch:env-001` image without weakening it to CPU.
 
 ## Current conclusion
 
-The bounded measurements passed their declared ratio, content-overlap, checksum,
-and cache gates, but independent review `4680931313` rejected the candidate.
-Schema-v2 document IDs are not yet content-bound when an upstream ID exists;
-reports omit required whole-run throughput/RSS/read-rate and representative
-R2/R3 evidence; target-quota truncation is not counted; and committed resolved
-configs do not reproduce the opaque report hashes. These findings require code,
-tests, and rerun evidence without relaxing the original gates. The reviewer also
-treats the documented underlying web-page rights caveat as blocking agent
-self-merge pending a human policy/rights disposition. No model-quality or
+The technical findings from review `4680931313` are repaired: schema-v2 IDs are
+content-bound while v1 fixtures retain their contract; both overlap types fail
+and report; production source/tokenizer/row/missing-data and process metrics are
+retained; quota truncation is explicit through resume/prefetch accounting; and
+each report embeds a secret-checked complete resolved config plus exact argv
+whose hash reproduces. Cold/warm, repeated warm, R2, and 18-minute R3 evidence
+all pass their scoped gates. Independent re-review is still mandatory. The
+reviewer's underlying web-page rights finding remains a separate human policy/
+rights disposition gate that prohibits agent self-merge. No model-quality or
 perfect-data claim is made.
