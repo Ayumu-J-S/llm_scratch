@@ -18,6 +18,11 @@ from runtime.reproducibility import (
     seed_everything,
     write_run_manifest,
 )
+from training.checkpoint import (
+    CheckpointManager,
+    build_checkpoint_identity,
+    require_exact_stream_resume_state,
+)
 from training.optimization import build_optimizer, build_scheduler
 from training.trainer import Trainer
 from tokenizer.canonical import CanonicalTokenizer
@@ -213,6 +218,24 @@ def main(cfg: DictConfig) -> None:
     logger.info("Tokenizer vocab size: {}", tokenizer.vocab_size)
     logger.info("Tokenizer fingerprint: {}", tokenizer.fingerprint)
 
+    checkpoint_dir = _run_directory() / Path(cfg.artifacts.checkpoints_dir)
+    checkpoint_identity = build_checkpoint_identity(
+        cfg,
+        run_manifest_path=run_manifest_path,
+    )
+    resume_path = cfg.artifacts.get("resume_path")
+    if resume_path is not None:
+        # Read and compare the full checkpoint header before opening the train
+        # stream. Trainer performs the same verified load immediately before
+        # mutation, after model/optimizer construction.
+        resume_checkpoint = CheckpointManager(
+            checkpoint_dir,
+            keep_last_n=int(cfg.artifacts.keep_last_n),
+            identity=checkpoint_identity,
+        ).load_resume(resume_path)
+        require_exact_stream_resume_state(resume_checkpoint.payload["state"])
+        logger.info("Resume checkpoint compatibility preflight passed: {}", resume_path)
+
     smoke_manifest = None
     if data_mode == "memorization_smoke":
         smoke_manifest = resolve_memorization_smoke(cfg.data)
@@ -290,7 +313,6 @@ def main(cfg: DictConfig) -> None:
             scheduler_interval,
         )
 
-    checkpoint_dir = ROOT_DIR / cfg.artifacts.checkpoints_dir
     trainer = Trainer(
         model=model,
         optimizer=optimizer,
@@ -300,6 +322,8 @@ def main(cfg: DictConfig) -> None:
         checkpoint_dir=checkpoint_dir,
         cfg=cfg,
         device=device,
+        checkpoint_identity=checkpoint_identity,
+        resume_path=resume_path,
     )
     trainer.fit()
 

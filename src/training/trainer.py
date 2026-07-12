@@ -21,6 +21,15 @@ from loguru import logger
 from omegaconf import DictConfig, OmegaConf
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
+from training.checkpoint import (
+    CheckpointCompatibilityError,
+    CheckpointManager,
+    ResumeCheckpoint,
+    build_checkpoint_identity,
+    capture_rng_state,
+    require_exact_stream_resume_state,
+    restore_rng_state,
+)
 from training.optimization import autocast_context, get_learning_rate
 
 
@@ -44,6 +53,8 @@ class Trainer:
         checkpoint_dir: Path,
         cfg: DictConfig,
         device: torch.device,
+        checkpoint_identity: dict[str, Any] | None = None,
+        resume_path: str | Path | None = None,
     ) -> None:
         self.model = model
         self.optimizer = optimizer
@@ -65,6 +76,7 @@ class Trainer:
         self.run = None
         self._last_validation_step: int | None = None
         self._last_checkpoint_step: int | None = None
+        self._last_milestone_step: int | None = None
         self._last_log_step: int | None = None
         self._last_token_event_boundary: dict[str, int] = {}
         self._start_time: float | None = None
@@ -84,6 +96,24 @@ class Trainer:
             "gradient_accumulation_steps", default=1
         )
         self.max_grad_norm = self._max_grad_norm()
+        artifacts = self.cfg.get("artifacts", {}) or {}
+        keep_last_n = artifacts.get("keep_last_n", 3)
+        self.checkpoint_identity = (
+            dict(checkpoint_identity)
+            if checkpoint_identity is not None
+            else build_checkpoint_identity(self.cfg)
+        )
+        self.checkpoints = CheckpointManager(
+            self.checkpoint_dir,
+            keep_last_n=keep_last_n,
+            identity=self.checkpoint_identity,
+        )
+        configured_resume = artifacts.get("resume_path")
+        self.resume_path = Path(resume_path) if resume_path is not None else configured_resume
+        self._resumed_from: ResumeCheckpoint | None = None
+        self._best_validation_loss: float | None = None
+        if self.resume_path is not None:
+            self._restore_checkpoint(self.resume_path)
 
     @property
     def train_step(self) -> int:
@@ -100,8 +130,9 @@ class Trainer:
         self.metrics.clear()
         self.run = None
         self.run = self._init_wandb()
-        self._reset_local_metrics()
-        self._start_time = time.monotonic()
+        if self._resumed_from is None:
+            self._reset_local_metrics()
+        self._start_time = time.monotonic() - self.elapsed_seconds
         saw_batch = False
 
         logger.info("Training...")
@@ -195,6 +226,18 @@ class Trainer:
             if not saw_batch:
                 raise ValueError("training loader is empty; no optimizer steps were taken")
             self._update_elapsed()
+            final_path = self._save_final_checkpoint()
+            self._record_metrics(
+                {
+                    "event": "final_checkpoint",
+                    "optimizer_step": self.optimizer_step,
+                    "target_tokens": self.target_tokens,
+                    "elapsed_seconds": self.elapsed_seconds,
+                    "checkpoint": str(final_path),
+                    **self._checkpoint_measurement_metrics(),
+                },
+                send_to_wandb=False,
+            )
             return list(self.metrics)
         finally:
             if self.run is not None:
@@ -360,6 +403,21 @@ class Trainer:
             self._latest_validation_loss = validation_loss
             self._record_validation_metrics(validation_loss)
             self._last_validation_step = step
+            if self._best_validation_loss is None or validation_loss < self._best_validation_loss:
+                self._best_validation_loss = validation_loss
+                best_path = self._save_best_checkpoint()
+                self._record_metrics(
+                    {
+                        "event": "best_checkpoint",
+                        "optimizer_step": step,
+                        "target_tokens": self.target_tokens,
+                        "elapsed_seconds": self.elapsed_seconds,
+                        "validation/loss": validation_loss,
+                        "checkpoint": str(best_path),
+                        **self._checkpoint_measurement_metrics(),
+                    },
+                    send_to_wandb=False,
+                )
 
         should_log = self._event_due("log_every_n_steps", "log_every_n_tokens", epoch_end)
         if should_log and self._last_log_step != step:
@@ -376,7 +434,6 @@ class Trainer:
         should_save = self._event_due(
             "checkpoint_every_n_steps", "checkpoint_every_n_tokens", epoch_end
         )
-        checkpoint_path: Path | None = None
         if should_save and self._last_checkpoint_step != step:
             checkpoint_path = self._save_checkpoint()
             self._last_checkpoint_step = step
@@ -386,32 +443,37 @@ class Trainer:
                     "optimizer_step": step,
                     "target_tokens": self.target_tokens,
                     "elapsed_seconds": self.elapsed_seconds,
+                    "checkpoint": str(checkpoint_path),
+                    **self._checkpoint_measurement_metrics(),
                 },
                 send_to_wandb=False,
             )
 
-        # Milestones are independent of both logging and recovery saves.  A
-        # milestone needs a state file for W&B, so create one only when that
-        # event is due and checkpoint cadence did not already create it.
+        # Milestones are retention-class checkpoints, not aliases for the
+        # rotating recovery file or a W&B-only implementation detail.
         milestone_due = self._event_due(
             "milestone_every_n_steps", "milestone_every_n_tokens", False
         )
-        if milestone_due:
+        milestone_path: Path | None = None
+        if milestone_due and self._last_milestone_step != step:
+            milestone_path = self._save_milestone_checkpoint()
+            self._last_milestone_step = step
             self._record_metrics(
                 {
                     "event": "milestone",
                     "optimizer_step": step,
                     "target_tokens": self.target_tokens,
                     "elapsed_seconds": self.elapsed_seconds,
+                    "checkpoint": str(milestone_path),
+                    **self._checkpoint_measurement_metrics(),
                 },
                 send_to_wandb=False,
             )
         if milestone_due and self.run is not None:
-            if checkpoint_path is None:
-                checkpoint_path = self._save_checkpoint()
+            assert milestone_path is not None
             self._log_model_artifact(
                 run=self.run,
-                checkpoint_path=checkpoint_path,
+                checkpoint_path=milestone_path,
                 epoch_number=step,
             )
 
@@ -490,10 +552,152 @@ class Trainer:
         return run
 
     def _save_checkpoint(self) -> Path:
-        self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        checkpoint_path = self.checkpoint_dir / "model_last.pth"
-        torch.save(self.model.state_dict(), checkpoint_path)
-        return checkpoint_path
+        return self.checkpoints.save_recovery(self._checkpoint_state())
+
+    def _save_best_checkpoint(self) -> Path:
+        return self.checkpoints.save_best(self._checkpoint_state())
+
+    def _save_final_checkpoint(self) -> Path:
+        return self.checkpoints.save_final(self._checkpoint_state())
+
+    def _save_milestone_checkpoint(self) -> Path:
+        return self.checkpoints.save_milestone(self._checkpoint_state())
+
+    def _checkpoint_measurement_metrics(self) -> dict[str, float | int]:
+        measurement = self.checkpoints.last_write_measurement
+        if measurement is None:
+            return {}
+        return {
+            "checkpoint/size_bytes": measurement.size_bytes,
+            "checkpoint/write_seconds": measurement.write_seconds,
+            "checkpoint/verification_seconds": measurement.verification_seconds,
+            "checkpoint/pause_seconds": measurement.pause_seconds,
+            "checkpoint/write_bytes_per_second": measurement.write_bytes_per_second,
+        }
+
+    def _checkpoint_state(self) -> dict[str, Any]:
+        scheduler_state = self.scheduler.state_dict() if self.scheduler is not None else None
+        return {
+            "model": self.model.state_dict(),
+            "optimizer": self.optimizer.state_dict(),
+            "scheduler": scheduler_state,
+            "precision": {"mode": self.precision, "grad_scaler": None},
+            "counters": self.counters,
+            "event_state": {
+                "last_validation_step": self._last_validation_step,
+                "last_checkpoint_step": self._last_checkpoint_step,
+                "last_milestone_step": self._last_milestone_step,
+                "last_log_step": self._last_log_step,
+                "last_token_event_boundary": dict(self._last_token_event_boundary),
+                "best_validation_loss": self._best_validation_loss,
+            },
+            "rng": capture_rng_state(),
+            "stream_cursor": self._stream_cursor_state(),
+            "resolved_config": OmegaConf.to_container(self.cfg, resolve=True),
+            "run_identity": dict(self.checkpoint_identity),
+        }
+
+    def _restore_checkpoint(self, resume_path: str | Path) -> None:
+        resumed = self.checkpoints.load_resume(resume_path)
+        state = resumed.payload["state"]
+        require_exact_stream_resume_state(state)
+        required = {
+            "model",
+            "optimizer",
+            "scheduler",
+            "precision",
+            "counters",
+            "event_state",
+            "rng",
+            "stream_cursor",
+            "resolved_config",
+            "run_identity",
+        }
+        missing = required.difference(state)
+        if missing:
+            raise CheckpointCompatibilityError(
+                f"checkpoint {resumed.path} is missing full-state entries {sorted(missing)}"
+            )
+        precision = state["precision"]
+        if not isinstance(precision, dict) or precision.get("mode") != self.precision:
+            raise CheckpointCompatibilityError("checkpoint precision mode differs from this run")
+        if state["run_identity"] != self.checkpoint_identity:
+            raise CheckpointCompatibilityError(
+                "checkpoint run/data/tokenizer identity differs from this run"
+            )
+        counters = state["counters"]
+        if not isinstance(counters, dict):
+            raise CheckpointCompatibilityError("checkpoint counters are invalid")
+        optimizer_step = counters.get("optimizer_step")
+        target_tokens = counters.get("target_tokens")
+        elapsed_seconds = counters.get("elapsed_seconds")
+        if (
+            isinstance(optimizer_step, bool)
+            or not isinstance(optimizer_step, int)
+            or optimizer_step < 0
+            or isinstance(target_tokens, bool)
+            or not isinstance(target_tokens, int)
+            or target_tokens < 0
+            or not isinstance(elapsed_seconds, (int, float))
+            or elapsed_seconds < 0
+        ):
+            raise CheckpointCompatibilityError("checkpoint counters are invalid")
+        self._load_stream_cursor(dict(state["stream_cursor"]))
+        self.model.load_state_dict(state["model"], strict=True)
+        self.optimizer.load_state_dict(state["optimizer"])
+        if self.scheduler is None:
+            if state["scheduler"] is not None:
+                raise CheckpointCompatibilityError(
+                    "checkpoint requires a scheduler but this run disables it"
+                )
+        else:
+            if state["scheduler"] is None:
+                raise CheckpointCompatibilityError("checkpoint has no scheduler state for this run")
+            self.scheduler.load_state_dict(state["scheduler"])
+        self.optimizer_step = optimizer_step
+        self.target_tokens = target_tokens
+        self.elapsed_seconds = float(elapsed_seconds)
+        event_state = state["event_state"]
+        if not isinstance(event_state, dict):
+            raise CheckpointCompatibilityError("checkpoint event state is invalid")
+        self._last_validation_step = event_state.get("last_validation_step")
+        self._last_checkpoint_step = event_state.get("last_checkpoint_step")
+        self._last_milestone_step = event_state.get("last_milestone_step")
+        self._last_log_step = event_state.get("last_log_step")
+        token_boundaries = event_state.get("last_token_event_boundary", {})
+        if not isinstance(token_boundaries, dict):
+            raise CheckpointCompatibilityError("checkpoint token-event state is invalid")
+        self._last_token_event_boundary = {
+            str(key): int(value) for key, value in token_boundaries.items()
+        }
+        best = event_state.get("best_validation_loss")
+        self._best_validation_loss = float(best) if best is not None else None
+        restore_rng_state(state["rng"])
+        self._resumed_from = resumed
+        if resumed.rejected_paths:
+            logger.warning(
+                "Recovered from {} after rejecting corrupt newer checkpoints: {}",
+                resumed.path,
+                ", ".join(str(path) for path in resumed.rejected_paths),
+            )
+        else:
+            logger.info("Resuming verified full state from {}", resumed.path)
+
+    def _stream_cursor_state(self) -> dict[str, Any] | None:
+        dataset = getattr(self.train_loader, "dataset", None)
+        state_dict = getattr(dataset, "state_dict", None)
+        if not callable(state_dict):
+            return None
+        return state_dict()
+
+    def _load_stream_cursor(self, cursor: dict[str, Any]) -> None:
+        dataset = getattr(self.train_loader, "dataset", None)
+        load_state_dict = getattr(dataset, "load_state_dict", None)
+        if not callable(load_state_dict):
+            raise CheckpointCompatibilityError(
+                "checkpoint contains a stream cursor but this train loader cannot restore one"
+            )
+        load_state_dict(cursor)
 
     def _log_model_artifact(self, *, run, checkpoint_path: Path, epoch_number: int) -> None:
         artifact = wandb.Artifact(
@@ -649,7 +853,11 @@ class Trainer:
     def _record_numeric_failure(self, kind: str, batch_index: int | None) -> None:
         message = self._numeric_failure_message(kind, batch_index)
         logger.error(message)
-        preceding_checkpoint = self.checkpoint_dir / "model_last.pth"
+        preceding_checkpoint = (
+            self.checkpoint_dir / f"recovery-step-{self._last_checkpoint_step:012d}.pt"
+            if self._last_checkpoint_step is not None
+            else None
+        )
         self._record_metrics(
             {
                 "event": f"nonfinite_{kind}",
@@ -659,9 +867,11 @@ class Trainer:
                 "elapsed_seconds": self.elapsed_seconds,
                 "error": message,
                 "preceding_checkpoint_step": self._last_checkpoint_step,
-                "preceding_checkpoint": str(preceding_checkpoint)
-                if preceding_checkpoint.exists()
-                else None,
+                "preceding_checkpoint": (
+                    str(preceding_checkpoint)
+                    if preceding_checkpoint is not None and preceding_checkpoint.exists()
+                    else None
+                ),
             },
             send_to_wandb=False,
         )
