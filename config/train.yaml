@@ -19,6 +19,19 @@ reproducibility:
   reject_dirty: true
 
 training:
+  # Explicit work budgets and independent event cadences. Profiles provide
+  # sequence_length/epochs/batch_size; null budgets retain their epoch horizon.
+  max_steps: null
+  max_tokens: null
+  max_time: null
+  log_every_n_steps: 1
+  log_every_n_tokens: null
+  validation_every_n_steps: null
+  validation_every_n_tokens: null
+  checkpoint_every_n_steps: null
+  checkpoint_every_n_tokens: null
+  milestone_every_n_steps: null
+  milestone_every_n_tokens: null
   optimizer:
     _target_: torch.optim.AdamW
     lr: 0.001

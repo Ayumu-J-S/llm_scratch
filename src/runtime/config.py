@@ -67,7 +67,27 @@ _SOURCE = {
     "documents",
     "iterable",
 }
-_TRAINING = {"sequence_length", "epochs", "batch_size", "shuffle", "optimizer", "scheduler"}
+_TRAINING = {
+    "sequence_length",
+    "epochs",
+    "batch_size",
+    "shuffle",
+    "optimizer",
+    "scheduler",
+    "max_steps",
+    "max_tokens",
+    "max_time",
+    "log_every_n_steps",
+    "log_every_n_tokens",
+    "validation_every_n_steps",
+    "validation_every_n_tokens",
+    "checkpoint_every_n_steps",
+    "checkpoint_every_n_tokens",
+    "milestone_every_n_steps",
+    "milestone_every_n_tokens",
+    "cadence",
+    "ignore_index",
+}
 _MODEL = {"embed_size", "num_heads", "num_layers", "dropout"}
 _ARTIFACTS = {"checkpoints_dir"}
 _WANDB = {"enabled", "project", "entity", "name", "mode", "log_model_every_n_epoch"}
@@ -187,6 +207,52 @@ def validate_training_config(config: Mapping[str, Any] | DictConfig) -> dict[str
     _required(training, ("sequence_length", "epochs", "batch_size"), "training")
     if int(training["sequence_length"]) < 2 or int(training["batch_size"]) < 1 or int(training["epochs"]) < 1:
         raise ConfigPreflightError("training sequence_length, batch_size, and epochs must be positive")
+    for budget_name in ("max_steps", "max_tokens", "max_time"):
+        budget = training.get(budget_name)
+        if budget is None:
+            continue
+        if budget_name in {"max_steps", "max_tokens"}:
+            if isinstance(budget, bool) or not isinstance(budget, int) or budget <= 0:
+                raise ConfigPreflightError(
+                    f"training.{budget_name} must be a positive integer when configured"
+                )
+        elif float(budget) <= 0:
+            raise ConfigPreflightError(f"training.{budget_name} must be positive when configured")
+    cadence = training.get("cadence")
+    if cadence is not None:
+        if not isinstance(cadence, Mapping):
+            raise ConfigPreflightError("training.cadence must be a mapping")
+        _check_keys(
+            cadence,
+            {
+                "log_every_n_steps",
+                "log_every_n_tokens",
+                "validation_every_n_steps",
+                "validation_every_n_tokens",
+                "checkpoint_every_n_steps",
+                "checkpoint_every_n_tokens",
+                "milestone_every_n_steps",
+                "milestone_every_n_tokens",
+            },
+            "training.cadence",
+        )
+    for cadence_name in (
+        "log_every_n_steps",
+        "log_every_n_tokens",
+        "validation_every_n_steps",
+        "validation_every_n_tokens",
+        "checkpoint_every_n_steps",
+        "checkpoint_every_n_tokens",
+        "milestone_every_n_steps",
+        "milestone_every_n_tokens",
+    ):
+        cadence_value = training.get(cadence_name)
+        if cadence_value is not None and (
+            isinstance(cadence_value, bool)
+            or not isinstance(cadence_value, int)
+            or cadence_value < 1
+        ):
+            raise ConfigPreflightError(f"training.{cadence_name} must be positive when configured")
     if data["mode"] == "memorization_smoke":
         if profile.get("purpose") != "memorization_smoke":
             raise ConfigPreflightError("memorization_smoke is only allowed in the smoke_overfit profile")
