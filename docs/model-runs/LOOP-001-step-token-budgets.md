@@ -30,7 +30,7 @@
 
 | Cycle | Phase | Exact model identifier | Reasoning mode | Input commit/context | Requested work | Outcome | Main findings / changes | Evidence |
 | ---: | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | implementation | not exposed by runtime | not exposed by runtime | `fbdb086` | Requested Luna / Extra High implementation pass | in progress | Replaced epoch-only averaging with authoritative step/token/time counters, token-weighted NLL, exact token-budget truncation, independent event cadences, scheduler-after-update ordering, finite/empty guards, and W&B-independent JSONL metrics. | `uv run --group dev pytest -q`: 206 passed, 1 skipped; focused trainer: 4 passed; Ruff and `git diff --check` pass |
+| 1 | implementation | not exposed by runtime | not exposed by runtime | `fbdb086` | Requested Luna / Extra High implementation pass | in progress | Replaced epoch-only averaging with authoritative step/token/time counters, token-weighted NLL, exact token-budget truncation, independent event cadences, scheduler-after-update ordering, finite/empty guards, and W&B-independent JSONL metrics; corrected metric-free scheduler boundaries to avoid forcing validation outside its cadence. | `uv run --group dev pytest -q`: 206 passed, 1 skipped; focused trainer: 4 passed; Ruff and `git diff --check` pass; current head `a024f24` |
 | 1 | review | not exposed by runtime | not exposed by runtime | pending exact implementation head | Requested heavier independent Extra Thinking review | pending | Review must cover LOOP-001 acceptance criteria and CHECK.md sections 6.1–6.3, 7.1–7.4. | pending |
 
 ## Runtime provenance block
@@ -47,7 +47,7 @@ display does not expose the exact deployment model or reasoning mode.
   delegated implementation session; values above follow repository provenance
   rules.
 - Codex CLI version: not exposed by runtime
-- Branch/commit: `codex/loop-001-step-token-budgets` / implementation head pending
+- Branch/commit: `codex/loop-001-step-token-budgets` / `a024f24`
 - Phase/role/task path: implementation / LOOP-001 / delegated retry
 - Privacy confirmation: no prompts, hidden chain-of-thought, token counts,
   secrets, or raw thread IDs recorded.
