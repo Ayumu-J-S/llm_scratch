@@ -22,9 +22,9 @@
 
 | Cycle | Phase | Exact model identifier | Reasoning mode | Input commit/context | Requested work | Outcome | Main findings / changes | Evidence |
 | ---: | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | implementation | not exposed by runtime | not exposed by runtime | `60a6d864`; DATA-003, `PHILOSOPHY.md`, selected `CHECK.md` data/packing and prefetch sections | Requested Luna / Extra High implementation; keep one loader path and make cursor state serializable | completed; independent review pending | Added explicit horizon/repeat policy, deterministic bounded shuffle, source/global RNG state, raw-document cursor and packed-buffer state, `state_dict`/`load_state_dict`, and prefetch cursor markers | 7 DATA-003 tests; 218 passed, 1 skipped; Ruff, lock, diff checks pass |
+| 1 | implementation | not exposed by runtime | not exposed by runtime | `60a6d864`; DATA-003, `PHILOSOPHY.md`, selected `CHECK.md` data/packing and prefetch sections | Requested Luna / Extra High implementation; keep one loader path and make cursor state serializable | completed; first review failed, then repair/re-review passed | Added explicit horizon/repeat policy, deterministic bounded shuffle, source/global RNG state, raw-document cursor and packed-buffer state, `state_dict`/`load_state_dict`, and prefetch cursor markers | 8 DATA-003 tests; 220 passed, 1 skipped; Ruff, lock, diff checks pass |
 | 1 | review | not exposed by runtime | not exposed by runtime | `883f6d03e9f8fb763c5465715071eccb4038625b` (PR #29) | Requested heavier independent Extra Thinking review against DATA-003 acceptance, `PHILOSOPHY.md`, and selected `CHECK.md` sections | FAIL | Thread prefetch advanced the shared cursor ahead of a slow consumer; interrupted resume duplicated/omitted samples while process markers were consumer-safe | 10/10 bounded-memory reproductions with buffer 2 and delayed cursor capture |
-| 2 | repair | not exposed by runtime | not exposed by runtime | review cycle 1 failure and `883f6d0` | Requested Luna / Extra High repair: make async cursor state consumer-acknowledged without changing sample order; preserve process behavior | completed; re-review pending | Added cursor ACK marker before every thread sample and a separate parent `_consumer_cursor`; `state_dict()` returns ACK state while async worker runs; added delayed thread/process interruption regressions | Focused DATA-003 tests 8 passed; full suite pending |
+| 2 | repair | not exposed by runtime | not exposed by runtime | review cycle 1 failure and `883f6d0` | Requested Luna / Extra High repair: make async cursor state consumer-acknowledged without changing sample order; preserve process behavior | completed; re-review PASS WITH NOTE | Added cursor ACK marker before every thread sample and a separate parent `_consumer_cursor`; `state_dict()` returns ACK state while async worker runs; added delayed thread/process interruption regressions | Focused DATA-003 tests 8 passed; full suite 220 passed, 1 skipped; static checks clean |
 | 2 | re-review | not exposed by runtime | not exposed by runtime | `ea2c01e68ab4d120b10b3f8208d1388a0be7d19c` (PR #29) | Re-run independent review on exact repair head | PASS WITH NOTE | Consumer-ack cursor markers close the thread/process ahead-of-consumer defect; cursor buffering remains a documented memory trade-off | Review `4679913983`; focused 8 passed; full 220 passed, 1 skipped; static checks clean |
 
 ## Runtime provenance block
@@ -73,9 +73,9 @@
 - Commit reviewed: `883f6d03e9f8fb763c5465715071eccb4038625b` (initial FAIL); repaired and re-reviewed at `ea2c01e68ab4d120b10b3f8208d1388a0be7d19c` (review `4679913983`).
 - Selected `CHECK.md` sections: minimum review; 4.3 packing/cursor accounting; 4.4 source/cache identity; 7.1 training-loop synchronization only where loader ordering affects it; 8 experiment/reproducibility and 10 changeability.
 - Major sections marked N/A and why: 5 DGX/GPU and 6 model/optimizer are unchanged; no performance claim or training recipe change is made.
-- Ticket acceptance result: pending independent review.
+- Ticket acceptance result: PASS WITH NOTE — all four acceptance invariants plus delayed async interruption regressions pass on code head `ea2c01e`.
 - Philosophy alignment: deterministic source identity and explicit repeat policy are visible; prefetch does not alter order.
-- Complexity / change-surface result: pending review of the single-loader state surface and bounded buffer implementation.
+- Complexity / change-surface result: PASS WITH NOTE — protocol remains in the existing loader; bounded cursor buffers have documented memory cost.
 - ML-system result: fixture-level data semantics pass; no DGX claim.
 - Verdict: PASS WITH NOTE after repair — async cursor ACK protocol prevents worker-ahead state from being externally captured; bounded cursor buffers add memory proportional to shuffle buffer size.
 
@@ -108,8 +108,8 @@
 - Input handoff: review cycle 1's 10/10 delayed-thread cursor mismatch.
 - Changes made: thread worker emits `_CURSOR_MARKER` immediately before each queued sample; parent tracks `_consumer_cursor`; async `state_dict()` returns acknowledged state, while process prefetch emits the same marker protocol. Added delayed thread interruption regression and retained process interruption coverage.
 - What was deliberately not changed: source sampling, shuffle algorithm, manifest identity, packed residual semantics, process mode, or model/checkpoint code.
-- Local evidence: DATA-003 focused tests 8 passed; full suite `218 passed, 1 skipped`; Ruff, lock, and diff checks pass.
-- Commit reviewed next: `897cfb7409b47cac160ae1b669817bacab44e8fc` (current exact repair head).
+- Local evidence: DATA-003 focused tests 8 passed; full suite `220 passed, 1 skipped`; Ruff, lock, and diff checks pass.
+- Commit reviewed next: `ea2c01e68ab4d120b10b3f8208d1388a0be7d19c` (code; docs-only follow-up head `21358bc24a1018e7e6105d2cfda77b1df6e6d2b6`).
 - Re-review model / mode: actual exact model and reasoning mode not exposed by runtime.
 - Re-review verdict: PASS WITH NOTE (`4679913983`) on exact `ea2c01e`.
 
@@ -158,12 +158,12 @@
 
 | Model / mode | Role | What it handled well | What it missed or made worse | Context that helped | Outcome |
 | --- | --- | --- | --- | --- | --- |
-| Codex / GPT-5; exact ID and mode not exposed | implementation | Localized deterministic source/cursor semantics, bounded shuffle, repeat accounting, and prefetch cursor propagation with focused invariants | Independent review and merge-gate evidence are not yet available | DATA-003 acceptance, loader internals, DATA-001/DATA-002 boundaries, and selected CHECK sections | implementation complete; review pending |
+| Codex / GPT-5; exact ID and mode not exposed | implementation/review | Localized deterministic source/cursor semantics, bounded shuffle, repeat accounting, and consumer-ack prefetch protocol; independent review reproduced and closed the thread-ahead defect | Exact deployment/model ID and reasoning mode unavailable; bounded cursor buffer memory remains a documented trade-off | DATA-003 acceptance, loader internals, DATA-001/DATA-002 boundaries, selected CHECK sections, and delayed-consumer reproductions | PASS WITH NOTE (`4679913983`) |
 
 ## Ledger update
 
-- [x] Added the DATA-003 ticket record; PR URL and final verdict remain pending until the draft exists and independent review completes.
-- [ ] Updated aggregate implementation/review counts after final verdict.
-- [ ] Confirmed PR execution trail matches this record.
+- [x] Added the DATA-003 ticket record and PR URL; final verdict is PASS WITH NOTE.
+- [x] Updated aggregate implementation/review counts after final verdict.
+- [x] Confirmed PR execution trail matches this record through review `4679913983`.
 - [ ] Recorded complete guarded self-merge authority/audit or human merge evidence.
 - [x] Confirmed no bootstrap policy self-merge rule is being used.
