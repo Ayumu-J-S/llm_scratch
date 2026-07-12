@@ -105,6 +105,16 @@ Never infer an identifier from model behavior or conversation. Write
 `not exposed by runtime` when the runtime does not display it. If both a
 marketing name and an API model ID are visible, retain both.
 
+Use `scripts/capture_model_provenance.py` for a machine-readable capture. Keep
+`requested` (explicit invocation or config defaults) separate from `actual`
+(active runtime display). The current Codex session visibly identifies the
+product as `Codex` and the family as `GPT-5`, while exact deployment ID and
+reasoning mode are unavailable; record those unavailable fields with a reason.
+Source precedence is runtime display, explicit invocation metadata, config
+defaults, then unavailable. A child agent records its own capture and must not
+inherit the parent's identity. The capture is redaction-safe: no prompts,
+hidden chain-of-thought, tokens, secrets, or raw thread IDs.
+
 Hidden chain-of-thought is not part of the record. The useful comparison data
 is the input context, observable engineering rationale, changes, findings,
 evidence, and outcome.
