@@ -1,7 +1,7 @@
 defaults:
   - tokenizer: canonical
-  - profile: smoke_overfit
   - _self_
+  - profile: smoke_overfit
 
 data:
   # Keep the canonical stream shape visible in the base config. Profiles fill
@@ -32,16 +32,24 @@ training:
   checkpoint_every_n_tokens: null
   milestone_every_n_steps: null
   milestone_every_n_tokens: null
+  # CPU smoke is deliberately full precision. CUDA pretraining/stability
+  # profiles select BF16 explicitly rather than relying on device defaults.
+  precision: fp32
+  gradient_accumulation_steps: 1
+  max_grad_norm: 10.0
   optimizer:
     _target_: torch.optim.AdamW
-    lr: 0.001
-    weight_decay: 0.0
+    lr: 0.0003
+    betas: [0.9, 0.95]
+    eps: 1.0e-8
+    weight_decay: 0.1
   scheduler:
     enabled: false
-    interval: epoch
-    _target_: torch.optim.lr_scheduler.CosineAnnealingLR
-    T_max: ${training.epochs}
-    eta_min: 0.0
+    interval: step
+    _target_: training.optimization.WarmupCosineScheduler
+    warmup_steps: 100
+    decay_steps: 10000
+    min_lr_ratio: 0.1
 
 model:
   embed_size: 384

@@ -1,8 +1,9 @@
 # @package _global_
-# Canonical manifest-backed stream profile. Train and validation select
-# disjoint splits from one immutable source manifest.
+# Bounded real training-path smoke for STAB-001. It repeats only the pinned
+# fixture until its explicit 100 optimizer-step horizon; it is not a quality or
+# throughput experiment.
 profile:
-  name: pretrain_streaming
+  name: stability_smoke
   purpose: pretraining
 
 runtime:
@@ -12,6 +13,7 @@ data:
   mode: streaming
   streaming:
     require_manifests: true
+    repeat: true
     cache:
       dir: data/stream_loader_cache
       max_size_bytes: 750000000000
@@ -19,7 +21,7 @@ data:
       enabled: true
       buffer_size: 16
     train:
-      max_tokens: max
+      max_tokens: 8192
       add_eos: true
       seed: 42
       sources:
@@ -46,13 +48,21 @@ training:
   epochs: 1
   batch_size: 2
   shuffle: true
+  max_steps: 100
   precision: bf16
   gradient_accumulation_steps: 4
   max_grad_norm: 10.0
+  log_every_n_steps: 10
+  validation_every_n_steps: null
+  checkpoint_every_n_steps: null
+  milestone_every_n_steps: null
   scheduler:
     enabled: true
     interval: step
     _target_: training.optimization.WarmupCosineScheduler
-    warmup_steps: 100
-    decay_steps: 10000
+    warmup_steps: 10
+    decay_steps: 100
     min_lr_ratio: 0.1
+
+wandb:
+  enabled: false

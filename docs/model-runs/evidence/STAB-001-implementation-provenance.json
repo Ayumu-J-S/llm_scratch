@@ -1,0 +1,56 @@
+{
+  "schema_version": "1.0",
+  "captured_at": "2026-07-12T13:07:47.246799Z",
+  "phase": "implementation",
+  "role": "implementation",
+  "task_path": "/root/stab001_implementation",
+  "requested": {
+    "model": {
+      "value": "Luna",
+      "source": "explicit invocation/config default",
+      "status": "observed"
+    },
+    "reasoning_mode": {
+      "value": "Extra High",
+      "source": "explicit invocation/config default",
+      "status": "observed"
+    }
+  },
+  "actual": {
+    "product": {
+      "value": "Codex",
+      "source": "active runtime display",
+      "status": "observed"
+    },
+    "displayed_model_family": {
+      "value": "GPT-5",
+      "source": "active runtime display",
+      "status": "observed"
+    },
+    "exact_model_identifier": {
+      "value": "not exposed by runtime",
+      "source": "not exposed by runtime",
+      "status": "unavailable",
+      "unavailable_reason": "The active runtime did not expose an exact deployment/model identifier to the caller."
+    },
+    "reasoning_mode": {
+      "value": "not exposed by runtime",
+      "source": "not exposed by runtime",
+      "status": "unavailable",
+      "unavailable_reason": "The active runtime did not expose a reasoning mode to the caller."
+    }
+  },
+  "environment": {
+    "codex_cli_version": "codex-cli 0.144.1",
+    "branch": "codex/stab-001-stable-training",
+    "commit": "f73626ce2fee87d0f4dac839ee1b8ea93af59b2f",
+    "thread_id": "not recorded (privacy)"
+  },
+  "privacy": {
+    "raw_thread_id_recorded": false,
+    "prompts_recorded": false,
+    "hidden_chain_of_thought_recorded": false,
+    "token_counts_recorded": false,
+    "secrets_recorded": false
+  }
+}
