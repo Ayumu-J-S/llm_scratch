@@ -34,7 +34,7 @@
 | 1 | review | not exposed by runtime | not exposed by runtime | `5de45e7` | Requested heavier independent Extra Thinking review | FAIL | Found missing post-backward/optimizer non-finite guards, no token-based event cadences, no guaranteed aggregate train/loss/perplexity under step logging, and fractional budget handling that could reach zero-token division. | independent review handoff from `/root/loop001_review` |
 | 2 | repair | not exposed by runtime | not exposed by runtime | `5de45e7` | Repair every actionable finding without broadening scope | complete | Added gradient/parameter finite checks with contextual local failure records, direct `*_every_n_tokens` cadences, epoch aggregate loss/perplexity records, strict integer step/token budgets, and zero-token boundary handling. | `e972864`; full suite 209 passed, 1 skipped; focused trainer 7 passed |
 | 2 | re-review | not exposed by runtime | not exposed by runtime | `f505ed7` | Requested independent re-review at exact repair head | FAIL | Four prior blockers were repaired, but CHECK 6.2 still found that non-finite validation loss raised without a persisted local event/context record. | reviewer `/root/loop001_review`; full 209 passed, 1 skipped; focused 7; Hydra CPU smoke; Ruff/lock/diff pass |
-| 3 | repair | not exposed by runtime | not exposed by runtime | `f505ed7` | Record validation non-finite failures with batch/step/checkpoint context | in progress | Validation now checks per-batch losses, persists `nonfinite_validation` JSONL evidence with batch/step/elapsed and preceding checkpoint when available, restores train mode in a `finally`, and has a regression fixture. | implementation head `0d09af8`; full 210 passed, 1 skipped; focused 8; Ruff/diff pass |
+| 3 | repair | not exposed by runtime | not exposed by runtime | `f505ed7` | Record validation non-finite failures with batch/step/checkpoint context | complete | Validation now checks per-batch losses, persists `nonfinite_validation` JSONL evidence with batch/step/elapsed and preceding checkpoint when available, restores train mode in a `finally`, and has a regression fixture. | implementation head `0d09af8`; full 210 passed, 1 skipped; focused 8; Ruff/diff pass |
 | 3 | re-review | not exposed by runtime | not exposed by runtime | `94da0d4` | Re-review exact validation-guard repair | PASS WITH NOTE | Validation now persists non-finite loss context; all LOOP-001 acceptance criteria and CHECK 6.1–6.3/7.1–7.4 evidence pass. Notes: token cadence is batch-boundary based and epoch-summary LR is pre-scheduler. | reviewer `/root/loop001_review`; full 210 passed, 1 skipped; focused 8; canonical streaming smoke; Ruff/lock/diff pass |
 
 ## Runtime provenance block
@@ -69,9 +69,9 @@ display does not expose the exact deployment model or reasoning mode.
   pilot exists; LOOP-001 does not claim throughput or long-run stability.
 - Ticket acceptance result: FAIL — see failed-review handoff below
 - Philosophy alignment: direct scope retained, but numerical and token-boundary gaps blocked acceptance
-- Complexity / change-surface result: FAIL pending repair
+- Complexity / change-surface result: FAIL (historical; repaired in cycle 2)
 - ML-system result: CPU fixture only; DGX evidence pending later STAB-001
-- Verdict: FAIL; repair cycle 2 in progress
+- Verdict: FAIL (historical; repaired in cycle 2)
 
 #### Findings
 
@@ -96,7 +96,7 @@ display does not expose the exact deployment model or reasoning mode.
   at completed batch boundaries; no mid-batch event machinery was introduced.
 - ML-system result: PASS WITH NOTE — CPU/Hydra smoke only; DGX behavior remains
   a later STAB-001 concern.
-- Verdict: FAIL; cycle-3 repair in progress
+- Verdict: FAIL (historical; repaired in cycle 3)
 
 #### Re-review findings
 
@@ -206,7 +206,7 @@ display does not expose the exact deployment model or reasoning mode.
   scheduler ordering, checkpoint payload/resume, AMP, and distributed scope.
 - Local evidence: full `uv run --group dev pytest -q` 210 passed, 1 skipped;
   focused trainer 8 passed; Ruff and diff checks pass.
-- Commit reviewed next: `0d09af8` (docs finalization will create a descendant)
+- Commit reviewed next: `94da0d4` (docs-only finalization descendant of implementation repair `0d09af8`)
 - Re-review model / mode: not exposed by runtime / not exposed by runtime
 - Re-review verdict: PASS WITH NOTE
 
@@ -222,11 +222,12 @@ display does not expose the exact deployment model or reasoning mode.
   and diff checks pass.
 - Performance/resource result if applicable: N/A.
 - Failed attempts retained at: cycle-1 and cycle-2 review findings above;
-  repaired at `e972864` and `0d09af8`; cycle-3 independent review pending.
+  repaired at `e972864` and `0d09af8`; cycle-3 re-review PASS WITH NOTE at
+  `94da0d4`.
 - Known trade-offs: one optimizer update per loader batch; accumulation and
   checkpoint resume remain later tickets.
-- Unresolved risks: cycle-3 independent review pending; token cadence is
-  batch-boundary based; no DGX or long-run stability evidence is claimed.
+- Unresolved risks: token cadence is batch-boundary based; no DGX or long-run
+  stability evidence is claimed in LOOP-001.
 - Human decision requested: parent may mark PR #25 ready after final audit and
   merge under the explicitly authorized bounded roadmap process.
 
