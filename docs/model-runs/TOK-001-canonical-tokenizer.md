@@ -1,6 +1,6 @@
 # TOK-001 — Canonical Japanese/English Tokenizer
 
-- PR: [#12](https://github.com/Ayumu-J-S/llm_scratch/pull/12) (repair awaiting independent re-review)
+- PR: [#12](https://github.com/Ayumu-J-S/llm_scratch/pull/12) (passing review; final docs parity pending)
 - Branch: `codex/tok-001-canonical-tokenizer`
 - Ticket: `TOK-001`
 - Hypothesis: a pinned established Japanese/English tokenizer selected by frozen
@@ -10,7 +10,7 @@
 - Experiment record: `reports/tokenizers/TOK-001/comparison.md` (CPU R1
   tokenizer selection evidence; no model-quality experiment)
 - Started: 2026-07-11T16:27:49Z
-- Final verdict: `PENDING RE-REVIEW`
+- Final verdict: `PASS WITH NOTE`
 - Final record owner: primary task; exact runtime identity not exposed
 
 ## Scope and decision context
@@ -69,6 +69,8 @@ Within measurement spread, select the smaller vocabulary.
 | 5 | repair | not exposed by runtime | not exposed by runtime | failed external review at `9d5cfea`, full manifest/wrapper/local/stream paths, TOK-001 and CHECK 4.2/4.3/6.1 | Requested Luna / Extra High; reject every manifest-reserved special ID after the one canonical raw-text encode without changing loader EOS insertion | completed; subsequent re-review FAIL | Derived a role/token/ID map from the validated manifest; raw special IDs now fail with explicit context; clean corpus IDs are unchanged; local and serial/process stream paths fail before emitting a batch/sample; deliberate EOS append remains exactly once | `46bb1b4` plus trail head `64f5543`; canonical `43 passed`; focused `81 passed, 1 skipped`; full `87 passed, 1 skipped`; later alias reproduction showed manifest validation was insufficient |
 | 6 | independent re-review | not exposed by runtime | not exposed by runtime | `64f5543a2d3cd8cc272b0cad718e72d6e4be19b3`, cycle-5 code/tests/record/ledger and live draft PR | Fresh TOK-001 review against PHILOSOPHY, acceptance criteria, and CHECK 4.2/4.3/6.1 | FAIL | The reserved map was keyed by ID, but manifest validation allowed role aliases and ordinary-vocabulary substitutions because it did not require eight unique pairs or exact equality with all artifact `added_tokens` entries marked `special=true` | Refingerprinted `additional_eos` alias was accepted, collapsed the map to seven entries, and allowed raw `</s|LLM-jp>` to emit ID 2 |
 | 6 | repair | not exposed by runtime | not exposed by runtime | failed re-review at `64f5543`, exact alias reproduction, manifest and tokenizer JSON | Requested Luna / Extra High; validate unique manifest special IDs/strings and exact manifest/artifact special-pair equality before runtime map construction | completed; re-review pending | Rejects aliases, ordinary-vocabulary substitutions, and missing/extra artifact special entries before loading the runtime map; preserves the single encode and post-ID guard | canonical `47 passed`; focused `85 passed, 1 skipped`; full `91 passed, 1 skipped`; frozen digest and committed artifact hashes unchanged |
+| 7 | independent re-review | not exposed by runtime | not exposed by runtime | `5aa8372865e8907adcfec29d1e5e7e0a5a7e0d53`, cycle-6 code, retry record, ledger, and live draft PR | Requested heavier reviewer / Extra Thinking; review TOK-001 against PHILOSOPHY, acceptance criteria, and CHECK 4.2/4.3/6.1 | PASS WITH NOTE | No findings; uniqueness and exact manifest/artifact special-pair equality close the alias/substitution gap without adding a tokenizer path or changing EOS semantics | Canonical `47 passed`; focused `85 passed, 1 skipped`; full `91 passed, 1 skipped`; Ruff/format/lock/diff and frozen identity evidence pass |
+| 8 | final docs-only handoff | not exposed by runtime | not exposed by runtime | passing cycle-7 review of `5aa8372` and append-only record/ledger | Finalize provenance and hand the docs-only head to the primary exact-head parity audit | completed; parity pending | Records the passing review, preserves every failed cycle, updates aggregate counts, and leaves code/test behavior unchanged | This docs-only record/ledger diff; primary will record the exact final head after parity audit |
 
 ## Check selection and verdicts
 
@@ -135,7 +137,8 @@ newly added files cannot be silently omitted. The fresh re-review at `e041c48`
 returned `PASS WITH NOTE` at that point. The later external cycle invalidated
 that final status. Cycle 5 repaired raw-text rejection but failed independent
 re-review because manifest-to-artifact special identity remained under-specified;
-cycle 6 repairs that gap and remains pending fresh independent re-review.
+cycle 6 repairs that gap. Independent cycle-7 re-review of stable head `5aa8372`
+returned `PASS WITH NOTE` with no findings.
 
 ### Re-review cycle 3
 
@@ -204,8 +207,33 @@ for review and its re-review correctly returned `FAIL`.
 
 Cycle-6 repair model / mode: not exposed by runtime / not exposed by runtime
 (requested Luna / Extra High; exact identity and reasoning mode were not
-displayed). Final verdict remains `PENDING RE-REVIEW` until a new independent
-review evaluates the stable repair head.
+displayed).
+
+### Independent re-review cycle 7
+
+- Review model / mode: not exposed by runtime / not exposed by runtime
+- Requested reviewer / mode: heavier reviewer / Extra Thinking
+- Commit reviewed: `5aa8372865e8907adcfec29d1e5e7e0a5a7e0d53`
+- Selected `CHECK.md` sections: 4.2 tokenization, 4.3 packing/boundaries/token
+  accounting, and 6.1 objective semantics
+- Ticket acceptance result: pass
+- Philosophy alignment: pass; the manifest and artifact now expose the complete
+  raw/control-token identity, and the implementation retains one canonical path
+- Complexity / change-surface result: pass; validation is direct and remains in
+  the existing manifest loader
+- ML-system result: pass for CPU R1 identity, raw/control-token semantics,
+  local/stream/process propagation, and bounded model wiring
+- Verdict: `PASS WITH NOTE`
+- Note: CUDA/DGX R2 and the material 50,570-vocabulary cost remain explicitly
+  deferred/non-blocking; no GPU or end-to-end performance claim is made
+- Findings: none
+
+### Final docs-only handoff
+
+This finalization changes only this record and `docs/model-runs/README.md`.
+Code/test review target `5aa8372` is unchanged. The primary task will audit the
+exact docs-only head against the cycle-7 verdict and live PR before replying to
+or resolving the existing review thread and returning the PR to ready state.
 
 ## Final evidence
 
@@ -315,9 +343,9 @@ review evaluates the stable repair head.
   and the existing opt-in public-Hugging-Face dataset integration was not run in
   the offline phase-2 validation. CPU R1 tokenization throughput and a bounded
   CPU model smoke are not claims about end-to-end DGX training supply.
-- Human decision requested: none until a fresh independent review evaluates the
-  cycle-6 repair; the PR must not return to ready/merge consideration on this
-  implementation pass alone.
+- Human decision requested: review the eventual ready PR if the documented
+  CUDA/DGX R2 deferral and vocabulary-cost trade-off are acceptable; the primary
+  exact-head docs parity audit remains before ready state.
 
 ## Model assessment from this ticket
 
@@ -333,11 +361,13 @@ review evaluates the stable repair head.
 | not exposed by runtime / not exposed by runtime | repair cycle 5 | Kept one canonical encode path, derived the complete reserved mapping from the validated manifest, preserved explicit loader EOS, and added end-to-end local/process failure and frozen-corpus identity evidence | Requested Luna / Extra High identity/mode was unavailable; fresh independent review remains required | Exact external finding, manifest, wrapper, stream/local consumers, frozen digest | repair completed; verdict pending re-review |
 | not exposed by runtime / not exposed by runtime | independent re-review cycle 6 | Reproduced a re-fingerprinted role alias, traced the seven-entry map collapse, and identified missing exact equality between manifest roles and artifact special added tokens | Exact model/mode remained hidden; the preceding repair's tests did not mutate the manifest/artifact relationship adversarially enough | Stable `64f5543`, manifest, tokenizer JSON, runtime map, raw `</s|LLM-jp>` reproduction | `FAIL`; exact uniqueness/equality repair required |
 | not exposed by runtime / not exposed by runtime | repair cycle 6 | Added the missing manifest uniqueness and exact artifact equality contract before runtime map construction, with alias/substitution/missing/extra mutation evidence | Requested Luna / Extra High identity/mode unavailable; fresh independent review remains required | Failed review and exact reproduction; real tokenizer JSON and manifest; existing raw/control-token tests | repair completed; verdict pending re-review |
+| not exposed by runtime / not exposed by runtime | independent re-review cycle 7 | Verified the complete repair, mutation coverage, one-path design, EOS/PAD semantics, frozen identity, tests, and append-only history without finding a new defect | Exact model/mode remained hidden; CUDA/DGX R2 and vocabulary cost remain documented non-blocking notes | Stable `5aa8372`, PHILOSOPHY, TOK-001, CHECK 4.2/4.3/6.1, live draft PR | `PASS WITH NOTE`; final docs-only parity remains |
 
 ## Ledger update
 
 - [x] Added ticket/PR row to `docs/model-runs/README.md`.
 - [x] Recorded both implementation invocations, all failed reviews/audits, and all
   four repair passes under the runtime-exposed identity/mode values.
-- [ ] Fresh independent review must evaluate cycle 6 and then update the live PR,
-  final verdict, and docs parity before the PR can return to ready state.
+- [x] Recorded cycle-7 independent `PASS WITH NOTE` and updated the final verdict.
+- [ ] Primary exact-head parity audit must compare this docs-only handoff with the
+  cycle-7 verdict and live PR before returning the PR to ready state.
