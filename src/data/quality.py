@@ -103,12 +103,7 @@ def apply_document_policy(text: object, policy: DocumentPolicy) -> QualityResult
     latin, japanese, other = _script_counts(normalized)
     if policy.reject_wrong_script and policy.language == "ja" and japanese == 0:
         return _rejected("wrong_script", truncated, latin, japanese, other)
-    if (
-        policy.reject_wrong_script
-        and policy.language == "en"
-        and latin == 0
-        and japanese > 0
-    ):
+    if policy.reject_wrong_script and policy.language == "en" and latin == 0 and japanese > 0:
         return _rejected("wrong_script", truncated, latin, japanese, other)
     return QualityResult(
         accepted=True,

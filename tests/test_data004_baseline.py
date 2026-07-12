@@ -304,9 +304,7 @@ def test_trained_target_debt_ratio_and_packed_accounting_are_exact():
     assert loader.trained_target_counts == {"ja": 32, "en": 32}
     assert loader.packed_token_counts["target_token_count"] == 64
     assert sum(window["target_token_count"] for window in windows) == 64
-    assert sum(
-        sum(window["source_target_counts"].values()) for window in windows
-    ) == 64
+    assert sum(sum(window["source_target_counts"].values()) for window in windows) == 64
 
     prefix_loader = StreamLoader(config)
     iterator = iter(prefix_loader)

@@ -66,7 +66,9 @@ class ParquetManifestIterator(Iterator[Any]):
         self.manifest = manifest
         self.cache = cache
         self.timeout_seconds = timeout_seconds
-        self.cursor = _initial_cursor(manifest) if cursor is None else _validate_cursor(manifest, cursor)
+        self.cursor = (
+            _initial_cursor(manifest) if cursor is None else _validate_cursor(manifest, cursor)
+        )
         self.rejection_counts: dict[str, int] = {}
         self.fallback_count = 0
         self.document_count = 0
@@ -99,7 +101,9 @@ class ParquetManifestIterator(Iterator[Any]):
         text_field = self.manifest.source["text_field"]
         id_field = self.manifest.source["id_field"]
         metadata_fields = list(self.manifest.source["metadata_fields"])
-        columns = list(dict.fromkeys([text_field, *metadata_fields, *([id_field] if id_field else [])]))
+        columns = list(
+            dict.fromkeys([text_field, *metadata_fields, *([id_field] if id_field else [])])
+        )
         start_artifact = int(self.cursor["artifact_index"])
         for artifact_index in range(start_artifact, len(artifacts)):
             artifact = artifacts[artifact_index]
@@ -120,7 +124,9 @@ class ParquetManifestIterator(Iterator[Any]):
                     raise ManifestError(
                         f"Parquet artifact {artifact['path']} is missing columns: {missing}"
                     )
-                first_group = int(self.cursor["row_group_index"]) if artifact_index == start_artifact else 0
+                first_group = (
+                    int(self.cursor["row_group_index"]) if artifact_index == start_artifact else 0
+                )
                 for row_group_index in range(first_group, parquet.num_row_groups):
                     table = parquet.read_row_group(row_group_index, columns=columns)
                     first_row = (
@@ -139,7 +145,9 @@ class ParquetManifestIterator(Iterator[Any]):
                             row_offset,
                             table.num_rows,
                         )
-                        result = apply_document_policy(row[text_field], self.manifest.document_policy)
+                        result = apply_document_policy(
+                            row[text_field], self.manifest.document_policy
+                        )
                         if not result.accepted:
                             assert result.reason is not None
                             self._count_rejection(result.reason)
@@ -205,9 +213,7 @@ def _initial_cursor(manifest: ResolvedManifest) -> dict[str, Any]:
     }
 
 
-def _validate_cursor(
-    manifest: ResolvedManifest, cursor: Mapping[str, Any]
-) -> dict[str, Any]:
+def _validate_cursor(manifest: ResolvedManifest, cursor: Mapping[str, Any]) -> dict[str, Any]:
     expected = {"manifest_fingerprint", "artifact_index", "row_group_index", "row_offset"}
     if set(cursor) != expected:
         raise ValueError("Parquet cursor fields differ from the v1 contract")
@@ -215,7 +221,11 @@ def _validate_cursor(
         raise ValueError("Parquet cursor manifest fingerprint does not match")
     result = dict(cursor)
     for field in ("artifact_index", "row_group_index", "row_offset"):
-        if isinstance(result[field], bool) or not isinstance(result[field], int) or result[field] < 0:
+        if (
+            isinstance(result[field], bool)
+            or not isinstance(result[field], int)
+            or result[field] < 0
+        ):
             raise ValueError(f"Parquet cursor {field} must be a non-negative integer")
     assert manifest.source is not None
     if result["artifact_index"] > len(manifest.source["data_files"]):

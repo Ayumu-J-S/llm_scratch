@@ -170,7 +170,9 @@ class BoundedShardCache:
         tmp_path = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
         try:
             with self._timed_file_lock(self._key_lock_path(identity), deadline):
-                existing = self._acquire_existing(path, expected_sha256, expected_size_bytes, deadline)
+                existing = self._acquire_existing(
+                    path, expected_sha256, expected_size_bytes, deadline
+                )
                 if existing:
                     with self._condition:
                         self._telemetry["hits"] += 1

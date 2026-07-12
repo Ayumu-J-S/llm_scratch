@@ -448,9 +448,7 @@ class StreamLoader:
         self.document_counts: dict[str, int] = {
             dataset["name"]: 0 for dataset in self.dataset_configs
         }
-        self.text_bytes: dict[str, int] = {
-            dataset["name"]: 0 for dataset in self.dataset_configs
-        }
+        self.text_bytes: dict[str, int] = {dataset["name"]: 0 for dataset in self.dataset_configs}
         self.truncated_counts: dict[str, int] = {
             dataset["name"]: 0 for dataset in self.dataset_configs
         }
@@ -1126,12 +1124,8 @@ class StreamLoader:
                 self.rejection_counts[state.name] = dict(
                     getattr(state.iterator, "rejection_counts", {})
                 )
-                self.fallback_counts[state.name] = int(
-                    getattr(state.iterator, "fallback_count", 0)
-                )
-                self.document_counts[state.name] = int(
-                    getattr(state.iterator, "document_count", 0)
-                )
+                self.fallback_counts[state.name] = int(getattr(state.iterator, "fallback_count", 0))
+                self.document_counts[state.name] = int(getattr(state.iterator, "document_count", 0))
                 self.text_bytes[state.name] = int(getattr(state.iterator, "text_bytes", 0))
                 self.truncated_counts[state.name] = int(
                     getattr(state.iterator, "truncated_count", 0)
