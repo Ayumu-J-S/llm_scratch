@@ -9,7 +9,8 @@
 - Experiment record: `N/A` — this is a deterministic loader-invariant repair,
   not a research-quality training run.
 - Started: 2026-07-12
-- Final verdict: in progress
+- Final verdict: PASS WITH NOTE — independent review passed; guarded connector
+  audit and merge remain pending.
 - Final record owner: `/root/data003_p5_repair`
 
 ## Scope and decision context
@@ -36,7 +37,7 @@
 | 1 | repair | not exposed by runtime | not exposed by runtime | `57266e1` P2 reproduction; rebased on `9bf68b0`; `ROADMAP.md`, `PHILOSOPHY.md`, selected `CHECK.md` 4.1/4.3/9.1 | Requested Luna / Extra High repair: make packed `drop_remainder: false` resume exact without broadening DATA-003 | incomplete during validation | Cleared the packed cursor residual and fixed the final thread producer marker, but the first exact-suffix regression used `max_tokens="max"` and omitted JSON cursor round-trip. | Initial code/docs head `bd11955`; widened validation found a completed external cursor incorrectly begins a next pass. |
 | 1 | validation finding | not exposed by runtime | not exposed by runtime | `bd11955ddf44cac637c5647098cf603cd0a04933`; requested regression expansion | Exercise the exact P2 `max_tokens=4`, `repeat=false` configuration with `json.loads(json.dumps(cursor))` in sync/thread/process modes | FAIL | Residual clearing left `pass_complete=true`; a fresh `StreamLoader(cursor=...)` treated the checkpoint as a next pass and hit the finite-source quota error instead of yielding its empty suffix. | Focused regression failed before an independent PASS could be claimed. |
 | 2 | repair | not exposed by runtime | not exposed by runtime | `bd11955`; cycle-1 validation failure; exact P2 config | Requested Luna / Extra High repair: distinguish a supplied completed checkpoint from a later iterator on the same loader, including process-prefetch serialization | implemented; independent review pending | Added one-shot resume state. A supplied completed cursor returns its empty suffix; later same-loader iteration starts a next pass. Process prefetch receives the parent's one-shot state; final partial residual/producer-marker fixes remain. | Repair code `54f8c591e6264f8da479bcf8893be20b82bf5a0a`; focused 15 passed; full 227 passed, 1 skipped; Ruff, lock, and diff checks pass |
-| 2 | re-review | not exposed by runtime | not exposed by runtime | repair code `54f8c591e6264f8da479bcf8893be20b82bf5a0a` plus this docs-only successor | Independent heavier review requested as Extra Thinking against DATA-003, philosophy, and selected checklist sections | pending | Must examine the exact PR head after this provenance update and all guarded merge evidence before a ready/self-merge decision | pending |
+| 2 | re-review | not exposed by runtime | not exposed by runtime | exact docs head `313ca0a90ca6d4b9be31efd914c21e53ddf8f3e7`; repair code `54f8c591e6264f8da479bcf8893be20b82bf5a0a` | Independent heavier review against DATA-003, philosophy, and selected checklist sections | PASS WITH NOTE | No code defect found. The reviewer manually checked completed-cursor resume in sync, thread, and process modes; its review target/validation matched the repair evidence. | Review `4680026587`; focused 15 passed; full 227 passed, 1 skipped; Ruff, lock, and diff checks pass |
 
 ## Runtime provenance block
 
@@ -154,22 +155,27 @@
 
 ### Review cycle 1
 
-- Review model / mode: pending independent re-review; actual exact model and
-  reasoning mode are not exposed by runtime.
-- Commit reviewed: repair code `54f8c591e6264f8da479bcf8893be20b82bf5a0a`
-  plus this docs-only successor; the prior `bd11955` review target is
-  superseded because its P2-exact JSON regression failed.
+- Review model / mode: independent reviewer; actual exact model and reasoning
+  mode are not exposed by runtime.
+- Commit reviewed: exact docs head `313ca0a90ca6d4b9be31efd914c21e53ddf8f3e7`
+  with repair code `54f8c591e6264f8da479bcf8893be20b82bf5a0a`; the prior
+  `bd11955` target is superseded because its P2-exact JSON regression failed.
 - Selected `CHECK.md` sections: minimum review; 4.1 data supply/prefetch
   order; 4.3 packing, transitions, and token accounting; 9.1 checkpoint/resume
   first-resumed-window behavior; 7.1 change surface; and 8.1 reproducibility.
 - Major sections marked N/A and why: sections 5/6 (GPU, model, optimizer) are
   unchanged; this repair makes no performance claim and modifies no Hydra
   profile.
-- Ticket acceptance result: repair evidence pending independent review.
-- Philosophy alignment: pending independent review.
-- Complexity / change-surface result: pending independent review.
-- ML-system result: fixture-level cursor/order invariants pass; no DGX claim.
-- Verdict: pending.
+- Ticket acceptance result: PASS WITH NOTE — exact P2 final-partial resume,
+  JSON cursor round-trip, and prefetch equivalence evidence pass.
+- Philosophy alignment: PASS — direct loader-local state, deterministic cursor
+  semantics, and no speculative config branch.
+- Complexity / change-surface result: PASS WITH NOTE — the one-shot state is
+  necessary to distinguish restore from re-iteration; no duplicate loader path
+  was introduced.
+- ML-system result: PASS WITH NOTE — fixture-level cursor/order invariants pass;
+  no DGX or throughput claim is made.
+- Verdict: PASS WITH NOTE (`4680026587`).
 
 #### Findings
 
@@ -265,7 +271,8 @@
   changing the reviewed head.
 - Re-review model / mode: requested independent heavier Extra Thinking; actual
   exact identity/mode not exposed by runtime.
-- Re-review verdict: pending.
+- Re-review verdict: PASS WITH NOTE (`4680026587`) on exact docs head
+  `313ca0a90ca6d4b9be31efd914c21e53ddf8f3e7`; guarded connector audit pending.
 
 ## Final evidence
 
@@ -281,6 +288,9 @@
   and JSON cursor round-trip; full suite is green (227 passed, 1 skipped;
   228 collected; 0 failures/errors); static checks are green. The default debug
   command's unrelated finite-fixture/5B-horizon failure is retained above.
+- Independent manual check: reviewer `4680026587` exercised the completed
+  cursor path in sync, thread, and process modes on the reviewed head; it found
+  no code defect.
 - Performance/resource result if applicable: N/A — no performance claim;
   CHECK R1 fixture semantics is the relevant validation size.
 - Failed attempts retained at: this record's P5 finding and regression.
@@ -288,10 +298,11 @@
   whole residual must be absent from a checkpoint cursor. Cursor capture remains
   bounded by the existing shuffle buffer; no new buffer or config branch was
   added.
-- Unresolved risks: independent exact-head review and guarded merge audit remain
-  required.
-- Human decision requested: none before the independent review; self-merge is
-  only eligible after every guarded gate passes.
+- Unresolved risks: guarded connector audit, exact-head status/workflow
+  inventory, and merge remain required; no code risk is open from the latest
+  independent review.
+- Human decision requested: none before the guarded audit; self-merge is only
+  eligible after every exact-head gate passes.
 
 ## Merge authority and final audit
 
@@ -302,11 +313,12 @@
   must restate the scope and exact-head observation.
 - Authorization covers this named PR or bounded ticket/goal series: yes —
   DATA-003 P5 is ordinary repository collaboration within the roadmap goal.
-- Exact independently reviewed head SHA: pending.
-- Latest independent verdict / model / mode: pending.
-- All actionable findings repaired and independently re-reviewed: pending.
-- Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: pending
-  final refresh.
+- Exact independently reviewed head SHA: `313ca0a90ca6d4b9be31efd914c21e53ddf8f3e7`.
+- Latest independent verdict / model / mode: PASS WITH NOTE `4680026587`; exact
+  model identifier and reasoning mode not exposed by runtime.
+- All actionable findings repaired and independently re-reviewed: yes.
+- Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: none
+  reported by independent review; final connector refresh pending.
 - Newer human objections since authorization/review: pending final refresh.
 - Human review dismissed by an agent: no.
 - Unresolved review threads at final audit: pending.
@@ -334,12 +346,12 @@
 
 | Model / mode | Role | What it handled well | What it missed or made worse | Context that helped | Outcome |
 | --- | --- | --- | --- | --- | --- |
-| Codex / GPT-5; exact ID and mode not exposed | repair | Localized the final residual and final thread-marker defect, then reproduced the completed-external-cursor boundary under the exact P2 config | Cycle 1 missed the `max_tokens=4` JSON completed-cursor transition; independent review remains pending | DATA-003 P2 sequence, loader cursor state, selected `CHECK.md` sections, exact JSON round-trip | cycle-2 repair pending review |
+| Codex / GPT-5; exact ID and mode not exposed | repair/review | Localized the final residual and final thread-marker defect, then reproduced and repaired the completed-external-cursor boundary under the exact P2 config | Cycle 1 missed the `max_tokens=4` JSON completed-cursor transition; exact deployment/model ID and reasoning mode remain unavailable | DATA-003 P2 sequence, loader cursor state, selected `CHECK.md` sections, exact JSON round-trip | PASS WITH NOTE `4680026587`; guarded audit pending |
 
 ## Ledger update
 
 - [x] Added this per-PR record to `docs/model-runs/README.md`.
-- [ ] Updated aggregate counts after independent review.
-- [ ] Confirmed the PR execution trail matches this record.
+- [x] Updated aggregate counts after independent review.
+- [x] Confirmed the PR execution trail matches this record through review `4680026587`.
 - [ ] Recorded guarded self-merge audit or human merge evidence.
 - [x] Confirmed this is not the bootstrap policy PR.
