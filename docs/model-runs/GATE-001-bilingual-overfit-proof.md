@@ -152,7 +152,7 @@ Implementation repairs before review (all retained in the experiment record):
 
 | Model / mode | Role | What it handled well | What it missed or made worse | Context that helped | Outcome |
 | --- | --- | --- | --- | --- | --- |
-| not exposed by runtime / not exposed by runtime | implementation/review | Built a small direct runner on the canonical training/checkpoint/generation paths; retained failures; converged to exact same-seed/recovery evidence; review independently confirmed scope and checks | Initial fixture sizing and sampling-prefix choices needed empirical repair; native CPU Torch could not provide CUDA evidence; GPU equality remains environment-scoped | Ticket, manifest/cursor contracts, predeclared retry records, GB10 measurements, and exact review handoff | PASS WITH NOTE; final audit pending |
+| not exposed by runtime / not exposed by runtime | implementation/review | Built a small direct runner on the canonical training/checkpoint/generation paths; retained failures; converged to exact same-seed/recovery evidence; review independently confirmed scope and checks | Initial fixture sizing and sampling-prefix choices needed empirical repair; native CPU Torch could not provide CUDA evidence; GPU equality remains environment-scoped | Ticket, manifest/cursor contracts, predeclared retry records, GB10 measurements, and exact review handoff | PASS WITH NOTE; guarded audit and merge complete |
 
 ## Ledger update
 

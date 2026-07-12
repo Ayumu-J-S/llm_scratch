@@ -23,7 +23,8 @@
 | Cycle | Phase | Exact model identifier | Reasoning mode | Input commit/context | Requested work | Outcome | Main findings / changes | Evidence |
 | ---: | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | implementation | not exposed by runtime | not exposed by runtime | `main@2e2c4f4`; requested Luna/lightweight Extra High | Synchronize GATE-001 post-merge state without changing ML behavior. | candidate | GATE becomes Done, DATA-004 becomes Ready, and the final audit/merge trail is recorded. | documentation diff on this branch |
-| 1 | review | pending | pending | candidate commit | Independently review ROADMAP dependency truth, merge-evidence parity, scope, and applicable CHECK R0. | pending | pending | pending |
+| 1 | review | not exposed by runtime | not exposed by runtime | exact head `5c964c935710be1555b2ea1686521c7f13103d65`; requested strongest appropriate GPT-5.6-class / Extra Thinking | Independently review ROADMAP dependency truth, merge-evidence parity, scope, and applicable CHECK R0. | FAIL | Found one stale original-record outcome and one provenance capture attribution that postdated the capture. | GitHub review `4680818667`; exact-head Actions `29209701690` success |
+| 2 | repair | not exposed by runtime | not exposed by runtime | failed review `4680818667`; requested Luna/lightweight Extra High | Correct only the two contradictory documentation statements and preserve all merge/dependency evidence. | repaired | Original GATE outcome now says audit/merge complete; provenance capture is truthfully attributed to baseline `2e2c4f4`. | current repair diff; independent re-review pending |
 
 ## Runtime provenance block
 
@@ -34,7 +35,7 @@
 
 - Capture file/evidence: stdout capture at `2026-07-12T21:26:36.057306Z`; safe fields transcribed below.
 - Codex CLI version: `codex-cli 0.144.1`.
-- Branch/commit: `codex/gate-001-postmerge-finalize` / candidate `2b53fd29a79ce8bdd47f35b3caf2da361abcdd2b`.
+- Branch/commit: `codex/gate-001-postmerge-finalize` / baseline `2e2c4f4c67375e0c471ebd7d8004159260ffd27b` at capture; candidate commits did not yet exist.
 - Phase/role/task path: implementation / `/root`.
 - Privacy confirmation: no prompts, hidden chain-of-thought, token counts, secrets, or raw thread ID.
 
@@ -46,35 +47,56 @@
 
 ### Review cycle 1
 
-- Review model / mode: pending; requested strongest appropriate GPT-5.6-class / Extra Thinking.
-- Commit reviewed: pending.
+- Review model / mode: not exposed by runtime / not exposed by runtime; requested strongest appropriate GPT-5.6-class / Extra Thinking.
+- Commit reviewed: `5c964c935710be1555b2ea1686521c7f13103d65`.
 - Selected `CHECK.md` sections: R0 documentation/config-only review.
 - Major sections marked N/A and why: ML/data/model/runtime/performance sections are N/A because the diff is documentation-only and makes no new ML claim.
-- Ticket acceptance result: pending.
-- Philosophy alignment: pending.
-- Complexity / change-surface result: pending.
-- ML-system result: N/A; implementation and evidence blobs must remain unchanged.
-- Verdict: pending.
+- Ticket acceptance result: FAIL — dependency and merge evidence were correct, but two record statements contradicted observable history.
+- Philosophy alignment: FAIL — the stale completion and capture-attribution statements violated truthful, auditable history.
+- Complexity / change-surface result: PASS — documentation-only and focused.
+- ML-system result: N/A; implementation and evidence blobs are unchanged.
+- Verdict: FAIL (`4680818667`).
 
 #### Findings
 
 | Severity | Area | What was wrong or good | Evidence | Required action |
 | --- | --- | --- | --- | --- |
-| pending | pending | pending | pending | pending |
+| P1 | final status | Original GATE model assessment still said final audit pending after the audited merge. | `docs/model-runs/GATE-001-bilingual-overfit-proof.md`; PR #39 merge evidence | State that audit and merge completed. |
+| P1 | provenance | Capture line named candidate `2b53fd2`, but embedded JSON and timestamps prove capture occurred at baseline `2e2c4f4`. | capture timestamp/JSON and commit timestamps | Attribute capture to the baseline and say candidate commits did not yet exist. |
 
 ## Failed-review handoff
 
-Pending independent review.
+- From review cycle: 1.
+- Failed check and why: CHECK R0 record truth/parity; two statements contradicted the merge/capture evidence.
+- Review model / mode: not exposed by runtime / not exposed by runtime; requested strongest appropriate GPT-5.6-class / Extra Thinking.
+- Implementation model / mode that produced the failed state: not exposed by runtime / not exposed by runtime; requested Luna/lightweight Extra High.
+- Commit/diff to repair: `5c964c935710be1555b2ea1686521c7f13103d65`; two documentation lines only.
+- Reproduction command or evidence: inspect the original GATE model assessment, embedded provenance JSON, capture timestamp, commit timestamps, PR #39 merge, and review `4680818667`.
+- Relevant files/config/manifests: `docs/model-runs/GATE-001-bilingual-overfit-proof.md` and `docs/model-runs/GATE-001-postmerge-finalize.md`; no config or manifest changes.
+- Attempts already made: initial post-merge documentation candidate and exact-head R0 review.
+- Invariants and constraints: preserve GATE Done, DATA-004 Ready, merge/audit identifiers, retained failures, documentation-only scope, and no ML claim drift.
+- Selected next model / mode: current lightweight implementation agent / Extra High requested.
+- Why this model was selected: the repair is two exact evidence-backed statements with no implementation judgment.
+- Exact repair request: remove the stale pending outcome and restore baseline-at-capture attribution.
+- Completion evidence requested: diff check, unchanged implementation blobs, successful exact-head PR quality, and independent R0 re-review.
 
 ## Repair result
 
-N/A — no review has run.
+- Repair cycle: 2.
+- Repair model / mode: not exposed by runtime / not exposed by runtime; requested Luna/lightweight Extra High.
+- Input handoff: complete FAIL review `4680818667` and exact evidence cited above.
+- Changes made: corrected the stale audit outcome and capture attribution.
+- What was deliberately not changed: ROADMAP dependency states, merge/audit IDs, source/config/data/tests, or aggregate claims.
+- Local evidence: `git diff --check`, Ruff, and implementation-diff isolation pending repair commit validation.
+- Commit reviewed next: pending repair commit.
+- Re-review model / mode: strongest appropriate GPT-5.6-class / Extra Thinking requested; actual pending.
+- Re-review verdict: pending.
 
 ## Final evidence
 
 - Resolved Hydra command/config: N/A — documentation-only follow-up.
 - Data/tokenizer/model identity: unchanged from merged GATE-001 evidence.
-- Validation and measurements: pending static validation and independent review.
+- Validation and measurements: first exact-head Actions `29209701690`, diff check, lock check, and Ruff passed; repair re-validation pending.
 - Performance/resource result if applicable: N/A.
 - Failed attempts retained at: original GATE experiment/model-run records and PR #39 review trail.
 - Known trade-offs: one small follow-up PR is required because `Done` could not be truthfully committed before the merge existed.
