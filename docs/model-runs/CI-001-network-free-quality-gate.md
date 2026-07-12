@@ -34,6 +34,7 @@
 | Cycle | Phase | Exact model identifier | Reasoning mode | Input commit/context | Requested work | Outcome | Main findings / changes | Evidence |
 | ---: | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | implementation | not exposed by runtime | not exposed by runtime | `246e712`; CI-001, AGENTS, `PHILOSOPHY.md`, `CHECK.md` 1/7.3/8.1 | Requested Luna / Extra High; build the smallest matching local and PR gate | completed; independent review pending | Added one Make target per visible CI stage plus `ci-cpu`; each post-sync target is offline and `--no-sync`; added intentional lock-drift rejection, child-only credential scrubbing/socket-guard proof, PR workflow, and separately triggered public-HF workflow | `make ci-cpu`: sync/lint/config/lock/smoke passed; `ci-test`: 251 passed, 1 opt-in network skip; details below |
+| 1 | review | not exposed by runtime | not exposed by runtime | `5db12524737527fddde1ace3afb42df3be3fab60`; CI-001, `PHILOSOPHY.md`, `CHECK.md` 1/7.3/8.1 | Requested heavier reviewer / Extra Thinking; independent `/review` of local/Actions parity and offline boundary | PASS WITH NOTE | Acceptance criteria, action/local target parity, post-sync offline behavior, lock-drift negative probe, child socket guard, and manual/scheduled network separation passed. The socket guard is correctly documented as Python-process evidence, not a host firewall/native-code claim. | Review `4680271011`; Actions run `29197587552` all-success |
 
 ## Runtime provenance block
 
@@ -53,23 +54,31 @@ Requested/default values remain separate from actual runtime display.
 
 ### Review cycle 1
 
-- Review model / mode: pending independent reviewer; requested heavier reviewer /
-  Extra Thinking, actual runtime identity must be recorded without inference.
-- Commit reviewed: pending.
+- Review model / mode: requested heavier reviewer / Extra Thinking; actual
+  product/family display `Codex / GPT-5`, exact identifier and reasoning mode
+  `not exposed by runtime`; independent review `4680271011`.
+- Commit reviewed: `5db12524737527fddde1ace3afb42df3be3fab60`.
 - Selected `CHECK.md` sections: 1, 7.3, 8.1 (CI-001 routing).
 - Major sections marked N/A and why: model/data/training/GPU/performance are
   unchanged; the smoke is wiring evidence, not a performance or quality claim.
-- Ticket acceptance result: pending.
-- Philosophy alignment: pending.
-- Complexity / change-surface result: pending.
-- ML-system result: pending.
-- Verdict: pending.
+- Ticket acceptance result: PASS — PR runs visibly show the frozen sync, lint,
+  unit, configuration, lock/diff, and offline-smoke stages; online public-HF
+  integration is separately manual/scheduled.
+- Philosophy alignment: PASS — this adds direct executable workflow targets and
+  leaves model, data, training, and Hydra configuration responsibilities alone.
+- Complexity / change-surface result: PASS — one ordered Make composition and
+  six named targets are the common local/Actions source of truth, without a new
+  framework or compatibility path.
+- ML-system result: PASS WITH NOTE — the tiny smoke is an explicit R1 CPU
+  wiring check using immutable local inputs; it does not imply a host-wide
+  network firewall, DGX validation, full-training health, or quality evidence.
+- Verdict: PASS WITH NOTE.
 
 #### Findings
 
 | Severity | Area | What was wrong or good | Evidence | Required action |
 | --- | --- | --- | --- | --- |
-| N/A | implementation | No review has run yet. | This live draft record | Obtain independent review before Ready/merge. |
+| P2 | evidence scope | Socket interception covers the child Python process, not arbitrary native code or the host network. | Review `4680271011`; guard probe and scope statement in `scripts/offline_smoke.py`/README | Documented; no broader enforcement is required for CI-001. |
 
 ## Failed-review handoff
 
@@ -106,8 +115,12 @@ N/A — no repair has run.
     W&B/Hugging Face/AWS/GitHub credential variables removed from that child.
   - Static tests for workflow/local-target parity, network-trigger separation,
     and the child environment: 3 passed.
-- Pull-request workflow evidence: pending exact candidate push; PR #37 was
-  intentionally created before implementation, while still draft.
+- Pull-request workflow evidence: [run 29197587552](https://github.com/Ayumu-J-S/llm_scratch/actions/runs/29197587552)
+  passed for exact head `5db12524737527fddde1ace3afb42df3be3fab60`. Its `CPU
+  quality (offline)` job successfully completed frozen sync, Ruff, pytest,
+  Hydra composition, lockfile/drift rejection, and offline tiny CPU smoke.
+  PR #37 was intentionally created before implementation and remains draft
+  until the final docs-only no-drift review and guarded audit.
 - Performance/resource result if applicable: R0/R1 only; no DGX performance
   claim is in scope.
 - Failed attempts retained at: this record.
@@ -115,9 +128,9 @@ N/A — no repair has run.
   the smoke; it is not a host firewall or a claim about arbitrary native code.
   Network integration remains deliberately outside the PR path and runs only
   on manual/weekly public-HF workflow dispatch.
-- Unresolved risks: exact GitHub-hosted Actions run and independent exact-head
-  review are pending; the quality workflow intentionally does not validate DGX
-  performance, W&B credentials, full training, or benchmarks.
+- Unresolved risks: the quality workflow intentionally does not validate DGX
+  performance, W&B credentials, full training, or benchmarks. This docs-only
+  successor requires a scoped no-drift review before Ready/guarded audit.
 - Human decision requested: none while implementation/review are in progress.
 
 ## Merge authority and final audit
@@ -127,10 +140,15 @@ N/A — no repair has run.
 - Human authorization: user instruction “これからはとりあえず全部セルフマージしていいよ” for the bounded roadmap implementation series, recorded in the primary task context.
 - Authorization covers this named PR or bounded ticket/goal series: yes — CI-001
   is within the stated roadmap goal.
-- Exact independently reviewed head SHA: pending.
-- Latest independent verdict / model / mode: pending.
-- All actionable findings repaired and independently re-reviewed: pending.
-- Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: pending.
+- Exact independently reviewed implementation head SHA:
+  `5db12524737527fddde1ace3afb42df3be3fab60`.
+- Latest independent verdict / model / mode: PASS WITH NOTE, review
+  `4680271011`; requested heavier reviewer / Extra Thinking, actual exact model
+  identifier and reasoning mode not exposed by runtime.
+- All actionable findings repaired and independently re-reviewed: yes; the
+  review had no actionable repair finding, only the documented scope note.
+- Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: none at
+  the review observation; final mutable-state audit remains pending.
 - Newer human objections since authorization/review: none known.
 - Human review dismissed by an agent: no.
 - Unresolved review threads at final audit: pending.
@@ -141,7 +159,8 @@ N/A — no repair has run.
 - No-check evidence when both inventories are empty: N/A.
 - Target branch and base SHA at final audit: pending.
 - Up-to-date, conflict-free, and mergeable evidence: pending.
-- Record, ledger, PR trail, validation, and risks parity: pending.
+- Record, ledger, PR trail, validation, and risks parity: implementation head
+  parity confirmed; docs-only no-drift confirmation and final audit pending.
 - Prohibited self-merge categories: clear only if final audit confirms no secrets,
   security-control change, paid resource, destructive action, release, deployment,
   account/permission change, or unresolved licensing issue.
@@ -158,12 +177,13 @@ N/A — no repair has run.
 
 | Model / mode | Role | What it handled well | What it missed or made worse | Context that helped | Outcome |
 | --- | --- | --- | --- | --- | --- |
-| not exposed by runtime / not exposed by runtime | implementation | In progress | Pending review | CI-001 acceptance criteria, existing Make/config paths, and `CHECK.md` route | pending |
+| not exposed by runtime / not exposed by runtime | implementation | Built direct parity around existing executable commands; retained the local-manifest smoke boundary and a real lock-drift negative probe | Actual model/mode unavailable; a Python socket guard cannot claim host-native enforcement | CI-001 acceptance criteria, existing Make/config paths, exact local/Actions evidence, and `CHECK.md` route | implementation accepted on first independent review |
+| not exposed by runtime / not exposed by runtime | independent review | Checked trigger separation, target parity, offline/credential boundaries, lock-drift rejection, and exact-head Actions evidence | Correctly retained the narrow process-level scope note instead of overstating isolation | Exact head, live Actions run, local gate results, and ticket-specific check selection | PASS WITH NOTE |
 
 ## Ledger update
 
 - [x] Added the PR/ticket row to `docs/model-runs/README.md` as draft/pending.
-- [ ] Updated per-model attempt, pass, repair, and review counts after outcome.
-- [ ] Confirmed that the PR execution trail matches this record.
+- [x] Updated per-model attempt, pass, repair, and review counts after outcome.
+- [x] Confirmed that the draft PR execution trail matches this record.
 - [ ] Recorded complete guarded self-merge authority/audit evidence.
 - [x] Confirmed that this is not the bootstrap policy PR.
