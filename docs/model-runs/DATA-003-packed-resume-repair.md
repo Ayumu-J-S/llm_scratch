@@ -35,8 +35,8 @@
 | ---: | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | repair | not exposed by runtime | not exposed by runtime | `57266e1` P2 reproduction; rebased on `9bf68b0`; `ROADMAP.md`, `PHILOSOPHY.md`, selected `CHECK.md` 4.1/4.3/9.1 | Requested Luna / Extra High repair: make packed `drop_remainder: false` resume exact without broadening DATA-003 | incomplete during validation | Cleared the packed cursor residual and fixed the final thread producer marker, but the first exact-suffix regression used `max_tokens="max"` and omitted JSON cursor round-trip. | Initial code/docs head `bd11955`; widened validation found a completed external cursor incorrectly begins a next pass. |
 | 1 | validation finding | not exposed by runtime | not exposed by runtime | `bd11955ddf44cac637c5647098cf603cd0a04933`; requested regression expansion | Exercise the exact P2 `max_tokens=4`, `repeat=false` configuration with `json.loads(json.dumps(cursor))` in sync/thread/process modes | FAIL | Residual clearing left `pass_complete=true`; a fresh `StreamLoader(cursor=...)` treated the checkpoint as a next pass and hit the finite-source quota error instead of yielding its empty suffix. | Focused regression failed before an independent PASS could be claimed. |
-| 2 | repair | not exposed by runtime | not exposed by runtime | `bd11955`; cycle-1 validation failure; exact P2 config | Requested Luna / Extra High repair: distinguish a supplied completed checkpoint from a later iterator on the same loader, including process-prefetch serialization | implemented; independent review pending | Added one-shot resume state. A supplied completed cursor returns its empty suffix; later same-loader iteration starts a next pass. Process prefetch receives the parent's one-shot state; final partial residual/producer-marker fixes remain. | Focused cursor suite: 15 passed; full suite: 227 passed, 1 skipped; Ruff, lock, and diff checks pass |
-| 2 | re-review | not exposed by runtime | not exposed by runtime | exact current PR #31 head pending | Independent heavier review requested as Extra Thinking against DATA-003, philosophy, and selected checklist sections | pending | Must examine the new exact code/docs head and all guarded merge evidence before a ready/self-merge decision | pending |
+| 2 | repair | not exposed by runtime | not exposed by runtime | `bd11955`; cycle-1 validation failure; exact P2 config | Requested Luna / Extra High repair: distinguish a supplied completed checkpoint from a later iterator on the same loader, including process-prefetch serialization | implemented; independent review pending | Added one-shot resume state. A supplied completed cursor returns its empty suffix; later same-loader iteration starts a next pass. Process prefetch receives the parent's one-shot state; final partial residual/producer-marker fixes remain. | Repair code `54f8c591e6264f8da479bcf8893be20b82bf5a0a`; focused 15 passed; full 227 passed, 1 skipped; Ruff, lock, and diff checks pass |
+| 2 | re-review | not exposed by runtime | not exposed by runtime | repair code `54f8c591e6264f8da479bcf8893be20b82bf5a0a` plus this docs-only successor | Independent heavier review requested as Extra Thinking against DATA-003, philosophy, and selected checklist sections | pending | Must examine the exact PR head after this provenance update and all guarded merge evidence before a ready/self-merge decision | pending |
 
 ## Runtime provenance block
 
@@ -112,13 +112,53 @@
 }
 ```
 
+- This capture is the cycle-2 input provenance at `bd11955`; its repair output
+  is captured below at exact code commit `54f8c591e6264f8da479bcf8893be20b82bf5a0a`.
+
+### Repair cycle 2 output capture
+
+```json
+{
+  "schema_version": "1.0",
+  "captured_at": "2026-07-12T12:13:37.824002Z",
+  "phase": "repair",
+  "role": "repair",
+  "task_path": "/root/data003_p5_repair",
+  "requested": {
+    "model": {"value": "Luna", "source": "explicit invocation/config default", "status": "observed"},
+    "reasoning_mode": {"value": "Extra High", "source": "explicit invocation/config default", "status": "observed"}
+  },
+  "actual": {
+    "product": {"value": "Codex", "source": "active runtime display", "status": "observed"},
+    "displayed_model_family": {"value": "GPT-5", "source": "active runtime display", "status": "observed"},
+    "exact_model_identifier": {"value": "not exposed by runtime", "source": "active runtime display", "status": "unavailable"},
+    "reasoning_mode": {"value": "not exposed by runtime", "source": "active runtime display", "status": "unavailable"}
+  },
+  "environment": {
+    "codex_cli_version": "codex-cli 0.144.1",
+    "branch": "codex/data-003-packed-resume-repair",
+    "commit": "54f8c591e6264f8da479bcf8893be20b82bf5a0a",
+    "thread_id": "not recorded (privacy)"
+  },
+  "privacy": {
+    "raw_thread_id_recorded": false,
+    "prompts_recorded": false,
+    "hidden_chain_of_thought_recorded": false,
+    "token_counts_recorded": false,
+    "secrets_recorded": false
+  }
+}
+```
+
 ## Check selection and verdicts
 
 ### Review cycle 1
 
 - Review model / mode: pending independent re-review; actual exact model and
   reasoning mode are not exposed by runtime.
-- Commit reviewed: pending repair head.
+- Commit reviewed: repair code `54f8c591e6264f8da479bcf8893be20b82bf5a0a`
+  plus this docs-only successor; the prior `bd11955` review target is
+  superseded because its P2-exact JSON regression failed.
 - Selected `CHECK.md` sections: minimum review; 4.1 data supply/prefetch
   order; 4.3 packing, transitions, and token accounting; 9.1 checkpoint/resume
   first-resumed-window behavior; 7.1 change surface; and 8.1 reproducibility.
@@ -220,8 +260,9 @@
   sync, thread, and process modes; focused suite `15 passed`; full suite `227
   passed, 1 skipped` (228 collected; 0 failures/errors); Ruff, lock, and diff
   checks pass.
-- Commit reviewed next: pending the exact code/docs commit and independent
-  review after this record update.
+- Commit reviewed next: repair code `54f8c591e6264f8da479bcf8893be20b82bf5a0a`
+  plus this docs-only successor; PR body records the exact successor SHA without
+  changing the reviewed head.
 - Re-review model / mode: requested independent heavier Extra Thinking; actual
   exact identity/mode not exposed by runtime.
 - Re-review verdict: pending.
