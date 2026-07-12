@@ -1,14 +1,15 @@
 # REP-001 — Reproducible run identity and global seeding
 
-- PR: [#22](https://github.com/Ayumu-J-S/llm_scratch/pull/22) (merged); repair [#24](https://github.com/Ayumu-J-S/llm_scratch/pull/24) (draft)
+- PR: [#22](https://github.com/Ayumu-J-S/llm_scratch/pull/22) (merged); repair [#24](https://github.com/Ayumu-J-S/llm_scratch/pull/24) (merged)
 - Branch: `codex/rep-001-dirty-verify-fix` (repair)
+- Audit: [#23](https://github.com/Ayumu-J-S/llm_scratch/pull/23) (draft)
 - Ticket: REP-001
 - Hypothesis: Capturing immutable code/config/input identity and deriving every
   RNG stream from Hydra makes bounded CPU fixture runs reproducible without W&B.
 - Experiment record: `N/A — this ticket validates a fixture and run metadata,
   not a consequential model-quality experiment`
 - Started: 2026-07-12
-- Final verdict: PASS WITH NOTE (repair PR #24; final merge-gate audit pending)
+- Final verdict: PASS WITH NOTE (PR #24 repair merged; PR #23 audit merge-gate pending)
 - Final record owner: Codex implementation agent
 
 ## Scope and decision context
@@ -31,6 +32,7 @@
 | 3 | independent review | not exposed by runtime | not exposed by runtime | merged PR #22 head `e2153a2` / merge `d5806b2` | Re-check `verify_run_manifest(..., root_dir=...)` against the captured Git worktree state | FAIL | Verification compared only `HEAD`; a clean captured manifest could pass in a dirty checkout with the same commit, so source state was not fully bound to the run record | PR #22 thread `PRRT_kwDORqx5mc6QLvLd`, P2 at `src/runtime/reproducibility.py:305` |
 | 3 | repair | not exposed by runtime | not exposed by runtime | `d5806b2` + review thread `PRRT_kwDORqx5mc6QLvLd` | Compare recorded Git dirty/status fields during source verification; add clean-pass and clean-to-dirty regression tests | completed | `verify_run_manifest` now rejects dirty-state or status drift when `root_dir` is supplied; focused tests cover a matching clean worktree and dirty verification failure | repair PR #24 exact head `8f3307a`; 8 focused, 202 full/1 skipped; Ruff, lock, diff pass |
 | 3 | re-review | not exposed by runtime | not exposed by runtime | `8f3307a` / PR #24 | Independent exact-head re-review of the dirty/status verification repair | PASS WITH NOTE | Clean verification succeeds; clean-to-dirty verification fails; no new ML claim; CPU/R1 only | review `4679720242`; exact head `8f3307a`; 8 focused, 202 full/1 skipped |
+| 4 | merge audit / record finalization | not exposed by runtime | not exposed by runtime | PR #24 merge `792cb89`; audit PR #23 | Record the repair merge, resolved PR22 thread, exact reviewed heads, and final GitHub evidence without changing implementation | completed | PR #24 is closed and merged; PR22 P2 thread is resolved; `8f3307a` remains the independently reviewed repair head and `7553b34` is its docs descendant | merge `792cb895e04760dea4f4b23c36a934a5ab6589f9`; review IDs `4679720242`, `4679723227`; resolved thread `PRRT_kwDORqx5mc6QLvLd` |
 
 ## Runtime provenance block
 
@@ -90,48 +92,50 @@ exact-head re-review (`4679720242`) closed that finding with PASS WITH NOTE.
 - Failed attempts retained at: N/A.
 - Known trade-offs: deterministic Torch algorithms use `warn_only=True` so unsupported GPU kernels do not silently claim bitwise determinism.
 - Unresolved risks: no blocking ticket risk; GPU bitwise determinism remains intentionally out of scope.
-- Human decision requested: review and merge PR #24 only after an independent PASS/PASS WITH NOTE verdict and exact-head audit; PR #22 is already merged.
+- Human decision requested: review and merge audit PR #23 after its exact-head gate; PR #22 and repair PR #24 are already merged.
 
 ## Merge authority and final audit
 
 - Merge path: human merge / guarded agent self-merge only after explicit authorization
-- Human authorization: bounded roadmap self-merge authorization from user, if parent agent applies it
-- Authorization evidence location: PR body and parent model-run audit
-- Authorization covers this named PR or bounded ticket/goal series: pending parent audit
-- Exact independently reviewed head SHA: pending
-- Latest independent verdict / model / mode: pending
-- All actionable findings repaired and independently re-reviewed: pending
-- Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: pending
+- Human authorization: bounded roadmap self-merge authorization from the user on 2026-07-12
+- Authorization evidence location: user goal instruction, PR #22 merge audit, and this follow-up record
+- Authorization covers this named PR or bounded ticket/goal series: yes — the user's 2026-07-12 instruction authorizes self-merge for the bounded roadmap completion series; recorded in the parent goal/PR audit and this follow-up
+- Exact independently reviewed repair head SHA: `8f3307a8b6d390c09405029efefd7a67adfad8e9`
+- Repair docs head SHA: `7553b348467d6a780c58b8ffbd56747e7f868c9e`
+- Latest independent verdict / model / mode: PASS WITH NOTE / not exposed by runtime / not exposed by runtime
+- Repair review IDs: `4679720242` and `4679723227`
+- All actionable findings repaired and independently re-reviewed: yes — PR22 P2 thread resolved after PR24 merge
+- Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: none observed; listed reviews are comments with PASS WITH NOTE findings only
 - Newer human objections since authorization/review: none observed
 - Human review dismissed by an agent: no
-- Unresolved review threads at final audit: pending
-- Branch-protection required-context inventory: pending
-- Applicable configured workflow/check inventory: pending
-- Observed exact-head check statuses: pending
-- Expected checks absent, pending, skipped, cancelled, or non-successful: pending
-- No-check evidence when both inventories are empty: pending
-- Target branch and base SHA at final audit: `main` / `a6c65cd` at PR creation
-- Up-to-date, conflict-free, and mergeable evidence: PR created from current main; final refresh pending
-- Record, ledger, PR trail, validation, and risks parity: pending final review
+- Unresolved review threads: zero for PR22 after resolving `PRRT_kwDORqx5mc6QLvLd`; PR23 audit review remains pending
+- Branch-protection required-context inventory: not exposed by the connected GitHub surface; no required-context inventory was returned
+- Applicable configured workflow/check inventory: none returned for PR24 repair head or merge `792cb89`; connector workflow inventory is empty
+- Observed exact-head check statuses: empty for PR24 repair head and merge `792cb89`; connector status inventory is empty
+- Expected checks absent, pending, skipped, cancelled, or non-successful: none observed; no expected contexts were exposed by the available inventory
+- No-check evidence when both inventories are empty: yes, with the connector evidence limitation above recorded
+- Target branch and base SHA at final audit: `main` / `792cb895e04760dea4f4b23c36a934a5ab6589f9` for PR23
+- Up-to-date, conflict-free, and mergeable evidence: PR23 is based on current main and is docs-only; the live PR body records the current audit head (a commit cannot contain its own SHA)
+- Record, ledger, PR trail, validation, and risks parity: complete for PR24; PR23 exact-head review/merge remains pending
 - Prohibited self-merge categories: clear — no secrets/security/deployment/permission changes
 - Admin/bypass/force/disabled-check requirement: no
-- Final audit PR body/comment location: PR #22
+- Final audit PR body/comment location: PR24 merge body and PR23 body
 - Final audit changed reviewed head: no
-- Immediate pre-merge re-fetch/compare observation location: pending
-- Immediate refresh compared authorization, head, base, review decision/objections, threads, expected checks/statuses, and mergeability: pending
-- Drift found: pending
-- Merge outcome: pending
+- Immediate pre-merge re-fetch/compare observation location: PR24 final refresh and PR23 final refresh
+- Immediate refresh compared authorization, head, base, review decision/objections, threads, expected checks/statuses, and mergeability: yes for PR24; PR23 refresh pending
+- Drift found: none in PR24; no implementation drift in PR23
+- Merge outcome: PR24 closed/merged at `792cb895e04760dea4f4b23c36a934a5ab6589f9`; PR23 audit pending
 
 ## Model assessment from this ticket
 
 | Model / mode | Role | What it handled well | What it missed or made worse | Context that helped | Outcome |
 | --- | --- | --- | --- | --- | --- |
-| not exposed by runtime / not exposed by runtime | implementation/review | Kept scope localized; independently reproduced CPU fixture determinism and manifest guards | Exact runtime deployment and reasoning are unavailable; no GPU bitwise claim | REP-001, CFG-001 config shape, existing manifest/tokenizer APIs, CHECK R1 | PASS WITH NOTE; exact reviewed head `deb0c1f` |
+| not exposed by runtime / not exposed by runtime | implementation/review/repair | Kept scope localized; independently reproduced CPU fixture determinism and repaired dirty-worktree verification | Exact runtime deployment and reasoning are unavailable; no GPU bitwise claim | REP-001, CFG-001 config shape, existing manifest/tokenizer APIs, CHECK R1/8.1 | PASS WITH NOTE; exact repair head `8f3307a` |
 
 ## Ledger update
 
 - [x] Added the PR/ticket row to `docs/model-runs/README.md`.
-- [x] Updated per-model attempt, pass, repair, and review counts: implementation, one repair, and two independent review cycles recorded.
+- [x] Updated per-model attempt, pass, repair, and review counts: implementation, guard-ordering repair, dirty-verification repair, and their independent reviews recorded.
 - [x] Confirmed that the PR execution trail matches this record.
-- [ ] Recorded human merge or complete guarded self-merge authority/audit evidence.
+- [x] Recorded complete guarded self-merge authority/audit evidence for PR #22; the user authorized the bounded roadmap series and the exact-head merge evidence is retained above.
 - [x] Confirmed that this bootstrap policy rule was not used before a human merged it.

@@ -157,7 +157,7 @@ be called a baseline until the following gates exist:
 | 5 | ENV-001 | P0 | Done | — | CUDA-capable, reproducible DGX Spark runtime |
 | 6 | EXP-001 | P0 | Done | — | Lightweight experiment and PR handoff contract |
 | 7 | CFG-001 | P0 | Done | DATA-001, TOK-001, DATA-002, EXP-001 | Canonical Hydra profiles and commands |
-| 8 | REP-001 | P0 | Blocked | CFG-001, TOK-001, DATA-002 | Reproducible run identity and global seed |
+| 8 | REP-001 | P0 | Done | CFG-001, TOK-001, DATA-002 | Reproducible run identity and global seed |
 | 9 | LOOP-001 | P0 | Blocked | DATA-001, CFG-001, REP-001 | Step/token trainer and correct scalar metrics |
 | 10 | DATA-003 | P0 | Blocked | DATA-001, DATA-002, REP-001, LOOP-001 | Deterministic stream horizon, shuffle, and cursor |
 | 11 | STAB-001 | P0 | Blocked | ENV-001, LOOP-001 | Stable conventional single-GPU BF16 training recipe |
