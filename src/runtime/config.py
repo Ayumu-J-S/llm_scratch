@@ -31,6 +31,8 @@ _DATA = {"mode", "memorization", "streaming"}
 _STREAMING = {
     "output_mode",
     "max_tokens",
+    "max_target_tokens",
+    "mixture_basis",
     "sequence_length",
     "add_eos",
     "preserve_metadata",
@@ -50,6 +52,8 @@ _STREAMING = {
 }
 _SPLIT = {
     "max_tokens",
+    "max_target_tokens",
+    "mixture_basis",
     "add_eos",
     "preserve_metadata",
     "require_manifests",
@@ -64,6 +68,9 @@ _SPLIT = {
     "sources",
     "datasets",
 }
+_CACHE = {"dir", "max_size_bytes", "min_free_bytes", "wait_timeout_seconds"}
+_PREFETCH = {"enabled", "buffer_size", "mode"}
+_RETRY = {"max_attempts", "initial_delay_seconds", "max_delay_seconds", "multiplier"}
 _SOURCE = {
     "name",
     "type",
@@ -394,6 +401,26 @@ def validate_training_config(config: Mapping[str, Any] | DictConfig) -> dict[str
         if not isinstance(streaming, Mapping):
             raise ConfigPreflightError("data.streaming is required for streaming profiles")
         _check_keys(streaming, _STREAMING, "data.streaming")
+        for key, allowed in (("cache", _CACHE), ("prefetch", _PREFETCH), ("retry", _RETRY)):
+            _check_nested(streaming, key, allowed, "data.streaming")
+        cache = streaming.get("cache")
+        if isinstance(cache, Mapping):
+            for field in ("max_size_bytes", "min_free_bytes"):
+                value = cache.get(field)
+                if value is not None and (
+                    isinstance(value, bool) or not isinstance(value, int) or value < 0
+                ):
+                    raise ConfigPreflightError(
+                        f"data.streaming.cache.{field} must be a non-negative integer"
+                    )
+            if int(cache.get("max_size_bytes", 0)) < 1:
+                raise ConfigPreflightError(
+                    "data.streaming.cache.max_size_bytes must be positive"
+                )
+            if float(cache.get("wait_timeout_seconds", 30.0)) <= 0:
+                raise ConfigPreflightError(
+                    "data.streaming.cache.wait_timeout_seconds must be positive"
+                )
         if streaming.get("require_manifests") is not True:
             raise ConfigPreflightError(
                 "real streaming profiles must set data.streaming.require_manifests=true"
@@ -408,9 +435,35 @@ def validate_training_config(config: Mapping[str, Any] | DictConfig) -> dict[str
         _check_keys(validation, _SPLIT, "data.streaming.validation")
         train_sources = _sources(train, "data.streaming.train")
         validation_sources = _sources(validation, "data.streaming.validation")
-        if train_sources == validation_sources or {
-            _source_identity(item) for item in train_sources
-        } == {_source_identity(item) for item in validation_sources}:
+        for split_name, split in (("train", train), ("validation", validation)):
+            basis = split.get("mixture_basis", streaming.get("mixture_basis", "tokenizer_tokens"))
+            if basis not in {"tokenizer_tokens", "trained_targets"}:
+                raise ConfigPreflightError(
+                    f"data.streaming.{split_name}.mixture_basis is invalid"
+                )
+            target_budget = split.get(
+                "max_target_tokens", streaming.get("max_target_tokens")
+            )
+            if basis == "trained_targets" and (
+                isinstance(target_budget, bool)
+                or not isinstance(target_budget, int)
+                or target_budget < 1
+            ):
+                raise ConfigPreflightError(
+                    f"data.streaming.{split_name} trained_targets mixture requires "
+                    "a positive max_target_tokens"
+                )
+            if (
+                basis == "trained_targets"
+                and target_budget % int(training["sequence_length"]) != 0
+            ):
+                raise ConfigPreflightError(
+                    f"data.streaming.{split_name}.max_target_tokens must be divisible by "
+                    "training.sequence_length so every packed batch has a full target window"
+                )
+        train_identities = {_source_identity(item) for item in train_sources}
+        validation_identities = {_source_identity(item) for item in validation_sources}
+        if train_sources == validation_sources or train_identities & validation_identities:
             raise ConfigPreflightError("real train and validation sources must be distinct")
     else:
         raise ConfigPreflightError(f"unsupported data.mode: {data['mode']!r}")

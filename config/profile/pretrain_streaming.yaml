@@ -1,6 +1,6 @@
 # @package _global_
-# Canonical manifest-backed stream profile. Train and validation select
-# disjoint splits from one immutable source manifest.
+# Canonical pinned bilingual stream profile. Every source uses the same
+# content-hash split policy, so train/validation membership is cross-source safe.
 profile:
   name: pretrain_streaming
   purpose: pretraining
@@ -18,32 +18,50 @@ data:
     repeat: true
     cache:
       dir: data/stream_loader_cache
-      max_size_bytes: 750000000000
+      max_size_bytes: 80000000000
+      min_free_bytes: 256000000000
+      wait_timeout_seconds: 120.0
     prefetch:
       enabled: true
       buffer_size: 16
     train:
       max_tokens: max
+      max_target_tokens: 262144
+      mixture_basis: trained_targets
       add_eos: true
       seed: 42
       sources:
-        - name: bilingual_fixture_train
+        - name: fineweb2_ja_train
           type: manifest
-          manifest_path: tests/fixtures/data_manifests/bilingual.manifest.json
-          expected_fingerprint: 47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19
+          manifest_path: data/manifests/fineweb2-ja-jpn-jpan.manifest.json
+          expected_fingerprint: 2fc3eb60986c96fcb752b14d740dd5a3f7cea8b52bb5a13cb5834a1f805d6bba
           selection: train
-          ratio: 1.0
+          ratio: 0.5
+        - name: fineweb_en_train
+          type: manifest
+          manifest_path: data/manifests/fineweb-en-sample-10bt.manifest.json
+          expected_fingerprint: 626a1eb095e9089e5c62ee2df9c058ab7c6dfc54064eca5c13e4d84e65a8d60a
+          selection: train
+          ratio: 0.5
     validation:
       max_tokens: max
+      max_target_tokens: 65536
+      mixture_basis: trained_targets
       add_eos: true
       seed: 43
       sources:
-        - name: bilingual_fixture_validation
+        - name: fineweb2_ja_validation
           type: manifest
-          manifest_path: tests/fixtures/data_manifests/bilingual.manifest.json
-          expected_fingerprint: 47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19
+          manifest_path: data/manifests/fineweb2-ja-jpn-jpan.manifest.json
+          expected_fingerprint: 2fc3eb60986c96fcb752b14d740dd5a3f7cea8b52bb5a13cb5834a1f805d6bba
           selection: validation
-          ratio: 1.0
+          ratio: 0.5
+        - name: fineweb_en_validation
+          type: manifest
+          manifest_path: data/manifests/fineweb-en-sample-10bt.manifest.json
+          expected_fingerprint: 626a1eb095e9089e5c62ee2df9c058ab7c6dfc54064eca5c13e4d84e65a8d60a
+          selection: validation
+          ratio: 0.5
 
 training:
   sequence_length: 8

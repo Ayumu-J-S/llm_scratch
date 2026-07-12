@@ -69,6 +69,16 @@ def validate_profile_batches(cfg: DictConfig) -> None:
             ) from error
 
 
+def validate_profile_manifests(cfg: DictConfig) -> None:
+    """Resolve immutable metadata without opening or downloading source shards."""
+
+    if cfg.data.mode != "streaming":
+        return
+    train_loader = build_streaming_dataloader(cfg, "train")
+    validation_loader = build_streaming_dataloader(cfg, "validation")
+    validate_streaming_dataloaders(train_loader, validation_loader)
+
+
 def log_sample_batch(tokenizer, batch) -> None:
     inputs = batch["inputs"]
     labels = batch["labels"]
@@ -359,9 +369,9 @@ def main(cfg: DictConfig) -> None:
 
 
 def run_config_check(cfg: DictConfig) -> Path:
-    """Preflight a composed profile and return its resolved-config snapshot."""
+    """Preflight config and immutable metadata without consuming remote data."""
     validate_training_config(cfg)
-    validate_profile_batches(cfg)
+    validate_profile_manifests(cfg)
     resolved_config_path = save_resolved_config(cfg)
     logger.info("Config preflight passed: {}", resolved_config_path)
     return resolved_config_path
@@ -369,7 +379,7 @@ def run_config_check(cfg: DictConfig) -> Path:
 
 @hydra.main(version_base=None, config_path="../config", config_name="train")
 def config_check(cfg: DictConfig) -> None:
-    """Compose, preflight, and batch-smoke one canonical profile."""
+    """Compose and metadata-preflight one canonical profile."""
 
     run_config_check(cfg)
 

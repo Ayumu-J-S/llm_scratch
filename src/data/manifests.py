@@ -14,6 +14,7 @@ from data.identity import (
     normalized_content_sha256,
     stable_document_id,
 )
+from data.quality import DocumentPolicy
 from data.splits import DataPurpose, assign_split, dataset_fingerprint, split_fingerprint
 
 if TYPE_CHECKING:
@@ -22,7 +23,7 @@ if TYPE_CHECKING:
 
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _HF_REVISION = re.compile(r"^[0-9a-f]{40}$")
-_MANIFEST_FIELDS = {
+_MANIFEST_V1_FIELDS = {
     "schema_version",
     "name",
     "purpose",
@@ -33,6 +34,17 @@ _MANIFEST_FIELDS = {
     "index_sha256",
     "dataset_fingerprint",
     "split_fingerprints",
+    "manifest_fingerprint",
+}
+_MANIFEST_V2_FIELDS = {
+    "schema_version",
+    "name",
+    "purpose",
+    "source",
+    "usage",
+    "split",
+    "document_policy",
+    "dataset_fingerprint",
     "manifest_fingerprint",
 }
 
@@ -71,32 +83,62 @@ class ResolvedManifest:
     dataset_fingerprint: str
     split_fingerprints: tuple[tuple[str, str], ...]
     documents: tuple[ResolvedDocument, ...]
+    source: Mapping[str, Any] | None = None
+    split_policy: Mapping[str, Any] | None = None
+    document_policy: DocumentPolicy | None = None
+
+    @property
+    def is_lazy(self) -> bool:
+        return self.source is not None
+
+    @property
+    def split_policy_fingerprint(self) -> str | None:
+        if self.split_policy is None:
+            return None
+        return canonical_fingerprint(self.split_policy)
 
 
 def load_manifest(path: str | Path) -> dict[str, Any]:
     manifest_path = Path(path)
     manifest = _load_json_object(manifest_path)
-    _require_exact_fields(manifest, _MANIFEST_FIELDS, "manifest")
-    if manifest["schema_version"] != 1:
-        raise ManifestError("manifest.schema_version must be 1")
+    schema_version = manifest.get("schema_version")
+    if schema_version == 1:
+        _require_exact_fields(manifest, _MANIFEST_V1_FIELDS, "manifest")
+    elif schema_version == 2:
+        _require_exact_fields(manifest, _MANIFEST_V2_FIELDS, "manifest")
+    else:
+        raise ManifestError("manifest.schema_version must be 1 or 2")
     _require_nonempty_string(manifest["name"], "manifest.name")
     try:
         DataPurpose(manifest["purpose"])
     except (TypeError, ValueError) as error:
         raise ManifestError("manifest.purpose is invalid") from error
     _validate_usage(manifest["usage"])
-    _validate_source(manifest["source"])
-    _validate_split_config(manifest["split"])
-    _validate_package_path(manifest["index_path"], "manifest.index_path")
-    _require_sha256(manifest["index_sha256"], "manifest.index_sha256")
+    _validate_source(manifest["source"], schema_version=schema_version)
+    _validate_split_config(manifest["split"], schema_version=schema_version)
+    if schema_version == 1:
+        _validate_package_path(manifest["index_path"], "manifest.index_path")
+        _require_sha256(manifest["index_sha256"], "manifest.index_sha256")
+        _validate_split_fingerprints(manifest["split_fingerprints"])
+    else:
+        _validate_document_policy(manifest["document_policy"])
     _require_sha256(manifest["dataset_fingerprint"], "manifest.dataset_fingerprint")
-    _validate_split_fingerprints(manifest["split_fingerprints"])
     fingerprint = manifest.pop("manifest_fingerprint")
     _require_sha256(fingerprint, "manifest.manifest_fingerprint")
     actual = canonical_fingerprint(manifest)
     if actual != fingerprint:
         raise ManifestError(f"manifest fingerprint mismatch: expected {fingerprint}, got {actual}")
     manifest["manifest_fingerprint"] = fingerprint
+    if schema_version == 2:
+        expected_dataset = canonical_fingerprint(
+            {
+                "name": manifest["name"],
+                "source": manifest["source"],
+                "document_policy": manifest["document_policy"],
+            }
+        )
+        if manifest["dataset_fingerprint"] != expected_dataset:
+            raise ManifestError("dataset fingerprint does not match v2 inventory and policy")
     return manifest
 
 
@@ -116,6 +158,22 @@ def preflight_manifest(
         raise ManifestError("configured manifest fingerprint does not match the manifest")
     purpose = DataPurpose(manifest["purpose"])
     _guard_purpose(purpose, selection, access, allow_reserved_benchmark)
+
+    if manifest["schema_version"] == 2:
+        if purpose is not DataPurpose.PRETRAINING:
+            raise ManifestError("lazy Parquet manifests are only valid for pretraining")
+        return ResolvedManifest(
+            name=manifest["name"],
+            purpose=purpose,
+            selection=selection,
+            manifest_fingerprint=manifest["manifest_fingerprint"],
+            dataset_fingerprint=manifest["dataset_fingerprint"],
+            split_fingerprints=(),
+            documents=(),
+            source=manifest["source"],
+            split_policy=manifest["split"],
+            document_policy=DocumentPolicy(**manifest["document_policy"]),
+        )
 
     index_path = _resolve_relative(path.parent, manifest["index_path"])
     _verify_file(index_path, manifest["index_sha256"], None, "document index")
@@ -194,6 +252,20 @@ def validate_disjoint_manifests(
         raise ManifestError("production training requires resolved train manifests")
     if not validation_manifests:
         raise ManifestError("production training requires resolved validation manifests")
+    all_manifests = [*train_manifests.values(), *validation_manifests.values()]
+    lazy = [manifest for manifest in all_manifests if manifest.is_lazy]
+    if lazy:
+        if len(lazy) != len(all_manifests):
+            raise ManifestError("cannot prove disjointness across lazy and indexed manifests")
+        if any(manifest.selection != "train" for manifest in train_manifests.values()):
+            raise ManifestError("lazy training manifests must select train")
+        if any(manifest.selection != "validation" for manifest in validation_manifests.values()):
+            raise ManifestError("lazy validation manifests must select validation")
+        fingerprints = {manifest.split_policy_fingerprint for manifest in lazy}
+        if len(fingerprints) != 1:
+            raise ManifestError("lazy manifests require one identical shared split policy")
+        return
+
     train_ids = {
         document.document_id
         for manifest in train_manifests.values()
@@ -350,11 +422,58 @@ def _resolve_source_documents(
     )
 
 
-def _validate_source(source: Any) -> None:
+def _validate_source(source: Any, *, schema_version: int = 1) -> None:
     if not isinstance(source, dict):
         raise ManifestError("manifest.source must be an object")
     kind = source.get("kind")
     common = {"kind", "text_field", "id_field"}
+    if schema_version == 2:
+        _require_exact_fields(
+            source,
+            common
+            | {
+                "repo_id",
+                "revision",
+                "config_name",
+                "split",
+                "data_files",
+                "metadata_fields",
+            },
+            "source",
+        )
+        if kind != "hf_parquet":
+            raise ManifestError("v2 source.kind must be hf_parquet")
+        for field in ("repo_id", "config_name", "split"):
+            _require_nonempty_string(source[field], f"source.{field}")
+        if not isinstance(source["revision"], str) or not _HF_REVISION.fullmatch(
+            source["revision"]
+        ):
+            raise ManifestError("source.revision must be an exact lowercase 40-hex HF commit")
+        if not isinstance(source["metadata_fields"], list) or not all(
+            isinstance(field, str) and field for field in source["metadata_fields"]
+        ):
+            raise ManifestError("source.metadata_fields must be a list of field names")
+        if len(source["metadata_fields"]) != len(set(source["metadata_fields"])):
+            raise ManifestError("source.metadata_fields must not contain duplicates")
+        if source["text_field"] in source["metadata_fields"] or (
+            source["id_field"] is not None and source["id_field"] in source["metadata_fields"]
+        ):
+            raise ManifestError("source.metadata_fields must exclude text_field and id_field")
+        if not isinstance(source["data_files"], list) or not source["data_files"]:
+            raise ManifestError("source.data_files must contain immutable Parquet artifacts")
+        seen_paths: set[str] = set()
+        for artifact in source["data_files"]:
+            _require_exact_fields(artifact, {"path", "size_bytes", "sha256"}, "artifact")
+            _validate_artifact(artifact, "artifact")
+            if not artifact["path"].endswith(".parquet"):
+                raise ManifestError("v2 artifacts must be Parquet files")
+            if artifact["path"] in seen_paths:
+                raise ManifestError(f"duplicate artifact path: {artifact['path']}")
+            seen_paths.add(artifact["path"])
+        _require_nonempty_string(source["text_field"], "source.text_field")
+        if source["id_field"] is not None:
+            _require_nonempty_string(source["id_field"], "source.id_field")
+        return
     if kind == "local_jsonl":
         _require_exact_fields(source, common | {"path", "size_bytes", "sha256"}, "source")
         _validate_artifact(source, "source")
@@ -403,8 +522,13 @@ def _validate_usage(usage: Any) -> None:
     _require_nonempty_string(usage["terms_url"], "usage.terms_url")
 
 
-def _validate_split_config(split: Any) -> None:
-    _require_exact_fields(split, {"salt", "validation_fraction"}, "split")
+def _validate_split_config(split: Any, *, schema_version: int = 1) -> None:
+    fields = {"salt", "validation_fraction"}
+    if schema_version == 2:
+        fields.add("method")
+    _require_exact_fields(split, fields, "split")
+    if schema_version == 2 and split["method"] != "normalized_content_sha256_v1":
+        raise ManifestError("split.method must be normalized_content_sha256_v1")
     _require_nonempty_string(split["salt"], "split.salt")
     # Exercise the exact decimal-string and threshold validation.
     assign_split(
@@ -412,6 +536,24 @@ def _validate_split_config(split: Any) -> None:
         salt=split["salt"],
         validation_fraction=split["validation_fraction"],
     )
+
+
+def _validate_document_policy(value: Any) -> None:
+    _require_exact_fields(
+        value,
+        {
+            "version",
+            "language",
+            "max_utf8_bytes",
+            "reject_controls",
+            "reject_wrong_script",
+        },
+        "document_policy",
+    )
+    try:
+        DocumentPolicy(**value)
+    except (TypeError, ValueError) as error:
+        raise ManifestError(f"invalid document_policy: {error}") from error
 
 
 def _validate_split_fingerprints(value: Any) -> None:
