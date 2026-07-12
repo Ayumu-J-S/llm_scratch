@@ -465,6 +465,13 @@ class StreamLoader:
             raise StreamLoaderError("cannot load a cursor while prefetch is active")
         self._validate_cursor(cursor)
         self._cursor = _copy_cursor(cursor)
+        self._pass_index = int(self._cursor.get("pass_index", 0))
+        self.cursor_enabled = True
+        # Process prefetch receives a plain serialized config.  Keep the
+        # explicit cursor in that config as well as on the parent so a spawned
+        # worker resumes from the requested state rather than its initial
+        # position.
+        self.config["cursor"] = _copy_cursor(cursor)
 
     def _initial_cursor(self) -> dict[str, Any]:
         return {
@@ -578,6 +585,7 @@ class StreamLoader:
     def _iter_async(self) -> Iterator[dict[str, Any]]:
         self._start_prefetch_worker()
         assert self._queue is not None
+        normal_completion = False
         try:
             while True:
                 try:
@@ -591,6 +599,7 @@ class StreamLoader:
                         break
                     continue
                 if item == _SENTINEL:
+                    normal_completion = True
                     break
                 if _is_prefetch_error(item):
                     raise StreamLoaderError(item["message"])
@@ -606,7 +615,7 @@ class StreamLoader:
                     raise item
                 yield item
         finally:
-            if self._consumer_cursor is not None:
+            if not normal_completion and self._consumer_cursor is not None:
                 self._cursor = _copy_cursor(self._consumer_cursor)
             self.close()
 
@@ -656,6 +665,14 @@ class StreamLoader:
             except BaseException as error:  # noqa: BLE001 - propagate to consumer.
                 self._put_prefetch_item(error)
             finally:
+                if not self._stop_event.is_set() and self._cursor is not None:
+                    # The final worker cursor carries pass_complete=True.  A
+                    # final marker prevents _iter_async's consumer cursor
+                    # (which represents the last sample) from overwriting the
+                    # completed-pass state when the loader is reused.
+                    self._put_prefetch_item(
+                        {_CURSOR_MARKER: True, "cursor": _copy_cursor(self._cursor)}
+                    )
                 self._put_prefetch_item(_SENTINEL)
 
         self._thread = threading.Thread(

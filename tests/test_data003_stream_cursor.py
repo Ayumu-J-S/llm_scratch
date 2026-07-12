@@ -124,6 +124,33 @@ def test_thread_prefetch_interruption_does_not_capture_ahead_of_consumer():
     ] == full
 
 
+def test_thread_prefetch_reuse_retains_completed_pass_cursor():
+    config = _config(prefetch={"enabled": True, "mode": "thread", "buffer_size": 2})
+    loader = StreamLoader(config)
+    first = [(item["source"], item["text"]) for item in loader]
+    second = [(item["source"], item["text"]) for item in loader]
+    assert first
+    assert second
+    assert not set(first[:3]).intersection(second[:3])
+
+
+def test_process_prefetch_load_state_dict_propagates_cursor_to_worker():
+    config = _config(prefetch={"enabled": True, "mode": "process", "buffer_size": 2})
+    full = _sequence(config)
+    sync_loader = StreamLoader({**config, "prefetch": {"enabled": False}})
+    iterator = iter(sync_loader)
+    prefix = [next(iterator) for _ in range(3)]
+    cursor = sync_loader.state_dict()
+    iterator.close()
+
+    resumed_loader = StreamLoader(config)
+    resumed_loader.load_state_dict(cursor)
+    resumed = list(resumed_loader)
+    assert [(item["source"], item["text"]) for item in prefix] + [
+        (item["source"], item["text"]) for item in resumed
+    ] == full
+
+
 def test_packed_window_cursor_keeps_unemitted_residual_tokens():
     config = _config(
         output_mode="packed_sequences",
