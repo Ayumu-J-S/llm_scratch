@@ -1,0 +1,28 @@
+name: Network integration
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 4 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  public-hf-stream:
+    name: Public Hugging Face stream
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          version: "0.11.19"
+      - name: Frozen uv sync
+        run: make ci-sync
+      - name: Opt-in public network integration
+        env:
+          RUN_HF_DATASET_INTEGRATION: "1"
+        run: uv run --no-sync pytest -q tests/test_stream_loader.py::test_hugging_face_streaming_dataset_integration

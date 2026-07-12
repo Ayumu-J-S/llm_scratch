@@ -68,6 +68,26 @@ by the training loop as a hidden fallback. Every training invocation writes
 the fully resolved configuration to `runs/<profile>/<timestamp>/resolved_config.yaml`
 (the installed console wrapper uses `runs/<profile>/manual/`).
 
+### Pull-request CPU quality gate
+
+Run the same ordered gate that GitHub Actions runs for each pull request:
+
+```bash
+make ci-cpu
+```
+
+`ci-sync` is the only step allowed to install the locked dependency set. The
+remaining lint, unit, Hydra-composition, lock-drift, and smoke steps use the
+existing environment with `uv --no-sync` and offline environment settings. The
+smoke uses only committed manifest/tokenizer inputs, removes common W&B,
+Hugging Face, and AWS credential variables in its child process, and blocks
+Python network sockets. It is a small CPU wiring check, not a quality or
+performance run.
+
+The public Hugging Face integration test is intentionally not a pull-request
+check; it runs only from the manually dispatched or weekly scheduled `Network
+integration` workflow.
+
 ### Checkpoint recovery
 
 Checkpoints are full-state local recovery files under the Hydra run directory

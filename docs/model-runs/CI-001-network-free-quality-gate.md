@@ -1,6 +1,6 @@
 # CI-001 - Network-free CPU quality gate
 
-- PR: draft / pending creation
+- PR: draft [#37](https://github.com/Ayumu-J-S/llm_scratch/pull/37)
 - Branch: `codex/ci-001-network-free-quality-gate`
 - Ticket: `CI-001`
 - Hypothesis: one canonical local command can prove the pull-request foundation
@@ -33,7 +33,7 @@
 
 | Cycle | Phase | Exact model identifier | Reasoning mode | Input commit/context | Requested work | Outcome | Main findings / changes | Evidence |
 | ---: | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | implementation | not exposed by runtime | not exposed by runtime | `246e712`; CI-001, AGENTS, `PHILOSOPHY.md`, `CHECK.md` 1/7.3/8.1 | Requested Luna / Extra High; build the smallest matching local and PR gate | in progress | Selected a post-sync `--no-sync` command surface, a subprocess socket guard for the tiny local-manifest smoke, and separately-triggered network integration | implementation provenance below |
+| 1 | implementation | not exposed by runtime | not exposed by runtime | `246e712`; CI-001, AGENTS, `PHILOSOPHY.md`, `CHECK.md` 1/7.3/8.1 | Requested Luna / Extra High; build the smallest matching local and PR gate | completed; independent review pending | Added one Make target per visible CI stage plus `ci-cpu`; each post-sync target is offline and `--no-sync`; added intentional lock-drift rejection, child-only credential scrubbing/socket-guard proof, PR workflow, and separately triggered public-HF workflow | `make ci-cpu`: sync/lint/config/lock/smoke passed; `ci-test`: 251 passed, 1 opt-in network skip; details below |
 
 ## Runtime provenance block
 
@@ -81,17 +81,43 @@ N/A — no repair has run.
 
 ## Final evidence
 
-- Resolved Hydra command/config: pending implementation.
-- Data/tokenizer/model identity: the smoke must use the committed
-  `smoke_overfit` manifest and canonical tokenizer, without online source access.
-- Validation and measurements: pending.
+- Resolved Hydra command/config: `uv run --no-sync python
+  scripts/config_check.py profile=smoke_overfit`; the run wrote the resolved
+  `smoke_overfit` config under ignored `runs/` and passed offline.
+- Data/tokenizer/model identity: the socket-blocked smoke used the committed
+  `smoke_overfit` manifest fingerprint
+  `00c3797a7d0eda13950fd699a60c45fcd388829f016479caaeb369438767bd31`,
+  canonical tokenizer fingerprint
+  `12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b`,
+  and a tiny Hydra-overridden 1,672,090-parameter CPU decoder. It did not make
+  a quality, GPU, or performance claim.
+- Validation and measurements:
+  - `make ci-cpu` passed after `uv sync --locked --no-default-groups --group dev`.
+    Its post-sync stages used `UV_OFFLINE=1`, `HF_HUB_OFFLINE=1`,
+    `HF_DATASETS_OFFLINE=1`, `WANDB_MODE=disabled`, `WANDB_DISABLED=true`, and
+    `uv run --no-sync`.
+  - Ruff passed; `ci-test` reported 251 passed and one explicit
+    `RUN_HF_DATASET_INTEGRATION=1` skip; canonical Hydra composition passed.
+  - `scripts/check_lock_drift.py` passed current `uv lock --check` then copied
+    `pyproject.toml`/`uv.lock`, changed the project version, and verified that
+    `uv lock --check` rejected the intentional drift.
+  - `scripts/offline_smoke.py` first proved its child `sitecustomize` guard
+    blocked DNS/socket access, then completed one local-manifest CPU epoch with
+    W&B/Hugging Face/AWS/GitHub credential variables removed from that child.
+  - Static tests for workflow/local-target parity, network-trigger separation,
+    and the child environment: 3 passed.
+- Pull-request workflow evidence: pending exact candidate push; PR #37 was
+  intentionally created before implementation, while still draft.
 - Performance/resource result if applicable: R0/R1 only; no DGX performance
   claim is in scope.
 - Failed attempts retained at: this record.
-- Known trade-offs: the socket guard will demonstrate Python-network isolation
-  for the smoke; it is not a host firewall or a claim about external native code.
-- Unresolved risks: hosted Actions behavior and the exact workflow run are
-  pending PR creation.
+- Known trade-offs: the socket guard demonstrates Python-network isolation for
+  the smoke; it is not a host firewall or a claim about arbitrary native code.
+  Network integration remains deliberately outside the PR path and runs only
+  on manual/weekly public-HF workflow dispatch.
+- Unresolved risks: exact GitHub-hosted Actions run and independent exact-head
+  review are pending; the quality workflow intentionally does not validate DGX
+  performance, W&B credentials, full training, or benchmarks.
 - Human decision requested: none while implementation/review are in progress.
 
 ## Merge authority and final audit
