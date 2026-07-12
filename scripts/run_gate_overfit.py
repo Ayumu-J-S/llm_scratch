@@ -25,7 +25,7 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 
 from data.identity import canonical_json_bytes
-from train import ROOT_DIR, prepare_trainer
+from train import ROOT_DIR, build_streaming_dataloader, prepare_trainer
 
 
 MAX_STEPS = 200
@@ -175,6 +175,16 @@ def _run_uninterrupted(cfg: DictConfig, *, run_dir: Path) -> None:
     trainer.fit()
 
 
+def _batches_per_train_pass(cfg: DictConfig, *, device: str) -> int:
+    """Count one finite fixture pass before choosing the resume boundary."""
+
+    loader = build_streaming_dataloader(cfg, "train", device=torch.device(device))
+    count = sum(1 for _ in loader)
+    if count < 2:
+        raise GateProofError("GATE-001 fixture must contain more than one train batch per pass")
+    return count
+
+
 def _run_interrupted_then_resumed(cfg: DictConfig, *, run_dir: Path) -> None:
     """Stop only after normal event handling wrote the verified recovery file."""
 
@@ -305,7 +315,13 @@ def run_proof(*, output_dir: Path, device: str) -> dict[str, Any]:
         raise GateProofError(
             "GATE-001 must not score its auxiliary source within the memorization budget"
         )
-    if int(cfg.training.epochs) < MAX_STEPS:
+    batches_per_pass = _batches_per_train_pass(cfg, device=device)
+    if INTERRUPT_STEP % batches_per_pass == 0:
+        raise GateProofError(
+            "GATE-001 interruption would land on a terminal stream batch; "
+            "use a fixed fixture whose pass length leaves a real resume suffix"
+        )
+    if int(cfg.training.epochs) * batches_per_pass < MAX_STEPS:
         raise GateProofError("profile does not provide enough finite stream passes for the step budget")
 
     try:
@@ -331,6 +347,7 @@ def run_proof(*, output_dir: Path, device: str) -> dict[str, Any]:
             "predeclared": {
                 "max_steps": MAX_STEPS,
                 "interruption_step": INTERRUPT_STEP,
+                "batches_per_train_pass": batches_per_pass,
                 "final_loss_threshold": LOSS_THRESHOLD,
                 "stop_conditions": [
                     "non-finite loss or gradients",

@@ -25,7 +25,7 @@ data:
         - name: gate_overfit_train_v1
           type: manifest
           manifest_path: tests/fixtures/gate_overfit/v1/train.manifest.json
-          expected_fingerprint: 5b8b1e542e3477e2a41c374e8a0417b30398b7bf622d6d2c1def9eedccd68357
+          expected_fingerprint: e35bdae50a2612497b00681ba4e819c9dab2e7c4586a9ad194024a7cdc4ab93d
           selection: all
           ratio: 1.0
     validation:
@@ -42,11 +42,11 @@ data:
 
 training:
   sequence_length: 16
-  # A small finite source yields one batch per pass.  The step budget is still
-  # authoritative; enough passes are supplied to reach it without replaying a
-  # partial prefix inside one iterator.
-  epochs: 200
-  batch_size: 2
+  # The finite fixture has several deterministic batches per pass.  The step
+  # budget remains authoritative; enough passes reach it without extending the
+  # iterator beyond a documented source boundary.
+  epochs: 20
+  batch_size: 1
   shuffle: false
   max_steps: 200
   max_tokens: null
