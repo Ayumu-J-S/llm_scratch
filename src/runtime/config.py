@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from typing import Any
 
@@ -38,12 +39,31 @@ _STREAMING = {
     "prefetch",
     "retry",
     "cache",
+    "repeat",
+    "horizon",
+    "shuffle",
+    "shuffle_buffer_size",
     "train",
     "validation",
     "sources",
     "datasets",
 }
-_SPLIT = {"max_tokens", "add_eos", "preserve_metadata", "require_manifests", "seed", "prefetch", "retry", "cache", "sources", "datasets"}
+_SPLIT = {
+    "max_tokens",
+    "add_eos",
+    "preserve_metadata",
+    "require_manifests",
+    "seed",
+    "prefetch",
+    "retry",
+    "cache",
+    "repeat",
+    "horizon",
+    "shuffle",
+    "shuffle_buffer_size",
+    "sources",
+    "datasets",
+}
 _SOURCE = {
     "name",
     "type",
@@ -87,6 +107,9 @@ _TRAINING = {
     "milestone_every_n_tokens",
     "cadence",
     "ignore_index",
+    "precision",
+    "gradient_accumulation_steps",
+    "max_grad_norm",
 }
 _MODEL = {"embed_size", "num_heads", "num_layers", "dropout"}
 _ARTIFACTS = {"checkpoints_dir"}
@@ -94,7 +117,9 @@ _WANDB = {"enabled", "project", "entity", "name", "mode", "log_model_every_n_epo
 
 
 def _plain(config: Mapping[str, Any] | DictConfig) -> dict[str, Any]:
-    value = OmegaConf.to_container(config, resolve=True) if isinstance(config, DictConfig) else config
+    value = (
+        OmegaConf.to_container(config, resolve=True) if isinstance(config, DictConfig) else config
+    )
     if not isinstance(value, Mapping):
         raise ConfigPreflightError("Hydra configuration must resolve to a mapping")
     return dict(value)
@@ -103,13 +128,17 @@ def _plain(config: Mapping[str, Any] | DictConfig) -> dict[str, Any]:
 def _check_keys(mapping: Mapping[str, Any], allowed: set[str], path: str) -> None:
     unknown = sorted(set(mapping) - allowed)
     if unknown:
-        raise ConfigPreflightError(f"unknown critical config key(s) at {path}: {', '.join(unknown)}")
+        raise ConfigPreflightError(
+            f"unknown critical config key(s) at {path}: {', '.join(unknown)}"
+        )
 
 
 def _required(mapping: Mapping[str, Any], keys: tuple[str, ...], path: str) -> None:
     missing = [key for key in keys if key not in mapping or mapping[key] is None]
     if missing:
-        raise ConfigPreflightError(f"missing required config key(s) at {path}: {', '.join(missing)}")
+        raise ConfigPreflightError(
+            f"missing required config key(s) at {path}: {', '.join(missing)}"
+        )
 
 
 def _check_nested(mapping: Mapping[str, Any], key: str, allowed: set[str], path: str) -> None:
@@ -156,7 +185,11 @@ def _sources(split: Mapping[str, Any], path: str) -> list[dict[str, Any]]:
         names.add(str(source["name"]))
         source_type = source.get("type", source.get("source", "hf"))
         if source_type == "manifest":
-            _required(source, ("manifest_path", "expected_fingerprint", "selection"), f"{path}.sources[{index}]")
+            _required(
+                source,
+                ("manifest_path", "expected_fingerprint", "selection"),
+                f"{path}.sources[{index}]",
+            )
             if source["selection"] not in {"train", "validation", "all"}:
                 raise ConfigPreflightError(f"{path}.sources[{index}].selection is invalid")
         result.append(dict(source))
@@ -169,7 +202,16 @@ def validate_training_config(config: Mapping[str, Any] | DictConfig) -> dict[str
     cfg = _plain(config)
     _check_keys(cfg, _TOP_LEVEL, "<root>")
     _required(cfg, ("profile", "runtime", "data", "training", "model", "tokenizer"), "<root>")
-    for key, allowed in (("profile", _PROFILE), ("runtime", _RUNTIME), ("reproducibility", _REPRODUCIBILITY), ("data", _DATA), ("training", _TRAINING), ("model", _MODEL), ("artifacts", _ARTIFACTS), ("wandb", _WANDB)):
+    for key, allowed in (
+        ("profile", _PROFILE),
+        ("runtime", _RUNTIME),
+        ("reproducibility", _REPRODUCIBILITY),
+        ("data", _DATA),
+        ("training", _TRAINING),
+        ("model", _MODEL),
+        ("artifacts", _ARTIFACTS),
+        ("wandb", _WANDB),
+    ):
         _check_nested(cfg, key, allowed, "<root>")
 
     reproducibility = _plain(cfg["reproducibility"])
@@ -184,7 +226,11 @@ def validate_training_config(config: Mapping[str, Any] | DictConfig) -> dict[str
     profile = _plain(cfg["profile"])
     _required(profile, ("name",), "profile")
     profile_name = str(profile["name"])
-    if profile_name == "evaluation" or profile.get("purpose") == "evaluation" or profile.get("task") == "evaluate_checkpoint":
+    if (
+        profile_name == "evaluation"
+        or profile.get("purpose") == "evaluation"
+        or profile.get("task") == "evaluate_checkpoint"
+    ):
         raise ConfigPreflightError(
             "profile=evaluation is composition-only until the evaluation ticket; "
             "the training entrypoint cannot run it"
@@ -194,6 +240,7 @@ def validate_training_config(config: Mapping[str, Any] | DictConfig) -> dict[str
     expected_profile = {
         "smoke_overfit": ("memorization_smoke", "memorization_smoke"),
         "pretrain_streaming": ("streaming", "pretraining"),
+        "stability_smoke": ("streaming", "pretraining"),
     }.get(profile_name)
     if expected_profile is None:
         raise ConfigPreflightError(f"unknown training profile: {profile_name!r}")
@@ -205,8 +252,68 @@ def validate_training_config(config: Mapping[str, Any] | DictConfig) -> dict[str
         )
     training = _plain(cfg["training"])
     _required(training, ("sequence_length", "epochs", "batch_size"), "training")
-    if int(training["sequence_length"]) < 2 or int(training["batch_size"]) < 1 or int(training["epochs"]) < 1:
-        raise ConfigPreflightError("training sequence_length, batch_size, and epochs must be positive")
+    if (
+        int(training["sequence_length"]) < 2
+        or int(training["batch_size"]) < 1
+        or int(training["epochs"]) < 1
+    ):
+        raise ConfigPreflightError(
+            "training sequence_length, batch_size, and epochs must be positive"
+        )
+    if training.get("precision", "fp32") not in {"fp32", "bf16"}:
+        raise ConfigPreflightError("training.precision must be either 'fp32' or 'bf16'")
+    accumulation_steps = training.get("gradient_accumulation_steps", 1)
+    if (
+        isinstance(accumulation_steps, bool)
+        or not isinstance(accumulation_steps, int)
+        or accumulation_steps < 1
+    ):
+        raise ConfigPreflightError(
+            "training.gradient_accumulation_steps must be a positive integer"
+        )
+    max_grad_norm = training.get("max_grad_norm")
+    if max_grad_norm is not None:
+        try:
+            valid_max_grad_norm = math.isfinite(float(max_grad_norm)) and float(max_grad_norm) > 0.0
+        except (TypeError, ValueError):
+            valid_max_grad_norm = False
+        if not valid_max_grad_norm:
+            raise ConfigPreflightError(
+                "training.max_grad_norm must be a positive finite number or null"
+            )
+    optimizer = training.get("optimizer")
+    if not isinstance(optimizer, Mapping):
+        raise ConfigPreflightError("training.optimizer must be a mapping")
+    _required(optimizer, ("_target_", "lr", "betas", "eps", "weight_decay"), "training.optimizer")
+    if optimizer.get("_target_") != "torch.optim.AdamW":
+        raise ConfigPreflightError("training.optimizer._target_ must be torch.optim.AdamW")
+    scheduler = training.get("scheduler")
+    if not isinstance(scheduler, Mapping):
+        raise ConfigPreflightError("training.scheduler must be a mapping")
+    if scheduler.get("enabled", True):
+        _required(
+            scheduler,
+            ("_target_", "interval", "warmup_steps", "decay_steps", "min_lr_ratio"),
+            "training.scheduler",
+        )
+        if scheduler.get("_target_") != "training.optimization.WarmupCosineScheduler":
+            raise ConfigPreflightError("enabled training.scheduler must use WarmupCosineScheduler")
+        if scheduler.get("interval") != "step":
+            raise ConfigPreflightError("enabled training.scheduler.interval must be 'step'")
+        warmup_steps = scheduler["warmup_steps"]
+        decay_steps = scheduler["decay_steps"]
+        if (
+            isinstance(warmup_steps, bool)
+            or not isinstance(warmup_steps, int)
+            or warmup_steps < 0
+            or isinstance(decay_steps, bool)
+            or not isinstance(decay_steps, int)
+            or decay_steps < 1
+            or decay_steps < warmup_steps
+        ):
+            raise ConfigPreflightError(
+                "scheduler warmup_steps/decay_steps must be ordered non-negative/positive integers"
+            )
     for budget_name in ("max_steps", "max_tokens", "max_time"):
         budget = training.get(budget_name)
         if budget is None:
@@ -255,7 +362,9 @@ def validate_training_config(config: Mapping[str, Any] | DictConfig) -> dict[str
             raise ConfigPreflightError(f"training.{cadence_name} must be positive when configured")
     if data["mode"] == "memorization_smoke":
         if profile.get("purpose") != "memorization_smoke":
-            raise ConfigPreflightError("memorization_smoke is only allowed in the smoke_overfit profile")
+            raise ConfigPreflightError(
+                "memorization_smoke is only allowed in the smoke_overfit profile"
+            )
         memory = data.get("memorization")
         if not isinstance(memory, Mapping):
             raise ConfigPreflightError("data.memorization is required for memorization_smoke")
@@ -267,11 +376,15 @@ def validate_training_config(config: Mapping[str, Any] | DictConfig) -> dict[str
             raise ConfigPreflightError("data.streaming is required for streaming profiles")
         _check_keys(streaming, _STREAMING, "data.streaming")
         if streaming.get("require_manifests") is not True:
-            raise ConfigPreflightError("real streaming profiles must set data.streaming.require_manifests=true")
+            raise ConfigPreflightError(
+                "real streaming profiles must set data.streaming.require_manifests=true"
+            )
         train = streaming.get("train")
         validation = streaming.get("validation")
         if not isinstance(train, Mapping) or not isinstance(validation, Mapping):
-            raise ConfigPreflightError("data.streaming.train and data.streaming.validation are required")
+            raise ConfigPreflightError(
+                "data.streaming.train and data.streaming.validation are required"
+            )
         _check_keys(train, _SPLIT, "data.streaming.train")
         _check_keys(validation, _SPLIT, "data.streaming.validation")
         train_sources = _sources(train, "data.streaming.train")

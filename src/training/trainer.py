@@ -22,7 +22,7 @@ from omegaconf import DictConfig, OmegaConf
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from tqdm import tqdm
 
-from training.optimization import get_learning_rate
+from training.optimization import autocast_context, get_learning_rate
 
 
 class Trainer:
@@ -76,6 +76,15 @@ class Trainer:
         self.epochs = int(self._training_value("epochs", 1))
         if self.epochs < 1:
             raise ValueError("training.epochs must be positive")
+        self.precision = str(self._training_value("precision", "fp32"))
+        # Validate the selected precision before the first batch can mutate
+        # optimizer state. CPU smoke runs stay explicitly FP32.
+        with autocast_context(self.device, self.precision):
+            pass
+        self.gradient_accumulation_steps = self._positive_training_integer(
+            "gradient_accumulation_steps", default=1
+        )
+        self.max_grad_norm = self._max_grad_norm()
 
     @property
     def train_step(self) -> int:
@@ -104,23 +113,48 @@ class Trainer:
                 epoch_loss_sum = 0.0
                 epoch_tokens = 0
                 epoch_saw_batch = False
-                iterator = tqdm(
-                    self.train_loader,
-                    desc=f"epoch {epoch_index + 1}/{self.epochs}",
-                    leave=False,
+                iterator = iter(
+                    tqdm(
+                        self.train_loader,
+                        desc=f"epoch {epoch_index + 1}/{self.epochs}",
+                        leave=False,
+                    )
                 )
-                for batch_index, batch in enumerate(iterator, start=1):
+                batch_index = 0
+                while not self._budget_reached():
                     self._update_elapsed()
-                    if self._budget_reached():
+                    try:
+                        batch = next(iterator)
+                    except StopIteration:
                         break
-                    loss_sum, token_count = self._train_batch(batch, batch_index=batch_index)
+                    batch_index += 1
+                    (
+                        loss_sum,
+                        token_count,
+                        micro_batches,
+                        gradient_norm,
+                        clipped,
+                        learning_rate_used,
+                    ) = self._train_update(
+                        batch,
+                        iterator=iterator,
+                        first_batch_index=batch_index,
+                    )
+                    batch_index += micro_batches - 1
                     if token_count == 0:
                         break
                     epoch_saw_batch = saw_batch = True
                     epoch_loss_sum += loss_sum
                     epoch_tokens += token_count
                     self._update_elapsed()
-                    self._record_step_metrics(loss_sum / token_count, token_count)
+                    self._record_step_metrics(
+                        loss_sum / token_count,
+                        token_count,
+                        micro_batches=micro_batches,
+                        gradient_norm=gradient_norm,
+                        clipped=clipped,
+                        learning_rate_used=learning_rate_used,
+                    )
                     self._run_events(epoch_end=False)
                     if self._budget_reached():
                         break
@@ -171,55 +205,106 @@ class Trainer:
                 self.run.finish()
                 self.run = None
 
-    def _train_batch(
+    def _train_update(
         self,
-        batch: dict[str, torch.Tensor],
+        first_batch: dict[str, torch.Tensor],
         *,
-        batch_index: int | None = None,
-    ) -> tuple[float, int]:
-        input_batch = batch["inputs"].to(self.device)
-        label_batch = batch["labels"].to(self.device)
+        iterator,
+        first_batch_index: int,
+    ) -> tuple[float, int, int, float, bool, float]:
+        """Accumulate a token-weighted gradient and perform one optimizer update."""
+
         ignore_index = int(self._training_value("ignore_index", -100))
-
+        learning_rate_used = get_learning_rate(self.optimizer)
         self.optimizer.zero_grad(set_to_none=True)
-        logits = self.model(input_batch)
-        flat_labels = label_batch.reshape(-1)
-        flat_losses = F.cross_entropy(
-            logits.reshape(-1, logits.size(-1)),
-            flat_labels,
-            reduction="none",
-            ignore_index=ignore_index,
-        )
-        valid_indices = torch.nonzero(flat_labels != ignore_index, as_tuple=False).flatten()
-        if valid_indices.numel() == 0:
-            raise ValueError("training batch contains zero target tokens")
+        total_tokens = 0
+        total_loss_sum: torch.Tensor | None = None
+        micro_batches = 0
+        batch = first_batch
+        batch_index = first_batch_index
 
-        remaining = self._remaining_tokens()
-        if remaining is not None:
-            valid_indices = valid_indices[:remaining]
+        while micro_batches < self.gradient_accumulation_steps:
+            input_batch = batch["inputs"].to(self.device)
+            label_batch = batch["labels"].to(self.device)
+            with autocast_context(self.device, self.precision):
+                logits = self.model(input_batch)
+                flat_labels = label_batch.reshape(-1)
+                flat_losses = F.cross_entropy(
+                    logits.reshape(-1, logits.size(-1)),
+                    flat_labels,
+                    reduction="none",
+                    ignore_index=ignore_index,
+                )
+            valid_indices = torch.nonzero(flat_labels != ignore_index, as_tuple=False).flatten()
             if valid_indices.numel() == 0:
-                return 0.0, 0
-        selected_losses = flat_losses.index_select(0, valid_indices)
-        token_count = int(valid_indices.numel())
-        loss = selected_losses.sum() / token_count
-        if not torch.isfinite(loss):
-            self._record_numeric_failure("loss", batch_index)
-            raise FloatingPointError(self._numeric_failure_message("loss", batch_index))
-        loss.backward()
+                raise ValueError("training batch contains zero target tokens")
+
+            remaining = self._remaining_tokens(total_tokens)
+            if remaining is not None:
+                valid_indices = valid_indices[:remaining]
+                if valid_indices.numel() == 0:
+                    break
+            selected_loss_sum = flat_losses.index_select(0, valid_indices).sum()
+            token_count = int(valid_indices.numel())
+            micro_loss = selected_loss_sum / token_count
+            if not torch.isfinite(micro_loss):
+                self._record_numeric_failure("loss", batch_index)
+                raise FloatingPointError(self._numeric_failure_message("loss", batch_index))
+            selected_loss_sum.backward()
+            total_loss_sum = (
+                selected_loss_sum.detach()
+                if total_loss_sum is None
+                else total_loss_sum + selected_loss_sum.detach()
+            )
+            total_tokens += token_count
+            micro_batches += 1
+
+            if self._remaining_tokens(total_tokens) == 0:
+                break
+            if micro_batches == self.gradient_accumulation_steps:
+                break
+            try:
+                batch = next(iterator)
+            except StopIteration:
+                break
+            batch_index += 1
+
+        if total_tokens == 0 or total_loss_sum is None:
+            self.optimizer.zero_grad(set_to_none=True)
+            return 0.0, 0, micro_batches, 0.0, False, learning_rate_used
+
+        self._scale_gradients(1.0 / total_tokens)
         if not self._gradients_are_finite():
             self._record_numeric_failure("gradients", batch_index)
             raise FloatingPointError(self._numeric_failure_message("gradients", batch_index))
+        gradient_norm = self._global_gradient_norm()
+        if not torch.isfinite(gradient_norm):
+            self._record_numeric_failure("gradient_norm", batch_index)
+            raise FloatingPointError(self._numeric_failure_message("gradient_norm", batch_index))
+        gradient_norm_value = float(gradient_norm.item())
+        clipped = self.max_grad_norm is not None and gradient_norm_value > self.max_grad_norm
+        if self.max_grad_norm is not None:
+            torch.nn.utils.clip_grad_norm_(
+                self.model.parameters(), self.max_grad_norm, error_if_nonfinite=False
+            )
         self.optimizer.step()
         if not self._parameters_are_finite():
             self._record_numeric_failure("parameters", batch_index)
             raise FloatingPointError(self._numeric_failure_message("parameters", batch_index))
         self.optimizer_step += 1
-        self.target_tokens += token_count
+        self.target_tokens += total_tokens
         if self.scheduler is not None and self.scheduler_interval == "step":
             # A scheduler observes the update only after optimizer.step and
             # after the authoritative step counter advances.
             self._step_scheduler()
-        return float(selected_losses.detach().sum().item()), token_count
+        return (
+            float(total_loss_sum.item()),
+            total_tokens,
+            micro_batches,
+            gradient_norm_value,
+            clipped,
+            learning_rate_used,
+        )
 
     def _evaluate(self) -> float:
         self.model.eval()
@@ -231,14 +316,15 @@ class Trainer:
                 for batch_index, batch in enumerate(self.validation_loader, start=1):
                     input_batch = batch["inputs"].to(self.device)
                     label_batch = batch["labels"].to(self.device)
-                    logits = self.model(input_batch)
-                    flat_labels = label_batch.reshape(-1)
-                    losses = F.cross_entropy(
-                        logits.reshape(-1, logits.size(-1)),
-                        flat_labels,
-                        reduction="none",
-                        ignore_index=ignore_index,
-                    )
+                    with autocast_context(self.device, self.precision):
+                        logits = self.model(input_batch)
+                        flat_labels = label_batch.reshape(-1)
+                        losses = F.cross_entropy(
+                            logits.reshape(-1, logits.size(-1)),
+                            flat_labels,
+                            reduction="none",
+                            ignore_index=ignore_index,
+                        )
                     if not torch.isfinite(losses).all():
                         self._record_numeric_failure("validation", batch_index)
                         raise FloatingPointError(
@@ -333,7 +419,16 @@ class Trainer:
                 epoch_number=step,
             )
 
-    def _record_step_metrics(self, loss: float, token_count: int) -> None:
+    def _record_step_metrics(
+        self,
+        loss: float,
+        token_count: int,
+        *,
+        micro_batches: int,
+        gradient_norm: float,
+        clipped: bool,
+        learning_rate_used: float,
+    ) -> None:
         self._record_metrics(
             {
                 "event": "step",
@@ -342,6 +437,13 @@ class Trainer:
                 "elapsed_seconds": self.elapsed_seconds,
                 "train/loss_step": loss,
                 "train/target_tokens_step": token_count,
+                "train/effective_target_tokens_update": token_count,
+                "train/effective_target_tokens_configured": self._configured_effective_tokens(),
+                "train/micro_batches_per_update": micro_batches,
+                "optimizer/gradient_norm": gradient_norm,
+                "optimizer/gradient_clipped": clipped,
+                "optimizer/lr_used": learning_rate_used,
+                "optimizer/lr": get_learning_rate(self.optimizer),
             },
             send_to_wandb=False,
         )
@@ -463,6 +565,28 @@ class Trainer:
             raise ValueError(f"training.{key} must be positive when configured")
         return value
 
+    def _positive_training_integer(self, key: str, *, default: int) -> int:
+        value = self._training_value(key, default)
+        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+            raise ValueError(f"training.{key} must be a positive integer")
+        return value
+
+    def _max_grad_norm(self) -> float | None:
+        value = self._training_value("max_grad_norm")
+        if value is None:
+            return None
+        value = float(value)
+        if not math.isfinite(value) or value <= 0.0:
+            raise ValueError("training.max_grad_norm must be a positive finite number or null")
+        return value
+
+    def _configured_effective_tokens(self) -> int:
+        return (
+            int(self._training_value("batch_size", 1))
+            * int(self._training_value("sequence_length", 1))
+            * self.gradient_accumulation_steps
+        )
+
     def _event_due(self, step_key: str, token_key: str, epoch_end: bool) -> bool:
         step_cadence = self._cadence(step_key)
         token_cadence = self._cadence(token_key)
@@ -475,8 +599,8 @@ class Trainer:
                 self._last_token_event_boundary[token_key] = (
                     self.target_tokens // token_cadence
                 ) * token_cadence
-        return due_step or due_token or (
-            step_cadence is None and token_cadence is None and epoch_end
+        return (
+            due_step or due_token or (step_cadence is None and token_cadence is None and epoch_end)
         )
 
     def _gradients_are_finite(self) -> bool:
@@ -484,6 +608,21 @@ class Trainer:
             parameter.grad is None or torch.isfinite(parameter.grad).all().item()
             for parameter in self.model.parameters()
         )
+
+    def _scale_gradients(self, scale: float) -> None:
+        for parameter in self.model.parameters():
+            if parameter.grad is not None:
+                parameter.grad.mul_(scale)
+
+    def _global_gradient_norm(self) -> torch.Tensor:
+        norms = [
+            torch.linalg.vector_norm(parameter.grad.detach())
+            for parameter in self.model.parameters()
+            if parameter.grad is not None
+        ]
+        if not norms:
+            raise RuntimeError("training update produced no gradients")
+        return torch.linalg.vector_norm(torch.stack(norms))
 
     def _parameters_are_finite(self) -> bool:
         return all(torch.isfinite(parameter).all().item() for parameter in self.model.parameters())
@@ -514,10 +653,10 @@ class Trainer:
             send_to_wandb=False,
         )
 
-    def _remaining_tokens(self) -> int | None:
+    def _remaining_tokens(self, pending_tokens: int = 0) -> int | None:
         if self.max_tokens is None:
             return None
-        return max(0, int(self.max_tokens) - self.target_tokens)
+        return max(0, int(self.max_tokens) - self.target_tokens - pending_tokens)
 
     def _budget_reached(self) -> bool:
         if self.max_steps is not None and self.optimizer_step >= self.max_steps:

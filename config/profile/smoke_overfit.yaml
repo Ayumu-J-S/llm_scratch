@@ -19,3 +19,6 @@ training:
   epochs: 50
   batch_size: 64
   shuffle: true
+  precision: fp32
+  gradient_accumulation_steps: 1
+  max_grad_norm: 1.0

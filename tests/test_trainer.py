@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import nullcontext
 import json
 from pathlib import Path
 
@@ -8,6 +9,8 @@ import torch
 from omegaconf import OmegaConf
 
 import training.trainer as trainer_module
+import training.optimization as optimization_module
+from training.optimization import WarmupCosineScheduler
 from training.trainer import Trainer
 
 
@@ -88,6 +91,49 @@ def _batch(labels: list[list[int]]) -> dict[str, torch.Tensor]:
     return {"inputs": torch.zeros_like(labels_tensor), "labels": labels_tensor}
 
 
+def _recipe_trainer(
+    tmp_path: Path,
+    *,
+    model: torch.nn.Module,
+    batches: list[dict[str, torch.Tensor]],
+    optimizer: torch.optim.Optimizer,
+    scheduler=None,
+    **training_overrides,
+) -> Trainer:
+    cfg = OmegaConf.create(
+        {
+            "training": {
+                "epochs": 1,
+                "batch_size": 1,
+                "sequence_length": 2,
+                "max_steps": 1,
+                "max_tokens": None,
+                "max_time": None,
+                "precision": "fp32",
+                "gradient_accumulation_steps": 1,
+                "max_grad_norm": None,
+                "log_every_n_steps": 1,
+                "validation_every_n_steps": None,
+                "checkpoint_every_n_steps": None,
+                "milestone_every_n_steps": None,
+                "scheduler": {"interval": "step"},
+                **training_overrides,
+            },
+            "wandb": {"enabled": False},
+        }
+    )
+    return Trainer(
+        model=model,
+        optimizer=optimizer,
+        scheduler=scheduler,
+        train_loader=ListLoader(batches),
+        validation_loader=ListLoader(batches),
+        checkpoint_dir=tmp_path,
+        cfg=cfg,
+        device=torch.device("cpu"),
+    )
+
+
 def test_partial_batch_metric_is_token_weighted(tmp_path: Path):
     batch = _batch([[0, 1, -100], [2, -100, 3]])
     trainer = _trainer(tmp_path, [batch])
@@ -158,10 +204,19 @@ def test_token_cadence_records_boundaries_and_local_metrics(tmp_path: Path):
     )
     trainer.fit()
     assert [item["target_tokens"] for item in trainer.metrics if item.get("event") == "log"] == [4]
-    assert [item["target_tokens"] for item in trainer.metrics if item.get("event") == "validation"] == [4]
-    assert [item["target_tokens"] for item in trainer.metrics if item.get("event") == "checkpoint"] == [4]
-    assert any(item.get("event") == "epoch_summary" and "train/loss" in item for item in trainer.metrics)
-    assert any(item.get("event") == "epoch_summary" and "train/perplexity" in item for item in trainer.metrics)
+    assert [
+        item["target_tokens"] for item in trainer.metrics if item.get("event") == "validation"
+    ] == [4]
+    assert [
+        item["target_tokens"] for item in trainer.metrics if item.get("event") == "checkpoint"
+    ] == [4]
+    assert any(
+        item.get("event") == "epoch_summary" and "train/loss" in item for item in trainer.metrics
+    )
+    assert any(
+        item.get("event") == "epoch_summary" and "train/perplexity" in item
+        for item in trainer.metrics
+    )
     assert (tmp_path / "metrics.jsonl").exists()
 
 
@@ -226,3 +281,118 @@ def test_wandb_init_failure_preserves_previous_metrics(tmp_path: Path, monkeypat
     with pytest.raises(RuntimeError, match="W&B initialization failure"):
         trainer.fit()
     assert metrics_path.read_text(encoding="utf-8") == previous
+
+
+def test_accumulation_matches_one_combined_batch_with_dropout_disabled(tmp_path: Path):
+    accumulated_model = FixedLogitModel()
+    combined_model = FixedLogitModel()
+    combined_model.load_state_dict(accumulated_model.state_dict())
+
+    accumulated = _recipe_trainer(
+        tmp_path / "accumulated",
+        model=accumulated_model,
+        batches=[_batch([[0, 1]]), _batch([[2, 3]])],
+        optimizer=torch.optim.SGD(accumulated_model.parameters(), lr=0.1),
+        gradient_accumulation_steps=2,
+    )
+    combined = _recipe_trainer(
+        tmp_path / "combined",
+        model=combined_model,
+        batches=[_batch([[0, 1], [2, 3]])],
+        optimizer=torch.optim.SGD(combined_model.parameters(), lr=0.1),
+        batch_size=2,
+        gradient_accumulation_steps=1,
+    )
+
+    accumulated.fit()
+    combined.fit()
+
+    assert torch.allclose(accumulated_model.logits, combined_model.logits, rtol=0, atol=1e-7)
+    record = next(item for item in accumulated.metrics if item.get("event") == "step")
+    assert record["train/effective_target_tokens_update"] == 4
+    assert record["train/effective_target_tokens_configured"] == 4
+    assert record["train/micro_batches_per_update"] == 2
+
+
+def test_global_norm_clipping_is_recorded_and_limits_the_update(tmp_path: Path):
+    clipped_model = FixedLogitModel()
+    unclipped_model = FixedLogitModel()
+    unclipped_model.load_state_dict(clipped_model.state_dict())
+    initial = clipped_model.logits.detach().clone()
+    batch = _batch([[0, 1]])
+
+    clipped = _recipe_trainer(
+        tmp_path / "clipped",
+        model=clipped_model,
+        batches=[batch],
+        optimizer=torch.optim.SGD(clipped_model.parameters(), lr=0.1),
+        max_grad_norm=1.0e-4,
+    )
+    unclipped = _recipe_trainer(
+        tmp_path / "unclipped",
+        model=unclipped_model,
+        batches=[batch],
+        optimizer=torch.optim.SGD(unclipped_model.parameters(), lr=0.1),
+    )
+
+    clipped.fit()
+    unclipped.fit()
+
+    record = next(item for item in clipped.metrics if item.get("event") == "step")
+    assert record["optimizer/gradient_norm"] > 1.0e-4
+    assert record["optimizer/gradient_clipped"] is True
+    assert torch.linalg.vector_norm(clipped_model.logits - initial) < torch.linalg.vector_norm(
+        unclipped_model.logits - initial
+    )
+
+
+def test_scheduler_advances_once_per_optimizer_update(tmp_path: Path):
+    model = FixedLogitModel()
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.1)
+    scheduler = WarmupCosineScheduler(
+        optimizer,
+        warmup_steps=2,
+        decay_steps=4,
+        min_lr_ratio=0.1,
+    )
+    trainer = _recipe_trainer(
+        tmp_path,
+        model=model,
+        batches=[_batch([[0, 1]]) for _ in range(6)],
+        optimizer=optimizer,
+        scheduler=scheduler,
+        max_steps=3,
+        gradient_accumulation_steps=2,
+    )
+
+    trainer.fit()
+
+    assert trainer.optimizer_step == 3
+    assert scheduler.optimizer_steps == 3
+    step_records = [item for item in trainer.metrics if item.get("event") == "step"]
+    assert [item["optimizer/lr_used"] for item in step_records] == pytest.approx([0.05, 0.1, 0.1])
+    assert step_records[-1]["optimizer/lr"] == pytest.approx(0.055)
+
+
+def test_bf16_autocast_requests_cuda_and_cpu_requires_fp32(monkeypatch, tmp_path: Path):
+    captured = {}
+
+    def fake_autocast(**kwargs):
+        captured.update(kwargs)
+        return nullcontext()
+
+    monkeypatch.setattr(optimization_module.torch.cuda, "is_bf16_supported", lambda: True)
+    monkeypatch.setattr(optimization_module.torch, "autocast", fake_autocast)
+    with optimization_module.autocast_context(torch.device("cuda"), "bf16"):
+        pass
+    assert captured == {"device_type": "cuda", "dtype": torch.bfloat16}
+
+    cpu_model = FixedLogitModel()
+    with pytest.raises(ValueError, match="requires runtime.device=cuda"):
+        _recipe_trainer(
+            tmp_path,
+            model=cpu_model,
+            batches=[_batch([[0, 1]])],
+            optimizer=torch.optim.SGD(cpu_model.parameters(), lr=0.1),
+            precision="bf16",
+        )
