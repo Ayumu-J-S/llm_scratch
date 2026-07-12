@@ -398,12 +398,12 @@ work.
 - **Validation:** Sequence fingerprint, interruption/resume, repeat-policy, and
   prefetch-equivalence tests.
 - **Corrective status (2026-07-12):** PR [#29](https://github.com/Ayumu-J-S/llm_scratch/pull/29)
-  merged as `57266e1e843be2d08e10ef5f387da8466b0c590f`, but post-merge review
-  `4679969079` reproduced a P2 packed-cursor resume defect. DATA-003 is back
-  **In progress** until a repair and independent re-review prove the exact
-  suffix invariant. DATA-001, DATA-002, REP-001, and LOOP-001 remain `Done`;
-  CKPT-001 and DATA-004 remain `Blocked` by this incomplete dependency and
-  other unmet prerequisites.
+  merged as `57266e1e843be2d08e10ef5f387da8466b0c590f`; its post-merge P2
+  packed-cursor resume defect was recorded in PR [#30](https://github.com/Ayumu-J-S/llm_scratch/pull/30), then repaired,
+  independently audited, and merged in PR [#31](https://github.com/Ayumu-J-S/llm_scratch/pull/31)
+  as `cf82701635cab23657a05ea80a03ef5a657abe1f`. DATA-003 is **Done**.
+  DATA-001, DATA-002, REP-001, and LOOP-001 remain `Done`; CKPT-001 and
+  DATA-004 remain `Blocked` by their remaining explicit dependencies.
 
 ### LOOP-001 — Introduce step/token budgets and correct metrics
 

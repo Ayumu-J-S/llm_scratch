@@ -7,7 +7,7 @@
   complete without changing any other roadmap ticket state.
 - Experiment record: `N/A` — documentation/audit handoff only; no research run.
 - Started: 2026-07-12
-- Final verdict: in progress
+- Final verdict: FAIL — documentation repair and independent re-review pending
 - Final record owner: `/root/data003_p5_repair`
 
 ## Scope and decision context
@@ -30,8 +30,9 @@
 
 | Cycle | Phase | Exact model identifier | Reasoning mode | Input commit/context | Requested work | Outcome | Main findings / changes | Evidence |
 | ---: | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | implementation | not exposed by runtime | not exposed by runtime | merged main `cf827016`; PR #31 comments `4951174771` / `4951175758` | Record post-merge audit and set only DATA-003 Done | implemented; independent docs review pending | Added a docs-only audit record; preserved #29 P2 reopening history and #31 review/audit/merge trail; no unrelated ticket state changed | `0641607`; Ruff, lock, and diff checks pass |
-| 1 | review | not exposed by runtime | not exposed by runtime | exact audit PR head pending | Independent review against DATA-003, `PHILOSOPHY.md`, and applicable `CHECK.md` handoff/changeability sections | pending | Must verify exact merged evidence, roadmap-only scope, and audit-record consistency | pending |
+| 1 | implementation | not exposed by runtime | not exposed by runtime | merged main `cf827016`; PR #31 comments `4951174771` / `4951175758` | Record post-merge audit and set only DATA-003 Done | FAIL on independent review | Added a docs-only audit record; retained the resolved P2 history and #31 review/audit/merge trail, but left a stale corrective-status paragraph that contradicted DATA-003 Done | `0641607`, `4b16716`; Ruff, lock, and diff checks pass |
+| 1 | review | not exposed by runtime | not exposed by runtime | audit PR head `4b1671637a37a5cdf2c628e8bd255fe38067ba16` | Independent review against DATA-003, `PHILOSOPHY.md`, and applicable `CHECK.md` handoff/changeability sections | FAIL `4680048999` | The corrective-status paragraph still said DATA-003 was In progress and incorrectly made CKPT-001/DATA-004 blocked by incomplete DATA-003 | Review `4680048999` |
+| 1 | repair | not exposed by runtime | not exposed by runtime | failed review `4680048999` on `4b16716` | Replace only the stale historical correction with the resolved P2/#30/#31 history; update audit ledger counts and handoff | in progress; independent re-review required | No roadmap state outside DATA-003 will be changed; CKPT-001/DATA-004 retain only their remaining explicit dependencies | repair provenance block below; exact repaired head pending |
 
 ## Runtime provenance block
 
@@ -69,6 +70,42 @@
 ```
 
 - Capture command: `uv run python scripts/capture_model_provenance.py --repo . --phase implementation --role implementation --task-path /root/data003_p5_repair --requested-model Luna --requested-reasoning-mode 'Extra High' --actual-product Codex --actual-model-family GPT-5 --actual-exact-model 'not exposed by runtime' --actual-reasoning-mode 'not exposed by runtime'`.
+- Repair capture:
+
+```json
+{
+  "schema_version": "1.0",
+  "captured_at": "2026-07-12T12:40:19.480064Z",
+  "phase": "repair",
+  "role": "repair",
+  "task_path": "/root/data003_p5_repair",
+  "requested": {
+    "model": {"value": "Luna", "source": "explicit invocation/config default", "status": "observed"},
+    "reasoning_mode": {"value": "Extra High", "source": "explicit invocation/config default", "status": "observed"}
+  },
+  "actual": {
+    "product": {"value": "Codex", "source": "active runtime display", "status": "observed"},
+    "displayed_model_family": {"value": "GPT-5", "source": "active runtime display", "status": "observed"},
+    "exact_model_identifier": {"value": "not exposed by runtime", "source": "active runtime display", "status": "unavailable"},
+    "reasoning_mode": {"value": "not exposed by runtime", "source": "active runtime display", "status": "unavailable"}
+  },
+  "environment": {
+    "codex_cli_version": "codex-cli 0.144.1",
+    "branch": "codex/data-003-p5-post-merge-audit",
+    "commit": "4b1671637a37a5cdf2c628e8bd255fe38067ba16",
+    "thread_id": "not recorded (privacy)"
+  },
+  "privacy": {
+    "raw_thread_id_recorded": false,
+    "prompts_recorded": false,
+    "hidden_chain_of_thought_recorded": false,
+    "token_counts_recorded": false,
+    "secrets_recorded": false
+  }
+}
+```
+
+- Repair capture command: `uv run python scripts/capture_model_provenance.py --repo . --phase repair --role repair --task-path /root/data003_p5_repair --requested-model Luna --requested-reasoning-mode 'Extra High' --actual-product Codex --actual-model-family GPT-5 --actual-exact-model 'not exposed by runtime' --actual-reasoning-mode 'not exposed by runtime'`.
 - Privacy confirmation: no prompts, hidden chain-of-thought, token counts,
   secrets, or raw thread IDs are recorded.
 
@@ -76,34 +113,43 @@
 
 ### Review cycle 1
 
-- Review model / mode: pending independent review; actual exact model and
-  reasoning mode are not exposed by runtime.
-- Commit reviewed: pending audit PR head.
+- Review model / mode: independent reviewer; actual exact model and reasoning
+  mode are not exposed by runtime.
+- Commit reviewed: `4b1671637a37a5cdf2c628e8bd255fe38067ba16`.
 - Selected `CHECK.md` sections: minimum review, 7.1 change surface, and 8.1
   reproducibility/audit trail.
 - Major sections marked N/A and why: data/packing/GPU/training behavior is
   unchanged; this PR makes no ML or performance claim.
-- Ticket acceptance result: pending audit PR review.
-- Philosophy alignment: pending independent review.
-- Complexity / change-surface result: pending independent review.
-- ML-system result: relies only on merged PR #31's retained validation/audit;
-  this docs-only PR adds no execution path.
-- Verdict: pending.
+- Ticket acceptance result: FAIL — the ticket state was Done but the retained
+  corrective-status text claimed it was In progress.
+- Philosophy alignment: FAIL — the contradictory historical status is not an
+  inspectable or truthful handoff.
+- Complexity / change-surface result: fail is documentation-only and has a
+  direct, bounded repair.
+- ML-system result: no ML execution path changed; the fail is confined to the
+  handoff state derived from merged PR #31 evidence.
+- Verdict: FAIL `4680048999`; repair and independent re-review required.
 
 #### Findings
 
 | Severity | Area | What was wrong or good | Evidence | Required action |
 | --- | --- | --- | --- | --- |
-| P2 resolved | cursor resume | PR #29's post-merge final-partial cursor defect was repaired in #31 and no longer blocks DATA-003. | Reviews `4680026587`, `4680031289`, `4680036491`; squash `cf827016`; audit comments below. | Verify this audit's record/roadmap consistency. |
+| Fail | roadmap history | The corrective-status paragraph said DATA-003 was In progress and described CKPT-001/DATA-004 as blocked by incomplete DATA-003, contradicting the Done state and merged P5 repair. | Independent review `4680048999` on `4b16716`. | Replace the paragraph with the resolved P2 → #30 → #31 (`cf827016`) history; retain downstream tickets as blocked only by their remaining explicit dependencies; re-review exact repaired head. |
 
 ## Failed-review handoff
 
-N/A — this is a post-merge audit record; PR #31 retains the P2 failure and two
-repair-cycle handoffs in `DATA-003-packed-resume-repair.md`.
+| Field | Handoff |
+| --- | --- |
+| Failed review | `4680048999` (FAIL) on `4b1671637a37a5cdf2c628e8bd255fe38067ba16` |
+| Failure | A stale corrective-status paragraph contradicted the DATA-003 Done state and the P5 merge evidence. |
+| Repair scope | Documentation only: change that paragraph, this audit record, and the ledger counts. Do not change any other ticket state. |
+| Required proof | Docs checks, exact-head independent re-review, then the normal guarded merge audit. |
+| Handoff context | P2 was documented in #30 and repaired/audited/merged by #31 (`cf827016`); downstream blocked states must describe their own remaining explicit dependencies. |
 
 ## Repair result
 
-N/A — no source repair is made in this docs-only audit PR.
+Repair cycle 1 is in progress. It changes no source or execution behavior; an
+independent re-review is required before the audit PR can become ready.
 
 ## Final evidence
 
@@ -118,7 +164,7 @@ N/A — no source repair is made in this docs-only audit PR.
   checks because it changes no code.
 - Performance/resource result: N/A — docs only.
 - Known trade-offs: none added.
-- Unresolved risks: independent review and guarded merge audit of this new
+- Unresolved risks: repair cycle 1 and independent re-review of this new
   docs-only PR remain pending.
 - Human decision requested: none before its review; user authorization remains
   bounded by the roadmap goal and guarded gates.
@@ -163,12 +209,12 @@ N/A — no source repair is made in this docs-only audit PR.
 
 | Model / mode | Role | What it handled well | What it missed or made worse | Context that helped | Outcome |
 | --- | --- | --- | --- | --- | --- |
-| Codex / GPT-5; exact ID and mode not exposed | post-merge audit implementation | Scoped the completion record to DATA-003 and retained all observable merge evidence | Independent audit review pending | PR #31 reviews/audit comments, merged main, roadmap dependency table | in progress |
+| Codex / GPT-5; exact ID and mode not exposed | post-merge audit implementation | Scoped the completion record to DATA-003 and retained observable merge evidence | Left stale corrective-status text that contradicted the state it set Done; independent review caught it | PR #31 reviews/audit comments, merged main, roadmap dependency table | FAIL; repair/re-review pending |
 
 ## Ledger update
 
 - [x] Added the post-merge audit row to `docs/model-runs/README.md`.
-- [ ] Updated aggregate counts after independent review.
-- [ ] Confirmed that the PR execution trail matches this record.
+- [x] Updated aggregate counts for the verdict-bearing failed review and active repair.
+- [x] Recorded the failed-review execution trail; repaired-head re-review remains pending.
 - [ ] Recorded this audit PR's guarded self-merge audit or human merge evidence.
 - [x] Confirmed this is not the bootstrap policy PR.
