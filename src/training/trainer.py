@@ -67,6 +67,7 @@ class Trainer:
         self._last_validation_step: int | None = None
         self._last_checkpoint_step: int | None = None
         self._last_log_step: int | None = None
+        self._last_token_event_boundary: dict[str, int] = {}
         self._start_time: float | None = None
 
         self.max_steps = self._positive_budget("max_steps")
@@ -102,12 +103,14 @@ class Trainer:
                     desc=f"epoch {epoch_index + 1}/{self.epochs}",
                     leave=False,
                 )
-                for batch in iterator:
+                for batch_index, batch in enumerate(iterator, start=1):
                     self._update_elapsed()
                     if self._budget_reached():
                         break
+                    loss_sum, token_count = self._train_batch(batch, batch_index=batch_index)
+                    if token_count == 0:
+                        break
                     epoch_saw_batch = saw_batch = True
-                    loss_sum, token_count = self._train_batch(batch)
                     epoch_loss_sum += loss_sum
                     epoch_tokens += token_count
                     self._update_elapsed()
@@ -124,6 +127,19 @@ class Trainer:
                 # With no explicit step cadence, epoch end is the event
                 # boundary. Explicit cadences remain independent.
                 train_loss = epoch_loss_sum / epoch_tokens
+                self._record_metrics(
+                    {
+                        "event": "epoch_summary",
+                        "epoch": epoch_index + 1,
+                        "optimizer_step": self.optimizer_step,
+                        "target_tokens": self.target_tokens,
+                        "elapsed_seconds": self.elapsed_seconds,
+                        "train/loss": train_loss,
+                        "train/perplexity": _perplexity(train_loss),
+                        "optimizer/lr": get_learning_rate(self.optimizer),
+                    },
+                    send_to_wandb=True,
+                )
                 self._run_events(epoch_end=True, train_loss=train_loss)
                 if self.scheduler is not None and self.scheduler_interval == "epoch":
                     # Metric-free schedulers advance at the epoch boundary;
@@ -149,7 +165,12 @@ class Trainer:
                 self.run.finish()
                 self.run = None
 
-    def _train_batch(self, batch: dict[str, torch.Tensor]) -> tuple[float, int]:
+    def _train_batch(
+        self,
+        batch: dict[str, torch.Tensor],
+        *,
+        batch_index: int | None = None,
+    ) -> tuple[float, int]:
         input_batch = batch["inputs"].to(self.device)
         label_batch = batch["labels"].to(self.device)
         ignore_index = int(self._training_value("ignore_index", -100))
@@ -176,12 +197,16 @@ class Trainer:
         token_count = int(valid_indices.numel())
         loss = selected_losses.sum() / token_count
         if not torch.isfinite(loss):
-            raise FloatingPointError(
-                f"non-finite training loss at optimizer_step={self.optimizer_step}, "
-                f"target_tokens={self.target_tokens}"
-            )
+            self._record_numeric_failure("loss", batch_index)
+            raise FloatingPointError(self._numeric_failure_message("loss", batch_index))
         loss.backward()
+        if not self._gradients_are_finite():
+            self._record_numeric_failure("gradients", batch_index)
+            raise FloatingPointError(self._numeric_failure_message("gradients", batch_index))
         self.optimizer.step()
+        if not self._parameters_are_finite():
+            self._record_numeric_failure("parameters", batch_index)
+            raise FloatingPointError(self._numeric_failure_message("parameters", batch_index))
         self.optimizer_step += 1
         self.target_tokens += token_count
         if self.scheduler is not None and self.scheduler_interval == "step":
@@ -231,45 +256,61 @@ class Trainer:
             return
         self._latest_validation_loss = getattr(self, "_latest_validation_loss", None)
 
-        validation_every = self._cadence("validation_every_n_steps")
-        should_validate = (
-            validation_every is not None and step % validation_every == 0
-        ) or (validation_every is None and epoch_end)
+        should_validate = self._event_due(
+            "validation_every_n_steps", "validation_every_n_tokens", epoch_end
+        )
         if should_validate and self._last_validation_step != step:
             validation_loss = self._evaluate()
             self._latest_validation_loss = validation_loss
             self._record_validation_metrics(validation_loss)
             self._last_validation_step = step
 
-        log_every = self._cadence("log_every_n_steps")
-        should_log = (log_every is not None and step % log_every == 0) or (
-            log_every is None and epoch_end
-        )
+        should_log = self._event_due("log_every_n_steps", "log_every_n_tokens", epoch_end)
         if should_log and self._last_log_step != step:
             self._last_log_step = step
             values = {
+                "event": "log",
                 "optimizer_step": step,
                 "target_tokens": self.target_tokens,
                 "elapsed_seconds": self.elapsed_seconds,
-                "train/loss": train_loss,
                 "optimizer/lr": get_learning_rate(self.optimizer),
             }
             self._record_metrics(values, send_to_wandb=True)
 
-        save_every = self._cadence("checkpoint_every_n_steps")
-        checkpoint_path: Path | None = None
-        should_save = (save_every is not None and step % save_every == 0) or (
-            save_every is None and epoch_end
+        should_save = self._event_due(
+            "checkpoint_every_n_steps", "checkpoint_every_n_tokens", epoch_end
         )
+        checkpoint_path: Path | None = None
         if should_save and self._last_checkpoint_step != step:
             checkpoint_path = self._save_checkpoint()
             self._last_checkpoint_step = step
+            self._record_metrics(
+                {
+                    "event": "checkpoint",
+                    "optimizer_step": step,
+                    "target_tokens": self.target_tokens,
+                    "elapsed_seconds": self.elapsed_seconds,
+                },
+                send_to_wandb=False,
+            )
 
         # Milestones are independent of both logging and recovery saves.  A
         # milestone needs a state file for W&B, so create one only when that
         # event is due and checkpoint cadence did not already create it.
-        milestone_every = self._cadence("milestone_every_n_steps")
-        if milestone_every is not None and step % milestone_every == 0 and self.run is not None:
+        milestone_due = self._event_due(
+            "milestone_every_n_steps", "milestone_every_n_tokens", False
+        )
+        if milestone_due:
+            self._record_metrics(
+                {
+                    "event": "milestone",
+                    "optimizer_step": step,
+                    "target_tokens": self.target_tokens,
+                    "elapsed_seconds": self.elapsed_seconds,
+                },
+                send_to_wandb=False,
+            )
+        if milestone_due and self.run is not None:
             if checkpoint_path is None:
                 checkpoint_path = self._save_checkpoint()
             self._log_model_artifact(
@@ -281,6 +322,7 @@ class Trainer:
     def _record_step_metrics(self, loss: float, token_count: int) -> None:
         self._record_metrics(
             {
+                "event": "step",
                 "optimizer_step": self.optimizer_step,
                 "target_tokens": self.target_tokens,
                 "elapsed_seconds": self.elapsed_seconds,
@@ -293,6 +335,7 @@ class Trainer:
     def _record_validation_metrics(self, validation_loss: float) -> None:
         self._record_metrics(
             {
+                "event": "validation",
                 "optimizer_step": self.optimizer_step,
                 "target_tokens": self.target_tokens,
                 "elapsed_seconds": self.elapsed_seconds,
@@ -378,8 +421,7 @@ class Trainer:
             value = cadence.get(key)
         if value is None:
             return None
-        value = int(value)
-        if value < 1:
+        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
             raise ValueError(f"training.{key} must be positive when configured")
         return value
 
@@ -387,10 +429,62 @@ class Trainer:
         value = self._training_value(key)
         if value is None:
             return None
+        if key in {"max_steps", "max_tokens"}:
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise ValueError(f"training.{key} must be a positive integer when configured")
+            if value <= 0:
+                raise ValueError(f"training.{key} must be positive when configured")
+            return value
         value = float(value)
         if value <= 0:
             raise ValueError(f"training.{key} must be positive when configured")
-        return int(value) if value.is_integer() else value
+        return value
+
+    def _event_due(self, step_key: str, token_key: str, epoch_end: bool) -> bool:
+        step_cadence = self._cadence(step_key)
+        token_cadence = self._cadence(token_key)
+        due_step = step_cadence is not None and self.optimizer_step % step_cadence == 0
+        due_token = False
+        if token_cadence is not None:
+            boundary = self._last_token_event_boundary.get(token_key, 0)
+            if self.target_tokens >= boundary + token_cadence:
+                due_token = True
+                self._last_token_event_boundary[token_key] = (
+                    self.target_tokens // token_cadence
+                ) * token_cadence
+        return due_step or due_token or (
+            step_cadence is None and token_cadence is None and epoch_end
+        )
+
+    def _gradients_are_finite(self) -> bool:
+        return all(
+            parameter.grad is None or torch.isfinite(parameter.grad).all().item()
+            for parameter in self.model.parameters()
+        )
+
+    def _parameters_are_finite(self) -> bool:
+        return all(torch.isfinite(parameter).all().item() for parameter in self.model.parameters())
+
+    def _numeric_failure_message(self, kind: str, batch_index: int | None) -> str:
+        return (
+            f"non-finite {kind} at optimizer_step={self.optimizer_step}, "
+            f"target_tokens={self.target_tokens}, batch_index={batch_index}"
+        )
+
+    def _record_numeric_failure(self, kind: str, batch_index: int | None) -> None:
+        message = self._numeric_failure_message(kind, batch_index)
+        logger.error(message)
+        self._record_metrics(
+            {
+                "event": f"nonfinite_{kind}",
+                "optimizer_step": self.optimizer_step,
+                "target_tokens": self.target_tokens,
+                "batch_index": batch_index,
+                "elapsed_seconds": self.elapsed_seconds,
+                "error": message,
+            },
+            send_to_wandb=False,
+        )
 
     def _remaining_tokens(self) -> int | None:
         if self.max_tokens is None:

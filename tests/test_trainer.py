@@ -26,6 +26,22 @@ class ListLoader:
         yield from self.batches
 
 
+class NaNGradient(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, value):
+        return value
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        return torch.full_like(grad_output, float("nan"))
+
+
+class NaNGradientModel(FixedLogitModel):
+    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+        logits = NaNGradient.apply(self.logits)
+        return logits.expand(*inputs.shape, -1)
+
+
 def _trainer(tmp_path: Path, batches, **training_overrides) -> Trainer:
     model = FixedLogitModel()
     cfg = OmegaConf.create(
@@ -116,3 +132,43 @@ def test_validation_and_checkpoint_cadences_are_independent(tmp_path: Path, monk
     assert evaluations == [2, 4]
     assert len(list(tmp_path.glob("model_last.pth"))) == 1
     assert trainer._last_checkpoint_step == 3
+
+
+def test_token_cadence_records_boundaries_and_local_metrics(tmp_path: Path):
+    batches = [_batch([[0, 1]]) for _ in range(3)]
+    trainer = _trainer(
+        tmp_path,
+        batches,
+        log_every_n_steps=None,
+        log_every_n_tokens=4,
+        validation_every_n_steps=None,
+        validation_every_n_tokens=4,
+        checkpoint_every_n_steps=None,
+        checkpoint_every_n_tokens=4,
+    )
+    trainer.fit()
+    assert [item["target_tokens"] for item in trainer.metrics if item.get("event") == "log"] == [4]
+    assert [item["target_tokens"] for item in trainer.metrics if item.get("event") == "validation"] == [4]
+    assert [item["target_tokens"] for item in trainer.metrics if item.get("event") == "checkpoint"] == [4]
+    assert any(item.get("event") == "epoch_summary" and "train/loss" in item for item in trainer.metrics)
+    assert any(item.get("event") == "epoch_summary" and "train/perplexity" in item for item in trainer.metrics)
+    assert (tmp_path / "metrics.jsonl").exists()
+
+
+def test_nonfinite_gradient_records_context_before_counters_advance(tmp_path: Path):
+    trainer = _trainer(tmp_path, [_batch([[0, 1]])])
+    trainer.model = NaNGradientModel()
+    trainer.optimizer = torch.optim.SGD(trainer.model.parameters(), lr=0.0)
+    with pytest.raises(FloatingPointError, match="non-finite gradients"):
+        trainer.fit()
+    assert trainer.optimizer_step == 0
+    assert trainer.target_tokens == 0
+    failure = next(item for item in trainer.metrics if item.get("event") == "nonfinite_gradients")
+    assert failure["batch_index"] == 1
+
+
+def test_fractional_step_and_token_budgets_are_rejected(tmp_path: Path):
+    with pytest.raises(ValueError, match="max_steps.*positive integer"):
+        _trainer(tmp_path, [_batch([[0, 1]])], max_steps=1.5)
+    with pytest.raises(ValueError, match="max_tokens.*positive integer"):
+        _trainer(tmp_path, [_batch([[0, 1]])], max_tokens=1.5)
