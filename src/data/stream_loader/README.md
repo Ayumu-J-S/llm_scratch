@@ -169,11 +169,32 @@ Common optional fields:
 
 - `output_mode`: one of `raw_text`, `bytes`, `tokenized_docs`, or `packed_sequences`.
 - `max_tokens`: total token budget, or `"max"` to stream until sources are exhausted.
+- `horizon`: optional per-pass controls. Set `repeat: false` (the default when
+  a horizon is present) to continue at the saved source cursor on the next
+  pass; set `repeat: true` only when replaying the corpus is intentional.
+- `horizon.shuffle` and `horizon.shuffle_buffer_size`: deterministic bounded
+  shuffle. A buffer size of one is the explicit sequential policy.
 - `sequence_length`: packed sequence length for `packed_sequences`.
 - `add_eos`: append the tokenizer EOS token to each document.
 - `preserve_metadata`: include `metadata` for document modes or `source_spans` for packed sequences.
 - `seed`: deterministic source sampling seed.
 - `prefetch.enabled`: load samples in a background worker.
+
+## Exact cursor and pass policy
+
+When a `horizon` block, `shuffle` option, or `cursor` is supplied, the loader
+tracks a serializable cursor containing the source document position, source
+RNG/bounded-shuffle buffers, pass index, and global source-selection RNG. Call
+`loader.state_dict()` after an interruption and pass the returned mapping as
+`cursor` to a new `StreamLoader` (or call `load_state_dict`) to reproduce the
+uninterrupted suffix exactly. The cursor is JSON-safe and does not contain model
+weights or prompts.
+
+Each completed horizon starts a new pass. With `repeat: false`, the next pass
+continues after the prior source cursor and therefore does not repeat its
+prefix. With explicit `repeat: true`, the source positions reset for a new
+deterministically seeded pass. Prefetching is only an execution detail: sync,
+thread, and process modes consume the same ordered sequence and cursor.
 
 ## Manifest Sources
 

@@ -25,6 +25,7 @@ OUTPUT_MODES = {"raw_text", "bytes", "tokenized_docs", "packed_sequences"}
 _SENTINEL = "__stream_loader_prefetch_done__"
 _ERROR_MARKER = "__stream_loader_prefetch_error__"
 _ACCOUNTING_MARKER = "__stream_loader_prefetch_accounting__"
+_CURSOR_MARKER = "__stream_loader_prefetch_cursor__"
 _HF_COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$", re.IGNORECASE)
 
 
@@ -56,8 +57,16 @@ class SourceState:
     ratio: float
     iterator: Iterator[RawDocument]
     quota: int | None
+    dataset: Mapping[str, Any] | None = None
     emitted_tokens: int = 0
     exhausted: bool = False
+    # Number of raw documents consumed from the source.  This is distinct from
+    # emitted token accounting because a bounded shuffle buffer may contain
+    # documents which have already been read but not yielded.
+    source_position: int = 0
+    epoch: int = 0
+    shuffle_buffer: list[RawDocument] | None = None
+    shuffle_rng: random.Random | None = None
 
     @property
     def remaining_quota(self) -> int | None:
@@ -236,18 +245,71 @@ class StreamLoader:
         self,
         config: Mapping[str, Any],
         resolved_manifests: Mapping[str, ResolvedManifest] | None = None,
+        cursor: Mapping[str, Any] | None = None,
     ) -> None:
         self.config = dict(config)
+        horizon = self.config.get("horizon", {})
+        if horizon is None:
+            horizon = {}
+        if not isinstance(horizon, Mapping):
+            raise ValueError("horizon must be a mapping when set")
+        self.horizon_config = dict(horizon)
         self.output_mode = self.config.get("output_mode", "raw_text")
         if self.output_mode not in OUTPUT_MODES:
             raise ValueError(f"Unsupported output_mode: {self.output_mode}")
 
         self.seed = int(self.config.get("seed", 0))
         self.max_tokens = self.config.get("max_tokens", "max")
+        if self.max_tokens == "max" and "max_tokens" in self.horizon_config:
+            self.max_tokens = self.horizon_config["max_tokens"]
         if self.max_tokens != "max":
             self.max_tokens = int(self.max_tokens)
             if self.max_tokens < 1:
                 raise ValueError("max_tokens must be positive or 'max'")
+
+        self.cursor_enabled = bool(
+            cursor is not None
+            or self.config.get("cursor") is not None
+            or self.horizon_config
+            or "repeat" in self.config
+            or "shuffle" in self.config
+            or "shuffle_buffer_size" in self.config
+        )
+        self._explicit_repeat = "repeat" in self.config or "repeat" in self.horizon_config
+        self.repeat = bool(
+            self.config.get(
+                "repeat",
+                self.horizon_config.get("repeat", False if self.cursor_enabled else True),
+            )
+        )
+        shuffle_config = self.config.get("shuffle", self.horizon_config.get("shuffle", False))
+        if isinstance(shuffle_config, Mapping):
+            self.shuffle = bool(shuffle_config.get("enabled", True))
+            configured_buffer = shuffle_config.get("buffer_size")
+        else:
+            self.shuffle = bool(shuffle_config)
+            configured_buffer = None
+        configured_buffer = self.config.get(
+            "shuffle_buffer_size",
+            self.horizon_config.get("shuffle_buffer_size", configured_buffer),
+        )
+        self.shuffle_buffer_size = int(configured_buffer if configured_buffer is not None else 1)
+        if self.shuffle_buffer_size < 1:
+            raise ValueError("shuffle_buffer_size must be positive")
+        if self.shuffle and self.shuffle_buffer_size < 2:
+            # A buffer of one is an explicitly sequential policy, not shuffle.
+            self.shuffle = False
+
+        supplied_cursor = cursor if cursor is not None else self.config.get("cursor")
+        self._cursor: dict[str, Any] | None = (
+            _copy_cursor(supplied_cursor) if supplied_cursor is not None else None
+        )
+        self._pass_index = int(self._cursor.get("pass_index", 0)) if self._cursor else 0
+        if supplied_cursor is not None:
+            self.config["cursor"] = _copy_cursor(supplied_cursor)
+        self._active_source_states: list[SourceState] | None = None
+        self._active_rng: random.Random | None = None
+        self._consumer_cursor: dict[str, Any] | None = None
 
         self.sequence_length = int(self.config.get("sequence_length", 4096))
         if self.sequence_length < 1:
@@ -279,6 +341,8 @@ class StreamLoader:
 
         self.dataset_configs = [dict(item) for item in self.config.get("datasets", [])]
         self._validate_dataset_configs()
+        if self._cursor is not None:
+            self._validate_cursor(self._cursor)
         if resolved_manifests is None:
             self.resolved_manifests = _preflight_manifest_datasets(
                 self.dataset_configs,
@@ -319,10 +383,165 @@ class StreamLoader:
             "dropped_target_count": 0,
         }
 
+    def _source_rng(self, name: str, epoch: int) -> random.Random:
+        # Stable arithmetic avoids Python's process-randomized hash() and keeps
+        # process/thread prefetch order identical.
+        source_hash = 0
+        for byte in name.encode("utf-8"):
+            source_hash = (source_hash * 257 + byte) & 0xFFFFFFFF
+        rng = random.Random((self.seed * 1_000_003 + source_hash + epoch * 65_537) & 0xFFFFFFFF)
+        return rng
+
+    def _start_next_pass(self) -> None:
+        self._pass_index = int(self._cursor.get("pass_index", 0)) + 1
+        next_rng = random.Random(self.seed + self._pass_index)
+        source_states = {}
+        for dataset in self.dataset_configs:
+            name = dataset["name"]
+            previous = dict(self._cursor.get("source_states", {}).get(name, {}))
+            if self.repeat:
+                previous.update(
+                    {
+                        "source_position": 0,
+                        "epoch": self._pass_index,
+                        "emitted_tokens": 0,
+                        "exhausted": False,
+                        "shuffle_buffer": [],
+                        "shuffle_rng_state": _jsonable_rng_state(
+                            self._source_rng(name, self._pass_index).getstate()
+                        ),
+                    }
+                )
+            else:
+                previous["emitted_tokens"] = 0
+            source_states[name] = previous
+        self._cursor = {
+            "version": 1,
+            "seed": self.seed,
+            "pass_index": self._pass_index,
+            "output_mode": self.output_mode,
+            "dataset_names": [dataset["name"] for dataset in self.dataset_configs],
+            "rng_state": _jsonable_rng_state(next_rng.getstate()),
+            "source_states": source_states,
+            "packed_buffer": [],
+            "packed_spans": [],
+            "pass_complete": False,
+        }
+
     def __iter__(self) -> Iterator[dict[str, Any]]:
         if self.prefetch_enabled:
             return self._iter_async()
         return self._iter_sync()
+
+    def state_dict(self) -> dict[str, Any]:
+        """Return a serializable cursor for exact stream continuation.
+
+        The cursor is updated before every yielded sample, so callers may
+        interrupt an iterator and persist this state without consuming an
+        additional document.  It intentionally contains only source position,
+        shuffle buffers, and RNG state; model/checkpoint state belongs to the
+        trainer checkpoint contract.
+        """
+
+        if self.prefetch_enabled and self._consumer_cursor is not None:
+            return _copy_cursor(self._consumer_cursor)
+        if (
+            not self.prefetch_enabled
+            and self._active_source_states is not None
+            and self._active_rng is not None
+        ):
+            self._cursor = self._capture_cursor(
+                self._active_source_states,
+                self._active_rng,
+            )
+        return _copy_cursor(self._cursor or self._initial_cursor())
+
+    @property
+    def cursor_state(self) -> dict[str, Any]:
+        return self.state_dict()
+
+    def load_state_dict(self, cursor: Mapping[str, Any]) -> None:
+        if self.is_prefetching:
+            raise StreamLoaderError("cannot load a cursor while prefetch is active")
+        self._validate_cursor(cursor)
+        self._cursor = _copy_cursor(cursor)
+        self._pass_index = int(self._cursor.get("pass_index", 0))
+        self.cursor_enabled = True
+        # Process prefetch receives a plain serialized config.  Keep the
+        # explicit cursor in that config as well as on the parent so a spawned
+        # worker resumes from the requested state rather than its initial
+        # position.
+        self.config["cursor"] = _copy_cursor(cursor)
+
+    def _initial_cursor(self) -> dict[str, Any]:
+        return {
+            "version": 1,
+            "seed": self.seed,
+            "pass_index": 0,
+            "output_mode": self.output_mode,
+            "dataset_names": [dataset["name"] for dataset in self.dataset_configs],
+            "rng_state": _jsonable_rng_state(random.Random(self.seed).getstate()),
+            "source_states": {
+                dataset["name"]: {
+                    "source_position": 0,
+                    "epoch": 0,
+                    "emitted_tokens": 0,
+                    "exhausted": False,
+                    "shuffle_buffer": [],
+                    "shuffle_rng_state": _jsonable_rng_state(
+                        self._source_rng(dataset["name"], 0).getstate()
+                    ),
+                }
+                for dataset in self.dataset_configs
+            },
+            "packed_buffer": [],
+            "packed_spans": [],
+        }
+
+    def _capture_cursor(
+        self,
+        source_states: list[SourceState],
+        rng: random.Random,
+    ) -> dict[str, Any]:
+        cursor = {
+            "version": 1,
+            "seed": self.seed,
+            "pass_index": int(getattr(self, "_pass_index", 0)),
+            "output_mode": self.output_mode,
+            "dataset_names": [dataset["name"] for dataset in self.dataset_configs],
+            "rng_state": _jsonable_rng_state(rng.getstate()),
+            "source_states": {
+                state.name: {
+                    "source_position": state.source_position,
+                    "epoch": state.epoch,
+                    "emitted_tokens": state.emitted_tokens,
+                    "exhausted": state.exhausted,
+                    "shuffle_buffer": [
+                        _serialize_document(document) for document in (state.shuffle_buffer or [])
+                    ],
+                    "shuffle_rng_state": _jsonable_rng_state(
+                        (state.shuffle_rng or self._source_rng(state.name, state.epoch)).getstate()
+                    ),
+                }
+                for state in source_states
+            },
+        }
+        if hasattr(self, "_packed_cursor_buffer"):
+            cursor["packed_buffer"] = list(self._packed_cursor_buffer)
+            cursor["packed_spans"] = copy.deepcopy(getattr(self, "_packed_cursor_spans", []))
+        return cursor
+
+    def _validate_cursor(self, cursor: Mapping[str, Any]) -> None:
+        if int(cursor.get("version", -1)) != 1:
+            raise ValueError("unsupported stream cursor version")
+        if int(cursor.get("seed", self.seed)) != self.seed:
+            raise ValueError("stream cursor seed does not match loader seed")
+        names = list(cursor.get("dataset_names", []))
+        expected = [dataset["name"] for dataset in self.dataset_configs]
+        if names != expected:
+            raise ValueError("stream cursor dataset names do not match loader datasets")
+        if not isinstance(cursor.get("source_states"), Mapping):
+            raise ValueError("stream cursor source_states must be a mapping")
 
     def close(self) -> None:
         if self._stop_event is not None:
@@ -366,6 +585,7 @@ class StreamLoader:
     def _iter_async(self) -> Iterator[dict[str, Any]]:
         self._start_prefetch_worker()
         assert self._queue is not None
+        normal_completion = False
         try:
             while True:
                 try:
@@ -379,6 +599,7 @@ class StreamLoader:
                         break
                     continue
                 if item == _SENTINEL:
+                    normal_completion = True
                     break
                 if _is_prefetch_error(item):
                     raise StreamLoaderError(item["message"])
@@ -386,10 +607,22 @@ class StreamLoader:
                     self.token_counts = dict(item["token_counts"])
                     self.packed_token_counts = dict(item["packed_token_counts"])
                     continue
+                if _is_prefetch_cursor(item):
+                    self._cursor = _copy_cursor(item["cursor"])
+                    self._consumer_cursor = _copy_cursor(item["cursor"])
+                    # A subsequent process-prefetch pass serializes
+                    # ``self.config`` into a spawned worker.  Keep that plain
+                    # config synchronized with the acknowledged cursor so
+                    # loader reuse continues after the completed pass.
+                    if self.cursor_enabled:
+                        self.config["cursor"] = _copy_cursor(item["cursor"])
+                    continue
                 if isinstance(item, BaseException):
                     raise item
                 yield item
         finally:
+            if not normal_completion and self._consumer_cursor is not None:
+                self._cursor = _copy_cursor(self._consumer_cursor)
             self.close()
 
     def _start_prefetch_worker(self) -> None:
@@ -402,6 +635,7 @@ class StreamLoader:
             raise StreamLoaderError("loader is already being iterated")
 
         self._reset_accounting()
+        self._consumer_cursor = _copy_cursor(self._cursor) if self._cursor else None
         if self.prefetch_mode == "process":
             self._start_process_prefetch_worker()
             return
@@ -419,10 +653,32 @@ class StreamLoader:
                 for item in self._output_iter(stop_event=self._stop_event):
                     if self._stop_event.is_set():
                         break
+                    # Publish an acknowledgement cursor immediately before
+                    # the corresponding sample.  The worker may prefetch ahead
+                    # of the consumer, but the parent's cursor must never do
+                    # so: an interrupted consumer resumes after its last
+                    # yielded item, not after the queue head.
+                    self._put_prefetch_item(
+                        {
+                            _CURSOR_MARKER: True,
+                            "cursor": self._capture_cursor(
+                                self._active_source_states or [],
+                                self._active_rng or random.Random(self.seed),
+                            ),
+                        }
+                    )
                     self._put_prefetch_item(item)
             except BaseException as error:  # noqa: BLE001 - propagate to consumer.
                 self._put_prefetch_item(error)
             finally:
+                if not self._stop_event.is_set() and self._cursor is not None:
+                    # The final worker cursor carries pass_complete=True.  A
+                    # final marker prevents _iter_async's consumer cursor
+                    # (which represents the last sample) from overwriting the
+                    # completed-pass state when the loader is reused.
+                    self._put_prefetch_item(
+                        {_CURSOR_MARKER: True, "cursor": _copy_cursor(self._cursor)}
+                    )
                 self._put_prefetch_item(_SENTINEL)
 
         self._thread = threading.Thread(
@@ -473,8 +729,13 @@ class StreamLoader:
         self,
         stop_event: threading.Event | None,
     ) -> Iterator[dict[str, Any]]:
-        buffer: list[int] = []
-        spans: list[dict[str, Any]] = []
+        saved_cursor = self._cursor if self.cursor_enabled else None
+        buffer: list[int] = list(saved_cursor.get("packed_buffer", [])) if saved_cursor else []
+        spans: list[dict[str, Any]] = (
+            copy.deepcopy(saved_cursor.get("packed_spans", [])) if saved_cursor else []
+        )
+        self._packed_cursor_buffer = buffer
+        self._packed_cursor_spans = spans
         stride = self.sequence_length - 1
         if stride < 1:
             raise ValueError("packed_sequences requires sequence_length of at least 2")
@@ -504,6 +765,14 @@ class StreamLoader:
                     output["source_spans"] = _slice_spans(spans, self.sequence_length)
                 self.packed_token_counts["window_token_count"] += self.sequence_length
                 self.packed_token_counts["target_token_count"] += stride
+                if self.cursor_enabled:
+                    self._packed_cursor_buffer = list(buffer[stride:])
+                    self._packed_cursor_spans = _shift_spans(spans, stride)
+                    if self._active_source_states is not None and self._active_rng is not None:
+                        self._cursor = self._capture_cursor(
+                            self._active_source_states,
+                            self._active_rng,
+                        )
                 yield output
                 del buffer[:stride]
                 spans = _shift_spans(spans, stride)
@@ -521,6 +790,10 @@ class StreamLoader:
             yield output
         elif buffer:
             self.packed_token_counts["dropped_target_count"] += max(len(buffer) - 1, 0)
+        self._packed_cursor_buffer = []
+        self._packed_cursor_spans = []
+        if self.cursor_enabled and self._active_source_states is not None and self._active_rng is not None:
+            self._cursor = self._capture_cursor(self._active_source_states, self._active_rng)
 
     def _format_document_sample(self, sample: TokenizedSample) -> dict[str, Any]:
         base = {
@@ -546,11 +819,19 @@ class StreamLoader:
         self,
         stop_event: threading.Event | None,
     ) -> Iterator[TokenizedSample]:
+        if self._cursor is not None and self._cursor.get("pass_complete"):
+            self._start_next_pass()
+        cursor = self._cursor if self.cursor_enabled else None
         rng = random.Random(self.seed)
+        if cursor is not None and cursor.get("rng_state") is not None:
+            rng.setstate(_restore_rng_state(cursor["rng_state"]))
         all_source_states: list[SourceState] = []
+        self._active_rng = rng
+        completed = False
 
         try:
             all_source_states = self._build_source_states()
+            self._active_source_states = all_source_states
             source_states = list(all_source_states)
 
             while source_states:
@@ -561,10 +842,8 @@ class StreamLoader:
                 if state is None:
                     break
 
-                try:
-                    document = next(state.iterator)
-                except StopIteration:
-                    state.exhausted = True
+                document = self._next_source_document(state)
+                if document is None:
                     source_states = [item for item in source_states if not item.exhausted]
                     continue
 
@@ -606,6 +885,9 @@ class StreamLoader:
                 state.emitted_tokens += len(token_ids)
                 self.token_counts[state.name] = state.emitted_tokens
 
+                if self.cursor_enabled:
+                    self._cursor = self._capture_cursor(all_source_states, rng)
+
                 yield TokenizedSample(
                     source=state.name,
                     text=text,
@@ -619,7 +901,7 @@ class StreamLoader:
                     if item.remaining_quota is None or item.remaining_quota > 0
                 ]
 
-            if self.max_tokens != "max":
+            if self.max_tokens != "max" and not self._can_repeat_source():
                 missing = {
                     state.name: state.remaining_quota
                     for state in all_source_states
@@ -629,21 +911,124 @@ class StreamLoader:
                     raise StreamLoaderError(
                         f"Datasets exhausted before max_tokens quota was met: {missing}"
                     )
+            completed = True
         finally:
             for state in all_source_states:
                 _close_iterator(state.iterator)
+            if self.cursor_enabled and all_source_states:
+                self._cursor = self._capture_cursor(all_source_states, rng)
+                self._cursor["pass_complete"] = completed
+            self._active_source_states = None
+            self._active_rng = None
 
     def _build_source_states(self) -> list[SourceState]:
         quotas = self._token_quotas()
-        return [
-            SourceState(
-                name=dataset["name"],
+        cursor_states = {}
+        if self._cursor is not None:
+            cursor_states = dict(self._cursor.get("source_states", {}))
+        states = []
+        for dataset in self.dataset_configs:
+            name = dataset["name"]
+            saved = cursor_states.get(name, {})
+            epoch = int(saved.get("epoch", 0))
+            state = SourceState(
+                name=name,
                 ratio=float(dataset["ratio"]),
                 iterator=iter(self._build_source(dataset)),
-                quota=quotas.get(dataset["name"]),
+                quota=quotas.get(name),
+                dataset=dataset,
+                emitted_tokens=int(saved.get("emitted_tokens", 0)),
+                exhausted=bool(saved.get("exhausted", False)),
+                source_position=int(saved.get("source_position", 0)),
+                epoch=epoch,
+                shuffle_buffer=[
+                    _deserialize_document(document)
+                    for document in saved.get("shuffle_buffer", [])
+                ],
+                shuffle_rng=self._source_rng(name, epoch),
             )
-            for dataset in self.dataset_configs
-        ]
+            if saved.get("shuffle_rng_state") is not None:
+                state.shuffle_rng.setstate(_restore_rng_state(saved["shuffle_rng_state"]))
+            if state.source_position:
+                self._skip_source_documents(state)
+            states.append(state)
+        return states
+
+    def _skip_source_documents(self, state: SourceState) -> None:
+        """Replay the immutable source up to the saved raw-document cursor."""
+
+        skipped = 0
+        try:
+            while skipped < state.source_position:
+                next(state.iterator)
+                skipped += 1
+        except StopIteration:
+            if self._can_repeat_source() and state.dataset is not None:
+                # A cursor can point beyond one finite pass only when repeat
+                # was explicitly requested.  Re-open at the saved epoch.
+                _close_iterator(state.iterator)
+                state.iterator = iter(self._build_source(state.dataset))
+                state.source_position = 0
+                state.epoch += 1
+                state.exhausted = False
+            else:
+                state.exhausted = True
+
+    def _next_source_document(self, state: SourceState) -> RawDocument | None:
+        if state.exhausted and not state.shuffle_buffer:
+            return None
+        if not self.shuffle:
+            try:
+                document = next(state.iterator)
+                state.source_position += 1
+                return document
+            except StopIteration:
+                if not self._can_repeat_source() or state.dataset is None:
+                    state.exhausted = True
+                    return None
+                _close_iterator(state.iterator)
+                state.iterator = iter(self._build_source(state.dataset))
+                state.source_position = 0
+                state.epoch += 1
+                state.shuffle_rng = self._source_rng(state.name, state.epoch)
+                return self._next_source_document(state)
+
+        if state.shuffle_buffer is None:
+            state.shuffle_buffer = []
+        while len(state.shuffle_buffer) < self.shuffle_buffer_size and not state.exhausted:
+            try:
+                state.shuffle_buffer.append(next(state.iterator))
+                state.source_position += 1
+            except StopIteration:
+                state.exhausted = True
+        if not state.shuffle_buffer:
+            if self._can_repeat_source() and state.dataset is not None:
+                _close_iterator(state.iterator)
+                state.iterator = iter(self._build_source(state.dataset))
+                state.source_position = 0
+                state.epoch += 1
+                state.exhausted = False
+                state.shuffle_rng = self._source_rng(state.name, state.epoch)
+                return self._next_source_document(state)
+            return None
+
+        rng = state.shuffle_rng or self._source_rng(state.name, state.epoch)
+        index = rng.randrange(len(state.shuffle_buffer))
+        document = state.shuffle_buffer.pop(index)
+        if not state.exhausted:
+            try:
+                state.shuffle_buffer.append(next(state.iterator))
+                state.source_position += 1
+            except StopIteration:
+                state.exhausted = True
+        state.shuffle_rng = rng
+        return document
+
+    def _can_repeat_source(self) -> bool:
+        # A max='max' pass is source-bounded even when a caller opts into
+        # repeat for subsequent explicit passes; otherwise list(loader) would
+        # never terminate on a finite fixture.
+        return self._explicit_repeat and self.repeat and self.max_tokens != "max"
 
     def _build_source(self, dataset: Mapping[str, Any]) -> Iterable[RawDocument]:
         source_type = dataset.get("type", dataset.get("source", "hf"))
@@ -671,7 +1056,8 @@ class StreamLoader:
         candidates = [
             state
             for state in source_states
-            if not state.exhausted and (state.remaining_quota is None or state.remaining_quota > 0)
+            if (not state.exhausted or state.shuffle_buffer)
+            and (state.remaining_quota is None or state.remaining_quota > 0)
         ]
         if not candidates:
             return None
@@ -881,6 +1267,14 @@ def _process_prefetch_worker(
         for item in loader._output_iter(stop_event=stop_event):
             if stop_event.is_set():
                 break
+            # Publish the cursor before the corresponding sample so an
+            # interrupting consumer can persist the state of the last yielded
+            # item even though the worker runs in another process.
+            _put_prefetch_queue_item(
+                output_queue,
+                stop_event,
+                {_CURSOR_MARKER: True, "cursor": loader.state_dict()},
+            )
             _put_prefetch_queue_item(output_queue, stop_event, item)
         if not stop_event.is_set():
             _put_prefetch_queue_item(
@@ -891,6 +1285,11 @@ def _process_prefetch_worker(
                     "token_counts": loader.token_counts,
                     "packed_token_counts": loader.packed_token_counts,
                 },
+            )
+            _put_prefetch_queue_item(
+                output_queue,
+                stop_event,
+                {_CURSOR_MARKER: True, "cursor": loader.state_dict()},
             )
     except BaseException as error:  # noqa: BLE001 - propagate to consumer.
         _put_prefetch_queue_item(
@@ -932,10 +1331,47 @@ def _is_prefetch_accounting(item: Any) -> bool:
     return isinstance(item, Mapping) and bool(item.get(_ACCOUNTING_MARKER))
 
 
+def _is_prefetch_cursor(item: Any) -> bool:
+    return isinstance(item, Mapping) and bool(item.get(_CURSOR_MARKER))
+
+
 def _has_hf_datasets(dataset_configs: Iterable[Mapping[str, Any]]) -> bool:
     return any(
         dataset.get("type", dataset.get("source", "hf")) == "hf" for dataset in dataset_configs
     )
+
+
+def _serialize_document(document: RawDocument) -> dict[str, Any]:
+    return {"text": document.text, "metadata": copy.deepcopy(document.metadata)}
+
+
+def _deserialize_document(value: Mapping[str, Any]) -> RawDocument:
+    if not isinstance(value, Mapping) or not isinstance(value.get("text"), str):
+        raise ValueError("stream cursor shuffle_buffer contains an invalid document")
+    metadata = value.get("metadata", {})
+    if not isinstance(metadata, Mapping):
+        raise ValueError("stream cursor document metadata must be a mapping")
+    return RawDocument(text=value["text"], metadata=dict(metadata))
+
+
+def _jsonable_rng_state(value: Any) -> Any:
+    if isinstance(value, tuple):
+        return [_jsonable_rng_state(item) for item in value]
+    if isinstance(value, list):
+        return [_jsonable_rng_state(item) for item in value]
+    return value
+
+
+def _restore_rng_state(value: Any) -> Any:
+    if isinstance(value, list):
+        return tuple(_restore_rng_state(item) for item in value)
+    return value
+
+
+def _copy_cursor(cursor: Mapping[str, Any]) -> dict[str, Any]:
+    if not isinstance(cursor, Mapping):
+        raise ValueError("stream cursor must be a mapping")
+    return copy.deepcopy(dict(cursor))
 
 
 def _optional_positive_int(value: Any) -> int | None:

@@ -10,6 +10,14 @@ preserve_metadata: true
 require_manifests: true
 seed: 42
 
+# DATA-003: bounded, deterministic stream horizon.  Keep repeat explicit for
+# experiments that intentionally replay a corpus; the default is sequential
+# continuation from the saved cursor.
+horizon:
+  repeat: false
+  shuffle: true
+  shuffle_buffer_size: 16
+
 prefetch:
   enabled: true
   buffer_size: 16
