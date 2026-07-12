@@ -4,7 +4,7 @@
 - Branch: `codex/data-004-pinned-baseline-mixture`
 - Draft PR: [#41](https://github.com/Ayumu-J-S/llm_scratch/pull/41)
 - Experiment owner: implementation agent; exact runtime model/reasoning are not exposed
-- Status: implementation and bounded live evidence complete; independent review pending
+- Status: independent review FAIL `4680931313`; repair required
 - Started (UTC): 2026-07-12T21:43:54Z
 - Model-run provenance: `docs/model-runs/DATA-004-pinned-baseline-mixture.md`
 
@@ -173,12 +173,13 @@ filesystem observations vary. The reports retain no raw corpus text.
 
 ## Current conclusion
 
-DATA-004 meets its predeclared implementation and bounded-live success
-conditions at the current candidate: exact inventories reproduce, both project
-splits are non-empty and content-disjoint in the observed sample, 262,144
-trained targets reconcile exactly at 50/50, injected defects follow declared
-policy, cold/warm QA reports contain the required identities and counters, and
-cache admission preserves the declared reserve. This conclusion is pending the
-mandatory independent heavy review; it makes no model-quality or perfect-data
-claim. The remaining source-rights and mixed-language filtering limitations are
-explicit rather than silently treated as solved.
+The bounded measurements passed their declared ratio, content-overlap, checksum,
+and cache gates, but independent review `4680931313` rejected the candidate.
+Schema-v2 document IDs are not yet content-bound when an upstream ID exists;
+reports omit required whole-run throughput/RSS/read-rate and representative
+R2/R3 evidence; target-quota truncation is not counted; and committed resolved
+configs do not reproduce the opaque report hashes. These findings require code,
+tests, and rerun evidence without relaxing the original gates. The reviewer also
+treats the documented underlying web-page rights caveat as blocking agent
+self-merge pending a human policy/rights disposition. No model-quality or
+perfect-data claim is made.

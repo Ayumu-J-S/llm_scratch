@@ -6,7 +6,7 @@
 - Hypothesis: exact shard manifests, content-disjoint splits, target-token scheduling, and bounded QA can provide a trustworthy 50/50 Japanese/English baseline stream.
 - Experiment record: `docs/experiments/DATA-004-pinned-baseline-mixture.md`
 - Started: 2026-07-12
-- Final verdict: implementation candidate complete; independent review pending
+- Final verdict: FAIL `4680931313`; repair required
 - Final record owner: implementation agent
 
 ## Scope and decision context
@@ -26,7 +26,7 @@
 | 1 | implementation | not exposed by runtime | not exposed by runtime | exact official Hugging Face metadata and dataset/model terms | Audit immutable inventories, provenance, licenses, terms, and safer alternatives before live downloads. | candidate pivot complete | Rejected FineWeb-Edu English because Llama 3 output lineage carries an explicit downstream-LLM restriction; rejected the Japanese Edu derivative because current permissive DeepSeek terms do not prove historical annotation terms. Selected direct FineWeb/FineWeb-2 revisions; official APIs reproduced 15 EN and 175 JA train shards with aggregate rows/bytes and per-file LFS identities. | primary-source audit retained in experiment record; no corpus shard downloaded |
 | 1 | repair | not exposed by runtime | not exposed by runtime | first bounded live integration on uncommitted core | Repair active cache leases exposed by early bounded iterator close. | PASS locally | Added idempotent native Parquet iterator close and cross-instance eviction regression; formal evidence exits with zero leases. | failed report `/tmp/tmp.VVORwKA74Y/data_preflight.{json,md}`; 17 focused tests |
 | 1 | handoff | not exposed by runtime | not exposed by runtime | cold `10c7eb1`; warm `8548c4e`; exact pinned manifests/tokenizer | Run bounded real train/held-out streams, cold/warm cache path, and exact 262,144-target mixture. | PASS pending review | 4,096 accepted documents per split, overlap 0, exact 131,072/131,072 targets, 1.269 GB cold/zero-byte warm, zero final leases, disk admission PASS. | `reports/data/DATA-004/live-preflight-{cold,warm}.{json,md}` |
-| 1 | review | pending | pending | future stable candidate | Review PHILOSOPHY, acceptance, CHECK all 4/5.3/5.4/8.2 and applicable R2/R3. | pending | pending | pending |
+| 1 | review | not exposed by runtime | not exposed by runtime | exact `51aa6e239f8cd40c6e1a1b9279d2526cbd3404a9`; strongest GPT-5.6-class Extra Thinking requested | Review PHILOSOPHY, acceptance, CHECK all 4/5.3/5.4/8.2 and applicable 3/R2/R3. | FAIL `4680931313` | Content split did not guarantee/report document-ID disjointness; §4/R2/R3 throughput evidence absent; quota truncation unreported; live config hashes not reproducible. Underlying page-rights caveat blocks agent self-merge. | GitHub review `4680931313`; exact-head Actions `29212016075` success |
 
 ## Runtime provenance block
 
@@ -48,26 +48,46 @@
 
 ## Check selection and verdicts
 
-- Review model/mode and commit: pending.
+- Review model/mode and commit: not exposed / not exposed at exact `51aa6e2`.
 - Selected sections: all 4, 5.3, 5.4, 8.2, comparison rules in 3, applicable R2/R3.
 - Other major sections: N/A unless touched by implementation.
-- Ticket/Philosophy/complexity/ML-system verdicts: pending.
+- Ticket/Philosophy/complexity/ML-system verdicts: FAIL; four actionable
+  evidence/identity/accounting/reproducibility findings, with implementation
+  strengths retained in review `4680931313`.
 
 ## Failed-review handoff
 
-Pending independent review. The pre-review iterator lease repair and complete
-reproduction evidence are retained above; it was discovered by live validation,
-not by an independent review verdict.
+From review cycle 1 / GitHub review `4680931313`:
+
+- Failed checks: ROADMAP document-ID disjointness and truncation QA;
+  PHILOSOPHY consequential-run config retention; CHECK §4 and R2/R3 throughput,
+  RSS, source-read/missing-data, and representative observation.
+- Review model/mode: not exposed by runtime / not exposed by runtime; strongest
+  appropriate GPT-5.6-class / Extra Thinking requested.
+- Implementation model/mode: not exposed by runtime / not exposed by runtime.
+- Repair diff: exact head `51aa6e239f8cd40c6e1a1b9279d2526cbd3404a9`.
+- Reproduction: full suite and source capture pass; inspect review `4680931313`,
+  reports, and preflight/identity/loader code paths.
+- Invariants: keep shared content-hash split, exact target attribution, source
+  pins, no raw-text retention, bounded downloads/cache, and VAL/DGX/OPS scope.
+- Selected next model/mode: strongest appropriate GPT-5.6-class implementation
+  model at Extra High or higher; exact runtime values must not be inferred.
+- Exact repair request: content-bind v2 IDs and report both overlap types; add
+  elapsed/rate/RSS/read/missing-data and repeated/R3 evidence; count quota
+  truncation end to end; commit complete redacted resolved configs and exact
+  commands; rerun cold/warm evidence and independent re-review.
 
 ## Repair result
 
-Pre-review implementation repair only:
+Pre-review implementation repair:
 
 - Input: bounded live smoke with `active_leases=2`.
 - Change: explicit idempotent Parquet iterator close plus regression coverage.
 - Evidence: formal cold/warm reports both show `active_leases=0`; focused cursor,
   cache, and early-close tests pass.
-- Independent review/re-review: pending.
+- Independent review: the later review still failed on separate findings.
+
+Formal review repair result: pending.
 
 ## Final evidence
 
@@ -98,11 +118,13 @@ Pre-review implementation repair only:
 
 - Guarded agent self-merge only after exact-head PASS/PASS WITH NOTE and all gates.
 - Bounded roadmap-series authorization remains in scope.
-- Review/check/thread/protection/mergeability fields: pending independent review and final audit.
+- Latest review is FAIL; Ready transition and merge are prohibited pending repair
+  and independent re-review.
 - Target: `main@7648316` initially.
-- The source audit closed the avoidable Edu-output lineage question; ordinary
-  ODC-By/Common Crawl underlying-content caveats remain disclosed and are not
-  represented as a broader license grant.
+- Review `4680931313` treats the disclosed underlying web-page rights caveat as
+  an unresolved legal/licensing question that blocks agent self-merge. A human
+  policy/rights disposition and permitted merge path are required even after a
+  technical PASS.
 - No admin/bypass/force path; this is not the bootstrap policy PR.
 
 ## Ledger update
