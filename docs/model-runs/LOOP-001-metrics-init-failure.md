@@ -1,6 +1,6 @@
 # LOOP-001 follow-up - Preserve metrics when W&B init fails
 
-- PR: [#28](https://github.com/Ayumu-J-S/llm_scratch/pull/28) (ready; pending parent merge)
+- PR: [#28](https://github.com/Ayumu-J-S/llm_scratch/pull/28) (merged at `75f779c76061d7130c99301047a029e2774c99df`)
 - Branch: `codex/loop-001-metrics-init-failure`
 - Ticket: LOOP-001 cycle-5 repair / inherited P2 from metrics audit
 - Hypothesis: Initializing the optional W&B run before atomically replacing the
@@ -36,7 +36,7 @@
 
 - Capture file/evidence: unavailable in delegated runtime
 - Codex CLI version: not exposed by runtime
-- Branch/commit: `codex/loop-001-metrics-init-failure` / `4af9dca`
+- Branch/commit: `codex/loop-001-metrics-init-failure` / implementation `4e38017`; reviewed docs head `9595a5b`; merge `75f779c76061d7130c99301047a029e2774c99df`
 - Phase/role/task path: implementation / LOOP-001 cycle-5 P2 repair
 - Privacy confirmation: no prompts, hidden chain-of-thought, token counts,
   secrets, or raw thread IDs recorded.
@@ -44,7 +44,7 @@
 ## Review cycle 1
 
 - Review model / mode: not exposed by runtime / not exposed by runtime
-- Commit reviewed: `4af9dca`
+- Commit reviewed: `4af9dca` (implementation) and docs-only descendant `9595a5b`
 - Selected `CHECK.md`: 6.3 and 7.1–7.4; no DGX or long-run claim.
 - Ticket acceptance: PASS WITH NOTE — inherited P2 behavior is repaired.
 - Philosophy alignment: PASS — direct ordering/atomicity fix with no scope creep.
@@ -73,8 +73,9 @@
 - Authorization evidence location: parent session and PR #28 body
 - Exact independently reviewed head SHA: `4af9dca`
 - Latest independent verdict / model / mode: PASS WITH NOTE / not exposed by runtime / not exposed by runtime
-- Inherited review thread: `PRRT_kwDORqx5mc6QMEkt` (resolved on PR25 after repair)
-- Merge outcome: pending
+- Inherited review thread: `PRRT_kwDORqx5mc6QMEkt` (resolved on PR26 after repair)
+- Exact docs-head confirmation review: `4679843167` PASS WITH NOTE
+- Merge outcome: merged at expected head `9595a5b` with merge commit `75f779c76061d7130c99301047a029e2774c99df`
 
 ## Model assessment
 
@@ -87,4 +88,4 @@
 - [x] Added PR #28 model-run record.
 - [x] Recorded independent review verdict.
 - [x] Resolved inherited P2 thread after review.
-- [ ] Completed guarded merge audit.
+- [x] Completed guarded merge audit (PR #28 expected-head merge and empty check/workflow inventories recorded in LOOP-001 audit).

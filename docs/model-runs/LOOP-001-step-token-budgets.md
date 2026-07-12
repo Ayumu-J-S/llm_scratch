@@ -1,6 +1,6 @@
 # LOOP-001 - Step/token budgets and correct metrics
 
-- PR: [#25](https://github.com/Ayumu-J-S/llm_scratch/pull/25) (merged at `ea0873d7bee8b3796092bb4be4cdb9ad6d2b7ecb`); follow-up repair [#26](https://github.com/Ayumu-J-S/llm_scratch/pull/26) (merged at `c0bdfed2e618d73c0a0c262053fc842b0594db68`); audit follow-up: [#27](https://github.com/Ayumu-J-S/llm_scratch/pull/27) (draft)
+- PR: [#25](https://github.com/Ayumu-J-S/llm_scratch/pull/25) (merged at `ea0873d7bee8b3796092bb4be4cdb9ad6d2b7ecb`); follow-up repair [#26](https://github.com/Ayumu-J-S/llm_scratch/pull/26) (merged at `c0bdfed2e618d73c0a0c262053fc842b0594db68`); follow-up repair [#28](https://github.com/Ayumu-J-S/llm_scratch/pull/28) (merged at `75f779c76061d7130c99301047a029e2774c99df`); audit [#27](https://github.com/Ayumu-J-S/llm_scratch/pull/27) (draft)
 - Branch: `codex/loop-001-step-token-budgets`
 - Ticket: LOOP-001
 - Hypothesis: A trainer whose stopping, scheduling, and event decisions use
@@ -25,8 +25,8 @@
 - Baseline commit: `fbdb08606435f038f11aa1efd673105acd91cf84`
 - Intended evidence: 210 passed / 1 skipped full CPU suite, 8 focused trainer
   fixtures, Hydra CPU smoke, Ruff, lock, and diff checks; follow-up metrics
-  repair adds 211 passed / 1 skipped, 9 focused fixtures, and exact merge-gate
-  observations for PRs #25 and #26.
+  repairs add 212 passed / 1 skipped, 10 focused fixtures, and exact merge-gate
+  observations for PRs #25, #26, and #28.
 
 ## Execution timeline
 
@@ -41,6 +41,9 @@
 | 4 | follow-up repair | not exposed by runtime | not exposed by runtime | `ea0873d7` | Repair the post-merge P2 metrics-lifecycle finding from PR #25 | complete | `Trainer.fit()` now clears in-memory metrics and truncates `metrics.jsonl` at each fresh run boundary; a same-directory two-run regression prevents stale W&B-off evidence from mixing. | normative implementation `a332f46`; full 211 passed, 1 skipped; focused 9; Ruff/lock/diff pass |
 | 4 | follow-up re-review | not exposed by runtime | not exposed by runtime | `98f609f` | Independent review of the exact metrics-lifecycle repair head | PASS WITH NOTE | P2 repair is scoped and correct. Note: repeated `fit()` on one Trainer does not reset counters; fresh Trainer instances define run boundaries and CKPT-001 owns resume lifecycle. | review `4679826123`; exact docs head `e21dc10`; full 211 passed, 1 skipped; focused 9 |
 | 5 | merge audit / record finalization | not exposed by runtime | not exposed by runtime | `c0bdfed2` | Record PR #25 and PR #26 merges, resolved P2 thread, exact-head parity, and roadmap state | complete | PR #25 merged at `ea0873d7`; PR #26 merged at expected head `e21dc10` with merge `c0bdfed2`; no unresolved threads, workflow runs, or exact-head statuses were observed. | docs-only audit PR #27; local diff/lock/Ruff checks and merged PR evidence |
+| 6 | follow-up repair | not exposed by runtime | not exposed by runtime | `c0bdfed` | Repair the post-merge W&B-init metrics lifecycle finding from PR #26/#27 | complete | Local metrics reset now occurs only after successful W&B initialization and atomically replaces `metrics.jsonl`; failure-path regression preserves prior evidence. | normative implementation `4e38017`; full 212 passed, 1 skipped; focused 10; Ruff/lock/diff pass |
+| 6 | follow-up re-review | not exposed by runtime | not exposed by runtime | `4af9dca` | Independent review of the exact W&B-init repair head | PASS WITH NOTE | Prior metrics evidence survives W&B initialization failure; successful runs retain atomic reset/isolation. Filesystem failure during reset before training cleanup remains out of scope. | review `4679840978`; exact docs head `9595a5b`; full 212 passed, 1 skipped; focused 10 |
+| 7 | merge audit / record finalization | not exposed by runtime | not exposed by runtime | `75f779c` | Record PR #28 merge, resolved inherited thread, exact-head parity, and final check/workflow evidence | complete | PR #28 merged at expected docs head `9595a5b` with merge `75f779c`; no unresolved threads, workflow runs, or exact-head statuses were observed. | audit review `4679843167`; PR #27 updated docs-only head |
 
 ## Runtime provenance block
 
@@ -56,7 +59,7 @@ display does not expose the exact deployment model or reasoning mode.
   delegated implementation session; values above follow repository provenance
   rules.
 - Codex CLI version: not exposed by runtime
-- Branch/commit: implementation `codex/loop-001-step-token-budgets`; independently reviewed implementation anchor `94da0d4`; merged PR #25 docs head `283fc0913d7fe8c8295ad03074d9cdf8b8b0bbb1`; follow-up PR #26 normative repair `a332f46`, independently reviewed docs head `98f609f`, and merged docs head `e21dc10d8e58a2407cd455b2e0a48a97c356fecf`.
+- Branch/commit: implementation `codex/loop-001-step-token-budgets`; independently reviewed implementation anchor `94da0d4`; merged PR #25 docs head `283fc0913d7fe8c8295ad03074d9cdf8b8b0bbb1`; PR #26 normative repair `a332f46`, independently reviewed docs head `98f609f`, merged docs head `e21dc10d8e58a2407cd455b2e0a48a97c356fecf`; PR #28 normative repair `4e38017`, independently reviewed docs head `9595a5b739d2a3805f333679679923f2f443eeee`, merged at `75f779c76061d7130c99301047a029e2774c99df`.
 - Phase/role/task path: implementation / LOOP-001 / delegated retry
 - Privacy confirmation: no prompts, hidden chain-of-thought, token counts,
   secrets, or raw thread IDs recorded.
@@ -224,50 +227,52 @@ display does not expose the exact deployment model or reasoning mode.
   fixture only.
 - Validation and measurements: PR #25 full suite 210 passed, 1 skipped with
   trainer fixture 8 passed; PR #26 full suite 211 passed, 1 skipped with
-  trainer fixture 9 passed; canonical streaming Hydra CPU smoke passed; Ruff,
-  lock, and diff checks pass for both.
+  trainer fixture 9 passed; PR #28 full suite 212 passed, 1 skipped with
+  trainer fixture 10 passed; canonical streaming Hydra CPU smoke passed; Ruff,
+  lock, and diff checks pass for all.
 - Performance/resource result if applicable: N/A.
 - Failed attempts retained at: cycle-1 and cycle-2 review findings above;
   repaired at `e972864` and `0d09af8`; cycle-3 re-review PASS WITH NOTE at
-  `94da0d4`; the post-merge P2 metrics-lifecycle finding is retained in
-  `LOOP-001-metrics-audit.md` and repaired at `a332f46`.
+  `94da0d4`; post-merge metrics-lifecycle findings are retained in the
+  follow-up records and repaired at `a332f46` and `4e38017`.
 - Known trade-offs: one optimizer update per loader batch; accumulation and
   checkpoint resume remain later tickets.
 - Unresolved risks: token cadence is batch-boundary based; no DGX or long-run
   stability evidence is claimed in LOOP-001.
-- Human decision requested: review the docs-only audit PR #27; PRs #25 and #26
-  are already merged under the explicitly authorized bounded roadmap process.
+- Human decision requested: review the docs-only audit PR #27; PRs #25, #26,
+  and #28 are already merged under the explicitly authorized bounded roadmap
+  process.
 
 ## Merge authority and final audit
 
 - Merge path: guarded agent self-merge after exact-head audit
 - Human authorization: user explicitly authorized self-merge for the bounded
   roadmap goal on 2026-07-12; this implementation sub-agent does not merge.
-- Authorization evidence location: parent session and PR #25/#26 bodies
+- Authorization evidence location: parent session and PR #25/#26/#28 bodies
 - Authorization covers this named PR or bounded ticket/goal series: yes — LOOP-001 within the roadmap goal
-- Exact independently reviewed head SHA: PR #25 implementation anchor `94da0d4`; PR #26 repair docs head `98f609f`
-- Latest independent verdict / model / mode: PASS WITH NOTE / not exposed by runtime / not exposed by runtime (review `4679826123`)
-- All actionable findings repaired and independently re-reviewed: yes — PR #25's P2 metrics-lifecycle finding was repaired in PR #26 and independently re-reviewed.
-- Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: none observed on PR #25 or #26
+- Exact independently reviewed head SHA: PR #25 implementation anchor `94da0d4`; PR #26 repair docs head `98f609f`; PR #28 repair docs head `9595a5b739d2a3805f333679679923f2f443eeee`
+- Latest independent verdict / model / mode: PASS WITH NOTE / not exposed by runtime / not exposed by runtime (PR #28 review `4679840978`; audit review `4679843167`)
+- All actionable findings repaired and independently re-reviewed: yes — PR #25 and PR #26 metrics-lifecycle findings were repaired in PR #26 and PR #28, then independently re-reviewed.
+- Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: none observed on PR #25, #26, or #28
 - Newer human objections since authorization/review: none observed
 - Human review dismissed by an agent: no
-- Unresolved review threads at final audit: zero — PR #25 thread `PRRT_kwDORqx5mc6QMBn5` is resolved; PR #26 has no inline threads.
+- Unresolved review threads at final audit: zero — PR #25 thread `PRRT_kwDORqx5mc6QMBn5` and PR #26 inherited thread `PRRT_kwDORqx5mc6QMEkt` are resolved; PR #28 has no inline threads.
 - Branch-protection required-context inventory: not exposed by the connected GitHub surface; no required-context inventory returned.
-- Applicable configured workflow/check inventory: no workflow runs returned for exact PR #25 head `283fc0913d7fe8c8295ad03074d9cdf8b8b0bbb1` or PR #26 docs head `e21dc10d8e58a2407cd455b2e0a48a97c356fecf`.
-- Observed exact-head check statuses: empty combined status for both reviewed heads.
+- Applicable configured workflow/check inventory: no workflow runs returned for exact PR #25 head `283fc0913d7fe8c8295ad03074d9cdf8b8b0bbb1`, PR #26 docs head `e21dc10d8e58a2407cd455b2e0a48a97c356fecf`, or PR #28 docs head `9595a5b739d2a3805f333679679923f2f443eeee`.
+- Observed exact-head check statuses: empty combined status for all three reviewed heads.
 - Expected checks absent, pending, skipped, cancelled, or non-successful: none observed; no-check evidence is limited to the connector's empty inventories and does not infer repository policy.
 - No-check evidence when both inventories are empty: recorded with the connector evidence limitation above.
-- Target branch and base SHA at final audit: PR #25 `main` / `fbdb08606435f038f11aa1efd673105acd91cf84`; PR #26 `main` / `ea0873d7bee8b3796092bb4be4cdb9ad6d2b7ecb`; audit PR #27 `main` / `c0bdfed2e618d73c0a0c262053fc842b0594db68`.
-- Up-to-date, conflict-free, and mergeable evidence: PR #25 and PR #26 were closed/merged by the connector at the expected reviewed heads; audit branch is based directly on current `origin/main` `c0bdfed2` and is docs-only.
-- Record, ledger, PR trail, validation, and risks parity: complete for PRs #25 and #26; this audit updates the roadmap and both LOOP records.
+- Target branch and base SHA at final audit: PR #25 `main` / `fbdb08606435f038f11aa1efd673105acd91cf84`; PR #26 `main` / `ea0873d7bee8b3796092bb4be4cdb9ad6d2b7ecb`; PR #28 `main` / `c0bdfed2e618d73c0a0c262053fc842b0594db68`; audit PR #27 `main` / `75f779c76061d7130c99301047a029e2774c99df`.
+- Up-to-date, conflict-free, and mergeable evidence: PR #25, PR #26, and PR #28 were closed/merged by the connector at the expected reviewed heads; audit branch is based directly on current `origin/main` `75f779c` and is docs-only relative to main.
+- Record, ledger, PR trail, validation, and risks parity: complete for PRs #25, #26, and #28; this audit updates the roadmap and all LOOP records.
 - Prohibited self-merge categories: clear; no secrets/security/deployment action
 - Admin/bypass/force/disabled-check requirement: no
 - Final audit PR body/comment location: PR #27 (draft; exact final head recorded in live PR metadata)
-- Final audit changed reviewed head: no — docs-only follow-up after PR #25 and PR #26 merges
+- Final audit changed reviewed head: no — docs-only follow-up after PR #25, PR #26, and PR #28 merges
 - Immediate pre-merge re-fetch/compare observation location: parent final refresh before merging PR #27
-- Immediate refresh compared authorization, head, base, review decision/objections, threads, expected checks/statuses, and mergeability: PR #25/#26 observations recorded above; PR #27 refresh remains parent merge gate.
-- Drift found: none between PR #25/#26 reviewed heads and their merge outcomes; no implementation drift in audit branch.
-- Merge outcome: PR #25 `ea0873d7...` and PR #26 `c0bdfed2...` merged; PR #27 audit pending.
+- Immediate refresh compared authorization, head, base, review decision/objections, threads, expected checks/statuses, and mergeability: PR #25/#26/#28 observations recorded above; PR #27 refresh remains parent merge gate.
+- Drift found: none between PR #25/#26/#28 reviewed heads and their merge outcomes; no implementation drift in audit branch.
+- Merge outcome: PR #25 `ea0873d7...`, PR #26 `c0bdfed2...`, and PR #28 `75f779c7...` merged; PR #27 audit pending.
 
 ## Model assessment from this ticket
 
@@ -281,5 +286,5 @@ display does not expose the exact deployment model or reasoning mode.
 - [x] Added the PR/ticket row to `docs/model-runs/README.md`.
 - [x] Updated per-model attempt, pass, repair, and review counts after cycle-3 review.
 - [x] Confirmed the initial execution trail separates requested/default from actual runtime values.
-- [x] Recorded complete guarded self-merge final audit evidence for PR #25 and follow-up PR #26; docs-only audit PR #27 remains the current handoff.
+- [x] Recorded complete guarded self-merge final audit evidence for PR #25, follow-up PR #26, and follow-up PR #28; docs-only audit PR #27 remains the current handoff.
 - [x] Confirmed that this bootstrap policy rule was not used before a human merged it.
