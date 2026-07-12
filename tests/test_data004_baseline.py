@@ -9,7 +9,12 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from data.identity import canonical_fingerprint
+from data.identity import (
+    canonical_fingerprint,
+    content_bound_document_id,
+    normalized_content_sha256,
+    stable_document_id,
+)
 from data.manifests import (
     ManifestError,
     load_manifest,
@@ -18,6 +23,7 @@ from data.manifests import (
 )
 from data.parquet_source import huggingface_artifact_url
 from data.quality import DocumentPolicy, QualityTracker, apply_document_policy
+from data.splits import assign_split
 from data.stream_loader import BoundedShardCache, CacheSpaceError, StreamLoader
 
 
@@ -27,13 +33,20 @@ TOKENIZER_CONFIG = {
 }
 
 
-def _v2_bundle(tmp_path: Path, *, salt: str = "shared-data004-v1") -> tuple[Path, Path, dict]:
+def _v2_bundle(
+    tmp_path: Path,
+    *,
+    salt: str = "shared-data004-v1",
+    texts: list[str] | None = None,
+    ids: list[str | None] | None = None,
+) -> tuple[Path, Path, dict]:
     parquet_path = tmp_path / "fixture.parquet"
-    texts = [f"English fixture document number {index}." for index in range(40)]
+    texts = texts or [f"English fixture document number {index}." for index in range(40)]
+    ids = ids or [f"doc-{index}" for index in range(len(texts))]
     table = pa.table(
         {
             "text": texts,
-            "id": [f"doc-{index}" for index in range(len(texts))],
+            "id": ids,
             "domain": ["example.invalid"] * len(texts),
         }
     )
@@ -193,6 +206,57 @@ def test_v2_manifest_identity_is_strict_and_split_policy_is_shared(tmp_path):
         load_manifest(path)
 
 
+def test_v2_document_ids_bind_content_even_when_upstream_id_is_reused(tmp_path):
+    salt = "shared-data004-v1"
+    by_split: dict[str, str] = {}
+    for index in range(100):
+        text = f"Distinct content with reused upstream ID {index}."
+        split = assign_split(
+            content_sha256=normalized_content_sha256(text),
+            salt=salt,
+            validation_fraction="0.25",
+        )
+        by_split.setdefault(split, text)
+        if set(by_split) == {"train", "validation"}:
+            break
+    assert set(by_split) == {"train", "validation"}
+
+    texts = [by_split["train"], by_split["validation"]]
+    path, parquet_path, manifest = _v2_bundle(
+        tmp_path,
+        salt=salt,
+        texts=texts,
+        ids=["reused", "reused"],
+    )
+    cache = BoundedShardCache(tmp_path / "cache", max_size_bytes=10_000_000)
+    _prime_cache(cache, path, parquet_path)
+    samples = []
+    for selection in ("train", "validation"):
+        config = _loader_config(tmp_path, path, manifest, selection)
+        config["preserve_metadata"] = True
+        samples.extend(StreamLoader(config))
+
+    metadata = [sample["metadata"] for sample in samples]
+    assert {item["upstream_id"] for item in metadata} == {"reused"}
+    assert len({item["document_id"] for item in metadata}) == 2
+    assert len({item["content_sha256"] for item in metadata}) == 2
+    assert stable_document_id(
+        source_identity="fixture-en",
+        content_sha256=metadata[0]["content_sha256"],
+        upstream_id="reused",
+    ) == stable_document_id(
+        source_identity="fixture-en",
+        content_sha256=metadata[1]["content_sha256"],
+        upstream_id="reused",
+    )
+    for item in metadata:
+        assert item["document_id"] == content_bound_document_id(
+            source_identity="fixture-en",
+            content_sha256=item["content_sha256"],
+            upstream_id="reused",
+        )
+
+
 def test_v2_checksum_fails_before_parquet_parsing(tmp_path, monkeypatch):
     path, parquet_path, manifest = _v2_bundle(tmp_path)
     manifest["source"]["data_files"][0]["sha256"] = "f" * 64
@@ -214,6 +278,49 @@ def test_v2_checksum_fails_before_parquet_parsing(tmp_path, monkeypatch):
     config = _loader_config(tmp_path, path, manifest, "train")
     with pytest.raises(ValueError, match="immutable identity"):
         list(StreamLoader(config))
+
+
+def test_parquet_loader_reports_raw_rows_rejections_and_null_data(tmp_path):
+    texts = [f"English row {index}." for index in range(8)]
+    path, parquet_path, manifest = _v2_bundle(
+        tmp_path,
+        texts=texts,
+        ids=[None, *[f"doc-{index}" for index in range(1, len(texts))]],
+    )
+    cache = BoundedShardCache(tmp_path / "cache", max_size_bytes=10_000_000)
+    _prime_cache(cache, path, parquet_path)
+    loader = StreamLoader(_loader_config(tmp_path, path, manifest, "train"))
+    list(loader)
+
+    assert loader.raw_row_counts == {"fixture": len(texts)}
+    assert loader.missing_data_counts == {"fixture": {"null:id": 1}}
+    assert sum(loader.rejection_counts["fixture"].values()) + loader.document_counts[
+        "fixture"
+    ] == len(texts)
+
+
+def test_parquet_missing_required_column_is_fail_closed_and_reported(tmp_path):
+    path, parquet_path, manifest = _v2_bundle(tmp_path)
+    manifest["source"]["text_field"] = "missing_text"
+    manifest["dataset_fingerprint"] = canonical_fingerprint(
+        {
+            "name": manifest["name"],
+            "source": manifest["source"],
+            "document_policy": manifest["document_policy"],
+        }
+    )
+    manifest["manifest_fingerprint"] = canonical_fingerprint(
+        {key: value for key, value in manifest.items() if key != "manifest_fingerprint"}
+    )
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+    cache = BoundedShardCache(tmp_path / "cache", max_size_bytes=10_000_000)
+    _prime_cache(cache, path, parquet_path)
+    loader = StreamLoader(_loader_config(tmp_path, path, manifest, "train"))
+
+    with pytest.raises(ManifestError, match="missing columns.*missing_text"):
+        list(loader)
+    assert loader.raw_row_counts == {"fixture": 0}
+    assert loader.missing_data_counts == {"fixture": {"missing_column:missing_text": 1}}
 
 
 def test_parquet_native_cursor_resumes_exact_suffix(tmp_path):
@@ -282,7 +389,7 @@ def test_trained_target_debt_ratio_and_packed_accounting_are_exact():
         "max_tokens": "max",
         "max_target_tokens": 64,
         "mixture_basis": "trained_targets",
-        "add_eos": False,
+        "add_eos": True,
         "horizon": {"repeat": False, "shuffle": False},
         "datasets": [
             {
@@ -305,6 +412,8 @@ def test_trained_target_debt_ratio_and_packed_accounting_are_exact():
     assert loader.packed_token_counts["target_token_count"] == 64
     assert sum(window["target_token_count"] for window in windows) == 64
     assert sum(sum(window["source_target_counts"].values()) for window in windows) == 64
+    assert sum(loader.quota_truncated_fragment_counts.values()) > 0
+    assert sum(loader.quota_removed_token_counts.values()) > 0
 
     prefix_loader = StreamLoader(config)
     iterator = iter(prefix_loader)
@@ -315,6 +424,10 @@ def test_trained_target_debt_ratio_and_packed_accounting_are_exact():
     suffix = [window["input_ids"].tolist() for window in resumed_loader]
     assert prefix + suffix == [window["input_ids"].tolist() for window in windows]
     assert resumed_loader.trained_target_counts == {"ja": 32, "en": 32}
+    assert resumed_loader.quota_truncated_fragment_counts == (
+        loader.quota_truncated_fragment_counts
+    )
+    assert resumed_loader.quota_removed_token_counts == loader.quota_removed_token_counts
 
 
 def test_cache_pre_reservation_floor_timeout_and_cross_instance_lease(tmp_path):

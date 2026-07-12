@@ -7,7 +7,7 @@ from urllib.parse import quote
 
 import pyarrow.parquet as pq
 
-from data.identity import stable_document_id
+from data.identity import content_bound_document_id
 from data.manifests import ManifestError, ResolvedManifest
 from data.quality import apply_document_policy
 from data.splits import assign_split
@@ -70,6 +70,8 @@ class ParquetManifestIterator(Iterator[Any]):
             _initial_cursor(manifest) if cursor is None else _validate_cursor(manifest, cursor)
         )
         self.rejection_counts: dict[str, int] = {}
+        self.missing_data_counts: dict[str, int] = {}
+        self.raw_row_count = 0
         self.fallback_count = 0
         self.document_count = 0
         self.text_bytes = 0
@@ -121,6 +123,8 @@ class ParquetManifestIterator(Iterator[Any]):
                 parquet = pq.ParquetFile(path)
                 missing = sorted(set(columns) - set(parquet.schema_arrow.names))
                 if missing:
+                    for name in missing:
+                        self._count_missing(f"missing_column:{name}")
                     raise ManifestError(
                         f"Parquet artifact {artifact['path']} is missing columns: {missing}"
                     )
@@ -136,6 +140,10 @@ class ParquetManifestIterator(Iterator[Any]):
                     )
                     for row_offset in range(first_row, table.num_rows):
                         row = {name: table[name][row_offset].as_py() for name in columns}
+                        self.raw_row_count += 1
+                        for name, value in row.items():
+                            if value is None:
+                                self._count_missing(f"null:{name}")
                         self.cursor = _next_cursor(
                             self.manifest,
                             artifacts,
@@ -166,7 +174,7 @@ class ParquetManifestIterator(Iterator[Any]):
                             self.fallback_count += 1
                         else:
                             upstream_id = str(upstream_id)
-                        document_id = stable_document_id(
+                        document_id = content_bound_document_id(
                             source_identity=self.manifest.name,
                             content_sha256=result.content_sha256,
                             upstream_id=upstream_id,
@@ -202,6 +210,9 @@ class ParquetManifestIterator(Iterator[Any]):
 
     def _count_rejection(self, reason: str) -> None:
         self.rejection_counts[reason] = self.rejection_counts.get(reason, 0) + 1
+
+    def _count_missing(self, reason: str) -> None:
+        self.missing_data_counts[reason] = self.missing_data_counts.get(reason, 0) + 1
 
 
 def _initial_cursor(manifest: ResolvedManifest) -> dict[str, Any]:

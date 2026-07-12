@@ -104,6 +104,95 @@ def test_token_quota_enforced_by_token_count():
 
     assert counts == {"a": 7, "b": 3}
     assert sum(sample["token_count"] for sample in samples) == 10
+    assert loader.quota_truncated_fragment_counts == {"a": 0, "b": 0}
+    assert loader.quota_removed_token_counts == {"a": 0, "b": 0}
+    assert loader.source_read_seconds == {"a": 0.0, "b": 0.0}
+    assert loader.tokenization_seconds == {"a": 0.0, "b": 0.0}
+
+
+def target_quota_config(*, add_eos=True, prefetch=None):
+    return configured(
+        {
+            "output_mode": "packed_sequences",
+            "sequence_length": 4,
+            "drop_remainder": False,
+            "max_tokens": "max",
+            "max_target_tokens": 5,
+            "mixture_basis": "trained_targets",
+            "add_eos": add_eos,
+            "measure_performance": True,
+            "prefetch": prefetch or {"enabled": False},
+            "horizon": {"repeat": False, "shuffle": False},
+            "datasets": [
+                {
+                    "name": "source",
+                    "type": "memory",
+                    "ratio": 1.0,
+                    "documents": [{"text": "A deliberately long source document."}] * 3,
+                }
+            ],
+        }
+    )
+
+
+def test_packed_target_quota_truncation_requires_eos_boundary():
+    loader = StreamLoader(target_quota_config(add_eos=False))
+    with pytest.raises(StreamLoaderError, match="target-quota-truncate.*add_eos=true"):
+        list(loader)
+    assert loader.quota_truncated_fragment_counts == {"source": 0}
+    assert loader.quota_removed_token_counts == {"source": 0}
+
+
+def test_target_quota_truncation_counts_fragments_removed_tokens_and_resumes():
+    config = target_quota_config()
+    original_count = len(TOKENIZER.encode("A deliberately long source document.")) + 1
+    full_loader = StreamLoader(config)
+    full = [window["input_ids"].tolist() for window in full_loader]
+
+    assert full_loader.trained_target_counts == {"source": 5}
+    assert full_loader.quota_truncated_fragment_counts == {"source": 2}
+    assert full_loader.quota_removed_token_counts == {
+        "source": (original_count - 5) + (original_count - 1)
+    }
+    assert full_loader.source_read_seconds["source"] > 0.0
+    assert full_loader.tokenization_seconds["source"] > 0.0
+
+    interrupted = StreamLoader(config)
+    iterator = iter(interrupted)
+    prefix = [next(iterator)["input_ids"].tolist()]
+    cursor = interrupted.state_dict()
+    assert cursor["source_states"]["source"]["quota_truncated_fragments"] == 1
+    iterator.close()
+    resumed = StreamLoader({**config, "cursor": cursor})
+    suffix = [window["input_ids"].tolist() for window in resumed]
+    assert prefix + suffix == full
+    assert resumed.quota_truncated_fragment_counts == {"source": 2}
+    assert resumed.quota_removed_token_counts == full_loader.quota_removed_token_counts
+
+
+@pytest.mark.parametrize("mode", ["thread", "process"])
+def test_async_target_quota_accounting_is_propagated(mode):
+    config = target_quota_config(
+        prefetch={"enabled": True, "mode": mode, "buffer_size": 2},
+    )
+    loader = StreamLoader(config)
+    list(loader)
+    assert loader.quota_truncated_fragment_counts == {"source": 2}
+    assert loader.quota_removed_token_counts["source"] > 0
+    assert loader.source_read_seconds["source"] > 0.0
+    assert loader.tokenization_seconds["source"] > 0.0
+
+    interrupted = StreamLoader(config)
+    iterator = iter(interrupted)
+    prefix = [next(iterator)["input_ids"].tolist()]
+    cursor = interrupted.state_dict()
+    iterator.close()
+    assert cursor["source_states"]["source"]["quota_truncated_fragments"] == 1
+    resumed = StreamLoader({**config, "cursor": cursor})
+    suffix = [window["input_ids"].tolist() for window in resumed]
+    reference = [window["input_ids"].tolist() for window in StreamLoader(target_quota_config())]
+    assert prefix + suffix == reference
+    assert resumed.quota_truncated_fragment_counts == {"source": 2}
 
 
 def test_max_text_chars_truncates_before_tokenization():

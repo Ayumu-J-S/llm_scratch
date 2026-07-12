@@ -3,8 +3,13 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
+import platform
+import resource
+import shlex
 import shutil
 import subprocess
+import sys
 import time
 import unicodedata
 from collections.abc import Iterable, Mapping
@@ -15,7 +20,7 @@ from typing import Any
 from data.identity import normalized_content_sha256
 
 
-REPORT_SCHEMA_VERSION = 1
+REPORT_SCHEMA_VERSION = 2
 DEFAULT_CACHE_CAP_LIMIT_BYTES = 200_000_000_000
 DECLARED_REJECTIONS = (
     "control_character",
@@ -54,8 +59,10 @@ class _SourceAudit:
     document_utf8_bytes: list[int] = field(default_factory=list)
     document_tokens: list[int] = field(default_factory=list)
     tokenization_latency_ms: list[float] = field(default_factory=list)
+    loader_next_seconds: float = 0.0
+    qa_retokenization_seconds: float = 0.0
 
-    def report(self) -> dict[str, Any]:
+    def report(self, *, phase_elapsed_seconds: float) -> dict[str, Any]:
         return {
             "documents": self.documents,
             "utf8_bytes": self.utf8_bytes,
@@ -76,6 +83,24 @@ class _SourceAudit:
                 "document_tokens": distribution(self.document_tokens),
                 "tokenization_latency_ms": distribution(self.tokenization_latency_ms),
             },
+            "timing": {
+                "loader_next_seconds": round(self.loader_next_seconds, 9),
+                "qa_retokenization_seconds": round(self.qa_retokenization_seconds, 9),
+            },
+            "rates": {
+                "documents_per_second": _rate(self.documents, phase_elapsed_seconds),
+                "utf8_bytes_per_second": _rate(self.utf8_bytes, phase_elapsed_seconds),
+                "canonical_tokens_per_second": _rate(self.canonical_tokens, phase_elapsed_seconds),
+                "qa_retokenizer_documents_per_second": _rate(
+                    self.documents, self.qa_retokenization_seconds
+                ),
+                "qa_retokenizer_utf8_bytes_per_second": _rate(
+                    self.utf8_bytes, self.qa_retokenization_seconds
+                ),
+                "qa_retokenizer_canonical_tokens_per_second": _rate(
+                    self.canonical_tokens, self.qa_retokenization_seconds
+                ),
+            },
         }
 
 
@@ -83,6 +108,7 @@ class _SourceAudit:
 class AuditResult:
     report: dict[str, Any]
     content_hashes: frozenset[str]
+    document_ids: frozenset[str]
 
 
 def audit_raw_stream(
@@ -98,14 +124,19 @@ def audit_raw_stream(
         raise ValueError("max_documents must be positive")
     sources: dict[str, _SourceAudit] = {}
     seen_hashes: set[str] = set()
+    seen_document_ids: set[str] = set()
+    loader_next_latencies_ms: list[float] = []
     processed = 0
     iterator = iter(samples)
+    phase_started = time.monotonic_ns()
     try:
         while processed < max_documents:
+            wait_started = time.monotonic_ns()
             try:
                 sample = next(iterator)
             except StopIteration:
                 break
+            next_seconds = (time.monotonic_ns() - wait_started) / 1_000_000_000.0
             source = _nonempty_string(sample.get("source"), "sample.source")
             text = sample.get("text")
             if not isinstance(text, str):
@@ -127,8 +158,15 @@ def audit_raw_stream(
             content_hash = metadata.get("content_sha256")
             if not isinstance(content_hash, str) or len(content_hash) != 64:
                 content_hash = normalized_content_sha256(text)
+            document_id = metadata.get("document_id")
+            if not _is_sha256(document_id):
+                raise DataPreflightError(
+                    "raw preflight samples must contain a SHA-256 metadata.document_id"
+                )
 
             audit = sources.setdefault(source, _SourceAudit())
+            audit.loader_next_seconds += next_seconds
+            audit.qa_retokenization_seconds += latency_ms / 1_000.0
             audit.documents += 1
             audit.utf8_bytes += utf8_bytes
             audit.canonical_tokens += len(token_ids)
@@ -150,24 +188,49 @@ def audit_raw_stream(
                 audit.duplicate_documents += 1
             else:
                 seen_hashes.add(content_hash)
+            seen_document_ids.add(str(document_id))
             if bool(metadata.get("fallback_id", False)):
                 audit.fallback_document_ids += 1
             if bool(metadata.get("truncated", False)):
                 audit.truncated_documents += 1
+            loader_next_latencies_ms.append(next_seconds * 1_000.0)
             processed += 1
     finally:
         close = getattr(iterator, "close", None)
         if callable(close):
             close()
 
+    phase_elapsed_seconds = (time.monotonic_ns() - phase_started) / 1_000_000_000.0
+    first_wait_ms = loader_next_latencies_ms[0] if loader_next_latencies_ms else None
+    steady_waits = loader_next_latencies_ms[1:]
+    loader_next_seconds = sum(loader_next_latencies_ms) / 1_000.0
+    qa_retokenization_seconds = sum(audit.qa_retokenization_seconds for audit in sources.values())
     return AuditResult(
         report={
             "bounded": processed >= max_documents,
             "max_documents": max_documents,
             "documents": processed,
-            "sources": {name: audit.report() for name, audit in sorted(sources.items())},
+            "timing": {
+                "elapsed_seconds": round(phase_elapsed_seconds, 9),
+                "first_sample_loader_next_ms": (
+                    round(first_wait_ms, 6) if first_wait_ms is not None else None
+                ),
+                "steady_sample_loader_next_ms": distribution(steady_waits),
+                "loader_next_seconds": round(loader_next_seconds, 9),
+                "loader_next_fraction": _rate(loader_next_seconds, phase_elapsed_seconds),
+                "qa_retokenization_seconds": round(qa_retokenization_seconds, 9),
+            },
+            "rates": {
+                "documents_per_second": _rate(processed, phase_elapsed_seconds),
+                "source_rows_per_second": None,
+            },
+            "sources": {
+                name: audit.report(phase_elapsed_seconds=phase_elapsed_seconds)
+                for name, audit in sorted(sources.items())
+            },
         },
         content_hashes=frozenset(seen_hashes),
+        document_ids=frozenset(seen_document_ids),
     )
 
 
@@ -177,6 +240,10 @@ def merge_loader_quality(
     rejection_counts: Mapping[str, Mapping[str, int]] | None = None,
     fallback_counts: Mapping[str, int] | None = None,
     truncated_counts: Mapping[str, int] | None = None,
+    raw_row_counts: Mapping[str, int] | None = None,
+    missing_data_counts: Mapping[str, Mapping[str, int]] | None = None,
+    source_read_seconds: Mapping[str, float] | None = None,
+    tokenization_seconds: Mapping[str, float] | None = None,
 ) -> None:
     """Merge production-adapter counters into an accepted-document audit."""
 
@@ -187,8 +254,15 @@ def merge_loader_quality(
     names.update((rejection_counts or {}).keys())
     names.update((fallback_counts or {}).keys())
     names.update((truncated_counts or {}).keys())
+    names.update((raw_row_counts or {}).keys())
+    names.update((missing_data_counts or {}).keys())
+    names.update((source_read_seconds or {}).keys())
+    names.update((tokenization_seconds or {}).keys())
+    phase_elapsed_seconds = float(audit.get("timing", {}).get("elapsed_seconds", 0.0))
     for name in sorted(names):
-        source = sources.setdefault(name, _SourceAudit().report())
+        source = sources.setdefault(
+            name, _SourceAudit().report(phase_elapsed_seconds=phase_elapsed_seconds)
+        )
         quality = source["quality"]
         observed = (rejection_counts or {}).get(name, {})
         quality["rejections"] = {
@@ -199,6 +273,103 @@ def merge_loader_quality(
             quality["fallback_document_ids"] = int((fallback_counts or {})[name])
         if name in (truncated_counts or {}):
             quality["truncated"] = int((truncated_counts or {})[name])
+        rows_read = int((raw_row_counts or {}).get(name, source["documents"]))
+        if rows_read < 0:
+            raise DataPreflightError("loader raw-row counters must be non-negative")
+        missing = {
+            str(reason): _nonnegative_int(count, f"missing_data_counts.{name}.{reason}")
+            for reason, count in sorted((missing_data_counts or {}).get(name, {}).items())
+        }
+        rejected = sum(quality["rejections"].values())
+        quality["source_rows_read"] = rows_read
+        quality["missing_data"] = missing
+        quality["missing_data_events"] = sum(missing.values())
+        quality["rejection_rate_per_row"] = _rate(rejected, rows_read)
+        quality["missing_data_event_rate_per_row"] = _rate(sum(missing.values()), rows_read)
+        source["rates"]["source_rows_per_second"] = _rate(rows_read, phase_elapsed_seconds)
+        source["rates"]["rejections_per_second"] = _rate(rejected, phase_elapsed_seconds)
+        source["rates"]["missing_data_events_per_second"] = _rate(
+            sum(missing.values()), phase_elapsed_seconds
+        )
+        read_seconds = float((source_read_seconds or {}).get(name, 0.0))
+        production_tokenization_seconds = float((tokenization_seconds or {}).get(name, 0.0))
+        if read_seconds < 0 or production_tokenization_seconds < 0:
+            raise DataPreflightError("loader performance counters must be non-negative")
+        source["timing"]["production_source_read_seconds"] = round(read_seconds, 9)
+        source["timing"]["production_tokenization_seconds"] = round(
+            production_tokenization_seconds, 9
+        )
+        source["rates"]["production_source_rows_per_second"] = _rate(rows_read, read_seconds)
+        source["rates"]["production_tokenizer_documents_per_second"] = _rate(
+            int(source["documents"]), production_tokenization_seconds
+        )
+        source["rates"]["production_tokenizer_utf8_bytes_per_second"] = _rate(
+            int(source["utf8_bytes"]), production_tokenization_seconds
+        )
+        source["rates"]["production_tokenizer_canonical_tokens_per_second"] = _rate(
+            int(source["canonical_tokens"]), production_tokenization_seconds
+        )
+    audit["rates"]["source_rows_per_second"] = _rate(
+        sum(
+            int((raw_row_counts or {}).get(name, values["documents"]))
+            for name, values in sources.items()
+        ),
+        phase_elapsed_seconds,
+    )
+
+
+def assert_observed_disjointness(train: AuditResult, validation: AuditResult) -> dict[str, int]:
+    """Fail with both bounded overlap counts; retain only hashes, never raw text."""
+
+    document_id_overlap = train.document_ids & validation.document_ids
+    normalized_content_overlap = train.content_hashes & validation.content_hashes
+    result = {
+        "observed_document_id_overlap": len(document_id_overlap),
+        "observed_normalized_content_overlap": len(normalized_content_overlap),
+    }
+    if document_id_overlap or normalized_content_overlap:
+        raise DataPreflightError(
+            "observed train/validation overlap: "
+            f"document_ids={len(document_id_overlap)}, "
+            f"normalized_content={len(normalized_content_overlap)}"
+        )
+    return result
+
+
+def merge_quota_truncation(loader: Any, packing: dict[str, Any]) -> None:
+    """Report scheduler quota cuts separately from byte-policy truncation."""
+
+    fragments = {
+        str(name): _nonnegative_int(value, f"quota_truncated_fragment_counts.{name}")
+        for name, value in sorted(getattr(loader, "quota_truncated_fragment_counts", {}).items())
+    }
+    removed = {
+        str(name): _nonnegative_int(value, f"quota_removed_token_counts.{name}")
+        for name, value in sorted(getattr(loader, "quota_removed_token_counts", {}).items())
+    }
+    names = sorted(set(fragments) | set(removed) | set(packing["expected_ratios"]))
+    packing["quota_truncation"] = {
+        "fragments_by_source": {name: fragments.get(name, 0) for name in names},
+        "removed_tokens_by_source": {name: removed.get(name, 0) for name in names},
+        "total_fragments": sum(fragments.values()),
+        "total_removed_tokens": sum(removed.values()),
+        "policy": "trained-target source quota; distinct from byte-policy document truncation",
+    }
+    source_read = {
+        str(name): round(float(value), 9)
+        for name, value in sorted(getattr(loader, "source_read_seconds", {}).items())
+    }
+    tokenization = {
+        str(name): round(float(value), 9)
+        for name, value in sorted(getattr(loader, "tokenization_seconds", {}).items())
+    }
+    packing["production_timing_by_source"] = {
+        name: {
+            "source_read_seconds": source_read.get(name, 0.0),
+            "tokenization_seconds": tokenization.get(name, 0.0),
+        }
+        for name in names
+    }
 
 
 def summarize_packing(
@@ -218,27 +389,44 @@ def summarize_packing(
     window_tokens = 0
     target_tokens = 0
     windows = 0
-    for sample in samples:
-        window = _nonnegative_int(sample.get("window_token_count"), "window_token_count")
-        targets = _nonnegative_int(sample.get("target_token_count"), "target_token_count")
-        if targets != max(window - 1, 0):
-            raise DataPreflightError("packed window target count does not equal window length - 1")
-        counts = sample.get("source_target_counts")
-        if not isinstance(counts, Mapping):
-            raise DataPreflightError("packed sample source_target_counts must be a mapping")
-        unexpected = sorted(set(counts) - set(expected))
-        if unexpected:
-            raise DataPreflightError(f"packed sample contains undeclared sources: {unexpected}")
-        counted = 0
-        for name, value in counts.items():
-            count = _nonnegative_int(value, f"source_target_counts.{name}")
-            source_targets[str(name)] += count
-            counted += count
-        if counted != targets:
-            raise DataPreflightError("packed sample source targets do not reconcile")
-        windows += 1
-        window_tokens += window
-        target_tokens += targets
+    loader_next_latencies_ms: list[float] = []
+    phase_started = time.monotonic_ns()
+    iterator = iter(samples)
+    try:
+        while True:
+            wait_started = time.monotonic_ns()
+            try:
+                sample = next(iterator)
+            except StopIteration:
+                break
+            loader_next_latencies_ms.append((time.monotonic_ns() - wait_started) / 1_000_000.0)
+            window = _nonnegative_int(sample.get("window_token_count"), "window_token_count")
+            targets = _nonnegative_int(sample.get("target_token_count"), "target_token_count")
+            if targets != max(window - 1, 0):
+                raise DataPreflightError(
+                    "packed window target count does not equal window length - 1"
+                )
+            counts = sample.get("source_target_counts")
+            if not isinstance(counts, Mapping):
+                raise DataPreflightError("packed sample source_target_counts must be a mapping")
+            unexpected = sorted(set(counts) - set(expected))
+            if unexpected:
+                raise DataPreflightError(f"packed sample contains undeclared sources: {unexpected}")
+            counted = 0
+            for name, value in counts.items():
+                count = _nonnegative_int(value, f"source_target_counts.{name}")
+                source_targets[str(name)] += count
+                counted += count
+            if counted != targets:
+                raise DataPreflightError("packed sample source targets do not reconcile")
+            windows += 1
+            window_tokens += window
+            target_tokens += targets
+    finally:
+        close = getattr(iterator, "close", None)
+        if callable(close):
+            close()
+    phase_elapsed_seconds = (time.monotonic_ns() - phase_started) / 1_000_000_000.0
     if target_tokens < 1:
         raise DataPreflightError("preflight produced no trained targets")
 
@@ -256,6 +444,18 @@ def summarize_packing(
         "ratio_tolerance": tolerance,
         "ratios_within_tolerance": within,
         "accounting_reconciled": sum(source_targets.values()) == target_tokens,
+        "timing": {
+            "elapsed_seconds": round(phase_elapsed_seconds, 9),
+            "first_sample_loader_next_ms": (
+                round(loader_next_latencies_ms[0], 6) if loader_next_latencies_ms else None
+            ),
+            "steady_sample_loader_next_ms": distribution(loader_next_latencies_ms[1:]),
+            "loader_next_seconds": round(sum(loader_next_latencies_ms) / 1_000.0, 9),
+        },
+        "rates": {
+            "windows_per_second": _rate(windows, phase_elapsed_seconds),
+            "target_tokens_per_second": _rate(target_tokens, phase_elapsed_seconds),
+        },
     }
 
 
@@ -401,6 +601,149 @@ def config_fingerprint(config: Mapping[str, Any]) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def reproduction_payload(
+    config: Mapping[str, Any],
+    argv: Iterable[str],
+    *,
+    effective_argv: Iterable[str] | None = None,
+) -> dict[str, Any]:
+    """Embed complete secret-free inputs so the report's config hash is reproducible."""
+
+    resolved = json.loads(json.dumps(config, ensure_ascii=False))
+    forbidden = _find_forbidden_config_keys(resolved)
+    if forbidden:
+        raise DataPreflightError(
+            f"resolved config contains secret-bearing key(s), refusing report: {forbidden}"
+        )
+    arguments = [str(value) for value in argv]
+    effective_arguments = (
+        [str(value) for value in effective_argv] if effective_argv is not None else arguments
+    )
+    payload = {
+        "resolved_hydra_config": resolved,
+        "argv": arguments,
+        "effective_argv": effective_arguments,
+        "python_command": shlex.join([sys.executable, *arguments]),
+        "config_sha256": config_fingerprint(resolved),
+        "note": (
+            "argv/python_command retain operator inputs; effective_argv records internal "
+            "--cold translation for Hydra. An outer uv launcher is not observable inside Python."
+        ),
+    }
+    if payload["config_sha256"] != config_fingerprint(payload["resolved_hydra_config"]):
+        raise AssertionError("embedded config fingerprint is not reproducible")
+    return payload
+
+
+def process_resource_snapshot() -> dict[str, int]:
+    """Capture monotonic process counters without a sampler thread or artificial work."""
+
+    usage = resource.getrusage(resource.RUSAGE_SELF)
+    status = _proc_status()
+    peak_rss_bytes = int(usage.ru_maxrss) * (1024 if sys.platform != "darwin" else 1)
+    return {
+        "monotonic_ns": time.monotonic_ns(),
+        "current_rss_bytes": int(status.get("VmRSS", 0)) * 1024,
+        "peak_rss_bytes": peak_rss_bytes,
+        "swap_bytes": int(status.get("VmSwap", 0)) * 1024,
+        "minor_page_faults": int(usage.ru_minflt),
+        "major_page_faults": int(usage.ru_majflt),
+    }
+
+
+def process_resource_report(
+    start: Mapping[str, int], end: Mapping[str, int], *, elapsed_seconds: float
+) -> dict[str, Any]:
+    if elapsed_seconds <= 0:
+        raise ValueError("resource-report elapsed_seconds must be positive")
+    minor = max(0, int(end["minor_page_faults"]) - int(start["minor_page_faults"]))
+    major = max(0, int(end["major_page_faults"]) - int(start["major_page_faults"]))
+    return {
+        "start": dict(start),
+        "end": dict(end),
+        "current_rss_bytes": int(end["current_rss_bytes"]),
+        "peak_rss_bytes": int(end["peak_rss_bytes"]),
+        "peak_rss_growth_bytes": max(0, int(end["peak_rss_bytes"]) - int(start["peak_rss_bytes"])),
+        "swap_bytes": int(end["swap_bytes"]),
+        "swap_growth_bytes": int(end["swap_bytes"]) - int(start["swap_bytes"]),
+        "minor_page_faults": minor,
+        "major_page_faults": major,
+        "minor_page_faults_per_second": _rate(minor, elapsed_seconds),
+        "major_page_faults_per_second": _rate(major, elapsed_seconds),
+    }
+
+
+def measurement_conditions(*, mode: str) -> dict[str, Any]:
+    return {
+        "scope": "loader_only",
+        "claim_boundary": (
+            "Measures source iteration, filtering, canonical tokenization, packing, cache, "
+            "and process resources only; it does not measure a model, GPU utilization, "
+            "host-to-device transfer, end-to-end training consumption, or supply headroom."
+        ),
+        "cache_state": mode,
+        "clock": "time.monotonic_ns",
+        "python": platform.python_version(),
+        "platform": platform.platform(),
+        "machine": platform.machine(),
+        "pid": os.getpid(),
+        "loader_next_definition": (
+            "External next(loader) wall time includes source read/filter, production "
+            "tokenization, packing, prefetch synchronization, and Python overhead; separate "
+            "instrumented source-read and production-tokenization counters are also reported."
+        ),
+        "first_sample_definition": "latency of the first external next(loader) call in a phase",
+        "steady_sample_definition": "latencies of all later external next(loader) calls in a phase",
+        "rate_denominator": "monotonic elapsed wall time for the named loader-only phase",
+        "process_memory_definition": (
+            "current RSS and swap from /proc/self/status; peak RSS and page faults from "
+            "getrusage(RUSAGE_SELF)"
+        ),
+    }
+
+
+def summarize_repeated_reports(reports: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
+    """Retain every observation and deterministic median/range for comparable runs."""
+
+    observations = list(reports)
+    if len(observations) < 2:
+        raise DataPreflightError("repeated summary requires at least two observations")
+    signatures = [_comparison_signature(report) for report in observations]
+    if any(signature != signatures[0] for signature in signatures[1:]):
+        raise DataPreflightError("reports are not comparable under DATA-004 conditions")
+    metric_sets = [set(_repeat_metrics(report)) for report in observations]
+    metric_names = sorted(set.intersection(*metric_sets))
+    metrics: dict[str, Any] = {}
+    for name in metric_names:
+        values = [float(_repeat_metrics(report)[name]) for report in observations]
+        ordered = sorted(values)
+        middle = len(ordered) // 2
+        median = (
+            ordered[middle] if len(ordered) % 2 else (ordered[middle - 1] + ordered[middle]) / 2.0
+        )
+        metrics[name] = {
+            "observations": values,
+            "median": round(median, 9),
+            "min": round(ordered[0], 9),
+            "max": round(ordered[-1], 9),
+            "spread": round(ordered[-1] - ordered[0], 9),
+        }
+    return {
+        "schema_version": 1,
+        "observation_count": len(observations),
+        "comparison_signature": signatures[0],
+        "metrics": metrics,
+        "source_reports": [
+            {
+                "mode": report["mode"],
+                "code_commit": report["fingerprints"]["code"]["git_commit"],
+                "config_sha256": report["fingerprints"]["config"],
+            }
+            for report in observations
+        ],
+    }
+
+
 def write_reports(
     report: Mapping[str, Any], json_path: str | Path, markdown_path: str | Path
 ) -> None:
@@ -419,6 +762,10 @@ def render_markdown(report: Mapping[str, Any]) -> str:
     fingerprints = report["fingerprints"]
     packing = report["packing"]
     disk = report["disk"]
+    measurement = report.get("measurement", {})
+    conditions = measurement.get("conditions", {})
+    resources = measurement.get("process_resources", {})
+    integrity = report.get("integrity", {})
     lines = [
         "# DATA-004 bounded data preflight",
         "",
@@ -427,19 +774,27 @@ def render_markdown(report: Mapping[str, Any]) -> str:
         f"- Dirty worktree: `{str(fingerprints['code']['dirty']).lower()}`",
         f"- Config SHA-256: `{fingerprints['config']}`",
         f"- Tokenizer SHA-256: `{fingerprints['tokenizer']}`",
+        f"- Measurement scope: `{conditions.get('scope', 'not recorded')}`",
+        f"- Whole-run elapsed seconds: `{measurement.get('whole_run_elapsed_seconds', 'not recorded')}`",
+        f"- Observed document-ID overlap: `{integrity.get('observed_document_id_overlap', 'not recorded')}`",
+        f"- Observed normalized-content overlap: `{integrity.get('observed_normalized_content_overlap', 'not recorded')}`",
         "",
         "## Stream audit",
         "",
-        "| Split | Source | Documents | Bytes | Canonical tokens | EOS | Duplicates | Rejected |",
-        "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| Split | Source | Rows read | Documents | Bytes | Canonical tokens | Docs/s | Tokens/s | Duplicates | Rejected | Missing |",
+        "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for split, split_report in sorted(report["splits"].items()):
         for source, values in sorted(split_report["sources"].items()):
             quality = values["quality"]
+            rates = values.get("rates", {})
             lines.append(
-                f"| {split} | {source} | {values['documents']} | {values['utf8_bytes']} | "
-                f"{values['canonical_tokens']} | {values['eos_tokens']} | "
-                f"{quality['duplicates']} | {sum(quality['rejections'].values())} |"
+                f"| {split} | {source} | {quality.get('source_rows_read', 'n/a')} | "
+                f"{values['documents']} | {values['utf8_bytes']} | "
+                f"{values['canonical_tokens']} | {rates.get('documents_per_second', 'n/a')} | "
+                f"{rates.get('canonical_tokens_per_second', 'n/a')} | "
+                f"{quality['duplicates']} | {sum(quality['rejections'].values())} | "
+                f"{quality.get('missing_data_events', 'n/a')} |"
             )
     lines.extend(
         [
@@ -450,6 +805,9 @@ def render_markdown(report: Mapping[str, Any]) -> str:
             f"- Trained targets: `{packing['trained_targets']}`",
             f"- Accounting reconciled: `{str(packing['accounting_reconciled']).lower()}`",
             f"- Ratios within tolerance: `{str(packing['ratios_within_tolerance']).lower()}`",
+            f"- Loader-only target tokens/s: `{packing.get('rates', {}).get('target_tokens_per_second', 'not recorded')}`",
+            f"- Quota-truncated fragments: `{packing.get('quota_truncation', {}).get('total_fragments', 'not recorded')}`",
+            f"- Quota-removed tokens: `{packing.get('quota_truncation', {}).get('total_removed_tokens', 'not recorded')}`",
             "",
             "| Source | Expected | Realized | Deviation |",
             "| --- | ---: | ---: | ---: |",
@@ -470,6 +828,18 @@ def render_markdown(report: Mapping[str, Any]) -> str:
             f"- Headroom admission passed: `{str(disk['headroom_admission_passed']).lower()}`",
             f"- Reserved OS/checkpoint bytes: `{disk['reserved_os_checkpoint_bytes']}`",
             f"- Largest-shard temporary bytes: `{disk['largest_shard_temp_bytes']}`",
+            f"- Downloaded bytes/s: `{report['cache'].get('downloaded_bytes_per_second', 'not recorded')}`",
+            "",
+            "## Process resources and reproduction",
+            "",
+            f"- Current RSS bytes: `{resources.get('current_rss_bytes', 'not recorded')}`",
+            f"- Peak RSS bytes: `{resources.get('peak_rss_bytes', 'not recorded')}`",
+            f"- Swap bytes: `{resources.get('swap_bytes', 'not recorded')}`",
+            f"- Minor page faults/s: `{resources.get('minor_page_faults_per_second', 'not recorded')}`",
+            f"- Major page faults/s: `{resources.get('major_page_faults_per_second', 'not recorded')}`",
+            f"- Exact process argv: `{json.dumps(report.get('reproduction', {}).get('argv', []), ensure_ascii=False)}`",
+            "- The JSON report embeds the complete safe resolved Hydra configuration needed to recompute its config SHA-256.",
+            "- Scope boundary: loader-only; no model, GPU, end-to-end consumption, or data-supply-sufficiency claim is made.",
             "",
             "No raw corpus text is retained in either report.",
             "",
@@ -545,3 +915,106 @@ def _nonnegative_int(value: Any, label: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise DataPreflightError(f"{label} must be a non-negative integer")
     return value
+
+
+def _rate(numerator: int | float, elapsed_seconds: int | float) -> float | None:
+    denominator = float(elapsed_seconds)
+    if denominator <= 0:
+        return None
+    return round(float(numerator) / denominator, 6)
+
+
+def _is_sha256(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
+def _proc_status() -> dict[str, int]:
+    path = Path("/proc/self/status")
+    if not path.exists():
+        return {}
+    result: dict[str, int] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.startswith(("VmRSS:", "VmSwap:")):
+            continue
+        key, raw = line.split(":", 1)
+        parts = raw.split()
+        if parts:
+            result[key] = int(parts[0])
+    return result
+
+
+def _find_forbidden_config_keys(value: Any, prefix: str = "") -> list[str]:
+    forbidden_names = {
+        "access_token",
+        "api_key",
+        "auth_token",
+        "credential",
+        "credentials",
+        "password",
+        "secret",
+    }
+    found: list[str] = []
+    if isinstance(value, Mapping):
+        for key, child in value.items():
+            path = f"{prefix}.{key}" if prefix else str(key)
+            if str(key).lower() in forbidden_names and child not in (None, "", False):
+                found.append(path)
+            found.extend(_find_forbidden_config_keys(child, path))
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            found.extend(_find_forbidden_config_keys(child, f"{prefix}[{index}]"))
+    return found
+
+
+def _comparison_signature(report: Mapping[str, Any]) -> dict[str, Any]:
+    reproduction = report.get("reproduction", {})
+    config = json.loads(json.dumps(reproduction.get("resolved_hydra_config", {})))
+    preflight = config.get("preflight")
+    if isinstance(preflight, dict):
+        preflight.pop("output_dir", None)
+        preflight.pop("report_stem", None)
+    conditions = report.get("measurement", {}).get("conditions", {})
+    return {
+        "mode": report.get("mode"),
+        "limits": report.get("limits"),
+        "code_commit": report.get("fingerprints", {}).get("code", {}).get("git_commit"),
+        "data": report.get("fingerprints", {}).get("data"),
+        "tokenizer": report.get("fingerprints", {}).get("tokenizer"),
+        "semantic_config_sha256": config_fingerprint(config),
+        "platform": conditions.get("platform"),
+        "machine": conditions.get("machine"),
+        "python": conditions.get("python"),
+        "scope": conditions.get("scope"),
+    }
+
+
+def _repeat_metrics(report: Mapping[str, Any]) -> dict[str, float]:
+    measurement = report["measurement"]
+    resources = measurement["process_resources"]
+    result = {
+        "whole_run_elapsed_seconds": float(measurement["whole_run_elapsed_seconds"]),
+        "packing.target_tokens_per_second": float(
+            report["packing"]["rates"]["target_tokens_per_second"]
+        ),
+        "process.peak_rss_bytes": float(resources["peak_rss_bytes"]),
+        "process.current_rss_bytes": float(resources["current_rss_bytes"]),
+        "process.minor_page_faults_per_second": float(resources["minor_page_faults_per_second"]),
+        "process.major_page_faults_per_second": float(resources["major_page_faults_per_second"]),
+        "cache.downloaded_bytes_per_second": float(report["cache"]["downloaded_bytes_per_second"]),
+    }
+    for split, split_report in sorted(report["splits"].items()):
+        for source, source_report in sorted(split_report["sources"].items()):
+            for metric in (
+                "documents_per_second",
+                "utf8_bytes_per_second",
+                "canonical_tokens_per_second",
+                "source_rows_per_second",
+            ):
+                value = source_report["rates"].get(metric)
+                if value is not None:
+                    result[f"{split}.{source}.{metric}"] = float(value)
+    return result

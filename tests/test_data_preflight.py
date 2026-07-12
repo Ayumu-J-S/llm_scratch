@@ -10,14 +10,19 @@ from data.preflight import (
     assert_cache_released,
     assert_cold_cache_is_empty,
     assert_loader_accounting,
+    assert_observed_disjointness,
     audit_raw_stream,
     cache_telemetry,
     config_fingerprint,
     data_fingerprints,
     disk_forecast,
     merge_loader_quality,
+    merge_quota_truncation,
+    process_resource_report,
+    reproduction_payload,
     render_markdown,
     summarize_packing,
+    summarize_repeated_reports,
     write_reports,
 )
 from tokenizer.canonical import CanonicalTokenizer
@@ -43,7 +48,11 @@ def _sample(source: str, text: str, content_hash: str, **metadata):
     return {
         "source": source,
         "text": text,
-        "metadata": {"content_sha256": content_hash, **metadata},
+        "metadata": {
+            "content_sha256": content_hash,
+            "document_id": metadata.pop("document_id", content_hash),
+            **metadata,
+        },
     }
 
 
@@ -64,6 +73,8 @@ def test_audit_reports_scripts_languages_fallbacks_duplicates_and_no_raw_text():
         },
         fallback_counts={"ja": 1},
         truncated_counts={"ja": 1},
+        raw_row_counts={"en": 9, "ja": 7},
+        missing_data_counts={"en": {"null:text": 2}},
     )
 
     assert result.report["documents"] == 4
@@ -77,10 +88,52 @@ def test_audit_reports_scripts_languages_fallbacks_duplicates_and_no_raw_text():
         "other": 0,
     }
     assert result.report["sources"]["en"]["quality"]["rejections"]["empty"] == 2
+    assert result.report["sources"]["en"]["quality"]["source_rows_read"] == 9
+    assert result.report["sources"]["en"]["quality"]["missing_data"] == {"null:text": 2}
+    assert result.report["sources"]["en"]["rates"]["source_rows_per_second"] > 0
     serialized = json.dumps(result.report, sort_keys=True, ensure_ascii=False)
     assert "hello" not in serialized
     assert "日本語" not in serialized
     assert len(result.content_hashes) == 3
+    assert len(result.document_ids) == 3
+    assert result.report["timing"]["elapsed_seconds"] > 0
+    assert result.report["sources"]["en"]["rates"]["canonical_tokens_per_second"] > 0
+
+
+def test_audit_requires_document_ids_and_reports_both_overlap_types():
+    missing_id = {
+        "source": "en",
+        "text": "missing",
+        "metadata": {"content_sha256": "a" * 64},
+    }
+    with pytest.raises(DataPreflightError, match="metadata.document_id"):
+        audit_raw_stream([missing_id], _Tokenizer(), max_documents=1, add_eos=False)
+
+    train = audit_raw_stream(
+        [_sample("en", "same", "a" * 64, document_id="b" * 64)],
+        _Tokenizer(),
+        max_documents=1,
+        add_eos=False,
+    )
+    validation = audit_raw_stream(
+        [_sample("en", "same", "a" * 64, document_id="b" * 64)],
+        _Tokenizer(),
+        max_documents=1,
+        add_eos=False,
+    )
+    with pytest.raises(DataPreflightError, match="document_ids=1, normalized_content=1"):
+        assert_observed_disjointness(train, validation)
+
+    disjoint = audit_raw_stream(
+        [_sample("en", "different", "c" * 64, document_id="d" * 64)],
+        _Tokenizer(),
+        max_documents=1,
+        add_eos=False,
+    )
+    assert assert_observed_disjointness(train, disjoint) == {
+        "observed_document_id_overlap": 0,
+        "observed_normalized_content_overlap": 0,
+    }
 
 
 def test_audit_is_bounded_and_fails_closed_on_tokenization_error():
@@ -133,6 +186,17 @@ def test_packing_reconciles_targets_and_enforces_ratio_tolerance():
         packed_token_counts={"window_token_count": 10, "target_token_count": 8},
     )
     assert_loader_accounting(loader, report)
+    loader.quota_truncated_fragment_counts = {"en": 1, "ja": 0}
+    loader.quota_removed_token_counts = {"en": 3, "ja": 0}
+    merge_quota_truncation(loader, report)
+    assert report["quota_truncation"] == {
+        "fragments_by_source": {"en": 1, "ja": 0},
+        "removed_tokens_by_source": {"en": 3, "ja": 0},
+        "total_fragments": 1,
+        "total_removed_tokens": 3,
+        "policy": "trained-target source quota; distinct from byte-policy document truncation",
+    }
+    assert report["rates"]["target_tokens_per_second"] > 0
     loader.trained_target_counts["en"] = 3
     with pytest.raises(DataPreflightError, match="trained-target counters"):
         assert_loader_accounting(loader, report)
@@ -322,6 +386,111 @@ def test_reports_are_stably_serialized_and_markdown_contains_no_raw_text(tmp_pat
     assert render_markdown(report) == markdown_path.read_text(encoding="utf-8")
     assert "raw corpus" in markdown_path.read_text(encoding="utf-8")
     assert config_fingerprint({"b": 2, "a": 1}) == config_fingerprint({"a": 1, "b": 2})
+
+
+def test_reproduction_payload_embeds_complete_recomputable_config_and_exact_argv():
+    config = {"profile": "pretrain_streaming", "preflight": {"report_stem": "run-1"}}
+    payload = reproduction_payload(
+        config,
+        ["scripts/preflight_data.py", "profile=x", "--cold"],
+        effective_argv=["scripts/preflight_data.py", "profile=x", "+preflight.cold=true"],
+    )
+    assert payload["resolved_hydra_config"] == config
+    assert payload["argv"] == ["scripts/preflight_data.py", "profile=x", "--cold"]
+    assert payload["effective_argv"][-1] == "+preflight.cold=true"
+    assert payload["config_sha256"] == config_fingerprint(payload["resolved_hydra_config"])
+    assert "profile=x" in payload["python_command"]
+    with pytest.raises(DataPreflightError, match="secret-bearing"):
+        reproduction_payload({"api_key": "do-not-record"}, ["preflight"])
+
+
+def test_process_resource_report_retains_rss_fault_swap_and_rates():
+    start = {
+        "monotonic_ns": 1,
+        "current_rss_bytes": 10,
+        "peak_rss_bytes": 20,
+        "swap_bytes": 0,
+        "minor_page_faults": 3,
+        "major_page_faults": 1,
+    }
+    end = {
+        "monotonic_ns": 2,
+        "current_rss_bytes": 15,
+        "peak_rss_bytes": 30,
+        "swap_bytes": 2,
+        "minor_page_faults": 7,
+        "major_page_faults": 2,
+    }
+    report = process_resource_report(start, end, elapsed_seconds=2.0)
+    assert report["current_rss_bytes"] == 15
+    assert report["peak_rss_growth_bytes"] == 10
+    assert report["swap_growth_bytes"] == 2
+    assert report["minor_page_faults_per_second"] == 2.0
+    assert report["major_page_faults_per_second"] == 0.5
+
+
+def _repeat_report(value: float, stem: str = "run") -> dict:
+    config = {"preflight": {"report_stem": stem, "output_dir": "/tmp/out"}, "fixed": 1}
+    return {
+        "mode": "warm",
+        "limits": {"max_documents_per_split": 4, "max_target_tokens": 8},
+        "fingerprints": {
+            "code": {"git_commit": "a" * 40},
+            "config": config_fingerprint(config),
+            "data": {"en:train": {"manifest": "b" * 64}},
+            "tokenizer": "c" * 64,
+        },
+        "reproduction": {"resolved_hydra_config": config},
+        "measurement": {
+            "whole_run_elapsed_seconds": value,
+            "conditions": {
+                "platform": "linux",
+                "machine": "aarch64",
+                "python": "3.12",
+                "scope": "loader_only",
+            },
+            "process_resources": {
+                "peak_rss_bytes": 100 + value,
+                "current_rss_bytes": 90 + value,
+                "minor_page_faults_per_second": value,
+                "major_page_faults_per_second": 0.0,
+            },
+        },
+        "packing": {"rates": {"target_tokens_per_second": 100 / value}},
+        "cache": {"downloaded_bytes_per_second": 0.0},
+        "splits": {
+            "train": {
+                "sources": {
+                    "en": {
+                        "rates": {
+                            "documents_per_second": 10 / value,
+                            "utf8_bytes_per_second": 20 / value,
+                            "canonical_tokens_per_second": 30 / value,
+                            "source_rows_per_second": 40 / value,
+                        }
+                    }
+                }
+            }
+        },
+    }
+
+
+def test_repeated_summary_retains_observations_median_spread_and_comparability():
+    summary = summarize_repeated_reports(
+        [_repeat_report(1.0, "one"), _repeat_report(3.0, "two"), _repeat_report(2.0, "three")]
+    )
+    elapsed = summary["metrics"]["whole_run_elapsed_seconds"]
+    assert elapsed == {
+        "observations": [1.0, 3.0, 2.0],
+        "median": 2.0,
+        "min": 1.0,
+        "max": 3.0,
+        "spread": 2.0,
+    }
+    incompatible = _repeat_report(2.0)
+    incompatible["mode"] = "cold"
+    with pytest.raises(DataPreflightError, match="not comparable"):
+        summarize_repeated_reports([_repeat_report(1.0), incompatible])
 
 
 def test_canonical_tokenizer_counts_only_exact_serialized_byte_fallback_pieces():
