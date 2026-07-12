@@ -114,6 +114,50 @@ def test_run_manifest_is_self_contained_and_mutation_is_explicit(tmp_path):
         verify_run_manifest(run_dir)
 
 
+def test_verify_run_manifest_rejects_dirty_source_worktree(monkeypatch, tmp_path):
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    resolved = source_dir / "resolved_config.yaml"
+    resolved.write_text("seed: 123\n", encoding="utf-8")
+    run_dir = tmp_path / "run"
+    clean_git = {"sha": "a" * 40, "dirty": False, "status": []}
+    dirty_git = {"sha": "a" * 40, "dirty": True, "status": [" M src/train.py"]}
+    monkeypatch.setattr("runtime.reproducibility._git", lambda root: clean_git)
+    write_run_manifest(
+        cfg=_manifest_config(),
+        run_dir=run_dir,
+        root_dir=ROOT,
+        resolved_config_path=resolved,
+        tokenizer_manifest_path=TOKENIZER,
+        tokenizer_expected_fingerprint=TOKENIZER_FINGERPRINT,
+    )
+
+    monkeypatch.setattr("runtime.reproducibility._git", lambda root: dirty_git)
+    with pytest.raises(ManifestMismatchError, match="dirty state changed"):
+        verify_run_manifest(run_dir, root_dir=ROOT)
+
+
+def test_verify_run_manifest_accepts_matching_clean_source_worktree(monkeypatch, tmp_path):
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    resolved = source_dir / "resolved_config.yaml"
+    resolved.write_text("seed: 123\n", encoding="utf-8")
+    run_dir = tmp_path / "run"
+    clean_git = {"sha": "a" * 40, "dirty": False, "status": []}
+    monkeypatch.setattr("runtime.reproducibility._git", lambda root: clean_git)
+    write_run_manifest(
+        cfg=_manifest_config(),
+        run_dir=run_dir,
+        root_dir=ROOT,
+        resolved_config_path=resolved,
+        tokenizer_manifest_path=TOKENIZER,
+        tokenizer_expected_fingerprint=TOKENIZER_FINGERPRINT,
+    )
+
+    payload = verify_run_manifest(run_dir, root_dir=ROOT)
+    assert payload["git"]["dirty"] is False
+
+
 def test_real_run_rejects_mutable_remote_data():
     config = _manifest_config()
     config["profile"]["purpose"] = "pretraining"
