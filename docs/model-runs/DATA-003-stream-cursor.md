@@ -143,7 +143,7 @@
 - Performance/resource result if applicable: N/A; this ticket explicitly defers throughput optimization and DGX measurement.
 - Failed attempts retained at: N/A.
 - Known trade-offs: cursor stores bounded shuffle-buffer documents and Python RNG state so an interrupted stream can resume without source replay ambiguity; it is intentionally separate from CKPT-001 model state.
-- Unresolved risks: independent re-review must verify the two repaired async lifecycle paths on the final exact head; bounded shuffle cursor stores buffered documents in memory by design.
+- Unresolved risks: bounded shuffle cursor stores buffered documents in memory by design; final connector merge audit and exact-head status refresh remain pending.
 - Human decision requested: review the independent verdict and guarded merge audit after all checks are refreshed.
 
 ## Merge authority and final audit
