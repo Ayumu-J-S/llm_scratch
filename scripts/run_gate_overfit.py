@@ -2,10 +2,11 @@
 """Run the bounded GATE-001 bilingual memorization and resume proof.
 
 This command intentionally reuses :func:`train.prepare_trainer`, the same
-assembly path as ``src/train.py``.  It performs two same-seed executions:
-an uninterrupted 200-update reference and a deliberate interruption after the
-verified step-100 recovery checkpoint followed by normal ``latest`` resume.
-It is a fixed-fixture *memorization* proof, never held-out validation.
+assembly path as ``src/train.py``.  It performs two independent same-seed
+200-update executions, then proves the same trajectory through a deliberate
+interruption after the verified step-100 recovery checkpoint followed by normal
+``latest`` resume.  It is a fixed-fixture *memorization* proof, never held-out
+validation.
 """
 
 from __future__ import annotations
@@ -238,26 +239,30 @@ def _run_summary(run_dir: Path, *, device: str) -> dict[str, Any]:
     }
 
 
-def _compare(reference: dict[str, Any], resumed: dict[str, Any]) -> dict[str, Any]:
-    same_steps = reference["optimizer_steps"] == resumed["optimizer_steps"]
-    same_targets = reference["target_tokens"] == resumed["target_tokens"]
-    same_trace = reference["loss_trace"] == resumed["loss_trace"]
+def _compare(reference: dict[str, Any], candidate: dict[str, Any]) -> dict[str, Any]:
+    """Compare every decision-relevant result against one fixed reference."""
+
+    same_steps = reference["optimizer_steps"] == candidate["optimizer_steps"]
+    same_targets = reference["target_tokens"] == candidate["target_tokens"]
+    same_trace = reference["loss_trace"] == candidate["loss_trace"]
     same_identity = (
         reference["checkpoint"]["identity_sha256"]
-        == resumed["checkpoint"]["identity_sha256"]
+        == candidate["checkpoint"]["identity_sha256"]
     )
-    same_model = reference["checkpoint"]["model_sha256"] == resumed["checkpoint"]["model_sha256"]
+    same_model = (
+        reference["checkpoint"]["model_sha256"] == candidate["checkpoint"]["model_sha256"]
+    )
     same_samples = all(
         reference["samples"][language]["completion"]
-        == resumed["samples"][language]["completion"]
+        == candidate["samples"][language]["completion"]
         and reference["samples"][language]["generated_token_ids"]
-        == resumed["samples"][language]["generated_token_ids"]
+        == candidate["samples"][language]["generated_token_ids"]
         for language in ("japanese", "english")
     )
     expected_japanese = JAPANESE_EXPECTED_SUFFIX in reference["samples"]["japanese"]["completion"]
     expected_english = ENGLISH_EXPECTED_SUFFIX in reference["samples"]["english"]["completion"]
     final_loss_passes = (
-        reference["final_loss"] <= LOSS_THRESHOLD and resumed["final_loss"] <= LOSS_THRESHOLD
+        reference["final_loss"] <= LOSS_THRESHOLD and candidate["final_loss"] <= LOSS_THRESHOLD
     )
     checks = {
         "same_optimizer_steps": same_steps,
@@ -298,12 +303,18 @@ def run_proof(*, output_dir: Path, device: str) -> dict[str, Any]:
 
     try:
         reference_dir = output_dir / "reference"
+        repeat_dir = output_dir / "repeat"
         resumed_dir = output_dir / "interrupted-resumed"
         _run_uninterrupted(cfg, run_dir=reference_dir)
+        _run_uninterrupted(cfg, run_dir=repeat_dir)
         _run_interrupted_then_resumed(cfg, run_dir=resumed_dir)
         reference = _run_summary(reference_dir, device=device)
+        repeat = _run_summary(repeat_dir, device=device)
         resumed = _run_summary(resumed_dir, device=device)
-        comparisons = _compare(reference, resumed)
+        comparisons = {
+            "independent_same_seed_repeat": _compare(reference, repeat),
+            "interrupted_resume": _compare(reference, resumed),
+        }
         record = {
             "schema_version": 1,
             "ticket": "GATE-001",
@@ -336,6 +347,7 @@ def run_proof(*, output_dir: Path, device: str) -> dict[str, Any]:
                 ),
             },
             "reference": reference,
+            "repeat": repeat,
             "interrupted_resumed": resumed,
             "comparisons": comparisons,
             "verdict": "PASS",
@@ -345,14 +357,14 @@ def run_proof(*, output_dir: Path, device: str) -> dict[str, Any]:
             encoding="utf-8",
         )
         return record
-    except Exception:
-        # Retain partial evidence for the required failed-attempt handoff, but
-        # do not leave a quietly reusable output directory after a failed run.
+    except Exception as error:
+        # Retain partial evidence for the required failed-attempt handoff.
         failure = {
             "ticket": "GATE-001",
             "verdict": "FAILURE_RETAINED",
             "generated_at_utc": datetime.now(UTC).isoformat(),
             "command": " ".join(["uv", "run", "python", *sys.argv]),
+            "error": f"{type(error).__name__}: {error}",
         }
         (output_dir / "failure_record.json").write_text(
             json.dumps(failure, indent=2, sort_keys=True) + "\n", encoding="utf-8"

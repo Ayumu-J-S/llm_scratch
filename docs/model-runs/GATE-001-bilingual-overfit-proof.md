@@ -16,7 +16,7 @@
 - Out of scope: held-out validation/generalization claims, production data, benchmark scores, architecture experiments, and online W&B.
 - Relevant `PHILOSOPHY.md` principles: random initialization; Japanese and English first; evaluation boundaries; one-machine, bounded evidence; reproducible and human-legible experiment records.
 - Baseline commit/run: `origin/main` at `7f9c1728098f5e0dc18653b1660e07e5b36788ce`; no GATE-001 evidence exists.
-- Intended evidence: predeclared loss/budget/stop conditions; repeated same-seed traces; split/resume suffix equality; verified checkpoint identities; labeled JP/EN base-model continuations; complete local records.
+- Intended evidence: predeclared loss/budget/stop conditions; two independent same-seed traces; split/resume suffix equality; verified checkpoint identities and model digests; labeled JP/EN base-model continuations; complete local records.
 
 ## Execution timeline
 
