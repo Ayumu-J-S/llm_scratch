@@ -25,8 +25,8 @@
 | 1 | implementation | not exposed by runtime | not exposed by runtime | `ed83c09`, CFG-001 and project policy | Requested Luna / Extra High implementation pass | in progress | Added canonical profiles, strict preflight, snapshots, console wrappers, Make/README commands, and tests. | `f73cc2a`; composition and smoke commands below |
 | 1 | handoff | not exposed by runtime | not exposed by runtime | `f73cc2a` / PR #20 | Prepare exact-head independent review | pending | Draft PR opened; heavy review must inspect PHILOSOPHY, CFG-001 acceptance, and CHECK R0/R1. | PR #20 |
 | 1 | review | not exposed by runtime | not exposed by runtime | `76b92c2` / PR #20 | Independent Extra Thinking review | FAIL | `evaluation.yaml` and README described evaluation as composition-only, but `train.py` accepted it and trained; profile name/mode/purpose could also be mixed by overrides. | reviewer handoff; exact-head review |
-| 2 | repair | not exposed by runtime | not exposed by runtime | `76b92c2` / failed review | Reject evaluation and mismatched canonical profiles before tokenizer/data work | complete | `validate_training_config` now rejects evaluation purpose/task and enforces name↔mode↔purpose pairs; regression tests cover both guards. | repair commit pending |
-| 2 | re-review | not exposed by runtime | not exposed by runtime | repair head | Independent re-review of evaluation guard and full CFG-001 | pending | Awaiting reviewer confirmation on exact repair head. | PR #20 |
+| 2 | repair | not exposed by runtime | not exposed by runtime | `76b92c2` / failed review | Reject evaluation and mismatched canonical profiles before tokenizer/data work | complete | `validate_training_config` now rejects evaluation purpose/task and enforces name↔mode↔purpose pairs; regression tests cover both guards. | `6e874ac`; focused suite |
+| 2 | re-review | not exposed by runtime | not exposed by runtime | `52b89a9` | Independent re-review of evaluation guard and full CFG-001 | pending | Awaiting reviewer confirmation on exact repair head; full suite and command smoke pass locally. | PR #20 |
 
 ## Runtime provenance block
 
@@ -51,10 +51,10 @@ and are not treated as actual runtime provenance.
 ### Review cycle 1
 
 - Review model / mode: pending independent review; runtime exact model/mode not exposed
-- Commit reviewed: `f73cc2a691fc0b8567012690807339d82916cbf4`
+- Commit reviewed: `52b89a95a31d7e929ca302c11de0326672b8679c` (normative repair `6e874ac`; docs-only descendant)
 - Selected `CHECK.md` sections: R0 configuration/changeability and R1 smoke; no DGX R2 claim because this ticket changes profile wiring and command boundaries only.
 - Major sections marked N/A and why: DGX performance, long-run stability, checkpoint/resume, and benchmark integrity are outside CFG-001.
-- Ticket acceptance result: cycle 1 FAIL; evaluation fallback repaired; re-review pending
+- Ticket acceptance result: cycle 1 FAIL; evaluation fallback and profile mismatch repaired; re-review pending
 - Philosophy alignment: implementation uses Hydra profiles and direct validation; no `config.py`, compatibility aliases, or second training path.
 - Complexity / change-surface result: pending independent review
 - ML-system result: pending independent review
@@ -93,8 +93,8 @@ and are not treated as actual runtime provenance.
 - Input handoff: cycle 1 FAIL above
 - Changes made: `validate_training_config` rejects `purpose=evaluation` or `task=evaluate_checkpoint`, enforces canonical profile pairs, rejects unknown profile names; tests invoke `main.__wrapped__` and cover evaluation and mismatch guards before tokenizer initialization.
 - What was deliberately not changed: evaluation composition file remains available for future evaluation work; no benchmark/trainer implementation added.
-- Local evidence: focused CFG-001 tests and full suite pending after commit.
-- Commit reviewed next: pending repair commit
+- Local evidence: focused CFG-001 tests 14 passed; full suite 194 passed, 1 skipped; Ruff, lock, diff, profile preflight, console preflight, and `make smoke` passed.
+- Commit reviewed next: `52b89a95a31d7e929ca302c11de0326672b8679c`
 - Re-review model / mode: not exposed by runtime / not exposed by runtime
 - Re-review verdict: pending
 
@@ -103,12 +103,14 @@ and are not treated as actual runtime provenance.
 - Resolved Hydra command/config: `uv run python scripts/config_check.py profile=pretrain_streaming`; snapshot `runs/pretrain_streaming/<timestamp>/resolved_config.yaml`.
 - Data/tokenizer/model identity: stream profile uses bilingual immutable manifest fingerprint `47cca88c...4ffc19`; tokenizer remains canonical pinned config; no model-quality claim.
 - Validation and measurements:
-  - `uv run pytest -q`: 190 passed, 1 skipped before final record-only changes (the one pre-existing direct YAML assertion was repaired by retaining canonical stream shape in `config/train.yaml`; focused rerun 6 passed).
+  - `uv run pytest -q`: 194 passed, 1 skipped on the repair head (focused repair suite 14 passed).
   - `uv run ruff check .`: passed.
   - `uv lock --check`: passed.
   - `uv run python scripts/config_check.py profile=pretrain_streaming`: passed and built train/validation batches from distinct manifest selections.
+  - `uv run python scripts/config_check.py profile=smoke_overfit`: passed.
   - `uv run python src/train.py profile=smoke_overfit runtime.device=cpu training.epochs=1 training.batch_size=2 wandb.enabled=false`: passed; resolved config was written before tokenizer/data/model work.
   - `uv run llm-scratch-config-check profile=pretrain_streaming`: passed after editable install.
+  - `make smoke`: passed with finite train/validation loss and resolved snapshot.
 - Failed attempts retained at: command output in the implementation handoff; no failed review cycle.
 - Known trade-offs: fixture stream profile uses sequence length 8 so the committed tiny fixture yields complete train and validation batches; production sequence length remains a deliberate later profile decision.
 - Unresolved risks: future evaluation command is composition-only and now rejected by training; heavy independent re-review and exact branch-protection inventory remain pending.
@@ -150,7 +152,7 @@ Record observable outcomes, not hidden chain-of-thought.
 
 | Model / mode | Role | What it handled well | What it missed or made worse | Context that helped | Outcome |
 | --- | --- | --- | --- | --- | --- |
-| Codex / GPT-5; exact ID and mode not exposed | implementation (requested Luna / Extra High) | Kept profile-specific values in Hydra, added explicit preflight and run snapshots, and made console/Make/README paths agree. | Independent review not yet performed. | CFG-001 acceptance, existing stream loader, PHILOSOPHY, CHECK R0/R1. | implementation complete; review pending |
+| Codex / GPT-5; exact ID and mode not exposed | implementation (requested Luna / Extra High) | Kept profile-specific values in Hydra, added explicit preflight and run snapshots, made console/Make/README paths agree, and repaired evaluation fallback/profile mismatch after review. | First review missed the evaluation execution contradiction and name/mode/purpose coupling. | CFG-001 acceptance, existing stream loader, PHILOSOPHY, CHECK R0/R1, failed-review handoff. | repair complete; re-review pending |
 
 ## Ledger update
 
