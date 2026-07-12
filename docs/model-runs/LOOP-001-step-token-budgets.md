@@ -9,7 +9,7 @@
 - Experiment record: `N/A` — this pass is a trainer correctness fixture; no
   research run was launched.
 - Started: 2026-07-12
-- Final verdict: in progress (cycle-3 repair)
+- Final verdict: PASS WITH NOTE
 - Final record owner: implementation sub-agent `/root/loop001_implementation_retry`
 
 ## Scope and decision context
@@ -35,7 +35,7 @@
 | 2 | repair | not exposed by runtime | not exposed by runtime | `5de45e7` | Repair every actionable finding without broadening scope | complete | Added gradient/parameter finite checks with contextual local failure records, direct `*_every_n_tokens` cadences, epoch aggregate loss/perplexity records, strict integer step/token budgets, and zero-token boundary handling. | `e972864`; full suite 209 passed, 1 skipped; focused trainer 7 passed |
 | 2 | re-review | not exposed by runtime | not exposed by runtime | `f505ed7` | Requested independent re-review at exact repair head | FAIL | Four prior blockers were repaired, but CHECK 6.2 still found that non-finite validation loss raised without a persisted local event/context record. | reviewer `/root/loop001_review`; full 209 passed, 1 skipped; focused 7; Hydra CPU smoke; Ruff/lock/diff pass |
 | 3 | repair | not exposed by runtime | not exposed by runtime | `f505ed7` | Record validation non-finite failures with batch/step/checkpoint context | in progress | Validation now checks per-batch losses, persists `nonfinite_validation` JSONL evidence with batch/step/elapsed and preceding checkpoint when available, restores train mode in a `finally`, and has a regression fixture. | implementation head `0d09af8`; full 210 passed, 1 skipped; focused 8; Ruff/diff pass |
-| 3 | re-review | not exposed by runtime | not exposed by runtime | pending final docs head | Re-review exact validation-guard repair | pending | Must verify CHECK 6.2 and retain the earlier PASS WITH NOTE findings. | pending |
+| 3 | re-review | not exposed by runtime | not exposed by runtime | `94da0d4` | Re-review exact validation-guard repair | PASS WITH NOTE | Validation now persists non-finite loss context; all LOOP-001 acceptance criteria and CHECK 6.1–6.3/7.1–7.4 evidence pass. Notes: token cadence is batch-boundary based and epoch-summary LR is pre-scheduler. | reviewer `/root/loop001_review`; full 210 passed, 1 skipped; focused 8; canonical streaming smoke; Ruff/lock/diff pass |
 
 ## Runtime provenance block
 
@@ -51,7 +51,7 @@ display does not expose the exact deployment model or reasoning mode.
   delegated implementation session; values above follow repository provenance
   rules.
 - Codex CLI version: not exposed by runtime
-- Branch/commit: `codex/loop-001-step-token-budgets` / repair head `0d09af8`; final docs head pending.
+- Branch/commit: `codex/loop-001-step-token-budgets` / independently reviewed `94da0d4`; final docs-only descendant is recorded in the live PR body to avoid a self-referential SHA.
 - Phase/role/task path: implementation / LOOP-001 / delegated retry
 - Privacy confirmation: no prompts, hidden chain-of-thought, token counts,
   secrets, or raw thread IDs recorded.
@@ -108,13 +108,17 @@ display does not expose the exact deployment model or reasoning mode.
 ### Review cycle 3 (repair re-review)
 
 - Review model / mode: not exposed by runtime / not exposed by runtime
-- Commit reviewed: pending exact final head (implementation repair `0d09af8`)
+- Commit reviewed: `94da0d4`
 - Selected `CHECK.md` sections: 6.2, plus regression of 6.1–6.3.
-- Ticket acceptance result: pending
-- Philosophy alignment: pending
-- Complexity / change-surface result: pending
-- ML-system result: CPU/Hydra smoke only; no DGX claim.
-- Verdict: pending independent re-review
+- Ticket acceptance result: PASS — budgets, weighted metrics, independent
+  cadences, scheduler ordering, and numeric guards are covered.
+- Philosophy alignment: PASS — direct Hydra/trainer changes with no checkpoint,
+  AMP, or distributed scope creep.
+- Complexity / change-surface result: PASS WITH NOTE — token events are emitted
+  after completed batch threshold crossings; epoch-summary LR is pre-scheduler.
+- ML-system result: PASS WITH NOTE — CPU and canonical streaming smoke only;
+  no DGX/long-run claim.
+- Verdict: PASS WITH NOTE
 
 ## Failed-review handoff
 
@@ -204,7 +208,7 @@ display does not expose the exact deployment model or reasoning mode.
   focused trainer 8 passed; Ruff and diff checks pass.
 - Commit reviewed next: `0d09af8` (docs finalization will create a descendant)
 - Re-review model / mode: not exposed by runtime / not exposed by runtime
-- Re-review verdict: pending
+- Re-review verdict: PASS WITH NOTE
 
 ## Final evidence
 
@@ -214,7 +218,8 @@ display does not expose the exact deployment model or reasoning mode.
 - Data/tokenizer/model identity: no data/model training run; fixed-logit CPU
   fixture only.
 - Validation and measurements: full suite 210 passed, 1 skipped; trainer
-  fixture 8 passed; Hydra CPU smoke passed; Ruff, lock, and diff checks pass.
+  fixture 8 passed; canonical streaming Hydra CPU smoke passed; Ruff, lock,
+  and diff checks pass.
 - Performance/resource result if applicable: N/A.
 - Failed attempts retained at: cycle-1 and cycle-2 review findings above;
   repaired at `e972864` and `0d09af8`; cycle-3 independent review pending.
@@ -232,10 +237,10 @@ display does not expose the exact deployment model or reasoning mode.
   roadmap goal on 2026-07-12; this implementation sub-agent does not merge.
 - Authorization evidence location: parent session and PR #25 body
 - Authorization covers this named PR or bounded ticket/goal series: yes — LOOP-001 within the roadmap goal
-- Exact independently reviewed head SHA: pending cycle-3 re-review (`0d09af8` implementation repair)
-- Latest independent verdict / model / mode: pending / not exposed by runtime / not exposed by runtime
-- All actionable findings repaired and independently re-reviewed: pending cycle-3 review
-- Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: cycle-2 validation evidence gap repaired; re-review pending
+- Exact independently reviewed head SHA: `94da0d4`
+- Latest independent verdict / model / mode: PASS WITH NOTE / not exposed by runtime / not exposed by runtime
+- All actionable findings repaired and independently re-reviewed: yes
+- Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: none observed
 - Newer human objections since authorization/review: none observed
 - Human review dismissed by an agent: no
 - Unresolved review threads at final audit: pending parent refresh
@@ -246,7 +251,7 @@ display does not expose the exact deployment model or reasoning mode.
 - No-check evidence when both inventories are empty: pending
 - Target branch and base SHA at final audit: `main` / `fbdb086` at review; parent must refresh against current main before merge
 - Up-to-date, conflict-free, and mergeable evidence: pending parent refresh
-- Record, ledger, PR trail, validation, and risks parity: cycle-3 docs/validation pending re-review
+- Record, ledger, PR trail, validation, and risks parity: complete for reviewed head; parent merge audit pending
 - Prohibited self-merge categories: clear; no secrets/security/deployment action
 - Admin/bypass/force/disabled-check requirement: no
 - Final audit PR body/comment location: PR #25 body and parent final audit comment
@@ -260,13 +265,13 @@ display does not expose the exact deployment model or reasoning mode.
 
 | Model / mode | Role | What it handled well | What it missed or made worse | Context that helped | Outcome |
 | --- | --- | --- | --- | --- | --- |
-| not exposed by runtime / not exposed by runtime | implementation + repair | Scoped direct Trainer redesign, failure repair, and invariant fixtures | Exact runtime identity/reasoning mode unavailable; validation evidence gap required cycle-3 repair | LOOP-001, PHILOSOPHY, CHECK sections 6–7, independent FAIL handoffs | pending cycle-3 review |
-| not exposed by runtime / not exposed by runtime | independent review | Found four initial blockers and one validation-evidence gap; repair cycles are explicit | Exact runtime identity/reasoning mode unavailable; no DGX claim | Exact `f505ed7`, cycle-3 repair `0d09af8`, 210/1 suite, Hydra smoke | pending cycle-3 review |
+| not exposed by runtime / not exposed by runtime | implementation + repair | Scoped direct Trainer redesign, failure repair, and invariant fixtures | Exact runtime identity/reasoning mode unavailable; token cadence remains batch-boundary based | LOOP-001, PHILOSOPHY, CHECK sections 6–7, independent FAIL handoffs | PASS WITH NOTE |
+| not exposed by runtime / not exposed by runtime | independent review | Found four initial blockers and one validation-evidence gap, then verified all repairs | Exact runtime identity/reasoning mode unavailable; no DGX claim | Exact `94da0d4`, 210/1 suite, focused8, canonical streaming smoke | PASS WITH NOTE |
 
 ## Ledger update
 
 - [x] Added the PR/ticket row to `docs/model-runs/README.md`.
-- [ ] Updated per-model attempt, pass, repair, and review counts after cycle-3 review.
+- [x] Updated per-model attempt, pass, repair, and review counts after cycle-3 review.
 - [x] Confirmed the initial execution trail separates requested/default from actual runtime values.
 - [ ] Recorded complete guarded self-merge final audit evidence (parent merge pending).
 - [x] Confirmed that this bootstrap policy rule was not used before a human merged it.
