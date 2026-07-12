@@ -2,7 +2,7 @@
 
 - Roadmap ticket: `DATA-004`
 - Branch: `codex/data-004-pinned-baseline-mixture`
-- Draft PR: pending
+- Draft PR: [#41](https://github.com/Ayumu-J-S/llm_scratch/pull/41)
 - Experiment owner: implementation agent; exact runtime model/reasoning are not exposed
 - Status: predeclared; implementation not started
 - Started (UTC): 2026-07-12T21:43:54Z
@@ -96,4 +96,3 @@ CHECK all of 4, 5.3, 5.4, 8.2 plus applicable 3/R2/R3.
 
 No result yet. Source candidates, thresholds, budgets, and stop conditions were
 written before implementation or live data access.
-

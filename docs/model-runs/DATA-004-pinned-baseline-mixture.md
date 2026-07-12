@@ -1,6 +1,6 @@
 # DATA-004 - Pinned Baseline Mixture
 
-- PR: draft
+- PR: [#41](https://github.com/Ayumu-J-S/llm_scratch/pull/41) (draft)
 - Branch: `codex/data-004-pinned-baseline-mixture`
 - Ticket: `DATA-004`
 - Hypothesis: exact shard manifests, content-disjoint splits, target-token scheduling, and bounded QA can provide a trustworthy 50/50 Japanese/English baseline stream.
@@ -34,7 +34,7 @@
 
 - Capture: stdout at `2026-07-12T21:43:54.292076Z`.
 - Codex CLI: `codex-cli 0.144.1`.
-- Branch/commit: `codex/data-004-pinned-baseline-mixture` / baseline `7648316d1ae6d503fde89661728074f963321506`.
+- Branch/commit: `codex/data-004-pinned-baseline-mixture` / initial candidate `3715c15e3462679e14de76a5ff2d61ed19ea9a9e`; baseline `7648316d1ae6d503fde89661728074f963321506`.
 - Phase/role/task path: implementation / `/root`.
 - Privacy: no prompts, hidden chain-of-thought, token counts, secrets, or raw thread ID.
 
