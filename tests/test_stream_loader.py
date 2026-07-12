@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 import os
 import subprocess
 import sys
@@ -16,6 +17,7 @@ from data.stream_loader import (
     BoundedShardCache,
     RetryPolicy,
     StreamLoader,
+    StreamLoaderError,
 )
 from tokenizer.canonical import CanonicalTokenizer
 
@@ -35,6 +37,18 @@ def configured(config):
 
 def make_loader(config):
     return StreamLoader(configured(config))
+
+
+def process_packed_config(dataset):
+    return {
+        "tokenizer": dict(TOKENIZER_CONFIG),
+        "output_mode": "packed_sequences",
+        "max_tokens": 7,
+        "sequence_length": 4,
+        "add_eos": False,
+        "prefetch": {"enabled": True, "mode": "process", "buffer_size": 2},
+        "datasets": [dataset],
+    }
 
 
 def base_config(**overrides):
@@ -140,6 +154,10 @@ def test_output_modes(output_mode):
     else:
         assert sample["input_ids"].dtype == np.uint32
         assert sample["input_ids"].tolist() == TOKENIZER.encode("abcd")
+        if output_mode == "packed_sequences":
+            assert "token_count" not in sample
+            assert sample["window_token_count"] == len(TOKENIZER.encode("abcd"))
+            assert sample["target_token_count"] == len(TOKENIZER.encode("abcd")) - 1
 
 
 def test_hydra_dictconfig_tokenizer_config_works_with_default_eos():
@@ -332,6 +350,82 @@ def test_process_prefetch_emits_samples():
 
     assert sample["source"] == "process"
     assert sample["text"] == "abc"
+
+
+def test_process_prefetch_returns_unique_and_packed_accounting():
+    config = process_packed_config(
+        {
+            "name": "process",
+            "type": "memory",
+            "ratio": 1.0,
+            "documents": [{"text": "改行\nタブ\tspace"}],
+        },
+    )
+    loader = StreamLoader(config)
+
+    for _ in range(2):
+        windows = list(loader)
+
+        assert len(windows) == 2
+        assert loader.token_counts == {"process": 7}
+        assert loader.packed_token_counts == {
+            "window_token_count": 8,
+            "target_token_count": 6,
+            "dropped_target_count": 0,
+        }
+
+
+def test_process_prefetch_early_close_clears_previous_accounting():
+    config = process_packed_config(
+        {
+            "name": "process",
+            "type": "memory",
+            "ratio": 1.0,
+            "documents": [{"text": "改行\nタブ\tspace"}],
+        },
+    )
+    loader = StreamLoader(config)
+    list(loader)
+
+    iterator = iter(loader)
+    next(iterator)
+    iterator.close()
+
+    assert loader.token_counts == {"process": 0}
+    assert loader.packed_token_counts == {
+        "window_token_count": 0,
+        "target_token_count": 0,
+        "dropped_target_count": 0,
+    }
+
+
+def test_process_prefetch_worker_error_clears_previous_accounting(tmp_path):
+    source_path = tmp_path / "mutable.jsonl"
+    source_path.write_text(
+        '{"text": "改行\\nタブ\\tspace"}\n',
+        encoding="utf-8",
+    )
+    config = process_packed_config(
+        {
+            "name": "process",
+            "type": "jsonl",
+            "path": str(source_path),
+            "ratio": 1.0,
+        },
+    )
+    loader = StreamLoader(config)
+    list(loader)
+    source_path.write_text("not-json\n", encoding="utf-8")
+
+    with pytest.raises(StreamLoaderError, match="JSONDecodeError"):
+        list(loader)
+
+    assert loader.token_counts == {"process": 0}
+    assert loader.packed_token_counts == {
+        "window_token_count": 0,
+        "target_token_count": 0,
+        "dropped_target_count": 0,
+    }
 
 
 @pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="requires POSIX fifo support")
@@ -719,6 +813,241 @@ def test_packed_sequence_boundaries_and_eod_handling():
         {"source": "docs", "start": 0, "end": 3},
         {"source": "docs", "start": 3, "end": 4},
     ]
+
+
+def test_packed_windows_carry_boundary_token_and_preserve_all_transitions():
+    config = {
+        "output_mode": "packed_sequences",
+        "max_tokens": 7,
+        "sequence_length": 4,
+        "add_eos": False,
+        "datasets": [
+            {
+                "name": "docs",
+                "type": "memory",
+                "ratio": 1.0,
+                "documents": [{"text": "改行\nタブ\tspace"}],
+            }
+        ],
+    }
+
+    windows = collect(config)
+
+    expected_ids = TOKENIZER.encode("改行\nタブ\tspace")
+    assert [window["input_ids"].tolist() for window in windows] == [
+        expected_ids[:4],
+        expected_ids[3:7],
+    ]
+    assert Counter(
+        (left, right)
+        for window in windows
+        for left, right in zip(window["input_ids"][:-1], window["input_ids"][1:])
+    ) == Counter(zip(expected_ids[:-1], expected_ids[1:]))
+
+
+@pytest.mark.parametrize("target_length", [2, 3, 4, 5])
+def test_packed_transition_multiset_matches_stream_with_repeated_ids(target_length):
+    text = " ".join("a" for _ in range(1 + 3 * target_length))
+    expected_ids = TOKENIZER.encode(text)
+    config = {
+        "output_mode": "packed_sequences",
+        "max_tokens": len(expected_ids),
+        "sequence_length": target_length + 1,
+        "add_eos": False,
+        "datasets": [
+            {
+                "name": "docs",
+                "type": "memory",
+                "ratio": 1.0,
+                "documents": [{"text": text}],
+            }
+        ],
+    }
+
+    actual = Counter(
+        (left, right)
+        for window in collect(config)
+        for left, right in zip(window["input_ids"][:-1], window["input_ids"][1:])
+    )
+
+    assert actual == Counter(zip(expected_ids[:-1], expected_ids[1:]))
+
+
+@pytest.mark.parametrize("quota", [1, 2, 3])
+def test_finite_quota_reserves_final_slot_for_eos(quota):
+    text = "改行\nタブ\tspace"
+    config = {
+        "output_mode": "tokenized_docs",
+        "max_tokens": quota,
+        "add_eos": True,
+        "datasets": [
+            {
+                "name": "docs",
+                "type": "memory",
+                "ratio": 1.0,
+                "documents": [{"text": text}],
+            }
+        ],
+    }
+
+    loader = make_loader(config)
+    samples = list(loader)
+
+    expected = TOKENIZER.encode(text)[: max(quota - 1, 0)] + [TOKENIZER.eos_token_id]
+    assert samples[0]["input_ids"].tolist() == expected
+    assert loader.token_counts == {"docs": quota}
+
+
+def test_packed_quota_truncation_without_eos_fails_explicitly():
+    config = {
+        "output_mode": "packed_sequences",
+        "max_tokens": 3,
+        "sequence_length": 4,
+        "add_eos": False,
+        "datasets": [
+            {
+                "name": "docs",
+                "type": "memory",
+                "ratio": 1.0,
+                "documents": [{"text": "改行\nタブ\tspace"}],
+            }
+        ],
+    }
+
+    with pytest.raises(StreamLoaderError, match="no boundary token"):
+        collect(config)
+
+
+def test_packed_source_quotas_remain_exact_when_truncation_adds_eos():
+    config = {
+        "output_mode": "packed_sequences",
+        "max_tokens": 10,
+        "sequence_length": 4,
+        "add_eos": True,
+        "datasets": [
+            {
+                "name": "a",
+                "type": "memory",
+                "ratio": 0.7,
+                "documents": [{"text": " ".join("a" for _ in range(10))}],
+            },
+            {
+                "name": "b",
+                "type": "memory",
+                "ratio": 0.3,
+                "documents": [{"text": " ".join("a" for _ in range(10))}],
+            },
+        ],
+    }
+    loader = make_loader(config)
+
+    list(loader)
+
+    assert loader.token_counts == {"a": 7, "b": 3}
+
+
+def test_packed_source_spans_shift_with_stride_and_retain_carried_source():
+    config = {
+        "output_mode": "packed_sequences",
+        "max_tokens": 8,
+        "sequence_length": 4,
+        "add_eos": True,
+        "preserve_metadata": True,
+        "seed": 3,
+        "datasets": [
+            {
+                "name": "a",
+                "type": "memory",
+                "ratio": 0.5,
+                "documents": [{"text": "a a a"}],
+            },
+            {
+                "name": "b",
+                "type": "memory",
+                "ratio": 0.5,
+                "documents": [{"text": "a a a"}],
+            },
+        ],
+    }
+
+    windows = collect(config)
+    first_source = windows[0]["source_spans"][0]["source"]
+    second_source = "b" if first_source == "a" else "a"
+
+    assert windows[0]["source_spans"] == [{"source": first_source, "start": 0, "end": 4}]
+    assert windows[1]["source_spans"] == [
+        {"source": first_source, "start": 0, "end": 1},
+        {"source": second_source, "start": 1, "end": 4},
+    ]
+
+
+@pytest.mark.parametrize(
+    ("token_total", "drop_remainder", "expected"),
+    [
+        (7, True, {"window_token_count": 8, "target_token_count": 6, "dropped_target_count": 0}),
+        (8, True, {"window_token_count": 8, "target_token_count": 6, "dropped_target_count": 1}),
+        (8, False, {"window_token_count": 10, "target_token_count": 7, "dropped_target_count": 0}),
+        (7, False, {"window_token_count": 8, "target_token_count": 6, "dropped_target_count": 0}),
+    ],
+)
+def test_packed_accounting_separates_windows_targets_sources_and_dropped_tail(
+    token_total, drop_remainder, expected
+):
+    config = {
+        "output_mode": "packed_sequences",
+        "max_tokens": token_total,
+        "sequence_length": 4,
+        "drop_remainder": drop_remainder,
+        "add_eos": False,
+        "datasets": [
+            {
+                "name": "docs",
+                "type": "memory",
+                "ratio": 1.0,
+                "documents": [{"text": " ".join("a" for _ in range(token_total))}],
+            }
+        ],
+    }
+    loader = make_loader(config)
+
+    windows = list(loader)
+
+    assert loader.token_counts == {"docs": token_total}
+    assert loader.packed_token_counts == expected
+    assert sum(window["window_token_count"] for window in windows) == expected["window_token_count"]
+    assert sum(window["target_token_count"] for window in windows) == expected["target_token_count"]
+
+    list(loader)
+    assert loader.packed_token_counts == expected
+
+
+def test_bounded_long_document_packing_sanity():
+    token_total = 8_193
+    config = {
+        "output_mode": "packed_sequences",
+        "max_tokens": token_total,
+        "sequence_length": 65,
+        "add_eos": False,
+        "datasets": [
+            {
+                "name": "docs",
+                "type": "memory",
+                "ratio": 1.0,
+                "documents": [{"text": " ".join("a" for _ in range(token_total))}],
+            }
+        ],
+    }
+    loader = make_loader(config)
+
+    windows = list(loader)
+
+    assert len(windows) == 128
+    assert loader.token_counts == {"docs": token_total}
+    assert loader.packed_token_counts == {
+        "window_token_count": 8_320,
+        "target_token_count": 8_192,
+        "dropped_target_count": 0,
+    }
 
 
 def test_tokenized_docs_end_of_document_token():

@@ -22,6 +22,7 @@ from tokenizer.canonical import CanonicalTokenizer
 OUTPUT_MODES = {"raw_text", "bytes", "tokenized_docs", "packed_sequences"}
 _SENTINEL = "__stream_loader_prefetch_done__"
 _ERROR_MARKER = "__stream_loader_prefetch_error__"
+_ACCOUNTING_MARKER = "__stream_loader_prefetch_accounting__"
 _HF_COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$", re.IGNORECASE)
 
 
@@ -281,7 +282,15 @@ class StreamLoader:
         self._process: mp.Process | None = None
         self._queue: queue.Queue[Any] | None = None
         self._stop_event: Any | None = None
+        self._reset_accounting()
+
+    def _reset_accounting(self) -> None:
         self.token_counts: dict[str, int] = {dataset["name"]: 0 for dataset in self.dataset_configs}
+        self.packed_token_counts: dict[str, int] = {
+            "window_token_count": 0,
+            "target_token_count": 0,
+            "dropped_target_count": 0,
+        }
 
     def __iter__(self) -> Iterator[dict[str, Any]]:
         if self.prefetch_enabled:
@@ -346,6 +355,10 @@ class StreamLoader:
                     break
                 if _is_prefetch_error(item):
                     raise StreamLoaderError(item["message"])
+                if _is_prefetch_accounting(item):
+                    self.token_counts = dict(item["token_counts"])
+                    self.packed_token_counts = dict(item["packed_token_counts"])
+                    continue
                 if isinstance(item, BaseException):
                     raise item
                 yield item
@@ -361,6 +374,7 @@ class StreamLoader:
         ):
             raise StreamLoaderError("loader is already being iterated")
 
+        self._reset_accounting()
         if self.prefetch_mode == "process":
             self._start_process_prefetch_worker()
             return
@@ -418,6 +432,7 @@ class StreamLoader:
         self,
         stop_event: threading.Event | None,
     ) -> Iterator[dict[str, Any]]:
+        self._reset_accounting()
         if self.output_mode == "packed_sequences":
             yield from self._packed_iter(stop_event=stop_event)
             return
@@ -433,6 +448,9 @@ class StreamLoader:
     ) -> Iterator[dict[str, Any]]:
         buffer: list[int] = []
         spans: list[dict[str, Any]] = []
+        stride = self.sequence_length - 1
+        if stride < 1:
+            raise ValueError("packed_sequences requires sequence_length of at least 2")
 
         for sample in self._sample_iter(stop_event=stop_event):
             if stop_event is not None and stop_event.is_set():
@@ -452,22 +470,30 @@ class StreamLoader:
                 token_ids = buffer[: self.sequence_length]
                 output = {
                     "input_ids": np.asarray(token_ids, dtype=np.uint32),
-                    "token_count": self.sequence_length,
+                    "window_token_count": self.sequence_length,
+                    "target_token_count": stride,
                 }
                 if self.preserve_metadata:
                     output["source_spans"] = _slice_spans(spans, self.sequence_length)
+                self.packed_token_counts["window_token_count"] += self.sequence_length
+                self.packed_token_counts["target_token_count"] += stride
                 yield output
-                del buffer[: self.sequence_length]
-                spans = _shift_spans(spans, self.sequence_length)
+                del buffer[:stride]
+                spans = _shift_spans(spans, stride)
 
-        if buffer and not self.drop_remainder:
+        if len(buffer) > 1 and not self.drop_remainder:
             output = {
                 "input_ids": np.asarray(buffer, dtype=np.uint32),
-                "token_count": len(buffer),
+                "window_token_count": len(buffer),
+                "target_token_count": max(len(buffer) - 1, 0),
             }
             if self.preserve_metadata:
                 output["source_spans"] = _slice_spans(spans, len(buffer))
+            self.packed_token_counts["window_token_count"] += len(buffer)
+            self.packed_token_counts["target_token_count"] += max(len(buffer) - 1, 0)
             yield output
+        elif buffer:
+            self.packed_token_counts["dropped_target_count"] += max(len(buffer) - 1, 0)
 
     def _format_document_sample(self, sample: TokenizedSample) -> dict[str, Any]:
         base = {
@@ -494,7 +520,6 @@ class StreamLoader:
         stop_event: threading.Event | None,
     ) -> Iterator[TokenizedSample]:
         rng = random.Random(self.seed)
-        self.token_counts = {dataset["name"]: 0 for dataset in self.dataset_configs}
         all_source_states: list[SourceState] = []
 
         try:
@@ -529,7 +554,17 @@ class StreamLoader:
                         ]
                         continue
                     if len(token_ids) > remaining_quota:
-                        token_ids = token_ids[:remaining_quota]
+                        if self.add_eos:
+                            assert self.tokenizer.eos_token_id is not None
+                            token_ids = token_ids[: max(remaining_quota - 1, 0)]
+                            token_ids.append(int(self.tokenizer.eos_token_id))
+                        elif self.output_mode == "packed_sequences":
+                            raise StreamLoaderError(
+                                "packed_sequences cannot quota-truncate a document without "
+                                "add_eos=true because the fragment would have no boundary token"
+                            )
+                        else:
+                            token_ids = token_ids[:remaining_quota]
 
                 if not token_ids:
                     continue
@@ -728,6 +763,16 @@ def _process_prefetch_worker(
             if stop_event.is_set():
                 break
             _put_prefetch_queue_item(output_queue, stop_event, item)
+        if not stop_event.is_set():
+            _put_prefetch_queue_item(
+                output_queue,
+                stop_event,
+                {
+                    _ACCOUNTING_MARKER: True,
+                    "token_counts": loader.token_counts,
+                    "packed_token_counts": loader.packed_token_counts,
+                },
+            )
     except BaseException as error:  # noqa: BLE001 - propagate to consumer.
         _put_prefetch_queue_item(
             output_queue,
@@ -762,6 +807,10 @@ def _put_prefetch_queue_item(
 
 def _is_prefetch_error(item: Any) -> bool:
     return isinstance(item, Mapping) and bool(item.get(_ERROR_MARKER))
+
+
+def _is_prefetch_accounting(item: Any) -> bool:
+    return isinstance(item, Mapping) and bool(item.get(_ACCOUNTING_MARKER))
 
 
 def _has_hf_datasets(dataset_configs: Iterable[Mapping[str, Any]]) -> bool:

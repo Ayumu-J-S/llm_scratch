@@ -15,7 +15,7 @@ def test_streaming_validation_keeps_partial_batch():
                 "name": "docs",
                 "type": "memory",
                 "ratio": 1.0,
-                "documents": [{"text": "日本語とEnglish。"}],
+                "documents": [{"text": "Hello, world!"}],
             }
         ],
     }

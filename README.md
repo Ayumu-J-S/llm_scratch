@@ -98,6 +98,7 @@ uv run python src/train.py training.scheduler.enabled=true training.scheduler._t
 - `PHILOSOPHY.md`: project decision policy and research principles
 - `CHECK.md`: selective post-implementation ML-system review catalog
 - `docs/agent-model-workflow.md`: required implementation, heavy-review, repair, and handoff flow
+- `docs/experiments/`: predeclared experiment plans, per-attempt evidence, and conclusions
 - `docs/model-runs/`: per-PR model execution records and aggregate model outcomes
 - `src/train.py`: Hydra-based decoder-only training script using the canonical tokenizer
 - `src/training/trainer.py`: decoder-only trainer loop, validation, checkpointing, and W&B logging

@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import torch
+import torch.nn.functional as F
 
 from data.streaming_dataset import (
     StreamingTokenDataset,
     causal_lm_collate_fn,
     create_streaming_token_dataloader,
 )
+from models.simple_decoder_transformer import SimpleDecoderTransformer
 from tokenizer.canonical import CanonicalTokenizer
 
 
@@ -23,7 +25,7 @@ def configured(config):
 
 
 def test_streaming_token_dataset_yields_only_input_ids():
-    text = "日本語とEnglish。"
+    text = "Hello, world!"
     config = configured(
         {
             "max_tokens": 4,
@@ -90,9 +92,43 @@ def test_streaming_dataloader_returns_trainer_batch_shape():
 
     assert batch["inputs"].shape == (2, 3)
     assert batch["labels"].shape == (2, 3)
-    expected_windows = [token_ids[:4], token_ids[4:8]]
+    expected_windows = [token_ids[:4], token_ids[3:7]]
     assert batch["inputs"].tolist() == [window[:-1] for window in expected_windows]
     assert batch["labels"].tolist() == [window[1:] for window in expected_windows]
+
+
+def test_ticket_example_windows_collate_to_exact_causal_targets():
+    text = "改行\nタブ\tspace"
+    token_ids = TOKENIZER.encode(text)
+    config = configured(
+        {
+            "max_tokens": 7,
+            "add_eos": False,
+            "datasets": [
+                {
+                    "name": "docs",
+                    "type": "memory",
+                    "ratio": 1.0,
+                    "documents": [{"text": text}],
+                }
+            ],
+        }
+    )
+
+    samples = list(
+        StreamingTokenDataset(
+            config=config,
+            sequence_length=3,
+        )
+    )
+    batch = causal_lm_collate_fn(samples)
+
+    assert [sample["input_ids"].tolist() for sample in samples] == [
+        token_ids[:4],
+        token_ids[3:7],
+    ]
+    assert batch["inputs"].tolist() == [token_ids[:3], token_ids[3:6]]
+    assert batch["labels"].tolist() == [token_ids[1:4], token_ids[4:7]]
 
 
 def test_streaming_token_dataset_packs_across_documents_with_eos():
@@ -124,7 +160,7 @@ def test_streaming_token_dataset_packs_across_documents_with_eos():
 
 
 def test_streaming_token_dataset_loads_canonical_tokenizer_from_config():
-    text = "日本語とEnglish。"
+    text = "Hello, world!"
     config = configured(
         {
             "max_tokens": 4,
@@ -143,3 +179,54 @@ def test_streaming_token_dataset_loads_canonical_tokenizer_from_config():
     sample = list(StreamingTokenDataset(config=config, sequence_length=3))[0]
 
     assert sample["input_ids"].tolist() == TOKENIZER.encode(text)[:4]
+
+
+def test_real_streaming_batch_updates_tiny_decoder_with_finite_gradients():
+    torch.manual_seed(0)
+    text = "改行\nタブ\tspace"
+    config = configured(
+        {
+            "max_tokens": 7,
+            "add_eos": False,
+            "datasets": [
+                {
+                    "name": "docs",
+                    "type": "memory",
+                    "ratio": 1.0,
+                    "documents": [{"text": text}],
+                }
+            ],
+        }
+    )
+    dataloader = create_streaming_token_dataloader(
+        config=config,
+        sequence_length=3,
+        batch_size=2,
+    )
+    model = SimpleDecoderTransformer(
+        vocab_size=TOKENIZER.vocab_size,
+        embed_size=8,
+        num_heads=2,
+        max_len=3,
+        num_layers=1,
+        dropout=0.0,
+        dim_feedforward=16,
+        pad_token_id=TOKENIZER.pad_token_id,
+    )
+    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-2)
+    batch = next(iter(dataloader))
+    before = model.lm_head.weight.detach().clone()
+
+    logits = model(batch["inputs"])
+    loss = F.cross_entropy(logits.flatten(0, 1), batch["labels"].flatten())
+    optimizer.zero_grad()
+    loss.backward()
+
+    gradients = [parameter.grad for parameter in model.parameters() if parameter.grad is not None]
+    assert torch.isfinite(loss)
+    assert gradients
+    assert all(torch.isfinite(gradient).all() for gradient in gradients)
+    assert any(torch.count_nonzero(gradient).item() > 0 for gradient in gradients)
+
+    optimizer.step()
+    assert not torch.equal(before, model.lm_head.weight)
