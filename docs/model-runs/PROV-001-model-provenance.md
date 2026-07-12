@@ -1,6 +1,6 @@
 # PROV-001 - Make Codex model provenance visible
 
-- PR: [#17](https://github.com/Ayumu-J-S/llm_scratch/pull/17) (draft)
+- PR: [#17](https://github.com/Ayumu-J-S/llm_scratch/pull/17) (merged); follow-up audit PR [#18](https://github.com/Ayumu-J-S/llm_scratch/pull/18)
 - Branch: `codex/prov-001-model-provenance`
 - Ticket: PROV-001 (repository provenance contract requested after the first roadmap wave)
 - Hypothesis: a small, redaction-safe capture command that separates requested/default model settings from explicitly supplied runtime display will make each agent phase auditable without guessing hidden model identity or leaking prompts, tokens, or secrets.
@@ -83,34 +83,35 @@ N/A — no failed independent review has occurred.
 
 ## Merge authority and final audit
 
-- Merge path: `human merge`
-- Human authorization: `N/A — human merge remains the default`
-- Authorization evidence location: `N/A`
-- Authorization covers this named PR or bounded ticket/goal series: N/A
+- Merge path: `guarded agent self-merge`
+- Human authorization: explicit user authorization in the task thread on 2026-07-12 ("これからはとりあえず全部セルフマージしていいよ")
+- Authorization evidence location: current task thread; the authorization was recorded after POLICY-001 enabled guarded self-merge
+- Authorization covers this named PR or bounded ticket/goal series: PR #17 and the bounded roadmap-completion goal
 - Exact independently reviewed normative head SHA: `552b74c80643178b346f128dd9ce90679be85f0f`
-- Final branch head audit: recorded in PR #17 body/comment; descendants after the normative head are accepted only when their diff is documentation/ledger-only and independently re-reviewed.
+- Finalization descendant head SHA: `c262a3c67b70a17f8172e6459db0f61e862d2fc0` (record-only descendant of the normative reviewed head; preserved by the normative-head/finalization-descendant convention)
+- Final branch head audit: PR #17 was merged at `fffdf6248a73cca25ecee67eaac47ad7e4399939`; descendants after the normative head are accepted only when their diff is documentation/ledger-only and independently re-reviewed.
 - Latest independent verdict / model / mode: PASS WITH NOTE / not exposed by runtime / not exposed by runtime (requested Extra Thinking)
 - All actionable findings repaired and independently re-reviewed: yes; two non-blocking notes retained as documented follow-ups
-- Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: pending human review
-- Newer human objections since authorization/review: pending
+- Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: none
+- Newer human objections since authorization/review: none recorded
 - Human review dismissed by an agent: no
-- Unresolved review threads at final audit: pending final GitHub refresh
-- Branch-protection required-context inventory: pending
-- Applicable configured workflow/check inventory: pending
-- Observed exact-head check statuses: pending
-- Expected checks absent, pending, skipped, cancelled, or non-successful: pending
-- No-check evidence when both inventories are empty: pending
-- Target branch and base SHA at final audit: `main` / pending refresh
-- Up-to-date, conflict-free, and mergeable evidence: pending
+- Unresolved review threads at final audit: zero
+- Branch-protection required-context inventory: none configured
+- Applicable configured workflow/check inventory: none configured
+- Observed exact-head check statuses: no required checks/statuses
+- Expected checks absent, pending, skipped, cancelled, or non-successful: none
+- No-check evidence when both inventories are empty: required and configured inventories are both empty
+- Target branch and base SHA at final audit: `main` / `8a6f94bcf1c88e65f8c7cda03946ee7d469b9cb6`
+- Up-to-date, conflict-free, and mergeable evidence: exact reviewed head was current at merge; merge commit `fffdf6248a73cca25ecee67eaac47ad7e4399939` was created successfully
 - Record, ledger, PR trail, validation, and risks parity: yes for normative reviewed head; final docs-only descendant parity is audited in the live PR body/comment
-- Prohibited self-merge categories: clear for this documentation/tooling change; human merge remains default
+- Prohibited self-merge categories: clear; this documentation/tooling change is not in a protected category
 - Admin/bypass/force/disabled-check requirement: no
-- Final audit PR body/comment location: PR #17 review comment and body (after Ready transition)
-- Final audit changed reviewed head: pending
-- Immediate pre-merge re-fetch/compare observation location: pending human merge
-- Immediate refresh compared authorization, head, base, review decision/objections, threads, expected checks/statuses, and mergeability: pending human merge
-- Drift found: pending
-- Merge outcome: not merged
+- Final audit PR body/comment location: PR #17 body and final audit comments, refreshed before merge
+- Final audit changed reviewed head: no; finalization remained docs-only and followed the normative-head convention
+- Immediate pre-merge re-fetch/compare observation location: PR #17 final audit comment and merge call using expected head `c262a3c67b70a17f8172e6459db0f61e862d2fc0`
+- Immediate refresh compared authorization, head, base, review decision/objections, threads, expected checks/statuses, and mergeability: yes
+- Drift found: none
+- Merge outcome: agent merged; merge commit `fffdf6248a73cca25ecee67eaac47ad7e4399939`
 
 ## Model assessment from this ticket
 
@@ -129,5 +130,5 @@ Record observable outcomes, not hidden chain-of-thought.
 - [x] Added the PR/ticket row to `docs/model-runs/README.md`.
 - [x] Updated per-model attempt, pass, repair, and review counts after implementation/review.
 - [x] Confirmed that the PR execution trail matches this record.
-- [ ] Recorded human merge or complete guarded self-merge authority/audit evidence.
+- [x] Recorded complete guarded self-merge authority/audit evidence.
 - [x] Confirmed that this change does not alter the self-merge policy or historical records.
