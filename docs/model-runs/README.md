@@ -18,7 +18,7 @@ PR URL cannot be created.
 | [POLICY-001 guarded agent self-merge](POLICY-001-agent-self-merge.md) | POLICY-001 | [#16](https://github.com/Ayumu-J-S/llm_scratch/pull/16) | not exposed by runtime / not exposed by runtime | not exposed by runtime / not exposed by runtime | 1 | PASS WITH NOTE | authorization, review-state, checks, drift |
 | [EXP-001 review record](EXP-001-review-record.md) | EXP-001 | [#10](https://github.com/Ayumu-J-S/llm_scratch/pull/10); related process PR [#9](https://github.com/Ayumu-J-S/llm_scratch/pull/9) | not exposed by runtime / not exposed by runtime | blocked twice, then FAIL; model/mode not exposed | 5 | PASS WITH NOTE | reproducibility, stale-review-target, stale-pr-body, stale-final-status, stale-integration-verdict, provenance-target, review-unavailable, merge-order |
 | [TOK-001 canonical tokenizer](TOK-001-canonical-tokenizer.md) | TOK-001 | [#12](https://github.com/Ayumu-J-S/llm_scratch/pull/12) | not exposed by runtime / not exposed by runtime | not exposed by runtime / not exposed by runtime | 5 | PASS WITH NOTE | reproducibility, ml-semantics, tokenizer-cost, offline-identity, merge-order |
-| [PROV-001 model provenance](PROV-001-model-provenance.md) | PROV-001 | [#17](https://github.com/Ayumu-J-S/llm_scratch/pull/17) | not exposed by runtime / not exposed by runtime | not exposed by runtime / not exposed by runtime | 0 | PASS WITH NOTE | runtime-identity, source-separation, redaction |
+| [PROV-001 model provenance](PROV-001-model-provenance.md) | PROV-001 | [#17](https://github.com/Ayumu-J-S/llm_scratch/pull/17) | not exposed by runtime / not exposed by runtime | not exposed by runtime / not exposed by runtime | 1 | PASS WITH NOTE | runtime-identity, source-separation, redaction, final-head-parity |
 
 Use short, stable values in `Main failure tags` so results can be aggregated,
 for example `data-starvation`, `cuda-fallback`, `ml-semantics`,
@@ -32,7 +32,7 @@ there are enough observations for meaningful rates.
 
 | Exact model / mode | Implementation attempts | First-review passes | Repair attempts | Successful repairs | Reviews performed | Important strengths observed | Recurring failure modes | Last updated |
 | --- | ---: | ---: | ---: | ---: | ---: | --- | --- | --- |
-| not exposed by runtime / not exposed by runtime | 8 | 1 | 16 | 10 | 23 | Produced scoped EXP-001, DATA-001, DATA-002, guarded-policy, canonical-tokenizer, and provenance changes; localized causal-boundary, immutable-manifest, tokenizer, and source-separation semantics | One implementation stalled; two review attempts blocked; earlier data passes missed accounting, benchmark authority, lifecycle, and tokenizer/workflow integration defects; provenance source precedence remains caller-enforced; exact model attribution remains impossible | 2026-07-12 |
+| not exposed by runtime / not exposed by runtime | 8 | 1 | 17 | 11 | 24 | Produced scoped EXP-001, DATA-001, DATA-002, guarded-policy, canonical-tokenizer, and provenance changes; localized causal-boundary, immutable-manifest, tokenizer, source-separation, and final-head parity semantics | One implementation stalled; two review attempts blocked; earlier data passes missed accounting, benchmark authority, lifecycle, and tokenizer/workflow integration defects; provenance source precedence remains caller-enforced; exact model attribution remains impossible | 2026-07-12 |
 
 ### Counting rules
 
