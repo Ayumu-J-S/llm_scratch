@@ -7,6 +7,7 @@ import pytest
 import torch
 from omegaconf import OmegaConf
 
+import training.trainer as trainer_module
 from training.trainer import Trainer
 
 
@@ -209,3 +210,19 @@ def test_reused_checkpoint_dir_truncates_metrics_per_run(tmp_path: Path):
     assert len(second_lines) == len(second.metrics)
     assert all(record["optimizer_step"] == 1 for record in records)
     assert len(second_lines) < len(first_lines)
+
+
+def test_wandb_init_failure_preserves_previous_metrics(tmp_path: Path, monkeypatch):
+    metrics_path = tmp_path / "metrics.jsonl"
+    previous = '{"optimizer_step": 99, "event": "previous-run"}\n'
+    metrics_path.write_text(previous, encoding="utf-8")
+    trainer = _trainer(tmp_path, [_batch([[0, 1]])])
+    trainer.cfg.wandb.enabled = True
+
+    def fail_wandb_init(**kwargs):
+        raise RuntimeError("simulated W&B initialization failure")
+
+    monkeypatch.setattr(trainer_module.wandb, "init", fail_wandb_init)
+    with pytest.raises(RuntimeError, match="W&B initialization failure"):
+        trainer.fit()
+    assert metrics_path.read_text(encoding="utf-8") == previous
