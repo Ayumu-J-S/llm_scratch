@@ -4,6 +4,7 @@
 - Branch:
 - Ticket:
 - Hypothesis:
+- Experiment record: `docs/experiments/<ticket>-<slug>.md` / `N/A` with reason
 - Started:
 - Final verdict: in progress / PASS / PASS WITH NOTE / FAIL / blocked
 - Final record owner:
@@ -16,6 +17,10 @@
 - Relevant `PHILOSOPHY.md` principles:
 - Baseline commit/run:
 - Intended evidence:
+
+The experiment record is the run/scientific evidence; this file is the model
+implementation and independent-review provenance. Cross-link both whenever a
+PR contains a consequential run.
 
 ## Execution timeline
 
