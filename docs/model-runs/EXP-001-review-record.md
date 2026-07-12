@@ -8,7 +8,7 @@
   negative run handoffs reconstructible by a fresh agent
 - Experiment record: `docs/experiments/EXP-001-review-record.md`
 - Started: 2026-07-11
-- Final verdict: `in progress — integration-head review pending`
+- Final verdict: `PASS WITH NOTE`
 - Final record owner: current implementation agent; exact identity not exposed
 
 ## Scope and decision context
@@ -63,6 +63,8 @@ reported exactly as unavailable rather than inferred.
 | 10 | repair | not exposed by runtime | not exposed by runtime | Review-comment finding against merge head `f4e879ce8247488ea3632b3bcc634c112b6f9069`, observed after metadata head `7d6b363d6e3b5279e21c7faaa91a32ec3c84043c` | Mark current record and ledger status in progress, retain prior passing verdict as historical, and leave exact-head review/thread/check gates pending | completed at `905b8314a1e316526b42102b647976a8eaa8feab`; independent re-review pending | Removed the false current-pass signal without changing EXP-001 artifacts, runtime behavior, or the guarded policy | Commit `905b8314a1e316526b42102b647976a8eaa8feab` |
 | 11 | re-review | not exposed by runtime | not exposed by runtime | Status-repair head `905b8314a1e316526b42102b647976a8eaa8feab` plus synchronized live PR #10 body | Fresh independent heavier/Extra Thinking review against EXP-001, philosophy, applicable R0 checks, and guarded merge provenance | FAIL | P1 provenance blocker: cycle 10 and the live PR misattributed the automated review target to `7d6b363`; GitHub review `PRR_kwDORqx5mc8AAAABFuUwhw` actually reviewed merge head `f4e879ce`, and its thread was created only after `7d6b363` | Independent review handoff received 2026-07-12 |
 | 11 | repair | not exposed by runtime | not exposed by runtime | Independent `FAIL` against `905b8314a1e316526b42102b647976a8eaa8feab` | Correct the automated-review target and event ordering everywhere, preserve the status-repair identity, append the failed review, and keep all guarded gates pending | completed locally; independent re-review pending | Record and live handoff now distinguish merge head `f4e879ce`, later metadata head `7d6b363`, and status-repair head `905b831` | Current docs-only repair diff |
+| 11 | re-review | not exposed by runtime | not exposed by runtime | Provenance-repair head `cb5f2f4c5b43d457e005ea6f538858811065f604` plus synchronized live PR #10 body | Independent heavier/Extra Thinking re-review of the P1 repair, EXP-001, philosophy, applicable R0 checks, and guarded handoff | PASS WITH NOTE | No actionable findings; review target and chronology are correct, and the only note is that the R0 contract has not been exercised by a consequential training run | Independent review handoff received 2026-07-12 |
+| 12 | handoff | not exposed by runtime | not exposed by runtime | Passing re-review at `cb5f2f4c5b43d457e005ea6f538858811065f604` | Append the passing verdict, reconcile ledger counts, and prepare the live PR for primary parity/thread/check/final-audit gates | completed locally; primary audit pending | This docs-only finalization records the normative reviewed head and does not change EXP artifacts or runtime behavior | This record, ledger, and live PR body |
 
 Allowed outcome interpretation: the two blocked attempts are not reviews
 performed and are not passing reviews. Historical `pending` text records the
@@ -315,14 +317,13 @@ NOTE` after both repairs.
   existing roadmap PR series #10 through #15; it does not authorize unrelated
   PRs or expand any prohibited category.
 - Exact independently reviewed head SHA:
-  `905b8314a1e316526b42102b647976a8eaa8feab` returned `FAIL`; the current
-  provenance-repair head is pending independent re-review.
-- Latest independent verdict / model / mode: `FAIL` / not exposed by runtime /
-  not exposed by runtime (requested heavier reviewer / Extra Thinking). The
-  earlier `PASS WITH NOTE` at
-  `6baa1aade77cc7c83db8bc4a13023ecf6df4195d` does not authorize a later head.
-- All actionable findings repaired and independently re-reviewed: yes for the
-  pre-integration head; pending for the integration head.
+  `cb5f2f4c5b43d457e005ea6f538858811065f604`.
+- Latest independent verdict / model / mode: `PASS WITH NOTE` / not exposed by
+  runtime / not exposed by runtime (requested heavier reviewer / Extra
+  Thinking).
+- All actionable findings repaired and independently re-reviewed: yes; the P1
+  target/chronology repair at `cb5f2f4c5b43d457e005ea6f538858811065f604`
+  returned `PASS WITH NOTE` with no actionable findings.
 - Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: pending
   fresh GitHub review-state inventory for the exact integration head.
 - Newer human objections since authorization/review: none observed during
@@ -346,8 +347,9 @@ NOTE` after both repairs.
 - Up-to-date, conflict-free, and mergeable evidence: exact `origin/main` was
   merged locally without rebase or force; post-push GitHub mergeability and base
   parity remain pending.
-- Record, ledger, PR trail, validation, and risks parity: pending post-push
-  synchronization, fresh independent review, and final audit.
+- Record, ledger, PR trail, validation, and risks parity: passing review
+  recorded; this docs-only handoff requires primary exact-head parity audit
+  before thread resolution, readiness, or final merge audit.
 - Prohibited self-merge categories: clear for this documentation-only EXP-001
   change. It contains no secrets/security-control change, private-data
   publication, paid resource, destructive/unrecoverable action, unresolved
@@ -355,8 +357,8 @@ NOTE` after both repairs.
   other protected externally consequential action.
 - Admin/bypass/force/disabled-check requirement: no; any such requirement blocks
   self-merge.
-- Final audit PR body/comment location: pending fresh independent review and
-  exact-head audit.
+- Final audit PR body/comment location: pending primary parity, thread, check,
+  and exact-head audit.
 - Final audit changed reviewed head: N/A — no final audit has been recorded; the
   target-branch integration deliberately invalidates the earlier reviewed head.
 - Immediate pre-merge re-fetch/compare observation location: pending.
@@ -364,8 +366,8 @@ NOTE` after both repairs.
   decision/objections, threads, expected checks/statuses, and mergeability: no —
   this is the pre-review integration handoff.
 - Drift found: N/A until the immediate pre-merge refresh.
-- Merge outcome: not merged; PR remains draft pending fresh independent review
-  and every guarded gate.
+- Merge outcome: not merged; PR remains draft pending primary parity audit,
+  thread resolution, check inventory/status, readiness, and final refresh.
 
 ## Integration review-comment repair
 
@@ -392,6 +394,10 @@ NOTE` after both repairs.
   live PR's incorrect attribution of the automated review to `7d6b363`.
 - Current repair: corrected the review target and chronology while retaining
   `905b831` as the status-repair head. An independent heavier/Extra Thinking
-  re-review of the exact pushed provenance-repair head is required before
-  thread, check, parity, or final-audit gates can pass. No current passing
-  verdict or merge authority is claimed from this repair alone.
+  re-review of exact head `cb5f2f4c5b43d457e005ea6f538858811065f604`
+  returned `PASS WITH NOTE`, with no actionable findings. The note remains that
+  the R0 contract has not been exercised by a consequential training run.
+- Docs-only handoff: this finalization appends that verdict and reconciles the
+  ledger. Primary parity audit, thread resolution, required-check inventory and
+  statuses, readiness, and the guarded final refresh remain pending; no merge is
+  performed here.
