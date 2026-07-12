@@ -169,12 +169,12 @@
 
 | Model / mode | Role | What it handled well | What it missed or made worse | Context that helped | Outcome |
 | --- | --- | --- | --- | --- | --- |
-| Codex / GPT-5; exact ID and mode not exposed | implementation/review | Localized deterministic source/cursor semantics, bounded shuffle, repeat accounting, and consumer-ack prefetch protocol; independent review reproduced and closed the thread-ahead defect | Exact deployment/model ID and reasoning mode unavailable; bounded cursor buffer memory remains a documented trade-off | DATA-003 acceptance, loader internals, DATA-001/DATA-002 boundaries, selected CHECK sections, and delayed-consumer reproductions | PASS WITH NOTE (`4679913983`) |
+| Codex / GPT-5; exact ID and mode not exposed | implementation/review | Localized deterministic source/cursor semantics, bounded shuffle, repeat accounting, and consumer-ack prefetch protocol; repair added completion preservation and process cursor propagation | Exact deployment/model ID and reasoning mode unavailable; cycle-3 exact-head re-review is still pending | DATA-003 acceptance, loader internals, DATA-001/DATA-002 boundaries, selected CHECK sections, delayed-consumer and reuse/resume reproductions | in progress after cycle-3 FAIL `4679929272` |
 
 ## Ledger update
 
-- [x] Added the DATA-003 ticket record and PR URL; final verdict is PASS WITH NOTE.
-- [x] Updated aggregate implementation/review counts after final verdict.
-- [x] Confirmed PR execution trail matches this record through review `4679913983`.
+- [x] Added the DATA-003 ticket record and PR URL; cycle-3 re-review is pending.
+- [ ] Updated aggregate implementation/review counts after final verdict.
+- [x] Confirmed PR execution trail matches this record through failed refresh `4679929272` and pending repair `bc8ebbc`.
 - [ ] Recorded complete guarded self-merge authority/audit or human merge evidence.
 - [x] Confirmed no bootstrap policy self-merge rule is being used.
