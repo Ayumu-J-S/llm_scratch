@@ -6,7 +6,7 @@
 - Hypothesis: a bounded random-initialized run can memorize a fixed bilingual fixture, resume exactly, and generate checkpoint-backed base-model continuations.
 - Experiment record: `docs/experiments/GATE-001-bilingual-overfit-proof.md`
 - Started: 2026-07-12
-- Final verdict: candidate complete; independent review pending
+- Final verdict: PASS WITH NOTE — independent review `4680390444`; docs-only exact-head confirmation pending
 - Final record owner: implementation agent
 
 ## Scope and decision context
@@ -28,6 +28,7 @@
 | 2 | implementation | not exposed by runtime | not exposed by runtime | exact run head `3d0f4fbdc7c8ad40d30b9e5eb03e448e712d2e2e`; requested Luna/lightweight Extra High | Run the new predeclared prompt selection through the complete reference/repeat/resume proof. | candidate complete | Attempt 7 PASS: all three 200-step traces hashed identically; verified step-100 resume and GEN-001 JP/EN samples passed. | `reports/gate-001/attempt-7/gate_record.json`; experiment record |
 | 2 | handoff | not exposed by runtime | not exposed by runtime | candidate `3d0f4fbdc7c8ad40d30b9e5eb03e448e712d2e2e`; requested heavier reviewer Extra Thinking | Hand off exact implementation evidence for independent PHILOSOPHY/ticket/CHECK review. | ready for review | No hidden reasoning recorded; request is limited to ticket acceptance, selected checks 6/8/9.1/R2, and change surface. | provenance capture 2026-07-12T16:23:21Z |
 | 3 | repair | not exposed by runtime | not exposed by runtime | independent pre-review of `5e33d91`; requested lightweight Extra High | Apply the sole actionable finding: repository formatter layout in the proof runner. | repaired | `ruff format` changed seven insertions/thirteen deletions of line wrapping only; fixture, commands, evidence, and outcomes are unchanged. | `82e1ece`; `ruff format --check`, Ruff lint, 28 focused tests passed |
+| 3 | review | not exposed by runtime | not exposed by runtime | exact head `d48cb8b86c1e394e8343e220c39ece6af861e298`; requested heavier reviewer Extra Thinking | Independently review ticket acceptance, PHILOSOPHY, CHECK 6/8/9.1/R2, and the formatter repair. | PASS WITH NOTE | No actionable findings. Equality is correctly scoped to this GB10/container under the known memory-efficient-attention `warn_only` notice. | GitHub COMMENT review `4680390444`; 258 passed/1 skipped; Ruff lint/format, lock/diff pass; Actions `29200284082` success |
 
 ## Runtime provenance block
 
@@ -50,21 +51,21 @@
 
 ### Review cycle 1
 
-- Review model / mode: pending independent review; requested heavier Extra Thinking, actual fields must be captured by that runtime.
-- Commit reviewed: pending; handoff source is `3d0f4fbdc7c8ad40d30b9e5eb03e448e712d2e2e` plus this documentation-only evidence commit.
+- Review model / mode: not exposed by runtime / not exposed by runtime; requested heavier Extra Thinking.
+- Commit reviewed: `d48cb8b86c1e394e8343e220c39ece6af861e298`.
 - Selected `CHECK.md` sections: 6, 8, 9.1 and GATE-001 R2.
 - Major sections marked N/A and why: performance optimization and 15-60-minute thermal pilot are N/A; this is a bounded correctness/memorization gate, not a throughput claim.
-- Ticket acceptance result: pending
-- Philosophy alignment: pending
-- Complexity / change-surface result: pending
-- ML-system result: pending
-- Verdict: pending
+- Ticket acceptance result: PASS WITH NOTE — fixed-fixture loss, repeated same-seed result, exact resume, and checkpoint-backed JP/EN continuations are demonstrated and honestly labeled memorization.
+- Philosophy alignment: PASS WITH NOTE — no pretraining/teacher/production-data claim; one-machine container evidence and limitations are explicit.
+- Complexity / change-surface result: PASS — direct reuse of canonical training/checkpoint/GEN paths; formatting repair is layout-only.
+- ML-system result: PASS WITH NOTE — R2 GB10 BF16 run is healthy and exact in this environment; no cross-platform bitwise claim.
+- Verdict: PASS WITH NOTE (`4680390444`).
 
 #### Findings
 
 | Severity | Area | What was wrong or good | Evidence | Required action |
 | --- | --- | --- | --- | --- |
-| N/A | pending | No independent review has run. | N/A | Run after candidate evidence is committed. |
+| Note | reproducibility scope | Equality is valid for the measured GB10/container run, not a promise across hardware/PyTorch releases. | Review `4680390444`; PyTorch memory-efficient-attention `warn_only` notice; experiment record limitation. | Retain the limitation; no code repair required. |
 
 ## Failed-review handoff
 
@@ -92,8 +93,8 @@ Implementation repairs before review (all retained in the experiment record):
 - Performance/resource result if applicable: R2 GB10 target smoke completed; no throughput, thermal, or performance claim is made.
 - Failed attempts retained at: experiment record inventory and ignored local `reports/gate-001/attempt-{1..6}`.
 - Known trade-offs: fixed-fixture loss and samples are intentionally non-generalizing evidence.
-- Unresolved risks: GPU memory-efficient attention warned that its algorithm is non-deterministic under the current `warn_only` policy; exact equality is demonstrated only on this current environment. Independent review remains required.
-- Human decision requested: perform the independent exact-head review; merge only after the later guarded audit.
+- Unresolved risks: GPU memory-efficient attention warned that its algorithm is non-deterministic under the current `warn_only` policy; exact equality is demonstrated only on this current environment. This is the independent review's documented PASS WITH NOTE.
+- Human decision requested: perform the later exact-head guarded merge audit; implementation review is complete.
 
 ## Merge authority and final audit
 
@@ -101,10 +102,10 @@ Implementation repairs before review (all retained in the experiment record):
 - Human authorization: user instruction in this bounded roadmap series: “これからはとりあえず全部セルフマージしていいよ”; later AGENTS policy requires full guarded gates.
 - Authorization evidence location: parent task context and eventual PR final-audit comment.
 - Authorization covers this named PR or bounded ticket/goal series: yes — roadmap completion series, subject to all guarded gates.
-- Exact independently reviewed head SHA: pending
-- Latest independent verdict / model / mode: pending
-- All actionable findings repaired and independently re-reviewed: pending
-- Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: pending audit
+- Exact independently reviewed head SHA: `d48cb8b86c1e394e8343e220c39ece6af861e298`
+- Latest independent verdict / model / mode: PASS WITH NOTE / not exposed by runtime / not exposed by runtime; GitHub review `4680390444`.
+- All actionable findings repaired and independently re-reviewed: yes — formatter finding repaired in `82e1ece`, then reviewed at `d48cb8b`.
+- Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: none observed at implementation handoff; final audit must re-fetch.
 - Newer human objections since authorization/review: none known at implementation start
 - Human review dismissed by an agent: no
 - Unresolved review threads at final audit: pending
@@ -129,12 +130,12 @@ Implementation repairs before review (all retained in the experiment record):
 
 | Model / mode | Role | What it handled well | What it missed or made worse | Context that helped | Outcome |
 | --- | --- | --- | --- | --- | --- |
-| not exposed by runtime / not exposed by runtime | implementation | Built a small direct runner on the canonical training/checkpoint/generation paths; retained failures; converged to exact same-seed/recovery evidence | Initial fixture sizing and sampling-prefix choices needed empirical repair; native CPU Torch could not provide CUDA evidence | Ticket, manifest/cursor contracts, predeclared retry records, and GB10 measurements | candidate complete; independent review pending |
+| not exposed by runtime / not exposed by runtime | implementation/review | Built a small direct runner on the canonical training/checkpoint/generation paths; retained failures; converged to exact same-seed/recovery evidence; review independently confirmed scope and checks | Initial fixture sizing and sampling-prefix choices needed empirical repair; native CPU Torch could not provide CUDA evidence; GPU equality remains environment-scoped | Ticket, manifest/cursor contracts, predeclared retry records, GB10 measurements, and exact review handoff | PASS WITH NOTE; final audit pending |
 
 ## Ledger update
 
 - [x] Added the draft PR/ticket row to `docs/model-runs/README.md`.
-- [x] Updated per-model attempt, pass, repair, and review counts for the completed implementation candidate; review counts await the independent verdict.
+- [x] Updated per-model attempt, pass, repair, and review counts for the independent verdict.
 - [x] Confirmed that the PR execution trail is ready to be updated from this record.
 - [ ] Recorded complete guarded self-merge authority/audit evidence.
 - [x] Confirmed that this is not the bootstrap self-merge policy PR.
