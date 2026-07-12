@@ -1,6 +1,6 @@
 # REP-001 — Reproducible run identity and global seeding
 
-- PR: [#22](https://github.com/Ayumu-J-S/llm_scratch/pull/22) (merged); audit PR: draft
+- PR: [#22](https://github.com/Ayumu-J-S/llm_scratch/pull/22) (merged); audit [#23](https://github.com/Ayumu-J-S/llm_scratch/pull/23) (draft)
 - Branch: `codex/rep-001-reproducibility`
 - Ticket: REP-001
 - Hypothesis: Capturing immutable code/config/input identity and deriving every
