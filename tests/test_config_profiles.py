@@ -19,12 +19,16 @@ def compose(*overrides: str):
 def test_canonical_profiles_compose_with_real_root_sections():
     smoke = compose("profile=smoke_overfit")
     stream = compose("profile=pretrain_streaming")
+    gate = compose("profile=gate_overfit")
     evaluation = compose("profile=evaluation")
 
     assert smoke.profile.name == "smoke_overfit"
     assert smoke.data.mode == "memorization_smoke"
     assert stream.profile.name == "pretrain_streaming"
     assert stream.data.mode == "streaming"
+    assert gate.profile.name == "gate_overfit"
+    assert gate.profile.purpose == "memorization_gate"
+    assert gate.data.mode == "streaming"
     assert evaluation.profile.name == "evaluation"
     assert evaluation.profile.task == "evaluate_checkpoint"
 
@@ -53,6 +57,23 @@ def test_stability_smoke_exposes_the_bf16_update_recipe():
     assert config.training.scheduler.interval == "step"
     assert config.training.scheduler.warmup_steps == 10
     assert config.training.scheduler.decay_steps == 100
+
+
+def test_gate_overfit_uses_versioned_distinct_fixture_manifests_without_validation_events():
+    config = compose("profile=gate_overfit")
+    validate_training_config(config)
+
+    assert config.runtime.device == "cuda"
+    assert config.training.max_steps == 200
+    assert config.training.validation_every_n_steps == 1000
+    assert config.training.checkpoint_every_n_steps == 100
+    assert config.wandb.enabled is False
+    assert config.data.streaming.train.sources[0].selection == "all"
+    assert config.data.streaming.validation.sources[0].selection == "all"
+    assert (
+        config.data.streaming.train.sources[0].expected_fingerprint
+        != config.data.streaming.validation.sources[0].expected_fingerprint
+    )
 
 
 def test_preflight_rejects_empty_sources():

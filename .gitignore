@@ -12,4 +12,5 @@ artifacts/checkpoints/model_*/
 train_tokenizer.log
 wandb/
 runs/
+reports/gate-001/
 data/stream_loader_cache/

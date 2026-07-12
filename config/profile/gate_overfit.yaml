@@ -1,0 +1,92 @@
+# @package _global_
+# GATE-001 is a bounded, fixed-fixture memorization proof.  Its auxiliary
+# source exists only to exercise the normal disjoint streaming-loader contract;
+# no validation event is configured and no result is called validation.
+profile:
+  name: gate_overfit
+  purpose: memorization_gate
+
+runtime:
+  device: cuda
+
+data:
+  mode: streaming
+  streaming:
+    require_manifests: true
+    repeat: true
+    prefetch:
+      enabled: true
+      buffer_size: 2
+    train:
+      max_tokens: max
+      add_eos: true
+      seed: 20260712
+      sources:
+        - name: gate_overfit_train_v1
+          type: manifest
+          manifest_path: tests/fixtures/gate_overfit/v1/train.manifest.json
+          expected_fingerprint: eb607b8156d75987032d213e62dbb8c76bf61c7521d0a8db51b35c88c57804e9
+          selection: all
+          ratio: 1.0
+    validation:
+      max_tokens: max
+      add_eos: true
+      seed: 20260713
+      sources:
+        - name: gate_overfit_auxiliary_v1
+          type: manifest
+          manifest_path: tests/fixtures/gate_overfit/v1/auxiliary.manifest.json
+          expected_fingerprint: a4cb7820a679cd914e148395daff2dbf6b4f6c6fac18e4addde13dae98640cdb
+          selection: all
+          ratio: 1.0
+
+training:
+  sequence_length: 16
+  # The finite fixture has several deterministic batches per pass.  The step
+  # budget remains authoritative; enough passes reach it without extending the
+  # iterator beyond a documented source boundary.
+  epochs: 20
+  batch_size: 1
+  shuffle: false
+  max_steps: 200
+  max_tokens: null
+  max_time: null
+  precision: bf16
+  gradient_accumulation_steps: 1
+  max_grad_norm: 10.0
+  log_every_n_steps: 1
+  # Keep the auxiliary source out of the result: its cadence lies beyond the
+  # bounded step budget, so this gate records memorization only.
+  validation_every_n_steps: 1000
+  validation_every_n_tokens: null
+  checkpoint_every_n_steps: 100
+  checkpoint_every_n_tokens: null
+  milestone_every_n_steps: null
+  milestone_every_n_tokens: null
+  optimizer:
+    _target_: torch.optim.AdamW
+    lr: 0.02
+    betas: [0.9, 0.95]
+    eps: 1.0e-8
+    weight_decay: 0.0
+  scheduler:
+    enabled: false
+    interval: step
+    _target_: training.optimization.WarmupCosineScheduler
+    warmup_steps: 1
+    decay_steps: 200
+    min_lr_ratio: 0.1
+
+model:
+  embed_size: 32
+  num_heads: 4
+  num_layers: 1
+  dropout: 0.0
+
+artifacts:
+  checkpoints_dir: checkpoints
+  keep_last_n: 2
+  resume_path: null
+
+wandb:
+  enabled: false

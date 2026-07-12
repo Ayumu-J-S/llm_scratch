@@ -1,0 +1,19 @@
+{
+  "documents": [
+    {
+      "content_sha256": "68c229bf30cb60881435ebc58f93568c03dfa9b656a610110709bfa82773f37c",
+      "document_id": "5e67916728a464b0b496e007ea711fe1cf9201d5f6299cf494b35e72f507f098",
+      "source_index": 0,
+      "split": "validation",
+      "upstream_id": "gate-aux-ja-001"
+    },
+    {
+      "content_sha256": "c80c9884299eebfb1a4f4e5ea5d5bddceb0b6e4989cd843d737c860334473f71",
+      "document_id": "e44726f5023f3b9ef57f9cf9b918c070f4147f44f0dbe909906cfa3e41737aec",
+      "source_index": 1,
+      "split": "train",
+      "upstream_id": "gate-aux-en-001"
+    }
+  ],
+  "schema_version": 1
+}

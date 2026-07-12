@@ -42,10 +42,10 @@ def _run_directory() -> Path:
     return Path(output_dir)
 
 
-def save_resolved_config(cfg: DictConfig) -> Path:
+def save_resolved_config(cfg: DictConfig, *, run_dir: Path | None = None) -> Path:
     """Persist the exact resolved Hydra config in the run directory."""
 
-    run_dir = _run_directory()
+    run_dir = _run_directory() if run_dir is None else Path(run_dir)
     run_dir.mkdir(parents=True, exist_ok=True)
     destination = run_dir / "resolved_config.yaml"
     OmegaConf.save(config=cfg, f=str(destination), resolve=True)
@@ -203,8 +203,15 @@ def log_loader_size(name: str, loader) -> None:
     logger.info("{} windows: {}", name, size)
 
 
-@hydra.main(version_base=None, config_path="../config", config_name="train")
-def main(cfg: DictConfig) -> None:
+def prepare_trainer(cfg: DictConfig, *, run_dir: Path | None = None) -> Trainer:
+    """Assemble the canonical training path without beginning optimizer updates.
+
+    The normal Hydra entrypoint and bounded experiment scripts share this one
+    construction path.  ``run_dir`` is an operational output location, not a
+    Hydra/model/data setting, so it never changes checkpoint compatibility.
+    """
+
+    run_dir = _run_directory() if run_dir is None else Path(run_dir)
     validate_training_config(cfg)
     seed_everything(
         int(cfg.reproducibility.seed),
@@ -212,12 +219,12 @@ def main(cfg: DictConfig) -> None:
     )
     device = select_device(cfg.runtime.device)
     logger.info("Using device: {}", device)
-    resolved_config_path = save_resolved_config(cfg)
+    resolved_config_path = save_resolved_config(cfg, run_dir=run_dir)
     logger.info("Resolved Hydra config: {}", resolved_config_path)
     tokenizer_config = build_tokenizer_config(cfg)
     run_manifest_path = write_run_manifest(
         cfg=to_plain_config(cfg),
-        run_dir=_run_directory(),
+        run_dir=run_dir,
         root_dir=ROOT_DIR,
         resolved_config_path=resolved_config_path,
         tokenizer_manifest_path=ROOT_DIR / tokenizer_config["manifest_path"],
@@ -231,7 +238,7 @@ def main(cfg: DictConfig) -> None:
     logger.info("Tokenizer vocab size: {}", tokenizer.vocab_size)
     logger.info("Tokenizer fingerprint: {}", tokenizer.fingerprint)
 
-    checkpoint_dir = _run_directory() / Path(cfg.artifacts.checkpoints_dir)
+    checkpoint_dir = run_dir / Path(cfg.artifacts.checkpoints_dir)
     checkpoint_identity = build_checkpoint_identity(
         cfg,
         run_manifest_path=run_manifest_path,
@@ -341,7 +348,14 @@ def main(cfg: DictConfig) -> None:
         checkpoint_identity=checkpoint_identity,
         resume_path=resume_path,
     )
-    trainer.fit()
+    return trainer
+
+
+@hydra.main(version_base=None, config_path="../config", config_name="train")
+def main(cfg: DictConfig) -> None:
+    """Run the canonical Hydra training path."""
+
+    prepare_trainer(cfg).fit()
 
 
 def run_config_check(cfg: DictConfig) -> Path:
