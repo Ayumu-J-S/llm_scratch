@@ -6,7 +6,7 @@
 - Hypothesis: a documentation-only follow-up can make the merged outcome, dependency states, ledger, and audit trail agree without changing implementation or evidence.
 - Experiment record: `docs/experiments/GATE-001-bilingual-overfit-proof.md`
 - Started: 2026-07-12
-- Final verdict: in progress
+- Final verdict: PASS — repair re-review `4680822884`; final docs-only confirmation and guarded audit pending
 - Final record owner: implementation agent
 
 ## Scope and decision context
@@ -25,6 +25,7 @@
 | 1 | implementation | not exposed by runtime | not exposed by runtime | `main@2e2c4f4`; requested Luna/lightweight Extra High | Synchronize GATE-001 post-merge state without changing ML behavior. | candidate | GATE becomes Done, DATA-004 becomes Ready, and the final audit/merge trail is recorded. | documentation diff on this branch |
 | 1 | review | not exposed by runtime | not exposed by runtime | exact head `5c964c935710be1555b2ea1686521c7f13103d65`; requested strongest appropriate GPT-5.6-class / Extra Thinking | Independently review ROADMAP dependency truth, merge-evidence parity, scope, and applicable CHECK R0. | FAIL | Found one stale original-record outcome and one provenance capture attribution that postdated the capture. | GitHub review `4680818667`; exact-head Actions `29209701690` success |
 | 2 | repair | not exposed by runtime | not exposed by runtime | failed review `4680818667`; requested Luna/lightweight Extra High | Correct only the two contradictory documentation statements and preserve all merge/dependency evidence. | repaired | Original GATE outcome now says audit/merge complete; provenance capture is truthfully attributed to baseline `2e2c4f4`. | current repair diff; independent re-review pending |
+| 2 | re-review | not exposed by runtime | not exposed by runtime | exact repair head `a653d5e8ea87d459b02e5eb75ff4ef734db9888f`; requested strongest appropriate GPT-5.6-class / Extra Thinking | Re-review both findings, retained FAIL history, dependency truth, and documentation-only isolation. | PASS | Both findings are repaired; no actionable findings remain. | GitHub review `4680822884`; Actions `29209852450` success |
 
 ## Runtime provenance block
 
@@ -80,6 +81,22 @@
 - Exact repair request: remove the stale pending outcome and restore baseline-at-capture attribution.
 - Completion evidence requested: diff check, unchanged implementation blobs, successful exact-head PR quality, and independent R0 re-review.
 
+### Review cycle 2
+
+- Review model / mode: not exposed by runtime / not exposed by runtime; requested strongest appropriate GPT-5.6-class / Extra Thinking.
+- Commit reviewed: `a653d5e8ea87d459b02e5eb75ff4ef734db9888f`.
+- Selected `CHECK.md` sections: R0 documentation/config-only review.
+- Major sections marked N/A and why: unchanged from cycle 1; no ML/data/runtime/performance code or claim changed.
+- Ticket acceptance result: PASS — both contradictory statements are corrected and dependency/merge evidence remains exact.
+- Philosophy alignment: PASS — observable history, failures, provenance, and next dependency are truthful and reviewable.
+- Complexity / change-surface result: PASS — repair is limited to the failed documentation statements and required review record.
+- ML-system result: N/A; source/config/data/test/evidence blobs remain unchanged.
+- Verdict: PASS (`4680822884`).
+
+#### Findings
+
+No actionable findings remain.
+
 ## Repair result
 
 - Repair cycle: 2.
@@ -87,16 +104,16 @@
 - Input handoff: complete FAIL review `4680818667` and exact evidence cited above.
 - Changes made: corrected the stale audit outcome and capture attribution.
 - What was deliberately not changed: ROADMAP dependency states, merge/audit IDs, source/config/data/tests, or aggregate claims.
-- Local evidence: `git diff --check`, Ruff, and implementation-diff isolation pending repair commit validation.
-- Commit reviewed next: pending repair commit.
-- Re-review model / mode: strongest appropriate GPT-5.6-class / Extra Thinking requested; actual pending.
-- Re-review verdict: pending.
+- Local evidence: `git diff --check`, `uv lock --check`, Ruff, implementation-diff isolation, and exact-head Actions `29209852450` passed.
+- Commit reviewed next: `a653d5e8ea87d459b02e5eb75ff4ef734db9888f`.
+- Re-review model / mode: not exposed by runtime / not exposed by runtime; strongest appropriate GPT-5.6-class / Extra Thinking requested.
+- Re-review verdict: PASS (`4680822884`).
 
 ## Final evidence
 
 - Resolved Hydra command/config: N/A — documentation-only follow-up.
 - Data/tokenizer/model identity: unchanged from merged GATE-001 evidence.
-- Validation and measurements: first exact-head Actions `29209701690`, diff check, lock check, and Ruff passed; repair re-validation pending.
+- Validation and measurements: failed-head Actions `29209701690` and repair-head Actions `29209852450` passed; diff check, lock check, Ruff, and implementation isolation passed.
 - Performance/resource result if applicable: N/A.
 - Failed attempts retained at: original GATE experiment/model-run records and PR #39 review trail.
 - Known trade-offs: one small follow-up PR is required because `Done` could not be truthfully committed before the merge existed.
@@ -109,21 +126,21 @@
 - Human authorization: bounded roadmap-series authorization recorded in GATE PR #39 and its model-run record.
 - Authorization evidence location: parent goal context and PR #39.
 - Authorization covers this named PR or bounded ticket/goal series: yes.
-- Exact independently reviewed head SHA: pending.
-- Latest independent verdict / model / mode: pending.
-- All actionable findings repaired and independently re-reviewed: pending.
-- Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: pending.
+- Exact independently reviewed head SHA: `a653d5e8ea87d459b02e5eb75ff4ef734db9888f`; final review-record successor requires no-drift confirmation.
+- Latest independent verdict / model / mode: PASS / not exposed by runtime / not exposed by runtime; review `4680822884`.
+- All actionable findings repaired and independently re-reviewed: yes.
+- Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: none observed; final audit must re-fetch.
 - Newer human objections since authorization/review: none known; final audit must re-fetch.
 - Human review dismissed by an agent: no.
 - Unresolved review threads at final audit: pending.
 - Branch-protection required-context inventory: pending final refresh.
-- Applicable configured workflow/check inventory: PR quality expected; exact-head status pending.
-- Observed exact-head check statuses: pending.
-- Expected checks absent, pending, skipped, cancelled, or non-successful: pending.
+- Applicable configured workflow/check inventory: PR quality applies; network integration is schedule/manual only.
+- Observed exact-head check statuses: Actions `29209852450` succeeded for reviewed repair head; final docs successor requires its own run.
+- Expected checks absent, pending, skipped, cancelled, or non-successful: pending final successor run/audit.
 - No-check evidence when both inventories are empty: N/A — PR quality is configured.
 - Target branch and base SHA at final audit: `main` / `2e2c4f4` initially.
 - Up-to-date, conflict-free, and mergeable evidence: pending.
-- Record, ledger, PR trail, validation, and risks parity: pending.
+- Record, ledger, PR trail, validation, and risks parity: repair review recorded; final docs-only confirmation pending.
 - Prohibited self-merge categories: clear; documentation-only repository collaboration.
 - Admin/bypass/force/disabled-check requirement: no.
 - Final audit PR body/comment location: pending.
@@ -137,12 +154,12 @@
 
 | Model / mode | Role | What it handled well | What it missed or made worse | Context that helped | Outcome |
 | --- | --- | --- | --- | --- | --- |
-| not exposed by runtime / not exposed by runtime | implementation | Kept closure documentation-only and recomputed dependencies from the real merge. | pending review | PR #39 live audit and merge evidence | candidate |
+| not exposed by runtime / not exposed by runtime | implementation/review | Kept closure documentation-only, recomputed dependencies from the real merge, and repaired exact review findings. | Initial candidate left one stale outcome and misattributed a provenance capture to a later commit. | PR #39 live audit/merge evidence and the complete FAIL handoff | repaired; PASS |
 
 ## Ledger update
 
 - [x] Added this PR row to `docs/model-runs/README.md`.
-- [x] Updated per-model implementation count; review count remains pending.
-- [ ] Confirmed the PR execution trail matches this record.
+- [x] Updated per-model implementation, repair, successful-repair, and review counts.
+- [x] Confirmed the PR execution trail matches this record through the repair re-review.
 - [ ] Recorded complete guarded merge evidence.
 - [x] Confirmed this is not the bootstrap policy PR.
