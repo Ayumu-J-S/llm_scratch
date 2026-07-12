@@ -2,11 +2,11 @@
 
 - Roadmap ticket: `GATE-001`
 - Branch: `codex/gate-001-bilingual-overfit-proof`
-- Draft PR: [#39](https://github.com/Ayumu-J-S/llm_scratch/pull/39)
+- PR: [#39](https://github.com/Ayumu-J-S/llm_scratch/pull/39) (merged as `2e2c4f4`)
 - Experiment owner: implementation agent; actual exact runtime model and reasoning are not exposed
-- Status: concluded candidate; independent review PASS WITH NOTE; guarded final audit pending
+- Status: merged; independent review PASS WITH NOTE; guarded audit complete
 - Started (UTC): 2026-07-12
-- Last updated (UTC): 2026-07-12T21:18:08Z
+- Last updated (UTC): 2026-07-12T21:26:36Z
 - Model-run provenance: `docs/model-runs/GATE-001-bilingual-overfit-proof.md`
 
 ## Predeclared question and decision rule
@@ -139,4 +139,4 @@ revision of the original threshold or budget.
 - Hypothesis result: supported for the fixed fixture only.
 - Evidence-backed conclusion: the current random-initialized model can memorize the versioned bilingual fixture within 200 updates, restore the verified step-100 suffix without trajectory drift, and produce the fixed JP/EN base-model continuations. This is not held-out validation or generalization.
 - Uncertainty and limitations: no production data, benchmark, W&B upload, long pilot, performance comparison, or cross-platform deterministic guarantee was attempted.
-- Exactly one next step: complete the exact-head guarded audit, mark PR #39 Ready, and merge only if the immediate refresh shows no drift.
+- Exactly one next step: implement DATA-004's pinned Japanese/English mixture and QA from synchronized `main`.
