@@ -25,6 +25,7 @@
 | 1 | planning | not exposed by runtime | not exposed by runtime | `8a6f94b`; requested Sol / Ultra planning | Define a minimal provenance schema and safe capture boundary | completed | Separate requested/default fields from explicit runtime display; never infer exact ID or mode | Planner handoff 2026-07-12 |
 | 1 | implementation | not exposed by runtime | not exposed by runtime | `8a6f94b`; requested Luna / Extra High | Implement PROV-001 and start the live draft PR | completed | Added redaction-safe stdlib capture, schema docs, template/workflow guidance, and focused tests; exact active ID/mode remain unavailable | PR #17 head and focused test run |
 | 1 | review | not exposed by runtime | not exposed by runtime | `c77c8c939b8c68f7fc9e1da995a16ded1743342f`; requested heavier / Extra Thinking | Independently review ticket, philosophy, and applicable `CHECK.md` sections | PASS WITH NOTE | R0 passed: separation, unavailable identity handling, privacy, docs, and tests are sound; source precedence is documented but caller-enforced and JSON-only output is narrower than the initial record wording | Independent review handoff 2026-07-12 |
+| 1 | re-review | not exposed by runtime | not exposed by runtime | `4d6306d555c275e07cbf376bb1cff8c26a74b2f0`; requested heavier / Extra Thinking | Re-review documentation finalization and exact-head provenance parity | PASS WITH NOTE | Confirmed only model-run/ledger finalization changed; record/ledger parity and exact final head were correct after re-review | Independent re-review handoff 2026-07-12 |
 
 Allowed phases: `implementation`, `review`, `repair`, `re-review`, and `handoff`.
 
@@ -74,7 +75,7 @@ N/A — no repair cycle has occurred.
 - Human authorization: `N/A — human merge remains the default`
 - Authorization evidence location: `N/A`
 - Authorization covers this named PR or bounded ticket/goal series: N/A
-- Exact independently reviewed head SHA: `c77c8c939b8c68f7fc9e1da995a16ded1743342f`
+- Exact independently reviewed head SHA: `4d6306d555c275e07cbf376bb1cff8c26a74b2f0`
 - Latest independent verdict / model / mode: PASS WITH NOTE / not exposed by runtime / not exposed by runtime (requested Extra Thinking)
 - All actionable findings repaired and independently re-reviewed: yes; two non-blocking notes retained as documented follow-ups
 - Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: pending human review
@@ -106,7 +107,8 @@ Record observable outcomes, not hidden chain-of-thought.
 | --- | --- | --- | --- | --- | --- |
 | not exposed by runtime / not exposed by runtime | planning | Scoped explicit runtime-display provenance and redaction boundaries | Exact planning identity unavailable | Ticket, PHILOSOPHY.md, workflow, and template | completed |
 | not exposed by runtime / not exposed by runtime | implementation | Kept requested/default and actual runtime namespaces separate; added safe capture and tests | Exact deployment ID and reasoning mode unavailable; system Python lacked pytest and the project uv dev group was used | Ticket, docs, and explicit runtime display values | completed |
-| not exposed by runtime / not exposed by runtime | independent review | Confirmed R0 acceptance, privacy, no inference, docs/ledger parity, and no ML-system impact | Source precedence is caller-enforced; JSON-only output is narrower than an early record phrase | Exact head `c77c8c939b8c68f7fc9e1da995a16ded1743342f` | PASS WITH NOTE |
+| not exposed by runtime / not exposed by runtime | independent review | Confirmed R0 acceptance, privacy, no inference, docs/ledger parity, and no ML-system impact | Source precedence is caller-enforced; JSON-only output is narrower than an early record phrase | Normative code head `c77c8c9` | PASS WITH NOTE |
+| not exposed by runtime / not exposed by runtime | independent re-review | Confirmed final documentation/ledger parity and no semantic drift | None beyond retained caller-enforced source-precedence note | Exact final head `4d6306d555c275e07cbf376bb1cff8c26a74b2f0` | PASS WITH NOTE |
 
 ## Ledger update
 
