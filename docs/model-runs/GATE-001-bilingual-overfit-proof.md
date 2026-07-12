@@ -31,6 +31,7 @@
 | 3 | review | not exposed by runtime | not exposed by runtime | exact head `d48cb8b86c1e394e8343e220c39ece6af861e298`; requested heavier reviewer Extra Thinking | Independently review ticket acceptance, PHILOSOPHY, CHECK 6/8/9.1/R2, and the formatter repair. | PASS WITH NOTE | No actionable findings. Equality is correctly scoped to this GB10/container under the known memory-efficient-attention `warn_only` notice. | GitHub COMMENT review `4680390444`; 258 passed/1 skipped; Ruff lint/format, lock/diff pass; Actions `29200284082` success |
 | 4 | integration | not exposed by runtime | not exposed by runtime | reviewed head `5a7bfb4`; current `main@6836e74`; requested lightweight Extra High | Merge current main normally and reconcile the independent GATE and ROADMAP-maintenance ledger updates without losing either history. | completed | Integration changed only ROADMAP/ledger documentation; aggregate union is `20 / 8 / 43 / 25 / 58`. | merge `6a958c2`; exact-head Actions `29208697924` success |
 | 4 | independent integration review | not exposed by runtime | not exposed by runtime | exact head `6a958c2347b23845dcf92076d351169de68c4354`; requested strongest appropriate GPT-5.6-class reviewer / Extra Thinking | Re-review ticket, PHILOSOPHY, CHECK 6/8/9.1/R2, implementation-blob parity, ledger union, and exact-head validation after main integration. | PASS WITH NOTE | No actionable findings; implementation blobs are byte-identical to the prior reviewed tree, while environment-scoped determinism and inherited base formatting remain non-actionable notes. | GitHub COMMENT review `4680779176`; 258 passed/1 skipped; 57 focused passed; Actions `29208697924` success |
+| 5 | guarded audit evidence repair | not exposed by runtime | not exposed by runtime | exact docs head `d9144d8`; requested strongest appropriate GPT-5.6-class audit | Resolve the initial inability to inventory classic branch protection without weakening the self-merge policy. | PASS-to-proceed | GitHub's public branch response affirmatively reports protection disabled, enforcement off, and no required contexts/checks; effective rules for `main` are empty. | `GET /branches/main`; `GET /branches?protected=true`; `GET /rules/branches/main`; independent policy re-audit |
 
 ## Runtime provenance block
 
@@ -114,7 +115,7 @@ Implementation repairs before review (all retained in the experiment record):
 - Failed attempts retained at: experiment record inventory and ignored local `reports/gate-001/attempt-{1..6}`.
 - Known trade-offs: fixed-fixture loss and samples are intentionally non-generalizing evidence.
 - Unresolved risks: GPU memory-efficient attention warned that its algorithm is non-deterministic under the current `warn_only` policy; exact equality is demonstrated only on this current environment. This is the independent review's documented PASS WITH NOTE.
-- Human decision requested: provide an authenticated required-context inventory or merge after reviewing the completed PASS WITH NOTE handoff; self-merge remains blocked until every guarded gate is provable.
+- Human decision requested: review the completed PASS WITH NOTE handoff; guarded self-merge may proceed only after the exact-head final audit and immediate no-drift refresh.
 
 ## Merge authority and final audit
 
@@ -129,14 +130,14 @@ Implementation repairs before review (all retained in the experiment record):
 - Newer human objections since authorization/review: none observed through the integrated-head review; final audit must re-fetch.
 - Human review dismissed by an agent: no
 - Unresolved review threads at integrated-head audit: zero; final audit must re-fetch.
-- Branch-protection required-context inventory: blocked — public rulesets are empty, but the legacy `main` protection endpoint returned HTTP 401 and no authenticated branch-protection tool/token is available.
+- Branch-protection required-context inventory: PASS at `main@6836e748d17507b8d232a84bf1a6ccc854177876` — public `GET /branches/main` reports `protected=false`, `protection.enabled=false`, enforcement `off`, `contexts=[]`, and `checks=[]`; `GET /branches?protected=true` returns zero branches; effective `GET /rules/branches/main` returns HTTP 200 `[]`.
 - Applicable configured workflow/check inventory: active `PR quality gate` applies to pull requests; `Network integration` is schedule/manual only and does not apply to this PR.
-- Observed exact-head check statuses: Actions `29208697924` succeeded for `6a958c2`; legacy commit statuses are empty.
-- Expected checks absent, pending, skipped, cancelled, or non-successful: cannot certify zero until the authenticated required-context inventory is available.
+- Observed exact-head check statuses: Actions `29209044251` succeeded for docs head `d9144d8`; legacy commit statuses are empty. The protection-evidence successor requires its own exact-head run.
+- Expected checks absent, pending, skipped, cancelled, or non-successful: zero at the audited head; the sole applicable PR workflow is present and successful.
 - No-check evidence when both inventories are empty: N/A — one applicable workflow exists and passed.
 - Target branch and base SHA at integrated-head audit: `main` / `6836e748d17507b8d232a84bf1a6ccc854177876`.
-- Up-to-date, conflict-free, and mergeable evidence: `main` is an ancestor of `6a958c2`, branch is zero commits behind, and GitHub reported mergeable; final audit must re-fetch.
-- Record, ledger, PR trail, validation, and risks parity: integrated-head review recorded; this documentation successor requires no-drift confirmation.
+- Up-to-date, conflict-free, and mergeable evidence: `main` is an ancestor of `d9144d8`, branch is zero commits behind, and GitHub reported mergeable; final audit must re-fetch the successor.
+- Record, ledger, PR trail, validation, and risks parity: protection evidence repaired; this documentation successor requires no-drift confirmation before the external final audit.
 - Prohibited self-merge categories: clear — no secrets, security controls, private-data publication, paid resource, destructive action, licensing issue, release, deployment, or permission change.
 - Admin/bypass/force/disabled-check requirement: no
 - Final audit PR body/comment location: pending
@@ -144,7 +145,7 @@ Implementation repairs before review (all retained in the experiment record):
 - Immediate pre-merge re-fetch/compare observation location: pending
 - Immediate refresh compared authorization, head, base, review decision/objections, threads, expected checks/statuses, and mergeability: pending
 - Drift found: yes during the first audit (`main` advanced); repaired by normal merge and independent integration re-review. No later merge is authorized until a fresh zero-drift audit passes.
-- Merge outcome: not merged; PR remains draft because the authenticated branch-protection inventory is unavailable.
+- Merge outcome: pending exact-head no-drift confirmation, final audit, Ready transition, and immediate pre-merge refresh.
 
 ## Model assessment from this ticket
 
@@ -157,5 +158,5 @@ Implementation repairs before review (all retained in the experiment record):
 - [x] Added the draft PR/ticket row to `docs/model-runs/README.md`.
 - [x] Updated per-model attempt, pass, repair, and review counts for the independent verdict.
 - [x] Confirmed that the PR execution trail is ready to be updated from this record.
-- [ ] Recorded complete guarded self-merge authority/audit evidence — blocked on authenticated branch-protection required-context inventory.
+- [ ] Recorded complete guarded self-merge authority/audit evidence — required-context inventory now passes; final live refresh/comment remains.
 - [x] Confirmed that this is not the bootstrap self-merge policy PR.
