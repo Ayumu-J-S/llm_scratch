@@ -6,7 +6,7 @@
 - Hypothesis: a small, redaction-safe capture command that separates requested/default model settings from explicitly supplied runtime display will make each agent phase auditable without guessing hidden model identity or leaking prompts, tokens, or secrets.
 - Experiment record: `N/A` — documentation/tooling provenance change; no ML experiment
 - Started: 2026-07-12
-- Final verdict: in progress
+- Final verdict: PASS WITH NOTE
 - Final record owner: implementation agent; exact runtime identity is not exposed
 
 ## Scope and decision context
@@ -24,7 +24,7 @@
 | ---: | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | planning | not exposed by runtime | not exposed by runtime | `8a6f94b`; requested Sol / Ultra planning | Define a minimal provenance schema and safe capture boundary | completed | Separate requested/default fields from explicit runtime display; never infer exact ID or mode | Planner handoff 2026-07-12 |
 | 1 | implementation | not exposed by runtime | not exposed by runtime | `8a6f94b`; requested Luna / Extra High | Implement PROV-001 and start the live draft PR | completed | Added redaction-safe stdlib capture, schema docs, template/workflow guidance, and focused tests; exact active ID/mode remain unavailable | PR #17 head and focused test run |
-| 1 | review | not exposed by runtime | not exposed by runtime | pending implementation head; requested heavier / Extra Thinking | Independently review ticket, philosophy, and applicable `CHECK.md` sections | pending | Must verify schema separation, redaction, and live handoff parity | Pending |
+| 1 | review | not exposed by runtime | not exposed by runtime | `c77c8c939b8c68f7fc9e1da995a16ded1743342f`; requested heavier / Extra Thinking | Independently review ticket, philosophy, and applicable `CHECK.md` sections | PASS WITH NOTE | R0 passed: separation, unavailable identity handling, privacy, docs, and tests are sound; source precedence is documented but caller-enforced and JSON-only output is narrower than the initial record wording | Independent review handoff 2026-07-12 |
 
 Allowed phases: `implementation`, `review`, `repair`, `re-review`, and `handoff`.
 
@@ -32,21 +32,22 @@ Allowed phases: `implementation`, `review`, `repair`, `re-review`, and `handoff`
 
 ### Review cycle 1
 
-- Review model / mode: pending / pending
-- Commit reviewed: pending
+- Review model / mode: not exposed by runtime / not exposed by runtime (requested Extra Thinking)
+- Commit reviewed: `c77c8c939b8c68f7fc9e1da995a16ded1743342f`
 - Selected `CHECK.md` sections: R0 documentation/reproducibility, experiment identity, research-integrity/privacy, and change-surface review
 - Major sections marked N/A and why: data, tokenizer, model, optimizer, CUDA, performance, checkpoint, and W&B runtime behavior are N/A unless the reviewer finds an integration effect; this ticket adds only stdlib capture tooling and documentation.
-- Ticket acceptance result: pending
-- Philosophy alignment: pending
-- Complexity / change-surface result: pending
-- ML-system result: N/A pending reviewer confirmation
-- Verdict: pending
+- Ticket acceptance result: PASS — requested/default and actual namespaces are distinct; missing exact ID/mode have explicit reasons; privacy-safe context is captured; focused/full tests and lint pass.
+- Philosophy alignment: PASS — observable evidence, no hidden-CoT claims, smallest coherent stdlib change, and human-legible handoff.
+- Complexity / change-surface result: PASS WITH NOTE — no ML path changed; source precedence is a documented caller contract rather than machine-enforced config discovery.
+- ML-system result: N/A — documentation/capture tooling only; no data, tokenizer, model, optimizer, CUDA, DGX, performance, checkpoint, or W&B behavior changed.
+- Verdict: PASS WITH NOTE
 
 #### Findings
 
 | Severity | Area | What was wrong or good | Evidence | Required action |
 | --- | --- | --- | --- | --- |
-| pending | pending | pending | pending | pending |
+| note | source precedence | The implementation trusts explicit `--actual-*` arguments and does not read `~/.codex/config.toml`; requested/default source is intentionally caller-provided rather than inferred | `scripts/capture_model_provenance.py`, independent review | Documented follow-up; do not infer active identity |
+| note | output surface | The command emits JSON only; an early record phrase mentioned JSON/Markdown, but ROADMAP acceptance requires a versioned capture schema and does not require Markdown output | CLI/docs review | Keep JSON canonical; render Markdown in model-run records |
 
 ## Failed-review handoff
 
@@ -60,7 +61,7 @@ N/A — no repair cycle has occurred.
 
 - Resolved Hydra command/config: `N/A` — no Hydra/runtime training path changed.
 - Data/tokenizer/model identity: `N/A` — no scientific run.
-- Validation and measurements: `uv run --project /tmp/llm_scratch-provenance-001 --group dev pytest tests/test_model_provenance.py -q` → `4 passed`; CLI smoke capture emitted valid JSON with requested `gpt-5.6-sol`/`xhigh` separate from actual `Codex`/`GPT-5` and unavailable exact ID/mode.
+- Validation and measurements: focused provenance tests `4 passed`; full repository `144 passed, 1 skipped`; Ruff focused check passed; CLI smoke emitted valid JSON with actual `Codex`/`GPT-5` and unavailable exact ID/mode.
 - Performance/resource result if applicable: `N/A` — small local stdlib command.
 - Failed attempts retained at: execution timeline and future failed-review sections.
 - Known trade-offs: requested/default values from `~/.codex/config.toml` are useful context but are not evidence of the active model; actual fields remain unavailable unless explicitly passed by the runtime display.
@@ -73,13 +74,13 @@ N/A — no repair cycle has occurred.
 - Human authorization: `N/A — human merge remains the default`
 - Authorization evidence location: `N/A`
 - Authorization covers this named PR or bounded ticket/goal series: N/A
-- Exact independently reviewed head SHA: pending
-- Latest independent verdict / model / mode: pending
-- All actionable findings repaired and independently re-reviewed: pending
+- Exact independently reviewed head SHA: `c77c8c939b8c68f7fc9e1da995a16ded1743342f`
+- Latest independent verdict / model / mode: PASS WITH NOTE / not exposed by runtime / not exposed by runtime (requested Extra Thinking)
+- All actionable findings repaired and independently re-reviewed: yes; two non-blocking notes retained as documented follow-ups
 - Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: pending human review
 - Newer human objections since authorization/review: pending
 - Human review dismissed by an agent: no
-- Unresolved review threads at final audit: pending
+- Unresolved review threads at final audit: pending final GitHub refresh
 - Branch-protection required-context inventory: pending
 - Applicable configured workflow/check inventory: pending
 - Observed exact-head check statuses: pending
@@ -87,10 +88,10 @@ N/A — no repair cycle has occurred.
 - No-check evidence when both inventories are empty: pending
 - Target branch and base SHA at final audit: `main` / pending refresh
 - Up-to-date, conflict-free, and mergeable evidence: pending
-- Record, ledger, PR trail, validation, and risks parity: pending
+- Record, ledger, PR trail, validation, and risks parity: yes for reviewed head; final PR state refresh pending
 - Prohibited self-merge categories: clear for this documentation/tooling change; human merge remains default
 - Admin/bypass/force/disabled-check requirement: no
-- Final audit PR body/comment location: pending
+- Final audit PR body/comment location: PR #17 review comment and body (after Ready transition)
 - Final audit changed reviewed head: pending
 - Immediate pre-merge re-fetch/compare observation location: pending human merge
 - Immediate refresh compared authorization, head, base, review decision/objections, threads, expected checks/statuses, and mergeability: pending human merge
@@ -105,11 +106,12 @@ Record observable outcomes, not hidden chain-of-thought.
 | --- | --- | --- | --- | --- | --- |
 | not exposed by runtime / not exposed by runtime | planning | Scoped explicit runtime-display provenance and redaction boundaries | Exact planning identity unavailable | Ticket, PHILOSOPHY.md, workflow, and template | completed |
 | not exposed by runtime / not exposed by runtime | implementation | Kept requested/default and actual runtime namespaces separate; added safe capture and tests | Exact deployment ID and reasoning mode unavailable; system Python lacked pytest and the project uv dev group was used | Ticket, docs, and explicit runtime display values | completed |
+| not exposed by runtime / not exposed by runtime | independent review | Confirmed R0 acceptance, privacy, no inference, docs/ledger parity, and no ML-system impact | Source precedence is caller-enforced; JSON-only output is narrower than an early record phrase | Exact head `c77c8c939b8c68f7fc9e1da995a16ded1743342f` | PASS WITH NOTE |
 
 ## Ledger update
 
 - [x] Added the PR/ticket row to `docs/model-runs/README.md`.
-- [ ] Updated per-model attempt, pass, repair, and review counts after implementation/review.
-- [ ] Confirmed that the PR execution trail matches this record.
+- [x] Updated per-model attempt, pass, repair, and review counts after implementation/review.
+- [x] Confirmed that the PR execution trail matches this record.
 - [ ] Recorded human merge or complete guarded self-merge authority/audit evidence.
 - [x] Confirmed that this change does not alter the self-merge policy or historical records.
