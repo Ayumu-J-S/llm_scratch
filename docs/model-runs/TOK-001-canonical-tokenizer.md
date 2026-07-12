@@ -1,6 +1,6 @@
 # TOK-001 — Canonical Japanese/English Tokenizer
 
-- PR: [#12](https://github.com/Ayumu-J-S/llm_scratch/pull/12) (draft; post-merge integration review pending)
+- PR: [#12](https://github.com/Ayumu-J-S/llm_scratch/pull/12) (draft; passing integration review, docs parity pending)
 - Branch: `codex/tok-001-canonical-tokenizer`
 - Ticket: `TOK-001`
 - Hypothesis: a pinned established Japanese/English tokenizer selected by frozen
@@ -10,7 +10,7 @@
 - Experiment record: `reports/tokenizers/TOK-001/comparison.md` (CPU R1
   tokenizer selection evidence; no model-quality experiment)
 - Started: 2026-07-11T16:27:49Z
-- Final verdict: `in progress`
+- Final verdict: `PASS WITH NOTE`
 - Final record owner: primary task; exact runtime identity not exposed
 
 ## Scope and decision context
@@ -72,6 +72,8 @@ Within measurement spread, select the smaller vocabulary.
 | 7 | independent re-review | not exposed by runtime | not exposed by runtime | `5aa8372865e8907adcfec29d1e5e7e0a5a7e0d53`, cycle-6 code, retry record, ledger, and live draft PR | Requested heavier reviewer / Extra Thinking; review TOK-001 against PHILOSOPHY, acceptance criteria, and CHECK 4.2/4.3/6.1 | PASS WITH NOTE | No findings; uniqueness and exact manifest/artifact special-pair equality close the alias/substitution gap without adding a tokenizer path or changing EOS semantics | Canonical `47 passed`; focused `85 passed, 1 skipped`; full `91 passed, 1 skipped`; Ruff/format/lock/diff and frozen identity evidence pass |
 | 8 | final docs-only handoff | not exposed by runtime | not exposed by runtime | passing cycle-7 review of `5aa8372` and append-only record/ledger | Finalize provenance and hand the docs-only head to the primary exact-head parity audit | completed; parity pending | Records the passing review, preserves every failed cycle, updates aggregate counts, and leaves code/test behavior unchanged | This docs-only record/ledger diff; primary will record the exact final head after parity audit |
 | 9 | integration reconciliation | not exposed by runtime | not exposed by runtime | `913ed0e`, latest `origin/main` `8763766` containing merged POLICY-001, EXP-001, and DATA-001, resolved special-token thread, and user-authorized PR #10-#15 series | Convert PR to draft; normally merge latest main without rebase/force; preserve policy/EXP/DATA/TOK histories; reconcile DATA-001 causal packing with the canonical tokenizer; revalidate TOK and DATA invariants; prepare a fresh exact-head review | completed; independent review pending | Merged normally; resolved only ledger and stream-test conflicts; retained one canonical tokenizer path plus DATA stride/accounting/quota/process semantics; marked merged EXP-001/DATA-001 and integration-target TOK-001 Done while CFG remains blocked on DATA-002 | Focused offline `106 passed, 1 skipped`; full offline `112 passed, 1 skipped`; comparison reproduction, 12-batch CPU smoke, hashes/fingerprint, Hydra, Ruff/format/lock/diff, policy preservation, and main ancestry pass |
+| 10 | independent integration re-review | not exposed by runtime | not exposed by runtime | exact integration head `32b4a00fa7d5af8084f9f801eb5d8921b267239b`, merged policy/EXP/DATA/TOK histories, reconciliation evidence, live draft PR | Requested heavier reviewer / Extra Thinking; review the integrated head against PHILOSOPHY, TOK-001, DATA-001 interactions, CHECK, and merge-order integrity | PASS WITH NOTE | No findings; the normal merge preserves canonical identity and DATA-001 semantics, all historical repairs remain effective, and evidence/provenance are coherent | Exact-head focused `106 passed, 1 skipped`; full `112 passed, 1 skipped`; comparison, bounded smoke, hashes, Hydra, Ruff/format/lock/diff, ancestry, policy, thread, and authorization evidence |
+| 11 | final integration docs-only handoff | not exposed by runtime | not exposed by runtime | passing cycle-10 review of `32b4a00`, current record/ledger/PR | Finalize integration review provenance and hand the docs-only head to primary parity plus guarded merge audit | completed; parity pending | Updates only this record and ledger; code/test review target remains `32b4a00`; all mutable GitHub/check/merge gates remain pending | This docs-only diff; exact final head will be recorded in the live PR and primary parity audit |
 
 ## Check selection and verdicts
 
@@ -237,7 +239,36 @@ exact docs-only head against the cycle-7 verdict and live PR before replying to
 or resolving the existing review thread and returning the PR to ready state.
 That historical parity audit passed at `913ed0e`; cycle 9 subsequently changed
 the head by integrating merged main and therefore correctly reset the current
-verdict to `in progress` pending a fresh exact-head independent review.
+verdict. Independent cycle-10 review of exact integration head `32b4a00`
+returned `PASS WITH NOTE` with no findings.
+
+### Independent integration re-review cycle 10
+
+- Review model / mode: not exposed by runtime / not exposed by runtime
+- Requested reviewer / mode: heavier reviewer / Extra Thinking
+- Commit reviewed: `32b4a00fa7d5af8084f9f801eb5d8921b267239b`
+- Selected `CHECK.md` sections: TOK-001 acceptance; tokenization; packing,
+  boundaries, and accounting; objective semantics; integration provenance and
+  unnecessary-complexity review
+- Ticket acceptance result: pass
+- Philosophy alignment: pass; one canonical tokenizer remains end to end and
+  DATA-001 causal semantics are preserved without compatibility paths
+- Complexity / change-surface result: pass; conflict resolution added no new
+  runtime abstraction or duplicate tokenizer backend
+- ML-system result: pass for CPU R1 tokenizer identity, packed transitions,
+  quotas, accounting, process propagation, and bounded model training
+- Verdict: `PASS WITH NOTE`
+- Note: CUDA/DGX R2 and the material 50,570-vocabulary cost remain explicit
+  non-blocking uncertainties; no performance conclusion is inferred
+- Findings: none
+
+### Final integration docs-only handoff
+
+This finalization changes only this record and `docs/model-runs/README.md`.
+Reviewed code/test/integration target `32b4a00` remains unchanged. The primary
+will parity-audit the exact docs-only head before marking the PR ready and then
+perform the guarded final audit and immediate pre-merge refresh without changing
+the reviewed head.
 
 ## Final evidence
 
@@ -362,8 +393,8 @@ verdict to `in progress` pending a fresh exact-head independent review.
   and the existing opt-in public-Hugging-Face dataset integration was not run in
   the offline phase-2 validation. CPU R1 tokenization throughput and a bounded
   CPU model smoke are not claims about end-to-end DGX training supply.
-- Human decision requested: none until the cycle-9 integration head receives a
-  fresh independent review and every guarded self-merge gate is audited.
+- Human decision requested: none; primary docs parity, mutable guarded audit,
+  immediate refresh, and authorized self-merge remain pending.
 
 ## Merge authority and final audit
 
@@ -376,12 +407,12 @@ verdict to `in progress` pending a fresh exact-head independent review.
   authority section
 - Authorization covers this named PR or bounded ticket/goal series: yes; PR #12
   is inside #10-#15
-- Exact independently reviewed head SHA: pending fresh post-integration review
-- Latest independent verdict / model / mode: historical pre-integration
-  `PASS WITH NOTE` at `5aa8372`; current integration verdict pending; exact
-  model/mode not exposed by runtime
-- All actionable findings repaired and independently re-reviewed: historical
-  findings yes; cycle-9 reconciliation review pending
+- Exact independently reviewed head SHA:
+  `32b4a00fa7d5af8084f9f801eb5d8921b267239b`
+- Latest independent verdict / model / mode: `PASS WITH NOTE`; exact model/mode
+  not exposed by runtime; requested heavier reviewer / Extra Thinking
+- All actionable findings repaired and independently re-reviewed: yes;
+  integration review returned no findings
 - Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: mutable
   gate pending final GitHub audit
 - Newer human objections since authorization/review: mutable gate pending final
@@ -409,7 +440,7 @@ verdict to `in progress` pending a fresh exact-head independent review.
   unresolved license question, deployment, release, or permission change;
   final re-check required
 - Admin/bypass/force/disabled-check requirement: no
-- Final audit PR body/comment location: pending passing exact-head review
+- Final audit PR body/comment location: pending primary docs parity/final audit
 - Final audit changed reviewed head: pending
 - Immediate pre-merge re-fetch/compare observation location: pending
 - Immediate refresh compared authorization, head, base, review
@@ -433,7 +464,8 @@ verdict to `in progress` pending a fresh exact-head independent review.
 | not exposed by runtime / not exposed by runtime | independent re-review cycle 6 | Reproduced a re-fingerprinted role alias, traced the seven-entry map collapse, and identified missing exact equality between manifest roles and artifact special added tokens | Exact model/mode remained hidden; the preceding repair's tests did not mutate the manifest/artifact relationship adversarially enough | Stable `64f5543`, manifest, tokenizer JSON, runtime map, raw `</s|LLM-jp>` reproduction | `FAIL`; exact uniqueness/equality repair required |
 | not exposed by runtime / not exposed by runtime | repair cycle 6 | Added the missing manifest uniqueness and exact artifact equality contract before runtime map construction, with alias/substitution/missing/extra mutation evidence | Requested Luna / Extra High identity/mode unavailable; fresh independent review remains required | Failed review and exact reproduction; real tokenizer JSON and manifest; existing raw/control-token tests | repair completed; verdict pending re-review |
 | not exposed by runtime / not exposed by runtime | independent re-review cycle 7 | Verified the complete repair, mutation coverage, one-path design, EOS/PAD semantics, frozen identity, tests, and append-only history without finding a new defect | Exact model/mode remained hidden; CUDA/DGX R2 and vocabulary cost remain documented non-blocking notes | Stable `5aa8372`, PHILOSOPHY, TOK-001, CHECK 4.2/4.3/6.1, live draft PR | `PASS WITH NOTE`; final docs-only parity remains |
-| not exposed by runtime / not exposed by runtime | integration reconciliation cycle 9 | Preserved canonical tokenizer identity while incorporating DATA-001 causal stride, quota boundaries, accounting, process-prefetch state, merged policy, and all histories | Initial inherited TOK fixtures violated the newly merged no-EOS quota-truncation rule and required exact-length canonical fixtures | Normal merge of `origin/main@8763766`, all ticket records, policy, DATA/TOK source/tests, explicit authorization scope | reconciliation completed; fresh independent review pending |
+| not exposed by runtime / not exposed by runtime | integration reconciliation cycle 9 | Preserved canonical tokenizer identity while incorporating DATA-001 causal stride, quota boundaries, accounting, process-prefetch state, merged policy, and all histories | Initial inherited TOK fixtures violated the newly merged no-EOS quota-truncation rule and required exact-length canonical fixtures | Normal merge of `origin/main@8763766`, all ticket records, policy, DATA/TOK source/tests, explicit authorization scope | reconciliation completed; cycle-10 review `PASS WITH NOTE` |
+| not exposed by runtime / not exposed by runtime | independent integration re-review cycle 10 | Verified exact-head normal-merge ancestry, policy/history preservation, canonical/DATA semantics, complete evidence, and authorization scope without findings | Exact model/mode remained hidden; CUDA/DGX R2 and vocabulary cost remain explicit notes | Exact `32b4a00`, PHILOSOPHY, TOK/DATA acceptance, CHECK, live draft PR and integration evidence | `PASS WITH NOTE`; docs parity and mutable merge audit remain |
 
 ## Ledger update
 
@@ -445,4 +477,5 @@ verdict to `in progress` pending a fresh exact-head independent review.
   updated aggregate counts for the cycle-9 reconciliation attempt.
 - [x] Recorded guarded self-merge authorization scope and current resolved-thread
   observation without treating it as a final mutable-gate audit.
-- [ ] Fresh independent review and guarded exact-head merge audit remain required.
+- [x] Recorded cycle-10 exact-head integration `PASS WITH NOTE` with no findings.
+- [ ] Primary docs parity and guarded exact-head merge audit remain required.
