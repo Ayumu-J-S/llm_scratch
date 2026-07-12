@@ -1,4 +1,4 @@
-.PHONY: help sync activate train train-tokenizer runtime-lock diagnose \
+.PHONY: help sync activate train runtime-lock diagnose \
 	dgx-build dgx-diagnose dgx-smoke test-cpu
 
 DGX_IMAGE := llm-scratch:env-001
@@ -9,7 +9,6 @@ help:
 		'Available targets:' \
 		'  make sync            - Create/update the local uv environment' \
 		'  make activate  - Print the command to activate the local virtual environment' \
-		'  make train-tokenizer  - Train and save the tokenizer artifact inside uv' \
 		'  make train            - Run the CUDA-default Hydra training entrypoint inside uv' \
 		'  make runtime-lock     - Regenerate the non-Torch container dependency overlay' \
 		'  make diagnose         - Report the current host development environment' \
@@ -24,9 +23,6 @@ sync:
 activate:
 	@test -f .venv/bin/activate || { printf '%s\n' 'No .venv yet; run: make sync' >&2; exit 1; }; \
 		. .venv/bin/activate && exec $${SHELL:-/bin/sh} -i
-
-train-tokenizer:
-	uv run python src/train_tokenizer.py
 
 train:
 	uv run python src/train.py

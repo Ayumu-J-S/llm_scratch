@@ -4,6 +4,7 @@
 - Branch:
 - Ticket:
 - Hypothesis:
+- Experiment record: `docs/experiments/<ticket>-<slug>.md` / `N/A` with reason
 - Started:
 - Final verdict: in progress / PASS / PASS WITH NOTE / FAIL / blocked
 - Final record owner:
@@ -17,6 +18,10 @@
 - Baseline commit/run:
 - Intended evidence:
 
+The experiment record is the run/scientific evidence; this file is the model
+implementation and independent-review provenance. Cross-link both whenever a
+PR contains a consequential run.
+
 ## Execution timeline
 
 One row represents one model invocation or one clearly bounded phase. Never
@@ -28,6 +33,23 @@ delete a failed row.
 | 1 | review |  | Extra Thinking or actual |  |  |  |  |  |
 
 Allowed phases: `implementation`, `review`, `repair`, `re-review`, and `handoff`.
+
+## Runtime provenance block
+
+Attach the JSON emitted by `scripts/capture_model_provenance.py` for every
+phase. Keep requested/default values separate from actual runtime display; do
+not infer an exact deployment ID or reasoning mode.
+
+| Namespace | Product | Displayed family | Exact model identifier | Reasoning mode | Source / unavailable reason |
+| --- | --- | --- | --- | --- | --- |
+| requested |  |  |  |  | invocation/config default |
+| actual |  |  |  |  | runtime display or `not exposed by runtime` |
+
+- Capture file/evidence:
+- Codex CLI version:
+- Branch/commit:
+- Phase/role/task path:
+- Privacy confirmation: no prompts, hidden chain-of-thought, token counts, secrets, or raw thread ID.
 
 ## Check selection and verdicts
 
@@ -91,6 +113,36 @@ Duplicate this section for every repair.
 - Unresolved risks:
 - Human decision requested:
 
+## Merge authority and final audit
+
+- Merge path: `human merge` / `guarded agent self-merge`
+- Human authorization: exact instruction, scope, date/context, or `N/A — human merge`
+- Authorization evidence location:
+- Authorization covers this named PR or bounded ticket/goal series: yes / no / N/A
+- Exact independently reviewed head SHA:
+- Latest independent verdict / model / mode:
+- All actionable findings repaired and independently re-reviewed:
+- Blocking review decision / outstanding `CHANGES_REQUESTED` evidence:
+- Newer human objections since authorization/review: none / details
+- Human review dismissed by an agent: no / yes (yes blocks self-merge)
+- Unresolved review threads at final audit: zero / count
+- Branch-protection required-context inventory:
+- Applicable configured workflow/check inventory:
+- Observed exact-head check statuses:
+- Expected checks absent, pending, skipped, cancelled, or non-successful: zero / details
+- No-check evidence when both inventories are empty: evidence / N/A
+- Target branch and base SHA at final audit:
+- Up-to-date, conflict-free, and mergeable evidence:
+- Record, ledger, PR trail, validation, and risks parity:
+- Prohibited self-merge categories: clear / blocked (state why)
+- Admin/bypass/force/disabled-check requirement: no / yes
+- Final audit PR body/comment location:
+- Final audit changed reviewed head: no / yes (if yes, re-review is required)
+- Immediate pre-merge re-fetch/compare observation location:
+- Immediate refresh compared authorization, head, base, review decision/objections, threads, expected checks/statuses, and mergeability: yes / no
+- Drift found: no / yes (yes aborts merge and requires appropriate update/revalidation/re-review)
+- Merge outcome: pending / human merged / agent merged / not merged
+
 ## Model assessment from this ticket
 
 Record observable outcomes, not hidden chain-of-thought.
@@ -103,3 +155,5 @@ Record observable outcomes, not hidden chain-of-thought.
 - [ ] Added the PR/ticket row to `docs/model-runs/README.md`.
 - [ ] Updated per-model attempt, pass, repair, and review counts.
 - [ ] Confirmed that the PR execution trail matches this record.
+- [ ] Recorded human merge or complete guarded self-merge authority/audit evidence.
+- [ ] Confirmed that this bootstrap policy rule was not used before a human merged it.

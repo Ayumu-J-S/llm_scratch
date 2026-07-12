@@ -15,12 +15,16 @@ from typing import Any, Iterable, Iterator, Mapping
 
 import numpy as np
 
+from data.manifests import ResolvedManifest, preflight_manifest
+from data.splits import DataPurpose
 from data.stream_loader.cache import BoundedShardCache, RetryPolicy, download_url_to_path
+from tokenizer.canonical import CanonicalTokenizer
 
 
 OUTPUT_MODES = {"raw_text", "bytes", "tokenized_docs", "packed_sequences"}
 _SENTINEL = "__stream_loader_prefetch_done__"
 _ERROR_MARKER = "__stream_loader_prefetch_error__"
+_ACCOUNTING_MARKER = "__stream_loader_prefetch_accounting__"
 _HF_COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$", re.IGNORECASE)
 
 
@@ -62,13 +66,6 @@ class SourceState:
         return self.quota - self.emitted_tokens
 
 
-@dataclass(frozen=True)
-class TokenizerHandle:
-    tokenizer: Any
-    kind: str
-    eos_token_id: int | None
-
-
 class MemoryTextSource:
     def __init__(self, cfg: Mapping[str, Any]) -> None:
         self.documents = cfg.get("documents", [])
@@ -106,6 +103,18 @@ class IterableTextSource:
                 metadata_fields=self.metadata_fields,
                 max_text_chars=self.max_text_chars,
                 fallback_index=index,
+            )
+
+
+class ManifestTextSource:
+    def __init__(self, manifest: ResolvedManifest) -> None:
+        self.manifest = manifest
+
+    def __iter__(self) -> Iterator[RawDocument]:
+        for document in self.manifest.documents:
+            yield RawDocument(
+                text=document.text,
+                metadata=document.metadata(self.manifest),
             )
 
 
@@ -226,7 +235,7 @@ class StreamLoader:
     def __init__(
         self,
         config: Mapping[str, Any],
-        tokenizer: Any | Mapping[str, Any] | None = None,
+        resolved_manifests: Mapping[str, ResolvedManifest] | None = None,
     ) -> None:
         self.config = dict(config)
         self.output_mode = self.config.get("output_mode", "raw_text")
@@ -249,11 +258,7 @@ class StreamLoader:
         self.preserve_metadata = bool(self.config.get("preserve_metadata", False))
         self.shutdown_timeout_seconds = float(self.config.get("shutdown_timeout_seconds", 5.0))
 
-        tokenizer_config = tokenizer if tokenizer is not None else self.config.get("tokenizer")
-        self.tokenizer = _load_tokenizer(tokenizer_config)
-        if self.add_eos and self.tokenizer.eos_token_id is None:
-            raise ValueError("add_eos requires tokenizer.eos_token_id")
-
+        self.tokenizer = CanonicalTokenizer.from_config(self.config.get("tokenizer"))
         retry_config = self.config.get("retry", {})
         self.retry_policy = RetryPolicy(
             max_attempts=int(retry_config.get("max_attempts", 3)),
@@ -274,6 +279,14 @@ class StreamLoader:
 
         self.dataset_configs = [dict(item) for item in self.config.get("datasets", [])]
         self._validate_dataset_configs()
+        if resolved_manifests is None:
+            self.resolved_manifests = _preflight_manifest_datasets(
+                self.dataset_configs,
+                cache=self.cache,
+            )
+        else:
+            self.resolved_manifests = dict(resolved_manifests)
+            _validate_resolved_manifest_inputs(self.dataset_configs, self.resolved_manifests)
 
         prefetch_config = self.config.get("prefetch", {})
         self.prefetch_enabled = bool(prefetch_config.get("enabled", False))
@@ -284,25 +297,27 @@ class StreamLoader:
         self.prefetch_mode = str(prefetch_config.get("mode", default_prefetch_mode))
         if self.prefetch_mode not in {"thread", "process"}:
             raise ValueError("prefetch.mode must be 'thread' or 'process'")
+        if self.prefetch_mode == "process" and self.resolved_manifests:
+            raise ValueError("manifest sources are preflighted once and require thread prefetch")
         if (
             self.prefetch_enabled
             and self.prefetch_mode == "thread"
             and _has_hf_datasets(self.dataset_configs)
         ):
             raise ValueError("thread prefetch is unsafe for hf datasets; use process prefetch")
-        if (
-            self.prefetch_enabled
-            and self.prefetch_mode == "process"
-            and tokenizer is not None
-            and _to_plain_mapping(tokenizer) is None
-        ):
-            raise ValueError("process prefetch requires tokenizer to be configured by mapping")
-
         self._thread: threading.Thread | None = None
         self._process: mp.Process | None = None
         self._queue: queue.Queue[Any] | None = None
         self._stop_event: Any | None = None
+        self._reset_accounting()
+
+    def _reset_accounting(self) -> None:
         self.token_counts: dict[str, int] = {dataset["name"]: 0 for dataset in self.dataset_configs}
+        self.packed_token_counts: dict[str, int] = {
+            "window_token_count": 0,
+            "target_token_count": 0,
+            "dropped_target_count": 0,
+        }
 
     def __iter__(self) -> Iterator[dict[str, Any]]:
         if self.prefetch_enabled:
@@ -367,6 +382,10 @@ class StreamLoader:
                     break
                 if _is_prefetch_error(item):
                     raise StreamLoaderError(item["message"])
+                if _is_prefetch_accounting(item):
+                    self.token_counts = dict(item["token_counts"])
+                    self.packed_token_counts = dict(item["packed_token_counts"])
+                    continue
                 if isinstance(item, BaseException):
                     raise item
                 yield item
@@ -382,6 +401,7 @@ class StreamLoader:
         ):
             raise StreamLoaderError("loader is already being iterated")
 
+        self._reset_accounting()
         if self.prefetch_mode == "process":
             self._start_process_prefetch_worker()
             return
@@ -439,6 +459,7 @@ class StreamLoader:
         self,
         stop_event: threading.Event | None,
     ) -> Iterator[dict[str, Any]]:
+        self._reset_accounting()
         if self.output_mode == "packed_sequences":
             yield from self._packed_iter(stop_event=stop_event)
             return
@@ -454,6 +475,9 @@ class StreamLoader:
     ) -> Iterator[dict[str, Any]]:
         buffer: list[int] = []
         spans: list[dict[str, Any]] = []
+        stride = self.sequence_length - 1
+        if stride < 1:
+            raise ValueError("packed_sequences requires sequence_length of at least 2")
 
         for sample in self._sample_iter(stop_event=stop_event):
             if stop_event is not None and stop_event.is_set():
@@ -473,22 +497,30 @@ class StreamLoader:
                 token_ids = buffer[: self.sequence_length]
                 output = {
                     "input_ids": np.asarray(token_ids, dtype=np.uint32),
-                    "token_count": self.sequence_length,
+                    "window_token_count": self.sequence_length,
+                    "target_token_count": stride,
                 }
                 if self.preserve_metadata:
                     output["source_spans"] = _slice_spans(spans, self.sequence_length)
+                self.packed_token_counts["window_token_count"] += self.sequence_length
+                self.packed_token_counts["target_token_count"] += stride
                 yield output
-                del buffer[: self.sequence_length]
-                spans = _shift_spans(spans, self.sequence_length)
+                del buffer[:stride]
+                spans = _shift_spans(spans, stride)
 
-        if buffer and not self.drop_remainder:
+        if len(buffer) > 1 and not self.drop_remainder:
             output = {
                 "input_ids": np.asarray(buffer, dtype=np.uint32),
-                "token_count": len(buffer),
+                "window_token_count": len(buffer),
+                "target_token_count": max(len(buffer) - 1, 0),
             }
             if self.preserve_metadata:
                 output["source_spans"] = _slice_spans(spans, len(buffer))
+            self.packed_token_counts["window_token_count"] += len(buffer)
+            self.packed_token_counts["target_token_count"] += max(len(buffer) - 1, 0)
             yield output
+        elif buffer:
+            self.packed_token_counts["dropped_target_count"] += max(len(buffer) - 1, 0)
 
     def _format_document_sample(self, sample: TokenizedSample) -> dict[str, Any]:
         base = {
@@ -515,7 +547,6 @@ class StreamLoader:
         stop_event: threading.Event | None,
     ) -> Iterator[TokenizedSample]:
         rng = random.Random(self.seed)
-        self.token_counts = {dataset["name"]: 0 for dataset in self.dataset_configs}
         all_source_states: list[SourceState] = []
 
         try:
@@ -537,9 +568,8 @@ class StreamLoader:
                     source_states = [item for item in source_states if not item.exhausted]
                     continue
 
-                token_ids = _encode_text(self.tokenizer, document.text)
+                token_ids = self.tokenizer.encode(document.text)
                 if self.add_eos:
-                    assert self.tokenizer.eos_token_id is not None
                     token_ids.append(int(self.tokenizer.eos_token_id))
                 original_token_count = len(token_ids)
 
@@ -551,7 +581,17 @@ class StreamLoader:
                         ]
                         continue
                     if len(token_ids) > remaining_quota:
-                        token_ids = token_ids[:remaining_quota]
+                        if self.add_eos:
+                            assert self.tokenizer.eos_token_id is not None
+                            token_ids = token_ids[: max(remaining_quota - 1, 0)]
+                            token_ids.append(int(self.tokenizer.eos_token_id))
+                        elif self.output_mode == "packed_sequences":
+                            raise StreamLoaderError(
+                                "packed_sequences cannot quota-truncate a document without "
+                                "add_eos=true because the fragment would have no boundary token"
+                            )
+                        else:
+                            token_ids = token_ids[:remaining_quota]
 
                 if not token_ids:
                     continue
@@ -561,7 +601,7 @@ class StreamLoader:
                     decode_ids = list(token_ids)
                     if self.add_eos and decode_ids[-1] == self.tokenizer.eos_token_id:
                         decode_ids = decode_ids[:-1]
-                    text = _decode_tokens(self.tokenizer, decode_ids)
+                    text = self.tokenizer.decode(decode_ids)
 
                 state.emitted_tokens += len(token_ids)
                 self.token_counts[state.name] = state.emitted_tokens
@@ -619,6 +659,8 @@ class StreamLoader:
             return UrlJsonlTextSource(dataset, cache=self.cache, retry_policy=self.retry_policy)
         if source_type == "hf":
             return HuggingFaceTextSource(dataset, cache_dir=self.cache_dir)
+        if source_type == "manifest":
+            return ManifestTextSource(self.resolved_manifests[dataset["name"]])
         raise ValueError(f"Unsupported dataset source type: {source_type}")
 
     def _choose_source(
@@ -687,6 +729,23 @@ class StreamLoader:
             dataset["ratio"] = ratio
             ratios.append(ratio)
             source_type = dataset.get("type", dataset.get("source", "hf"))
+            if self.config.get("require_manifests", False) and source_type != "manifest":
+                raise ValueError("real data configs require manifest-backed datasets")
+            if source_type == "manifest":
+                forbidden = sorted(
+                    field for field in ("access", "allow_reserved_benchmark") if field in dataset
+                )
+                if forbidden:
+                    raise ValueError(
+                        "training manifest datasets cannot configure evaluation authority: "
+                        f"{forbidden}"
+                    )
+                required = {"manifest_path", "expected_fingerprint", "selection"}
+                missing = sorted(field for field in required if field not in dataset)
+                if missing:
+                    raise ValueError(
+                        f"manifest dataset {dataset['name']} is missing fields: {missing}"
+                    )
             if source_type == "hf":
                 revision = dataset.get("revision")
                 if revision is None:
@@ -700,6 +759,79 @@ class StreamLoader:
 
         if not math.isclose(sum(ratios), 1.0, rel_tol=0.0, abs_tol=1e-6):
             raise ValueError(f"dataset ratios must sum to 1.0, got {sum(ratios)}")
+
+
+def preflight_stream_manifests(config: Mapping[str, Any]) -> dict[str, ResolvedManifest]:
+    config_dict = copy.deepcopy(dict(config))
+    retry_config = config_dict.get("retry", {})
+    retry_policy = RetryPolicy(
+        max_attempts=int(retry_config.get("max_attempts", 3)),
+        initial_delay_seconds=float(retry_config.get("initial_delay_seconds", 0.25)),
+        max_delay_seconds=float(retry_config.get("max_delay_seconds", 5.0)),
+        multiplier=float(retry_config.get("multiplier", 2.0)),
+    )
+    cache_config = config_dict.get("cache", {})
+    cache = None
+    if cache_config.get("dir") is not None:
+        cache = BoundedShardCache(
+            cache_config["dir"],
+            max_size_bytes=int(cache_config.get("max_size_bytes", 1 << 30)),
+            retry_policy=retry_policy,
+        )
+    datasets = [dict(item) for item in config_dict.get("datasets", [])]
+    return _preflight_manifest_datasets(datasets, cache=cache)
+
+
+def _preflight_manifest_datasets(
+    datasets: list[dict[str, Any]],
+    *,
+    cache: BoundedShardCache | None,
+) -> dict[str, ResolvedManifest]:
+    resolved = {}
+    for dataset in datasets:
+        if dataset.get("type", dataset.get("source", "hf")) != "manifest":
+            continue
+        forbidden = sorted(
+            field for field in ("access", "allow_reserved_benchmark") if field in dataset
+        )
+        if forbidden:
+            raise ValueError(
+                f"training manifest datasets cannot configure evaluation authority: {forbidden}"
+            )
+        resolved[dataset["name"]] = preflight_manifest(
+            dataset["manifest_path"],
+            expected_fingerprint=dataset["expected_fingerprint"],
+            selection=dataset["selection"],
+            access="training",
+            allow_reserved_benchmark=False,
+            cache=cache,
+        )
+    return resolved
+
+
+def _validate_resolved_manifest_inputs(
+    datasets: list[dict[str, Any]],
+    resolved: Mapping[str, ResolvedManifest],
+) -> None:
+    expected = {
+        dataset["name"]: dataset
+        for dataset in datasets
+        if dataset.get("type", dataset.get("source", "hf")) == "manifest"
+    }
+    if set(resolved) != set(expected):
+        raise ValueError("resolved manifest names do not match configured manifest datasets")
+    for name, manifest in resolved.items():
+        dataset = expected[name]
+        if manifest.purpose in {
+            DataPurpose.BENCHMARK_DEV,
+            DataPurpose.BENCHMARK_RESERVED,
+        }:
+            raise ValueError("benchmark manifests cannot enter the training loader")
+        if (
+            manifest.manifest_fingerprint != dataset["expected_fingerprint"]
+            or manifest.selection != dataset["selection"]
+        ):
+            raise ValueError(f"resolved manifest identity does not match dataset {name!r}")
 
 
 def _record_to_document(
@@ -750,6 +882,16 @@ def _process_prefetch_worker(
             if stop_event.is_set():
                 break
             _put_prefetch_queue_item(output_queue, stop_event, item)
+        if not stop_event.is_set():
+            _put_prefetch_queue_item(
+                output_queue,
+                stop_event,
+                {
+                    _ACCOUNTING_MARKER: True,
+                    "token_counts": loader.token_counts,
+                    "packed_token_counts": loader.packed_token_counts,
+                },
+            )
     except BaseException as error:  # noqa: BLE001 - propagate to consumer.
         _put_prefetch_queue_item(
             output_queue,
@@ -784,6 +926,10 @@ def _put_prefetch_queue_item(
 
 def _is_prefetch_error(item: Any) -> bool:
     return isinstance(item, Mapping) and bool(item.get(_ERROR_MARKER))
+
+
+def _is_prefetch_accounting(item: Any) -> bool:
+    return isinstance(item, Mapping) and bool(item.get(_ACCOUNTING_MARKER))
 
 
 def _has_hf_datasets(dataset_configs: Iterable[Mapping[str, Any]]) -> bool:
@@ -834,197 +980,3 @@ def _shift_spans(
                 }
             )
     return shifted
-
-
-def _load_tokenizer(config: Any) -> TokenizerHandle:
-    if config is None:
-        raise ValueError("tokenizer config is required")
-
-    config_mapping = _to_plain_mapping(config)
-    if config_mapping is not None:
-        kind = config_mapping.get("kind")
-        if kind is None:
-            if config_mapping.get("path") is not None:
-                kind = "tokenizers"
-            else:
-                raise ValueError("tokenizer config requires kind")
-
-        if kind in {"tokenizers", "hf_tokenizers"}:
-            from tokenizers import Tokenizer
-
-            path = config_mapping.get("path")
-            if path is None:
-                raise ValueError("tokenizers tokenizer config requires path")
-            tokenizer = Tokenizer.from_file(str(path))
-            eos_token = config_mapping.get("eos_token", "<eos>")
-            eos_token_id = None if eos_token is None else tokenizer.token_to_id(eos_token)
-            return TokenizerHandle(
-                tokenizer=tokenizer, kind="tokenizers", eos_token_id=eos_token_id
-            )
-
-        if kind in {"hf", "huggingface", "qwen"}:
-            from transformers import AutoTokenizer
-
-            model_name = config_mapping.get("name")
-            if kind == "qwen" and model_name is None:
-                model_name = "Qwen/Qwen3-0.6B"
-            if model_name is None:
-                raise ValueError("Hugging Face tokenizer config requires name")
-            use_fast = bool(config_mapping.get("use_fast", True))
-            tokenizer = AutoTokenizer.from_pretrained(
-                model_name,
-                use_fast=use_fast,
-                trust_remote_code=bool(config_mapping.get("trust_remote_code", False)),
-                local_files_only=bool(config_mapping.get("local_files_only", False)),
-            )
-            if use_fast and not getattr(tokenizer, "is_fast", False):
-                raise ValueError(f"{model_name} did not load as a fast tokenizer")
-            return TokenizerHandle(
-                tokenizer=tokenizer,
-                kind="transformers",
-                eos_token_id=tokenizer.eos_token_id,
-            )
-
-        if kind in {"mistral_tekken", "tekken"}:
-            from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
-
-            if bool(config_mapping.get("use_builtin_tekken", False)):
-                tokenizer = MistralTokenizer.v3(is_tekken=True)
-            else:
-                tokenizer = MistralTokenizer.from_hf_hub(
-                    config_mapping.get("name", "mistralai/Mistral-Nemo-Base-2407"),
-                    revision=config_mapping.get("revision"),
-                    local_files_only=bool(config_mapping.get("local_files_only", False)),
-                )
-            base_tokenizer = tokenizer.instruct_tokenizer.tokenizer
-            if base_tokenizer.__class__.__name__ != "Tekkenizer":
-                raise ValueError("configured Mistral tokenizer is not Tekken")
-            return TokenizerHandle(
-                tokenizer=tokenizer,
-                kind="mistral_tekken",
-                eos_token_id=int(base_tokenizer.eos_id),
-            )
-
-        if kind in {"bpe", "project_bpe"}:
-            from tokenizer.bpe import BPETokenizer
-
-            path = config_mapping.get("path")
-            if path is None:
-                raise ValueError("bpe tokenizer config requires path")
-            tokenizer = BPETokenizer.load(str(path))
-            return TokenizerHandle(
-                tokenizer=tokenizer,
-                kind="project_bpe",
-                eos_token_id=tokenizer.eos_token_id,
-            )
-
-        raise ValueError(f"Unsupported tokenizer kind: {kind}")
-
-    kind = _infer_tokenizer_kind(config)
-    return TokenizerHandle(
-        tokenizer=config,
-        kind=kind,
-        eos_token_id=_infer_eos_token_id(config, kind),
-    )
-
-
-def _encode_text(handle: TokenizerHandle, text: str) -> list[int]:
-    if handle.kind == "tokenizers":
-        return [int(token_id) for token_id in handle.tokenizer.encode(text).ids]
-    if handle.kind == "mistral_tekken":
-        return [
-            int(token_id)
-            for token_id in handle.tokenizer.instruct_tokenizer.tokenizer.encode(
-                text,
-                bos=False,
-                eos=False,
-            )
-        ]
-    if handle.kind == "transformers":
-        return [
-            int(token_id) for token_id in handle.tokenizer.encode(text, add_special_tokens=False)
-        ]
-    if handle.kind == "project_bpe":
-        return [int(token_id) for token_id in handle.tokenizer.encode(text)]
-    raise TypeError(f"Unsupported tokenizer object: {type(handle.tokenizer)}")
-
-
-def _decode_tokens(handle: TokenizerHandle, token_ids: list[int]) -> str:
-    if handle.kind == "tokenizers":
-        return handle.tokenizer.decode(token_ids, skip_special_tokens=False)
-    if handle.kind == "mistral_tekken":
-        return handle.tokenizer.instruct_tokenizer.tokenizer.decode(token_ids)
-    if handle.kind == "transformers":
-        return handle.tokenizer.decode(token_ids, skip_special_tokens=False)
-    if handle.kind == "project_bpe":
-        return handle.tokenizer.decode(token_ids, skip_special_tokens=False)
-    raise TypeError(f"Unsupported tokenizer object: {type(handle.tokenizer)}")
-
-
-def _infer_tokenizer_kind(tokenizer: Any) -> str:
-    try:
-        from tokenizers import Tokenizer
-    except ImportError:
-        Tokenizer = None
-
-    if Tokenizer is not None and isinstance(tokenizer, Tokenizer):
-        return "tokenizers"
-
-    try:
-        from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
-    except ImportError:
-        MistralTokenizer = None
-
-    if MistralTokenizer is not None and isinstance(tokenizer, MistralTokenizer):
-        return "mistral_tekken"
-
-    try:
-        from transformers import PreTrainedTokenizerBase
-    except ImportError:
-        PreTrainedTokenizerBase = None
-
-    if PreTrainedTokenizerBase is not None and isinstance(tokenizer, PreTrainedTokenizerBase):
-        return "transformers"
-
-    try:
-        from tokenizer.bpe import BPETokenizer
-    except ImportError:
-        BPETokenizer = None
-
-    if BPETokenizer is not None and isinstance(tokenizer, BPETokenizer):
-        return "project_bpe"
-
-    raise TypeError(
-        "tokenizer must come from transformers, tokenizers, mistral-common, "
-        "or tokenizer.bpe.BPETokenizer"
-    )
-
-
-def _infer_eos_token_id(tokenizer: Any, kind: str) -> int | None:
-    if kind == "tokenizers":
-        return tokenizer.token_to_id("<eos>")
-    if kind == "mistral_tekken":
-        return int(tokenizer.instruct_tokenizer.tokenizer.eos_id)
-    if kind == "transformers":
-        return getattr(tokenizer, "eos_token_id", None)
-    if kind == "project_bpe":
-        return getattr(tokenizer, "eos_token_id", None)
-    return None
-
-
-def _to_plain_mapping(config: Any) -> dict[str, Any] | None:
-    try:
-        from omegaconf import DictConfig, OmegaConf
-    except ImportError:
-        pass
-    else:
-        if isinstance(config, DictConfig):
-            container = OmegaConf.to_container(config, resolve=True)
-            if not isinstance(container, dict):
-                raise TypeError("tokenizer config must be a mapping")
-            return container
-
-    if isinstance(config, Mapping):
-        return dict(config)
-
-    return None

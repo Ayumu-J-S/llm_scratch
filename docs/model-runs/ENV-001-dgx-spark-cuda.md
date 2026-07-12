@@ -82,18 +82,18 @@
 
 | Cycle | Phase | Exact model identifier | Reasoning mode | Input commit/context | Requested work | Outcome | Main findings / changes | Evidence |
 | ---: | --- | --- | --- | --- | --- | --- | --- | --- |
-| 0 | handoff | not exposed by runtime | not exposed by runtime | ticket, philosophy, CHECK, host facts, official NVIDIA sources | Requested Sol / Ultra plan for the smallest reproducible container/device/diagnostic/smoke design | completed | Selected the digest-pinned NGC image, lock-derived non-Torch overlay with provider guards, explicit Hydra device authority, JSON diagnostic, exact ten-step BF16 repository-model smoke, CPU validation, and adversarial matrix | Planner handoff retained in primary task; no repository mutation |
-| 1 | implementation | not exposed by runtime | not exposed by runtime (requested Luna / Extra High) | `100a11129b97edf50967d41d75ac4c99f18f9bc9`, accepted plan | Implement and exercise the clean GB10 runtime | completed | Added the digest-pinned ARM64 NGC container, byte-stable non-Torch overlay and provider/Torch-identity guards, explicit initialized-device Hydra gate, environment diagnostic, exact ten-step BF16 repository-model CUDA smoke, CPU tests, commands, and operating guide | 58 passed / 3 external skips; clean pull/build; strict GB10 diagnostic; ten finite BF16 CUDA updates; negative no-GPU exits |
-| 1 | review | not exposed by runtime | not exposed by runtime (requested heavier / Extra Thinking) | `7d929f05fe2dd4bc626b11f0c2b4ea701b47c177` | Independent `/review` against the ticket, philosophy, and applicable CHECK sections | FAIL | Found a version-suffixed CUDA-provider guard gap, an optimizer-state reporting overclaim, and a final image that predated the exact candidate tree | 58 passed / 3 skips and real GB10 behavior passed, but the committed reproducibility contract did not |
-| 1 | repair | not exposed by runtime | not exposed by runtime (requested Luna / Extra High) | failed cycle-1 review plus `7d929f05fe2dd4bc626b11f0c2b4ea701b47c177` | Close every review finding without broadening ticket scope | completed | Reject version-suffixed CUDA providers, distinguish CUDA Adam moments from CPU step bookkeeping, and prepare an exact clean-commit rebuild | 59 passed / 3 skips; poison/false-positive, lock-parity, Ruff, Hydra, and diff gates passed |
-| 2 | review | not exposed by runtime | not exposed by runtime (requested heavier / Extra Thinking) | `95dee560076258247776ead9940bfbe30e619699` and clean no-cache image `sha256:25a02a5357d3f22339ddea8de78e2b0725a47dc6bbe15f336fa74242889a648b` | Fresh independent `/review` of the repaired implementation and real GB10 evidence | PASS WITH NOTE | All blocking findings repaired; exact ten-step wiring proof is sufficient for ENV-001 but is not R2 real-data/steady-state evidence | Independent 59 passed / 3 skips, provider adversarial matrix, exact source parity, strict diagnostic/smoke, and no-GPU failures passed |
+| 0 | handoff | not exposed by runtime | not exposed by runtime | ticket, philosophy, CHECK, host facts, official NVIDIA sources | Requested model: Sol; requested reasoning: Ultra. Plan for the smallest reproducible container/device/diagnostic/smoke design | completed | Selected the digest-pinned NGC image, lock-derived non-Torch overlay with provider guards, explicit Hydra device authority, JSON diagnostic, exact ten-step BF16 repository-model smoke, CPU validation, and adversarial matrix | Planner handoff retained in primary task; no repository mutation |
+| 1 | implementation | not exposed by runtime | not exposed by runtime | `100a11129b97edf50967d41d75ac4c99f18f9bc9`, accepted plan | Requested model: Luna; requested reasoning: Extra High. Implement and exercise the clean GB10 runtime | completed | Added the digest-pinned ARM64 NGC container, byte-stable non-Torch overlay and provider/Torch-identity guards, explicit initialized-device Hydra gate, environment diagnostic, exact ten-step BF16 repository-model CUDA smoke, CPU tests, commands, and operating guide | 58 passed / 3 external skips; clean pull/build; strict GB10 diagnostic; ten finite BF16 CUDA updates; negative no-GPU exits |
+| 1 | review | not exposed by runtime | not exposed by runtime | `7d929f05fe2dd4bc626b11f0c2b4ea701b47c177` | Requested model: heavier reviewer; requested reasoning: Extra Thinking. Independent `/review` against the ticket, philosophy, and applicable CHECK sections | FAIL | Found a version-suffixed CUDA-provider guard gap, an optimizer-state reporting overclaim, and a final image that predated the exact candidate tree | 58 passed / 3 skips and real GB10 behavior passed, but the committed reproducibility contract did not |
+| 1 | repair | not exposed by runtime | not exposed by runtime | failed cycle-1 review plus `7d929f05fe2dd4bc626b11f0c2b4ea701b47c177` | Requested model: Luna; requested reasoning: Extra High. Close every review finding without broadening ticket scope | completed | Reject version-suffixed CUDA providers, distinguish CUDA Adam moments from CPU step bookkeeping, and prepare an exact clean-commit rebuild | 59 passed / 3 skips; poison/false-positive, lock-parity, Ruff, Hydra, and diff gates passed |
+| 2 | review | not exposed by runtime | not exposed by runtime | `95dee560076258247776ead9940bfbe30e619699` and clean no-cache image `sha256:25a02a5357d3f22339ddea8de78e2b0725a47dc6bbe15f336fa74242889a648b` | Requested model: heavier reviewer; requested reasoning: Extra Thinking. Fresh independent `/review` of the repaired implementation and real GB10 evidence | PASS WITH NOTE | All blocking findings repaired; exact ten-step wiring proof is sufficient for ENV-001 but is not R2 real-data/steady-state evidence | Independent 59 passed / 3 skips, provider adversarial matrix, exact source parity, strict diagnostic/smoke, and no-GPU failures passed |
 
 ## Check selection and verdicts
 
 ### Review cycle 1
 
 - Review model / mode: `not exposed by runtime / not exposed by runtime`
-  (requested heavier / Extra Thinking)
+  Requested reviewer: heavier / Extra Thinking.
 - Commit reviewed: `7d929f05fe2dd4bc626b11f0c2b4ea701b47c177`
 - Selected `CHECK.md` sections: 1, 2, 3, 5.1, 5.3, 7, and 11 ENV-001
 - Major sections marked N/A and why: section 4 because data/tokenizer/packing
@@ -123,7 +123,7 @@
 ### Review cycle 2
 
 - Review model / mode: `not exposed by runtime / not exposed by runtime`
-  (requested heavier / Extra Thinking)
+  Requested reviewer: heavier / Extra Thinking.
 - Commit reviewed: `95dee560076258247776ead9940bfbe30e619699`
 - Selected `CHECK.md` sections: 1, 2, 3, 5.1, 5.3, 7, and 11 ENV-001
 - Major sections marked N/A and why: same scoped exclusions as cycle 1.
@@ -140,11 +140,11 @@
 
 ## Failed-review handoff
 
-- Implementation model/mode: `not exposed by runtime / not exposed by runtime`
-  (requested Luna / Extra High).
+- Implementation model/mode: `not exposed by runtime / not exposed by runtime`.
+  Requested implementation model/mode: Luna / Extra High.
 - Failed review: cycle 1 at `7d929f05fe2dd4bc626b11f0c2b4ea701b47c177`.
-- Repair model/mode: `not exposed by runtime / not exposed by runtime`
-  (requested Luna / Extra High), selected because the original implementation
+- Repair model/mode: `not exposed by runtime / not exposed by runtime`.
+  Requested repair model/mode: Luna / Extra High. Selected because the original implementation
   agent retained the exact container/provider/smoke context.
 - Context handed off: the complete independent FAIL, exact poison package
   reproductions, expected AdamW state placement, requirement for a clean

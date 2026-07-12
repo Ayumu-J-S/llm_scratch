@@ -1,0 +1,29 @@
+{
+  "dataset_fingerprint": "d34675a2697a507b6ae2d499e772b1a6ded264000b619b42b94731555c335a2e",
+  "index_path": "bilingual.index.json",
+  "index_sha256": "beb352390f2334a177619f859b988a7820f71d37652b8dcf72c5e8d0ee6670ba",
+  "manifest_fingerprint": "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19",
+  "name": "fixture-bilingual-v1",
+  "purpose": "pretraining",
+  "schema_version": 1,
+  "source": {
+    "id_field": "id",
+    "kind": "local_jsonl",
+    "path": "bilingual.jsonl",
+    "sha256": "f805ec89fe42b6a06d76a38ecf80d56433131cec3e58e38a705c64599d6c8663",
+    "size_bytes": 1409,
+    "text_field": "text"
+  },
+  "split": {
+    "salt": "llm-scratch-data-002-v1",
+    "validation_fraction": "0.25"
+  },
+  "split_fingerprints": {
+    "train": "1cf2ddecf55e08e38ab95e2bac0d1ce17ded7df6b80f4d8e9cf6864449e1fe7e",
+    "validation": "fec55d7aa28b1250e76e79d69d6047b5cb4fa909664fbeed6f39ded132bdf347"
+  },
+  "usage": {
+    "license": "CC0-1.0",
+    "terms_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+  }
+}

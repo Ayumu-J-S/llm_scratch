@@ -1,8 +1,14 @@
+defaults:
+  - tokenizer: canonical
+  - _self_
+
 data:
-  mode: local_text
-  train: data/inputLearnText.txt
-  val: data/inputLearnText.txt
+  mode: memorization_smoke
+  memorization:
+    manifest_path: tests/fixtures/data_manifests/memorization.manifest.json
+    expected_fingerprint: 00c3797a7d0eda13950fd699a60c45fcd388829f016479caaeb369438767bd31
   streaming:
+    require_manifests: true
     cache:
       dir: data/stream_loader_cache
       max_size_bytes: 750000000000
@@ -10,15 +16,27 @@ data:
       enabled: true
       buffer_size: 16
     train:
-      max_tokens: 1000000
+      max_tokens: max
       add_eos: true
       seed: 42
-      sources: []
+      sources:
+        - name: bilingual_fixture_train
+          type: manifest
+          manifest_path: tests/fixtures/data_manifests/bilingual.manifest.json
+          expected_fingerprint: 47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19
+          selection: train
+          ratio: 1.0
     validation:
-      max_tokens: 100000
+      max_tokens: max
       add_eos: true
       seed: 43
-      sources: []
+      sources:
+        - name: bilingual_fixture_validation
+          type: manifest
+          manifest_path: tests/fixtures/data_manifests/bilingual.manifest.json
+          expected_fingerprint: 47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19
+          selection: validation
+          ratio: 1.0
 
 runtime:
   device: cuda
@@ -47,8 +65,6 @@ model:
 
 artifacts:
   checkpoints_dir: artifacts/checkpoints
-  tokenizers_dir: artifacts/tokenizers
-  tokenizer_filename: tokenizer.json
 
 wandb:
   enabled: true

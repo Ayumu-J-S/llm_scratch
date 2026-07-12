@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "policy": "Malformed UTF-8 bytes must fail strict UTF-8 decoding before tokenization; surrogate code points must be rejected by the tokenizer boundary.",
+  "recipes": [
+    {"id": "lone-continuation", "kind": "utf8_bytes", "hex": "80"},
+    {"id": "overlong-slash", "kind": "utf8_bytes", "hex": "c0af"},
+    {"id": "utf8-surrogate", "kind": "utf8_bytes", "hex": "eda080"},
+    {"id": "above-unicode-range", "kind": "utf8_bytes", "hex": "f4908080"},
+    {"id": "truncated-three-byte", "kind": "utf8_bytes", "hex": "e282"},
+    {"id": "lone-high-surrogate", "kind": "codepoints", "values": [55296]},
+    {"id": "lone-low-surrogate", "kind": "codepoints", "values": [56320]},
+    {"id": "reversed-surrogates", "kind": "codepoints", "values": [56320, 55296]},
+    {"id": "high-surrogate-ascii", "kind": "codepoints", "values": [55296, 65]},
+    {"id": "ascii-low-surrogate", "kind": "codepoints", "values": [65, 56320]}
+  ]
+}
