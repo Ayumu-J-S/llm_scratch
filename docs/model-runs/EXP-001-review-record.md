@@ -54,10 +54,14 @@ reported exactly as unavailable rather than inferred.
 | 4 | re-review | not exposed by runtime | not exposed by runtime | repair commit `df1acf62a05266cfd8f80bd86c96d932d1d6c67e` and metadata head `46bd85837b211eeeb9632980ecfb12a09d1372ce` | Independent heavy re-review of the exact failed findings and full R0 acceptance | FAIL | Original resolved-config and SHA defects passed, but the live draft PR body still contained the pre-repair command, SHA, and execution trail | Reviewer findings received 2026-07-11; PR body inspection |
 | 5 | repair | not exposed by runtime | not exposed by runtime | Failed live-handoff finding against PR #10 and `46bd85837b211eeeb9632980ecfb12a09d1372ce` | Update committed provenance and replace the live PR body after the final metadata commit | completed; re-review pending | Recorded the second FAIL and replaced the live body after the final metadata push with both FAIL/repair cycles and exact final head | This record and PR #10 body |
 | 5 | re-review | not exposed by runtime | not exposed by runtime | `be26321bc57eebad88c63e2cae3b7641b5c0e533` plus updated PR #10 body | Independent heavy re-review of local records and live handoff parity | PASS WITH NOTE | All EXP-001 acceptance criteria and selected CHECK sections passed; real consequential-run usability remains unexercised | Reviewer validation: exact Hydra stdout equality, no interpolation, field scan 37/37, local/remote/PR head parity, lock and diff checks |
+| 6 | handoff | not exposed by runtime | not exposed by runtime | Passing review at `be26321bc57eebad88c63e2cae3b7641b5c0e533` and the synchronized live PR #10 body | Commit the final verdict and publish the matching live handoff | completed at `176326c07ccb0ce69ae43adc8be808c662895e30` | Recorded the final `PASS WITH NOTE`, retained both earlier `FAIL` verdicts, and synchronized the live PR execution trail | Commit `176326c07ccb0ce69ae43adc8be808c662895e30`; PR #10 body |
 
 Allowed outcome interpretation: the two blocked attempts are not reviews
-performed and are not passing reviews. The pending row is a handoff marker, not
-a model invocation.
+performed and are not passing reviews. Historical `pending` text records the
+state of a repair handoff at that point in time; it is not the final ticket
+state. Two later performed reviews returned `FAIL` and drove repairs, and the
+cycle-5 independent re-review then returned the final `PASS WITH NOTE` without
+erasing those earlier states.
 
 ## Check selection and verdicts
 
@@ -189,8 +193,12 @@ a model invocation.
   0; `git diff --check` passed
 - Commit reviewed next: repair commit
   `df1acf62a05266cfd8f80bd86c96d932d1d6c67e` plus the current metadata-only branch head
-- Re-review model / mode: pending / pending
-- Re-review verdict: pending; no passing verdict claimed
+- Historical handoff state when the repair was committed: re-review pending; no
+  passing verdict was claimed at that point
+- Re-review model / mode: not exposed by runtime / not exposed by runtime
+- Re-review verdict: `FAIL` at metadata head
+  `46bd85837b211eeeb9632980ecfb12a09d1372ce`; the resolved-config repair passed,
+  but the live PR body was stale
 
 ## Repair result — cycle 5 live handoff
 
@@ -225,13 +233,16 @@ a model invocation.
 
 ## Model assessment from this ticket
 
-No model-quality conclusion can be drawn because exact model identity/mode was
-hidden and the independent review attempts were blocked.
+No quality conclusion can be attributed to a named model or reasoning mode
+because the runtime hid both. The observable process outcomes remain useful:
+two invocations blocked before review, two performed reviews returned `FAIL`
+with actionable findings, and a later independent review returned `PASS WITH
+NOTE` after both repairs.
 
 | Model / mode | Role | What it handled well | What it missed or made worse | Context that helped | Outcome |
 | --- | --- | --- | --- | --- | --- |
 | not exposed by runtime / not exposed by runtime | planning | Produced a philosophy-grounded scoped plan | Requested Sol/Ultra identity could not be verified | Exact ticket, philosophy, and R0 checks | completed |
-| not exposed by runtime / not exposed by runtime | implementation and repair | Produced scoped documentation repairs and exact resolved-config evidence | First delegate stalled; initial fixture captured unresolved interpolation | Exact planner handoff, failed findings, and narrow repair request | repair completed locally; re-review pending |
+| not exposed by runtime / not exposed by runtime | implementation and repair | Produced scoped documentation repairs and exact resolved-config evidence | First delegate stalled; initial fixture captured unresolved interpolation; first repair left the live PR body stale | Exact planner handoff, failed findings, and narrow repair request | repairs completed; first re-review failed on live-PR parity; later re-review passed with note |
 | not exposed by runtime / not exposed by runtime | review attempts | Detected unresolved evidence, stale review trace, and stale live PR body; verified final repairs | Two earlier invocations returned no verdict before interruption | Philosophy, ticket, selected checks, exact failed-review handoffs, and live PR state | blocked twice; two FAIL verdicts; final PASS WITH NOTE |
 
 ## Ledger update
@@ -239,5 +250,5 @@ hidden and the independent review attempts were blocked.
 - [x] Added the PR/ticket row to `docs/model-runs/README.md`.
 - [x] Updated applicable attempt counts without counting blocked reviews as
   performed or successful.
-- [x] Reconfirmed the draft PR body matches this record after the cycle-5
-  metadata commit and live GitHub update; independent re-review remains pending.
+- [x] Reconfirmed this record and the live PR body agree on the cycle-5
+  independent `PASS WITH NOTE` and cycle-6 metadata handoff.
