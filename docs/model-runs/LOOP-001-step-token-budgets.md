@@ -31,7 +31,9 @@
 | Cycle | Phase | Exact model identifier | Reasoning mode | Input commit/context | Requested work | Outcome | Main findings / changes | Evidence |
 | ---: | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | implementation | not exposed by runtime | not exposed by runtime | `fbdb086` | Requested Luna / Extra High implementation pass | in progress | Replaced epoch-only averaging with authoritative step/token/time counters, token-weighted NLL, exact token-budget truncation, independent event cadences, scheduler-after-update ordering, finite/empty guards, and W&B-independent JSONL metrics; corrected metric-free scheduler boundaries to avoid forcing validation outside its cadence. | `uv run --group dev pytest -q`: 206 passed, 1 skipped; focused trainer: 4 passed; Ruff and `git diff --check` pass; current head `a024f24` |
-| 1 | review | not exposed by runtime | not exposed by runtime | pending exact implementation head | Requested heavier independent Extra Thinking review | pending | Review must cover LOOP-001 acceptance criteria and CHECK.md sections 6.1–6.3, 7.1–7.4. | pending |
+| 1 | review | not exposed by runtime | not exposed by runtime | `5de45e7` | Requested heavier independent Extra Thinking review | FAIL | Found missing post-backward/optimizer non-finite guards, no token-based event cadences, no guaranteed aggregate train/loss/perplexity under step logging, and fractional budget handling that could reach zero-token division. | independent review handoff from `/root/loop001_review` |
+| 2 | repair | not exposed by runtime | not exposed by runtime | `5de45e7` | Repair every actionable finding without broadening scope | in progress | Added gradient/parameter finite checks with contextual local failure records, direct `*_every_n_tokens` cadences, epoch aggregate loss/perplexity records, strict integer step/token budgets, and zero-token boundary handling. | `e972864`; full suite 209 passed, 1 skipped; focused trainer 8 passed |
+| 2 | re-review | not exposed by runtime | not exposed by runtime | pending final docs head | Requested independent re-review at exact repair head | pending | Must verify all four failed findings and unchanged acceptance scope. | pending |
 
 ## Runtime provenance block
 
@@ -47,7 +49,7 @@ display does not expose the exact deployment model or reasoning mode.
   delegated implementation session; values above follow repository provenance
   rules.
 - Codex CLI version: not exposed by runtime
-- Branch/commit: `codex/loop-001-step-token-budgets` / `a024f24`
+- Branch/commit: `codex/loop-001-step-token-budgets` / `e972864` (docs finalization head pending)
 - Phase/role/task path: implementation / LOOP-001 / delegated retry
 - Privacy confirmation: no prompts, hidden chain-of-thought, token counts,
   secrets, or raw thread IDs recorded.
@@ -57,31 +59,74 @@ display does not expose the exact deployment model or reasoning mode.
 ### Review cycle 1
 
 - Review model / mode: not exposed by runtime / not exposed by runtime
-- Commit reviewed: pending
+- Commit reviewed: `5de45e7`
 - Selected `CHECK.md` sections: 6.1 (objective, weighting, scheduler), 6.2
   (finite guards), 6.3 (cadence and synchronization), 7.1–7.4 (change
   surface/configuration).
 - Major sections marked N/A and why: CHECK 4–5 and 6.4 are N/A until a DGX
   pilot exists; LOOP-001 does not claim throughput or long-run stability.
-- Ticket acceptance result: pending independent review
-- Philosophy alignment: pending independent review
-- Complexity / change-surface result: pending independent review
+- Ticket acceptance result: FAIL — see failed-review handoff below
+- Philosophy alignment: direct scope retained, but numerical and token-boundary gaps blocked acceptance
+- Complexity / change-surface result: FAIL pending repair
 - ML-system result: CPU fixture only; DGX evidence pending later STAB-001
-- Verdict: pending
+- Verdict: FAIL; repair cycle 2 in progress
 
 #### Findings
 
 | Severity | Area | What was wrong or good | Evidence | Required action |
 | --- | --- | --- | --- | --- |
-| — | — | No independent review findings yet | pending | Run independent review against exact head |
+| high | numerical health | finite loss alone did not prevent NaN gradients/parameters | review of `5de45e7`; CHECK 6.2 | Guard gradients and parameters, record batch/step, stop before counters advance |
+| high | event boundaries | only step cadences existed; token cadence acceptance was unimplemented | review of `5de45e7`; LOOP-001 | Add independent `*_every_n_tokens` keys and boundary tests |
+| medium | metrics | step logging could omit token-weighted aggregate train/loss/perplexity | review of `5de45e7`; CHECK 6.1 | Emit epoch aggregate metrics independently of step logging |
+| medium | config/stop | fractional max token/step values could truncate and hit zero-token division | review of `5de45e7` | Require positive integers and guard no-remaining-token path |
 
 ## Failed-review handoff
 
-N/A — no failed review occurred.
+### Failed-review handoff — cycle 1
+
+- From review cycle: 1
+- Failed check and why: CHECK 6.1/6.2/6.3 and LOOP-001 acceptance were not
+  satisfied for numeric state, token event boundaries, aggregate metrics, and
+  fractional budget safety.
+- Review model / mode: not exposed by runtime / not exposed by runtime
+- Implementation model / mode that produced the failed state: not exposed by
+  runtime / not exposed by runtime
+- Commit/diff to repair: `5de45e7`
+- Reproduction command or evidence: independent review findings; focused tests
+  lacked non-finite-gradient and token-cadence coverage.
+- Relevant files/config/manifests: `src/training/trainer.py`,
+  `src/runtime/config.py`, `config/train.yaml`, `tests/test_trainer.py`.
+- Attempts already made: initial implementation at `5c537bd`, scheduler-cadence
+  repair/docs at `a024f24` and `5de45e7`.
+- Invariants and constraints: token-weighted NLL, exact authoritative counters,
+  no counter advancement on unsafe updates, W&B-independent local evidence,
+  Hydra-only configuration, no checkpoint/resume scope expansion.
+- Selected next model / mode: not exposed by runtime / not exposed by runtime
+- Why this model was selected: delegated repair with the complete independent
+  findings and ticket acceptance context.
+- Exact repair request: implement all four findings, add focused regressions,
+  run full CPU suite/lint, and re-review the exact final head.
+- Completion evidence requested: finite-gradient/parameter guard fixture,
+  token cadence boundary fixture, aggregate train/loss/perplexity fixture,
+  strict integer budget tests, full suite and Ruff.
 
 ## Repair result
 
-N/A — no repair occurred.
+### Repair cycle 2
+
+- Repair model / mode: not exposed by runtime / not exposed by runtime
+- Input handoff: cycle-1 FAIL at `5de45e7`
+- Changes made: finite gradient/parameter checks with persisted failure events;
+  direct step/token event cadence support; epoch aggregate metrics; strict
+  positive-integer max step/token validation and no-remaining-token guard;
+  regression tests for each finding.
+- What was deliberately not changed: checkpoint payload/resume, AMP,
+  accumulation, distributed execution, and W&B service semantics.
+- Local evidence: full `uv run --group dev pytest -q` 209 passed, 1 skipped;
+  focused trainer 8 passed; Ruff and diff checks pass.
+- Commit reviewed next: `e972864` (docs finalization will create a new exact head)
+- Re-review model / mode: not exposed by runtime / not exposed by runtime
+- Re-review verdict: pending
 
 ## Final evidence
 
@@ -95,7 +140,8 @@ N/A — no repair occurred.
 - Failed attempts retained at: none.
 - Known trade-offs: one optimizer update per loader batch; accumulation and
   checkpoint resume remain later tickets.
-- Unresolved risks: independent CHECK review and any integration training run.
+- Unresolved risks: independent re-review at exact final docs head and any
+  integration training run.
 - Human decision requested: review the draft PR; merge authority remains with
   the parent goal process.
 
