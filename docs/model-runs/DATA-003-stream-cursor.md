@@ -22,7 +22,7 @@
 
 | Cycle | Phase | Exact model identifier | Reasoning mode | Input commit/context | Requested work | Outcome | Main findings / changes | Evidence |
 | ---: | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | implementation | not exposed by runtime | not exposed by runtime | `60a6d864`; DATA-003, `PHILOSOPHY.md`, selected `CHECK.md` data/packing and prefetch sections | Requested Luna / Extra High implementation; keep one loader path and make cursor state serializable | completed; independent review pending | Added explicit horizon/repeat policy, deterministic bounded shuffle, source/global RNG state, raw-document cursor and packed-buffer state, `state_dict`/`load_state_dict`, and prefetch cursor markers | 6 DATA-003 tests; 218 passed, 1 skipped; Ruff, lock, diff checks pass |
+| 1 | implementation | not exposed by runtime | not exposed by runtime | `60a6d864`; DATA-003, `PHILOSOPHY.md`, selected `CHECK.md` data/packing and prefetch sections | Requested Luna / Extra High implementation; keep one loader path and make cursor state serializable | completed; independent review pending | Added explicit horizon/repeat policy, deterministic bounded shuffle, source/global RNG state, raw-document cursor and packed-buffer state, `state_dict`/`load_state_dict`, and prefetch cursor markers | 7 DATA-003 tests; 218 passed, 1 skipped; Ruff, lock, diff checks pass |
 | 1 | review | not exposed by runtime | not exposed by runtime | pending exact draft-PR head | Requested heavier independent Extra Thinking review against DATA-003 acceptance, `PHILOSOPHY.md`, and selected `CHECK.md` sections | pending | Must verify no prefix repeat without explicit repeat, exact interrupted suffix including packed windows, source/manifest identity, and sync/thread/process equivalence | pending |
 
 ## Runtime provenance block
@@ -95,7 +95,7 @@ N/A — no repair cycle yet.
 
 - Resolved Hydra command/config: `config/stream_loader.yaml` now documents `horizon.repeat: false`, deterministic bounded shuffle, and buffer size; fixture tests exercise equivalent plain mappings.
 - Data/tokenizer identity: canonical tokenizer manifest fingerprint `12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b`; fixture documents are immutable in-memory records for offline invariants.
-- Validation and measurements: `uv run --group dev pytest -q` → `218 passed, 1 skipped`; DATA-003 focused file → `6 passed`; `uv run ruff check .`; `uv lock --check`; `git diff --check`.
+- Validation and measurements: `uv run --group dev pytest -q` → `218 passed, 1 skipped`; DATA-003 focused file → `7 passed`; `uv run ruff check .`; `uv lock --check`; `git diff --check`.
 - Performance/resource result if applicable: N/A; this ticket explicitly defers throughput optimization and DGX measurement.
 - Failed attempts retained at: N/A.
 - Known trade-offs: cursor stores bounded shuffle-buffer documents and Python RNG state so an interrupted stream can resume without source replay ambiguity; it is intentionally separate from CKPT-001 model state.
