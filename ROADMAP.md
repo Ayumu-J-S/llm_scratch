@@ -149,6 +149,7 @@ be called a baseline until the following gates exist:
 
 | Order | Ticket | Priority | State | Depends on | Outcome |
 | ---: | --- | --- | --- | --- | --- |
+| 0 | PROV-001 | P0 | In progress | — | Observable Codex model provenance for every implementation/review phase |
 | 1 | DATA-001 | P0 | Done | — | Correct packed causal transitions |
 | 2 | TOK-001 | P0 | Done | — | One selected, pinned tokenizer used end to end |
 | 3 | DATA-002 | P0 | Done | — | Immutable manifests and disjoint split contract |
@@ -204,6 +205,29 @@ merges, update the states and dependencies in the table before selecting more
 work.
 
 ## Ticket details
+
+### PROV-001 — Make Codex model provenance visible
+
+- **Goal:** Make the Codex product/model family, exact model identifier, and
+  reasoning mode auditable without inferring hidden runtime values.
+- **In scope:** A stdlib capture command, a versioned requested-vs-actual JSON
+  schema, redaction-safe provenance documentation, model-run template/workflow
+  guidance, and focused tests.
+- **Out of scope:** Runtime model selection or discovery, prompts, hidden
+  chain-of-thought, token counts, secrets, historical record rewrites, or ML
+  training behavior.
+- **Acceptance criteria:**
+  - Requested/config-default values are separate from values explicitly shown by
+    the active runtime.
+  - Exact model ID and reasoning mode are `not exposed by runtime` with an
+    unavailable reason when the runtime does not display them; no family-to-ID
+    or marketing-name inference is allowed.
+  - Capture records safe UTC/Git/CLI context and never emits prompts, hidden
+    chain-of-thought, token counts, secrets, or raw thread IDs.
+  - Focused and repository tests plus lint pass, and the PR links the complete
+    model-run record and execution trail.
+- **Validation:** Focused provenance tests, full repository tests, Ruff, and a
+  CLI JSON smoke capture. No training run is required.
 
 ### ENV-001 — Make the runtime CUDA-capable on DGX Spark
 
