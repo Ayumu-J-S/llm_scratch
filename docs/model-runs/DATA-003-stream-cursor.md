@@ -1,13 +1,13 @@
 # DATA-003 - Deterministic stream horizon, shuffle, and exact cursor
 
-- PR: [#29](https://github.com/Ayumu-J-S/llm_scratch/pull/29) (merged as `57266e1e843be2d08e10ef5f387da8466b0c590f`; post-merge P2 re-opened DATA-003); P5 repair [#31](https://github.com/Ayumu-J-S/llm_scratch/pull/31) (draft)
+- PR: [#29](https://github.com/Ayumu-J-S/llm_scratch/pull/29) (merged as `57266e1e843be2d08e10ef5f387da8466b0c590f`; post-merge P2 re-opened DATA-003); P5 repair [#31](https://github.com/Ayumu-J-S/llm_scratch/pull/31) (merged as `cf82701635cab23657a05ea80a03ef5a657abe1f`)
 - Branch: `codex/data-003-stream-cursor`
 - Ticket: DATA-003
 - Hypothesis: A bounded stream with explicit pass policy and serialized source/RNG cursor can reproduce an uninterrupted suffix while keeping prefetch an execution detail.
 - Experiment record: `N/A` — loader fixture and invariant evidence are captured here; no research-quality model run is in scope.
 - Started: 2026-07-12
-- Current verdict: in progress — P5 packed-cursor repair has independent PASS
-  WITH NOTE on PR #31; guarded connector audit and merge remain pending
+- Current verdict: PASS WITH NOTE — P5 packed-cursor repair passed independent
+  review, guarded audit, and squash merge.
 - Final record owner: `/root/data003_implementation`
 
 ## Scope and decision context
@@ -39,6 +39,8 @@
 | 7 | repair | not exposed by runtime | not exposed by runtime | PR #31 cycle-1 validation finding on `bd11955`; [P5 record](DATA-003-packed-resume-repair.md) | Preserve the final residual fix and make a completed supplied cursor resume only its empty suffix, including process-prefetch child state | implemented; independent re-review pending | Added one-shot `_resume_cursor_pending`; same-loader re-iteration still starts an explicit next pass while a fresh completed cursor does not. | Repair code `54f8c591e6264f8da479bcf8893be20b82bf5a0a`; focused 15 passed; full 227 passed, 1 skipped; docs-only successor pending exact review |
 | 7 | re-review | not exposed by runtime | not exposed by runtime | exact PR #31 docs head `313ca0a90ca6d4b9be31efd914c21e53ddf8f3e7`; repair code `54f8c591e6264f8da479bcf8893be20b82bf5a0a` | Independent review of P5 repair | PASS WITH NOTE | No code defect; manual sync/thread/process completed-cursor check matched focused/full/static evidence. | Review `4680026587`; guarded connector audit pending |
 | 7 | re-review (no drift) | not exposed by runtime | not exposed by runtime | exact PR #31 docs head `d52f1e527c5d7968ea565eafce9c7c6f842810a3`; repair code remains `54f8c591e6264f8da479bcf8893be20b82bf5a0a` | Confirm review-record-only docs did not change accepted implementation evidence | PASS WITH NOTE | No drift from the implementation review or validation evidence. | Review `4680031289`; guarded connector audit pending |
+| 7 | re-review (no drift) | not exposed by runtime | not exposed by runtime | exact PR #31 docs head `4288c96230b69ea41941e992fb3d9894b413796c`; repair code remains `54f8c591e6264f8da479bcf8893be20b82bf5a0a` | Final no-drift confirmation before guarded audit | PASS WITH NOTE | No code/evidence drift. | Review `4680036491` |
+| 7 | handoff | not exposed by runtime | not exposed by runtime | reviewed head `4288c962`; base `9bf68b0` | Guarded self-merge audit and merge | merged | Exact-head audit was Ready/mergeable with no changes-requested, no threads, and empty check/workflow inventories; no bypass/force/admin action used. | [Pre-merge audit](https://github.com/Ayumu-J-S/llm_scratch/pull/31#issuecomment-4951174771); [post-merge audit](https://github.com/Ayumu-J-S/llm_scratch/pull/31#issuecomment-4951175758); squash `cf827016` |
 
 ## Runtime provenance block
 
@@ -151,9 +153,10 @@
 - Performance/resource result if applicable: N/A; this ticket explicitly defers throughput optimization and DGX measurement.
 - Failed attempts retained at: post-merge packed-cursor reproduction below.
 - Known trade-offs: cursor stores bounded shuffle-buffer documents and Python RNG state so an interrupted stream can resume without source replay ambiguity; it is intentionally separate from CKPT-001 model state.
-- Unresolved risk: P5 repair PR #31 passed independent review, but guarded
-  connector audit and merge remain pending; until then DATA-003 remains in progress.
-- Human decision requested: do not treat DATA-003 as complete or unblock its dependents until PR #31 passes its exact-head connector audit and merges.
+- Unresolved risk: none within DATA-003; PR #31 completed its guarded audit and
+  squash merge.
+- Human decision requested: none for DATA-003; downstream ticket selection is
+  governed by the roadmap dependencies.
 
 ## Post-merge P2 handoff
 
@@ -166,24 +169,24 @@
 - Repair handoff outcome: PR #31 implements the requested residual advance and
   adds sync/thread/process exact-suffix regressions. Its companion
   [per-PR record](DATA-003-packed-resume-repair.md) records implementation PASS
-  WITH NOTE `4680026587` on `313ca0a` and no-drift PASS WITH NOTE `4680031289`
-  on `d52f1e5`; guarded connector audit remains pending.
+  WITH NOTE `4680026587` on `313ca0a`, no-drift PASS WITH NOTE `4680031289` on
+  `d52f1e5` / `4680036491` on `4288c962`, and guarded merge
+  `cf82701635cab23657a05ea80a03ef5a657abe1f`.
 
 ## Historical PR #29 merge audit and current documentation-audit status
 
 - Merge path: historical guarded self-merge of PR #29 only; it is not an authorization to merge a future repair without fresh gates.
 - Human authorization: parent task explicitly authorized self-merge for the bounded roadmap goal on 2026-07-12; the authorization and audit apply to the historical #29 merge.
 - Authorization evidence location: parent task messages and final PR #29 audit comment.
-- Authorization covers a repair PR: pending fresh repair PR audit.
+- Authorization covers a repair PR: yes — applied to PR #31 after the final audit.
 - Exact independently reviewed historical head SHA: `87a64b8a72604ddf67cf9536cb0661cff7a9a663` (docs-only descendant of repair code `93132f7`).
-- Latest implementation verdict / model / mode: FAIL P2 (`4679980858`, following automated finding `4679969079`) on the merged lineage; exact model and reasoning mode not exposed by runtime. Documentation-only correction review `4679987639` is PASS WITH NOTE on `4da78859c99a8400ec6522f746eeee098fd40040` and does not repair the code. Historical PR #29 re-confirmation was PASS WITH NOTE `4679961413`.
+- Latest implementation verdict / model / mode: PR #31 implementation PASS WITH NOTE `4680026587`, followed by no-drift PASS WITH NOTE `4680031289` and `4680036491`; exact model and reasoning mode not exposed by runtime. The retained earlier P2 FAIL is `4679980858` following automated finding `4679969079`.
 - All actionable findings repaired and independently re-reviewed: yes — PR #31
-  passed implementation review `4680026587` and no-drift review `4680031289`;
-  connector audit remains pending.
-- Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: no code-review block reported; the guarded exact-head connector audit still blocks merge.
+  passed implementation review `4680026587` and no-drift reviews `4680031289` / `4680036491`; guarded audit merged it as `cf827016`.
+- Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: none at final audit.
 - Newer objection/finding after the historical merge audit: yes — automated finding `4679969079`, independently confirmed as FAIL `4679980858`.
 - Human review dismissed by an agent: no.
-- Unresolved review threads at the historical audit: zero; the new P2 remains an open repair handoff.
+- Unresolved review threads at the final repair audit: zero.
 - Branch-protection required-context inventory: no required contexts reported by the connector.
 - Applicable configured workflow/check inventory: no pull-request workflow runs reported for the exact head.
 - Observed exact-head check statuses: empty (`github_get_commit_combined_status` for `87a64b8`).
@@ -191,7 +194,7 @@
 - No-check evidence when both inventories are empty: final audit comment [`#issuecomment-4951026925`](https://github.com/Ayumu-J-S/llm_scratch/pull/29#issuecomment-4951026925) and exact-head connector refresh.
 - Target branch and base SHA at final audit: `main` at `60a6d86482241fff891c8701b9242d2fc0817bb6`.
 - Up-to-date, conflict-free, and mergeable evidence: final refresh recorded Ready, mergeable, and unchanged head before merge.
-- Record, ledger, PR trail, validation, and risks parity: corrected by PR #30 and appended with PR #31's PASS WITH NOTE record; current status is in progress pending guarded connector audit.
+- Record, ledger, PR trail, validation, and risks parity: yes; PR #31 final audit and post-merge comment reconcile all of them.
 - Prohibited self-merge categories: clear — ordinary repository data-loader code and tests only.
 - Admin/bypass/force/disabled-check requirement: no.
 - Historical final audit PR body/comment location: [`#issuecomment-4951026925`](https://github.com/Ayumu-J-S/llm_scratch/pull/29#issuecomment-4951026925) (post-merge completion; pre-merge refresh [`#issuecomment-4951019993`](https://github.com/Ayumu-J-S/llm_scratch/pull/29#issuecomment-4951019993)).
@@ -199,18 +202,18 @@
 - Historical immediate pre-merge re-fetch/compare observation location: [`#issuecomment-4951026925`](https://github.com/Ayumu-J-S/llm_scratch/pull/29#issuecomment-4951026925) (with the pre-merge audit at [`#issuecomment-4951019993`](https://github.com/Ayumu-J-S/llm_scratch/pull/29#issuecomment-4951019993)).
 - Historical refresh compared authorization, head, base, review decision/objections, threads, expected checks/statuses, and mergeability: yes; no drift found before merge.
 - Historical merge outcome: PR #29 merged to `main` as `57266e1e843be2d08e10ef5f387da8466b0c590f`; the post-merge P2 re-opened the ticket.
-- Current repair self-merge authorization: the user's general authorization for the bounded roadmap goal applies to PR #31, but its independent review, exact-head audit, and all guarded merge gates remain mandatory.
+- Current repair self-merge authorization: the user's bounded-roadmap authorization was applied to PR #31 only after its independent reviews and exact-head audit; no bypass or force action was used.
 
 ## Model assessment from this ticket
 
 | Model / mode | Role | What it handled well | What it missed or made worse | Context that helped | Outcome |
 | --- | --- | --- | --- | --- | --- |
-| Codex / GPT-5; exact ID and mode not exposed | implementation/review | Localized deterministic source/cursor semantics, bounded shuffle, repeat accounting, consumer-ack protocol, completion preservation, process cursor synchronization, and the P5 residual/completed-cursor repair | Earlier review coverage missed interruption after a final partial packed window; exact deployment/model ID and reasoning mode are unavailable | DATA-003 acceptance, loader internals, DATA-001/DATA-002 boundaries, selected CHECK sections, delayed-consumer and reuse/resume reproductions | P5 implementation PASS WITH NOTE `4680026587`; no-drift PASS WITH NOTE `4680031289`; guarded audit pending |
+| Codex / GPT-5; exact ID and mode not exposed | implementation/review | Localized deterministic source/cursor semantics, bounded shuffle, repeat accounting, consumer-ack protocol, completion preservation, process cursor synchronization, and the P5 residual/completed-cursor repair | Earlier review coverage missed interruption after a final partial packed window; exact deployment/model ID and reasoning mode are unavailable | DATA-003 acceptance, loader internals, DATA-001/DATA-002 boundaries, selected CHECK sections, delayed-consumer and reuse/resume reproductions | P5 implementation PASS WITH NOTE `4680026587`; no-drift PASS WITH NOTE `4680031289` / `4680036491`; guarded audit and squash merge `cf827016` complete |
 
 ## Ledger update
 
-- [x] Added the DATA-003 ticket record and PR URLs; current verdict is in progress pending guarded P5 connector audit.
-- [x] Updated the DATA-003 summary for the post-merge P2, documentation re-review, and PR #31 repair/review handoff.
-- [x] Confirmed the execution trail retains cycles 1–4, post-merge finding `4679969079`, independent FAIL `4679980858`, documentation PASS WITH NOTE `4679987639`, P5 repairs, implementation review `4680026587`, and no-drift review `4680031289`.
-- [x] Retained the historical guarded self-merge evidence while recording that it does not clear the new P2.
+- [x] Added the DATA-003 ticket record and PR URLs; current verdict is PASS WITH NOTE and merged.
+- [x] Updated the DATA-003 summary for the post-merge P2, documentation re-review, and PR #31 repair/review/merge handoff.
+- [x] Confirmed the execution trail retains cycles 1–4, post-merge finding `4679969079`, independent FAIL `4679980858`, documentation PASS WITH NOTE `4679987639`, P5 repairs, implementation review `4680026587`, no-drift reviews `4680031289` / `4680036491`, and merge `cf827016`.
+- [x] Retained the historical and final guarded self-merge audit evidence.
 - [x] Confirmed no bootstrap policy self-merge rule is being used.
