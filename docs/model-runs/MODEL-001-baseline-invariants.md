@@ -78,6 +78,10 @@
 | 2 | integration refresh | not exposed by runtime | not exposed by runtime | `bf3fc1f` plus `origin/main` `7da2c03c8adddb7e5e9c02839e5079b7f33584af` | Requested model: Luna; requested reasoning: Extra High. Merge the latest provenance-audited main normally, reconcile the ledger union, and rerun the exact offline quality gates against the resulting head | implemented; review pending | Normal merge produced `db7f541`; MODEL-001 source and architecture math stayed unchanged. The ledger now includes PROV-001 and the roadmap keeps MODEL-001 Ready until its fresh independent review. Ruff format identified pre-existing drift but no unrelated files were changed in this integration refresh. | 29 focused model/stream tests; 166 full passed/1 opt-in skip; `uv lock --check` and Hydra resolution pass; Ruff check passes, while format check reports four pre-existing files; exact stable-head independent review remains pending |
 | 3 | independent integration review | not exposed by runtime | not exposed by runtime | normative implementation head `a362ea1cc513581b7fc4e3b7d24ae9bdd527dc21`; PR #14 merged at `5644d4fcc5a7ef5f08520580698a1fd86554f0e6` before this docs-only finalization | Requested reviewer: heavier reviewer; requested reasoning: Extra Thinking. Review the exact normative head against MODEL-001, `PHILOSOPHY.md`, and selected `CHECK.md` sections | PASS WITH NOTE | CPU reviewer independently reproduced the model invariants and seed-17 overfit gate; the runtime-visible product/family was Codex / GPT-5, while exact deployment ID and actual reasoning mode were not exposed. GB10 R2 claims were retained as implementation evidence and were not rerun in this CPU-only review. | 76 focused; 166 full passed/1 opt-in skip; CPU shape/context/causal/finite-gradient/PAD/parameter/overfit checks passed; no actionable findings |
 
+Rows marked `review pending` in earlier integration phases are historical state
+snapshots. They are superseded by cycle 3's exact-head PASS WITH NOTE; the
+final ledger row and merge-audit section are authoritative for completion.
+
 ## Check selection and verdicts
 
 ### Review cycle 1
@@ -147,12 +151,11 @@ N/A - the first independent review passed with notes.
   with `ModuleNotFoundError: No module named 'models'`; the corrected command and
   all original values remain in Git history.
 
-## Integration evidence - pending independent review
+## Integration evidence - final reviewed record
 
-- Merge and dependency identity: PR #14 remains draft while this refresh uses a
-  normal, non-rebase merge of `origin/main`
-  `7da2c03c8adddb7e5e9c02839e5079b7f33584af`. The refresh merge commit is
-  `db7f541`. The integrated head contains the merged roadmap dependencies,
+- Merge and dependency identity: PR #14 merged at
+  `5644d4fcc5a7ef5f08520580698a1fd86554f0e6` after a normal, non-rebase merge
+  of `origin/main`. The integrated head contains the merged roadmap dependencies,
   including PROV-001; no force push or history rewrite was used. The prior
   integration merge `ff1b24df83555fd86c1098b321eb48f227a1789b` remains the
   historical evidence for the pre-PROV-001 dependency set.
@@ -239,20 +242,18 @@ N/A - the first independent review passed with notes.
   explicit environment inputs and completed. No image, cache, or volume was
   pruned.
 - GitHub state inspected before handoff: PR #14 is open and draft; there were no
-  submitted GitHub reviews and no review threads. No review was dismissed, no
-  thread was resolved, and the PR was not marked ready or merged during this
-  implementation phase.
-- Merge authority: in this task, the human explicitly authorized guarded agent
-  self-merge for the named open roadmap PR series, including PRs #10-#15, after
-  human-merging policy PR #16. Authorization is necessary but not sufficient:
-  PR #14 remains draft until a fresh exact-head independent review and every
-  policy gate pass. This implementation phase does not perform the merge.
+  submitted GitHub reviews and no review threads. No review was dismissed, and
+  the PR was not marked ready during that historical implementation phase; it
+  later merged at the SHA recorded above.
+- Merge authority: the user explicitly authorized self-merge for this bounded
+  roadmap goal on 2026-07-12; PR #14 merged at `5644d4f` with the merge actor
+  not exposed. This record makes no unobserved actor claim.
 - Known trade-off: padded-query work is computed and then zeroed, favoring an
   inspectable invariant over a new attention path. CPU and GPU R1/R2 values are
   bounded single-run references, not conclusions about production training.
-- Current unresolved item: fresh independent heavy review of the stable
-  integration commit and exact-head parity is mandatory before readiness or any
-  guarded merge audit.
+- Final review status: the independent review of normative head `a362ea1` is
+  PASS WITH NOTE; this docs-only finalization records the merged outcome and
+  separates requested values from actual runtime provenance.
 
 ## Merge authority and final audit
 
@@ -286,9 +287,9 @@ N/A - the first independent review passed with notes.
 
 - [x] Added the PR/ticket row to `docs/model-runs/README.md`.
 - [x] Updated per-model attempt, pass, repair, and review counts.
-- [ ] Finalize the integration-review counts and verdict after the fresh
-  independent review.
-- [ ] Confirm that the PR execution trail matches the stable reviewed head
-  before readiness or guarded merge audit.
-- [x] Refreshed the execution trail for integrated head `db7f541`; review and
-  verdict remain intentionally pending.
+- [x] Finalized the integration-review counts and verdict after the independent
+  review of normative head `a362ea1`.
+- [x] Confirmed that the PR execution trail matches the stable reviewed head and
+  merged outcome.
+- [x] Refreshed the execution trail for integrated head `a362ea1`; final review
+  is PASS WITH NOTE and PR #14 merged at `5644d4f`.
