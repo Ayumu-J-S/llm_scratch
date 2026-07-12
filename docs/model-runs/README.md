@@ -13,7 +13,7 @@ PR URL cannot be created.
 
 | Record | Ticket | PR | Initial implementation model / mode | First review model / mode | Repair cycles | Final verdict | Main failure tags |
 | --- | --- | --- | --- | --- | ---: | --- | --- |
-| [EXP-001 review record](EXP-001-review-record.md) | EXP-001 | [#10](https://github.com/Ayumu-J-S/llm_scratch/pull/10); related process PR [#9](https://github.com/Ayumu-J-S/llm_scratch/pull/9) | not exposed by runtime / not exposed by runtime | blocked twice, then FAIL; model/mode not exposed | 2 | PASS WITH NOTE | reproducibility, stale-review-target, stale-pr-body, review-unavailable, merge-order |
+| [EXP-001 review record](EXP-001-review-record.md) | EXP-001 | [#10](https://github.com/Ayumu-J-S/llm_scratch/pull/10); related process PR [#9](https://github.com/Ayumu-J-S/llm_scratch/pull/9) | not exposed by runtime / not exposed by runtime | blocked twice, then FAIL; model/mode not exposed | 3 | PASS WITH NOTE | reproducibility, stale-review-target, stale-pr-body, stale-final-status, review-unavailable, merge-order |
 
 Use short, stable values in `Main failure tags` so results can be aggregated,
 for example `data-starvation`, `cuda-fallback`, `ml-semantics`,
@@ -27,7 +27,7 @@ there are enough observations for meaningful rates.
 
 | Exact model / mode | Implementation attempts | First-review passes | Repair attempts | Successful repairs | Reviews performed | Important strengths observed | Recurring failure modes | Last updated |
 | --- | ---: | ---: | ---: | ---: | ---: | --- | --- | --- |
-| not exposed by runtime / not exposed by runtime | 2 | 0 | 3 | 1 | 3 | Produced a scoped EXP-001 plan, documentation repair, exact resolved-config recapture, and live-handoff repair; final review verified local/live parity | One implementation stalled; two review attempts returned no verdict; initial evidence retained an unresolved interpolation; PR body lagged repository records; exact model attribution impossible | 2026-07-11 |
+| not exposed by runtime / not exposed by runtime | 2 | 0 | 4 | 2 | 4 | Produced a scoped EXP-001 plan, documentation repairs, exact resolved-config recapture, and live-handoff/provenance reconciliation; passing reviews verified local/live parity | One implementation stalled; two review attempts returned no verdict; initial evidence retained an unresolved interpolation; PR body and final checklist each lagged the actual review state; exact model attribution impossible | 2026-07-12 |
 
 ### Counting rules
 

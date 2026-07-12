@@ -55,6 +55,9 @@ reported exactly as unavailable rather than inferred.
 | 5 | repair | not exposed by runtime | not exposed by runtime | Failed live-handoff finding against PR #10 and `46bd85837b211eeeb9632980ecfb12a09d1372ce` | Update committed provenance and replace the live PR body after the final metadata commit | completed; re-review pending | Recorded the second FAIL and replaced the live body after the final metadata push with both FAIL/repair cycles and exact final head | This record and PR #10 body |
 | 5 | re-review | not exposed by runtime | not exposed by runtime | `be26321bc57eebad88c63e2cae3b7641b5c0e533` plus updated PR #10 body | Independent heavy re-review of local records and live handoff parity | PASS WITH NOTE | All EXP-001 acceptance criteria and selected CHECK sections passed; real consequential-run usability remains unexercised | Reviewer validation: exact Hydra stdout equality, no interpolation, field scan 37/37, local/remote/PR head parity, lock and diff checks |
 | 6 | handoff | not exposed by runtime | not exposed by runtime | Passing review at `be26321bc57eebad88c63e2cae3b7641b5c0e533` and the synchronized live PR #10 body | Commit the final verdict and publish the matching live handoff | completed at `176326c07ccb0ce69ae43adc8be808c662895e30` | Recorded the final `PASS WITH NOTE`, retained both earlier `FAIL` verdicts, and synchronized the live PR execution trail | Commit `176326c07ccb0ce69ae43adc8be808c662895e30`; PR #10 body |
+| 7 | review-comment repair | not exposed by runtime | not exposed by runtime | GitHub review finding against `176326c07ccb0ce69ae43adc8be808c662895e30` | Remove the final stale-pending contradiction without erasing historical pending states | completed at `6baa1aade77cc7c83db8bc4a13023ecf6df4195d` | Reconciled the cycle-4 result, final checklist, model assessment, and missing cycle-6 handoff; retained all blocked and failed states | Commit `6baa1aade77cc7c83db8bc4a13023ecf6df4195d`; review thread `PRRT_kwDORqx5mc6QHmfn` |
+| 7 | re-review | not exposed by runtime | not exposed by runtime | `6baa1aade77cc7c83db8bc4a13023ecf6df4195d` plus updated PR #10 body | Fresh independent heavier review at requested Extra Thinking against EXP-001, philosophy, and selected R0 checks | PASS WITH NOTE | No actionable findings; provenance is internally consistent and the only note remains that the R0 contract has not been exercised by a consequential training run | Independent reviewer handoff received 2026-07-12 |
+| 8 | handoff | not exposed by runtime | not exposed by runtime | Passing cycle-7 re-review and current docs-only finalization | Append review provenance, update ledger counts, and synchronize the live PR body | completed; primary parity audit pending | Preserved the review target and verdict while making the final metadata-only head visible in the live handoff | This record, ledger, and PR #10 body |
 
 Allowed outcome interpretation: the two blocked attempts are not reviews
 performed and are not passing reviews. Historical `pending` text records the
@@ -252,3 +255,44 @@ NOTE` after both repairs.
   performed or successful.
 - [x] Reconfirmed this record and the live PR body agree on the cycle-5
   independent `PASS WITH NOTE` and cycle-6 metadata handoff.
+
+## Review-comment repair, fresh review, and final handoff
+
+### Cycle 7 repair
+
+- Review finding: the final ledger checklist at
+  `176326c07ccb0ce69ae43adc8be808c662895e30` still said independent re-review
+  was pending even though the record already retained the cycle-5 `PASS WITH
+  NOTE`.
+- Repair model / mode: not exposed by runtime / not exposed by runtime. Luna at
+  Extra High was requested for the bounded provenance repair; the runtime did
+  not expose or verify the requested identity or mode.
+- Repair commit: `6baa1aade77cc7c83db8bc4a13023ecf6df4195d`.
+- Repair result: the final checklist, cycle-4 result, model assessment, and
+  cycle-6 handoff now agree while every historical blocked, pending, and `FAIL`
+  state remains present and explicitly historical.
+
+### Cycle 7 fresh independent review
+
+- Review target: `6baa1aade77cc7c83db8bc4a13023ecf6df4195d`
+  plus the synchronized live PR #10 body.
+- Review model / mode: not exposed by runtime / not exposed by runtime. A
+  heavier reviewer at Extra Thinking was requested; the runtime exposed neither
+  value, so no identity or mode is inferred.
+- Selected checks: `CHECK.md` sections 1, 7, 8.1, 8.3, and 11 EXP-001 at R0;
+  EXP-001 acceptance criteria; and `PHILOSOPHY.md` experiment-handoff and
+  research-integrity policy.
+- Verdict: `PASS WITH NOTE`; no actionable findings.
+- Passing evidence: the final-state contradiction is absent, historical states
+  remain append-only, the resolved Hydra fixture is unchanged and reproducible,
+  aggregate counts are reconcilable, and the live/local execution trails agree.
+- Non-blocking note: the documentation contract still has not been exercised by
+  a consequential training run.
+
+### Cycle 8 metadata handoff
+
+- This docs-only finalization appends the received cycle-7 verdict and updates
+  the ledger; it does not claim a new independent verdict for itself.
+- The exact final branch head is synchronized in the live PR body after push.
+- Thread `PRRT_kwDORqx5mc6QHmfn` is eligible for resolution after the primary
+  parity audit. This handoff neither resolves the thread nor merges the PR.
