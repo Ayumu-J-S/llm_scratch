@@ -8,7 +8,7 @@
 - Experiment record: `N/A — this ticket validates a fixture and run metadata,
   not a consequential model-quality experiment`
 - Started: 2026-07-12
-- Final verdict: repair pending independent re-review
+- Final verdict: PASS WITH NOTE (repair PR #24; final merge-gate audit pending)
 - Final record owner: Codex implementation agent
 
 ## Scope and decision context
@@ -29,7 +29,8 @@
 | 2 | repair | not exposed by runtime | not exposed by runtime | review `4679671936` | Move dirty/mutable guard before tokenizer/data/model initialization; add regression; retain exact model provenance | completed | Run manifest now writes immediately after config resolution/global seeding, before tokenizer/data setup; dirty real-run regression proves tokenizer is untouched; lock/Git verification and deterministic=False reset added; external resolved configs copied into run directory | `2745b67`, then `deb0c1f`; REP-focused 6 passed |
 | 2 | re-review | not exposed by runtime | not exposed by runtime | `deb0c1f` | Re-run independent review against exact repair head | PASS WITH NOTE | Acceptance remains satisfied; no blocking ML/system issue; only note is that GPU bitwise determinism remains out of scope and validation is CPU/R1 | review `4679685771`; exact head `deb0c1f`; full 200 passed, 1 skipped; focused integration 20 passed plus REP-focused 6; Ruff, lock, diff pass |
 | 3 | independent review | not exposed by runtime | not exposed by runtime | merged PR #22 head `e2153a2` / merge `d5806b2` | Re-check `verify_run_manifest(..., root_dir=...)` against the captured Git worktree state | FAIL | Verification compared only `HEAD`; a clean captured manifest could pass in a dirty checkout with the same commit, so source state was not fully bound to the run record | PR #22 thread `PRRT_kwDORqx5mc6QLvLd`, P2 at `src/runtime/reproducibility.py:305` |
-| 3 | repair | not exposed by runtime | not exposed by runtime | `d5806b2` + review thread `PRRT_kwDORqx5mc6QLvLd` | Compare recorded Git dirty/status fields during source verification; add clean-pass and clean-to-dirty regression tests | in progress | `verify_run_manifest` now rejects dirty-state or status drift when `root_dir` is supplied; focused tests cover a matching clean worktree and dirty verification failure | repair PR #24; exact head and independent re-review pending |
+| 3 | repair | not exposed by runtime | not exposed by runtime | `d5806b2` + review thread `PRRT_kwDORqx5mc6QLvLd` | Compare recorded Git dirty/status fields during source verification; add clean-pass and clean-to-dirty regression tests | completed | `verify_run_manifest` now rejects dirty-state or status drift when `root_dir` is supplied; focused tests cover a matching clean worktree and dirty verification failure | repair PR #24 exact head `8f3307a`; 8 focused, 202 full/1 skipped; Ruff, lock, diff pass |
+| 3 | re-review | not exposed by runtime | not exposed by runtime | `8f3307a` / PR #24 | Independent exact-head re-review of the dirty/status verification repair | PASS WITH NOTE | Clean verification succeeds; clean-to-dirty verification fails; no new ML claim; CPU/R1 only | review `4679720242`; exact head `8f3307a`; 8 focused, 202 full/1 skipped |
 
 ## Runtime provenance block
 
@@ -40,7 +41,7 @@
 
 - Capture file/evidence: active Codex context; no exact runtime capture surface was exposed.
 - Codex CLI version: not exposed by runtime
-- Branch/commit: `codex/rep-001-reproducibility` / `deb0c1f5cf71a1966804b0269b2f51e77c784bb1`
+- Branch/commit: `codex/rep-001-dirty-verify-fix` / `8f3307a8b6d390c09405029efefd7a67adfad8e9`
 - Phase/role/task path: repair / REP-001 / delegated agent
 - Privacy confirmation: no prompts, hidden chain-of-thought, token counts, secrets, or raw thread ID recorded.
 
@@ -49,7 +50,7 @@
 ### Review cycles 1–3
 
 - Review model / mode: not exposed by runtime / not exposed by runtime
-- Commit reviewed: `deb0c1f5cf71a1966804b0269b2f51e77c784bb1` (cycle 2; cycle 1 was `67d9247`)
+- Commit reviewed: `8f3307a8b6d390c09405029efefd7a67adfad8e9` (repair re-review; cycle 1 was `67d9247`, cycle 2 was `deb0c1f`)
 - Selected CHECK.md sections: 1 minimum review; 2 R1 smoke; 6 training loop/numerical health; 7.1 change surface; 7.3 repository policy; 8.1 experiment handoff and run-record integrity
 - Major sections marked N/A and why: CHECK 4/5/7.2/7.4/8.2-8.4/9 — no data throughput, CUDA performance, optimizer, checkpoint, W&B, dependency-replacement, or next-change thought-experiment claim; CHECK 8.1 is applicable because this ticket creates the run record.
 - Ticket acceptance result: PASS — same-seed CPU batches/losses reproduce and run directory captures identity/input evidence.
@@ -57,14 +58,14 @@
 - Complexity / change-surface result: PASS WITH NOTE — localized runtime/config/train/data-loader changes; no compatibility shim.
 - ML-system result: PASS WITH NOTE — CPU/R1 evidence only; no GPU bitwise determinism claim.
 - Experiment-handoff result (CHECK 8.1): PASS — `run_manifest.json` records experiment ID, Git SHA/dirty/status state, resolved config and `uv.lock` hashes, hardware/software identity, tokenizer snapshot/hash, and data manifest snapshot/hash; `verify_run_manifest` detects captured-file mutation and verifies source lock, Git SHA, and worktree state when `root_dir` is supplied.
-- Verdict: PASS WITH NOTE (cycle 1 at `4679671936`; cycle 2 exact-head re-review at `4679685771`)
+- Verdict: PASS WITH NOTE (cycle 1 at `4679671936`; cycle 2 at `4679685771`; repair re-review at `4679720242`)
 
 Cycle 3 failed review (PR #22 thread `PRRT_kwDORqx5mc6QLvLd`) because
 `verify_run_manifest(..., root_dir=...)` checked the recorded commit SHA but not
 the captured dirty/status state. A same-HEAD checkout with uncommitted edits
 could therefore pass verification. Repair PR #24 compares the recorded and
 current Git dirty/status fields and adds focused clean-pass and dirty-failure
-regressions; its independent re-review is pending.
+regressions; its exact-head re-review returned PASS WITH NOTE.
 
 #### Findings
 
@@ -77,12 +78,14 @@ regressions; its independent re-review is pending.
 Cycle 1 review returned PASS WITH NOTE. The repair moved dirty/mutable guards
 before tokenizer/data initialization and made the deterministic toggle explicit.
 Cycle 2 re-review at `deb0c1f` returned PASS WITH NOTE.
+Cycle 3 review found the dirty-worktree verification gap; repair PR #24 and its
+exact-head re-review (`4679720242`) closed that finding with PASS WITH NOTE.
 
 ## Final evidence
 
 - Resolved Hydra command/config: `uv run python src/train.py profile=smoke_overfit wandb.enabled=false training.epochs=1`; after repair the run manifest is written before tokenizer/data/model initialization.
 - Data/tokenizer/model identity: canonical tokenizer fingerprint `12ccbc02...`; memorization manifest fingerprint `00c3797a...`; config and lock SHA-256 recorded in `run_manifest.json`.
-- Validation and measurements: same-seed fixture reproduced initial batches and the complete loss sequence exactly; the repair-focused reproducibility tests pass (`8 passed`); broader focused integration, full suite, and exact-head independent re-review for PR #24 are pending.
+- Validation and measurements: same-seed fixture reproduced initial batches and the complete loss sequence exactly; repair-focused reproducibility tests pass (`8 passed`); full suite passes (`202 passed, 1 skipped`); exact-head PR #24 re-review is PASS WITH NOTE.
 - Performance/resource result: N/A — REP-001 is an identity/seeding ticket; no DGX throughput claim.
 - Failed attempts retained at: N/A.
 - Known trade-offs: deterministic Torch algorithms use `warn_only=True` so unsupported GPU kernels do not silently claim bitwise determinism.
