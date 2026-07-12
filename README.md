@@ -39,6 +39,35 @@ upstream revisions, Apache-2.0 license, artifact bytes, vocabulary, special
 tokens, and fixed probes entirely offline. There is no project tokenizer
 training command or runtime tokenizer download.
 
+### Canonical Hydra workflows
+
+Profiles are explicit and compose into the same `src/train.py` entrypoint:
+
+```bash
+# Fast, CPU-only memorization smoke (the only same-corpus profile)
+make smoke
+
+# Compose and preflight the manifest-backed real stream without training
+make config-check PROFILE=pretrain_streaming
+
+# Run the real manifest-backed stream profile on the selected CUDA device
+make pretrain-streaming
+```
+
+The equivalent importable console commands are available after `make sync`:
+
+```bash
+uv run llm-scratch-config-check profile=pretrain_streaming
+uv run llm-scratch-train profile=smoke_overfit runtime.device=cpu training.epochs=1 training.batch_size=2 wandb.enabled=false
+```
+
+`config/profile/smoke_overfit.yaml`, `pretrain_streaming.yaml`, and
+`evaluation.yaml` are the canonical Hydra profiles. `evaluation` is a
+composition placeholder until the evaluation ticket lands; it is not accepted
+by the training loop as a hidden fallback. Every training invocation writes
+the fully resolved configuration to `runs/<profile>/<timestamp>/resolved_config.yaml`
+(the installed console wrapper uses `runs/<profile>/manual/`).
+
 ### Run the model training script
 ```bash
 make train
@@ -50,13 +79,13 @@ This launches the Hydra-based training entrypoint:
 uv run python src/train.py
 ```
 
-Training uses a decoder-only autoregressive setup built from one corpus:
+Training uses a decoder-only autoregressive setup selected by the profile:
 - each sample is a left-to-right language modeling window served lazily from a `Dataset`/`DataLoader` pipeline
 - the tokenized corpus is treated as one continuous stream
 - each training input is a contiguous slice of that stream with fixed length
 - labels are the next-token-shifted slice for standard causal language modeling
 
-The default training config uses the committed `memorization_smoke` manifest
+The default `smoke_overfit` profile uses the committed `memorization_smoke` manifest
 for both train and validation:
 - a mutable path or a user-provided purpose label cannot authorize same-corpus training
 - the manifest fingerprint, source checksum, document identities, and explicit smoke purpose are verified before tokenization
@@ -76,7 +105,7 @@ future generation can enforce the same tokenizer identity.
 You can override runtime values with Hydra arguments, for example:
 
 ```bash
-uv run python src/train.py training.epochs=10 training.batch_size=64
+uv run python src/train.py profile=pretrain_streaming training.epochs=10 training.batch_size=2
 ```
 
 W&B is enabled by default. After syncing dependencies and authenticating with W&B, you can run:

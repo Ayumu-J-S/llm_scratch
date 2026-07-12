@@ -4,12 +4,14 @@ import hydra
 import torch
 from loguru import logger
 from omegaconf import DictConfig, OmegaConf
+from hydra.core.hydra_config import HydraConfig
 
 from data.manifests import ResolvedManifest, preflight_manifest, validate_disjoint_manifests
 from data.streaming_dataset import create_streaming_token_dataloader
 from data.text_dataset import create_autoregressive_dataloader
 from models.simple_decoder_transformer import SimpleDecoderTransformer
 from runtime.device import select_device
+from runtime.config import ConfigPreflightError, validate_training_config
 from training.optimization import build_optimizer, build_scheduler
 from training.trainer import Trainer
 from tokenizer.canonical import CanonicalTokenizer
@@ -17,6 +19,43 @@ from utils.model import get_parameter_counts
 
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
+
+
+def _run_directory() -> Path:
+    """Return Hydra's output directory without requiring an active Hydra job."""
+
+    try:
+        output_dir = HydraConfig.get().runtime.output_dir
+    except Exception:  # HydraConfig is unavailable for direct/importable calls.
+        output_dir = ROOT_DIR / "runs" / "manual"
+    return Path(output_dir)
+
+
+def save_resolved_config(cfg: DictConfig) -> Path:
+    """Persist the exact resolved Hydra config in the run directory."""
+
+    run_dir = _run_directory()
+    run_dir.mkdir(parents=True, exist_ok=True)
+    destination = run_dir / "resolved_config.yaml"
+    OmegaConf.save(config=cfg, f=str(destination), resolve=True)
+    return destination
+
+
+def validate_profile_batches(cfg: DictConfig) -> None:
+    """Build one real train and validation batch during profile preflight."""
+
+    if cfg.data.mode != "streaming":
+        return
+    train_loader = build_streaming_dataloader(cfg, "train")
+    validation_loader = build_streaming_dataloader(cfg, "validation")
+    validate_streaming_dataloaders(train_loader, validation_loader)
+    for name, loader in (("train", train_loader), ("validation", validation_loader)):
+        try:
+            next(iter(loader))
+        except StopIteration as error:
+            raise ConfigPreflightError(
+                f"streaming {name} profile produced no complete batch"
+            ) from error
 
 
 def log_sample_batch(tokenizer, batch) -> None:
@@ -139,6 +178,9 @@ def log_loader_size(name: str, loader) -> None:
 def main(cfg: DictConfig) -> None:
     device = select_device(cfg.runtime.device)
     logger.info("Using device: {}", device)
+    validate_training_config(cfg)
+    resolved_config_path = save_resolved_config(cfg)
+    logger.info("Resolved Hydra config: {}", resolved_config_path)
 
     data_mode = cfg.data.get("mode")
     logger.info("Loading tokenizer artifact...")
@@ -231,6 +273,22 @@ def main(cfg: DictConfig) -> None:
         device=device,
     )
     trainer.fit()
+
+
+def run_config_check(cfg: DictConfig) -> Path:
+    """Preflight a composed profile and return its resolved-config snapshot."""
+    validate_training_config(cfg)
+    validate_profile_batches(cfg)
+    resolved_config_path = save_resolved_config(cfg)
+    logger.info("Config preflight passed: {}", resolved_config_path)
+    return resolved_config_path
+
+
+@hydra.main(version_base=None, config_path="../config", config_name="train")
+def config_check(cfg: DictConfig) -> None:
+    """Compose, preflight, and batch-smoke one canonical profile."""
+
+    run_config_check(cfg)
 
 
 if __name__ == "__main__":

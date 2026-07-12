@@ -1,0 +1,48 @@
+# @package _global_
+# Canonical manifest-backed stream profile. Train and validation select
+# disjoint splits from one immutable source manifest.
+profile:
+  name: pretrain_streaming
+  purpose: pretraining
+
+runtime:
+  device: cuda
+
+data:
+  mode: streaming
+  streaming:
+    require_manifests: true
+    cache:
+      dir: data/stream_loader_cache
+      max_size_bytes: 750000000000
+    prefetch:
+      enabled: true
+      buffer_size: 16
+    train:
+      max_tokens: max
+      add_eos: true
+      seed: 42
+      sources:
+        - name: bilingual_fixture_train
+          type: manifest
+          manifest_path: tests/fixtures/data_manifests/bilingual.manifest.json
+          expected_fingerprint: 47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19
+          selection: train
+          ratio: 1.0
+    validation:
+      max_tokens: max
+      add_eos: true
+      seed: 43
+      sources:
+        - name: bilingual_fixture_validation
+          type: manifest
+          manifest_path: tests/fixtures/data_manifests/bilingual.manifest.json
+          expected_fingerprint: 47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19
+          selection: validation
+          ratio: 1.0
+
+training:
+  sequence_length: 8
+  epochs: 1
+  batch_size: 2
+  shuffle: true
