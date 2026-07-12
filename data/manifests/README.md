@@ -45,6 +45,13 @@ LFS SHA-256 identity differs. Each dataset fingerprint covers the source name,
 full shard inventory, field mapping, and document policy. The manifest
 fingerprint additionally covers usage terms and split construction.
 
+Artifacts are ordered deterministically by `(size_bytes, path)`, smallest
+first. This makes the first artifact in each source the audited bounded live
+probe (English: 574,962,194 bytes; Japanese: 329,375,758 bytes) without changing
+the selected artifact set or any checksum identity. Runtime cursor and resume
+semantics therefore use this committed operational order, not repository path
+order.
+
 Primary records:
 
 - FineWeb card: <https://huggingface.co/datasets/HuggingFaceFW/fineweb/blob/9bb295ddab0e05d785b879661af7260fed5140fc/README.md>

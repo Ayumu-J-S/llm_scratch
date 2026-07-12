@@ -193,7 +193,9 @@ def _validated_inventory(metadata: dict[str, Any], spec: SourceSpec) -> list[dic
             raise SystemExit(f"invalid LFS SHA-256: {spec.repo_id}/{path}")
         artifacts.append({"path": path, "size_bytes": size, "sha256": sha256})
 
-    artifacts.sort(key=lambda item: item["path"])
+    # Keep live-source admission bounded and reproducible: the first artifact is
+    # the audited smallest probe, with path as the deterministic size tie-break.
+    artifacts.sort(key=lambda item: (item["size_bytes"], item["path"]))
     actual_bytes = sum(item["size_bytes"] for item in artifacts)
     if len(artifacts) != spec.expected_files or actual_bytes != spec.expected_bytes:
         raise SystemExit(
