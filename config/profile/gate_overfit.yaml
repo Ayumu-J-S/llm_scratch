@@ -25,7 +25,7 @@ data:
         - name: gate_overfit_train_v1
           type: manifest
           manifest_path: tests/fixtures/gate_overfit/v1/train.manifest.json
-          expected_fingerprint: 8e40a0619b1f93cfcdb84a299ed437d5193df0382c5fa7c2e5f2e0e8a775628a
+          expected_fingerprint: 5b8b1e542e3477e2a41c374e8a0417b30398b7bf622d6d2c1def9eedccd68357
           selection: all
           ratio: 1.0
     validation:
@@ -36,7 +36,7 @@ data:
         - name: gate_overfit_auxiliary_v1
           type: manifest
           manifest_path: tests/fixtures/gate_overfit/v1/auxiliary.manifest.json
-          expected_fingerprint: eca88f8008d0988f92b6a6998fff80d8a1269d5c1ae8bb40023b7e214ef48f5c
+          expected_fingerprint: a4cb7820a679cd914e148395daff2dbf6b4f6c6fac18e4addde13dae98640cdb
           selection: all
           ratio: 1.0
 

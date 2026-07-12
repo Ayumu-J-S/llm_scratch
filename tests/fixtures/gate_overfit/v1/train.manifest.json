@@ -1,8 +1,8 @@
 {
-  "dataset_fingerprint": "ab22b1b109564902ec2ca288579673fc6c8f9b2772a93803fcaf9d890e6a3e65",
+  "dataset_fingerprint": "6fa9248618333a2e805492caf3f0bf53c1e744589068c7310eb3163918826c28",
   "index_path": "train.index.json",
-  "index_sha256": "e9cc3d0ae670091e7b965a6e39c0f47f17644bf41ea16b4a928ed5a190de8200",
-  "manifest_fingerprint": "8e40a0619b1f93cfcdb84a299ed437d5193df0382c5fa7c2e5f2e0e8a775628a",
+  "index_sha256": "7b7df50e30e614981d958486b8a74d261f1f96af36dce3db7f07494722cc340d",
+  "manifest_fingerprint": "5b8b1e542e3477e2a41c374e8a0417b30398b7bf622d6d2c1def9eedccd68357",
   "name": "gate-001-train-v1",
   "purpose": "memorization_smoke",
   "schema_version": 1,
@@ -10,8 +10,8 @@
     "id_field": "id",
     "kind": "local_jsonl",
     "path": "train.jsonl",
-    "sha256": "bb50e4c02858b0de9c2acd1ea14314147fd19f42f6b45444f215afcb2f7aabb6",
-    "size_bytes": 155,
+    "sha256": "bb57e3b2e71db68a7aead16da42574a34c2d8856d13697e04b8fbb0d99cda082",
+    "size_bytes": 249,
     "text_field": "text"
   },
   "split": {
@@ -19,8 +19,8 @@
     "validation_fraction": "0.5"
   },
   "split_fingerprints": {
-    "train": "4b2e0efe0ee60174e7b3c258b1bf8d078ed219c64daa08ff6a289aa7f97a86a8",
-    "validation": "ff8bf7c606e2cd68bbee99be59f0fa64a44af9c1652954ae29893cb802a72cd6"
+    "train": "ff6102f16a8da43de3ac9a24aa836ef6efaf67e8a80060d54227d87507feadd1",
+    "validation": "38653af6435f5e1f9f5a0597af2beb8255612d80b7ad2989643be11601d62bd9"
   },
   "usage": {
     "license": "CC0-1.0",
