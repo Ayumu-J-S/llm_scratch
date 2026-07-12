@@ -158,7 +158,7 @@ be called a baseline until the following gates exist:
 | 6 | EXP-001 | P0 | Done | — | Lightweight experiment and PR handoff contract |
 | 7 | CFG-001 | P0 | Done | DATA-001, TOK-001, DATA-002, EXP-001 | Canonical Hydra profiles and commands |
 | 8 | REP-001 | P0 | Done | CFG-001, TOK-001, DATA-002 | Reproducible run identity and global seed |
-| 9 | LOOP-001 | P0 | Blocked | DATA-001, CFG-001, REP-001 | Step/token trainer and correct scalar metrics |
+| 9 | LOOP-001 | P0 | Done | DATA-001, CFG-001, REP-001 | Step/token trainer and correct scalar metrics |
 | 10 | DATA-003 | P0 | Blocked | DATA-001, DATA-002, REP-001, LOOP-001 | Deterministic stream horizon, shuffle, and cursor |
 | 11 | STAB-001 | P0 | Blocked | ENV-001, LOOP-001 | Stable conventional single-GPU BF16 training recipe |
 | 12 | CKPT-001 | P0 | Blocked | DATA-003, LOOP-001, STAB-001 | Atomic rotating full-state resume |
