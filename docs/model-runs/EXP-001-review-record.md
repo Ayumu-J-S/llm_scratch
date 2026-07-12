@@ -59,8 +59,10 @@ reported exactly as unavailable rather than inferred.
 | 7 | re-review | not exposed by runtime | not exposed by runtime | `6baa1aade77cc7c83db8bc4a13023ecf6df4195d` plus updated PR #10 body | Fresh independent heavier review at requested Extra Thinking against EXP-001, philosophy, and selected R0 checks | PASS WITH NOTE | No actionable findings; provenance is internally consistent and the only note remains that the R0 contract has not been exercised by a consequential training run | Independent reviewer handoff received 2026-07-12 |
 | 8 | handoff | not exposed by runtime | not exposed by runtime | Passing cycle-7 re-review and current docs-only finalization | Append review provenance, update ledger counts, and synchronize the live PR body | completed; primary parity audit pending | Preserved the review target and verdict while making the final metadata-only head visible in the live handoff | This record, ledger, and PR #10 body |
 | 9 | handoff | not exposed by runtime | not exposed by runtime | PR head `f4c4d6dcff0335d1232e9de1710088d4047a0e56`; human-merged guarded policy on `origin/main` at `d5c9a4ec02ac184937e2dea2bd53c977c13d3000` | Convert PR #10 to draft, merge the exact target branch without rebase/force, preserve both ledger histories, and predeclare guarded self-merge gates | integration prepared; fresh review pending | Preserved all policy files from `main`, combined POLICY-001 and EXP-001 ledger rows/counts, and recorded bounded authorization; the exact integration head and every mutable merge gate require post-push review/audit | Local merge state and pre-review audit below |
-| 10 | review | not exposed by runtime | not exposed by runtime | Integration head `7d6b363d6e3b5279e21c7faaa91a32ec3c84043c` and live PR #10 | Automated GitHub review of the pre-review integration handoff | actionable finding; not an independent verdict | The record header and ledger still said `PASS WITH NOTE` even though the integration head had no independent review | Thread `PRRT_kwDORqx5mc6QKC1J` |
-| 10 | repair | not exposed by runtime | not exposed by runtime | Review-comment finding against `7d6b363d6e3b5279e21c7faaa91a32ec3c84043c` | Mark current record and ledger status in progress, retain prior passing verdict as historical, and leave exact-head review/thread/check gates pending | completed locally; independent re-review pending | Removed the false current-pass signal without changing EXP-001 artifacts, runtime behavior, or the guarded policy | Current docs-only repair diff |
+| 10 | review | not exposed by runtime | not exposed by runtime | Merge head `f4e879ce8247488ea3632b3bcc634c112b6f9069` and its live PR #10 body | Automated GitHub review of the pre-review integration handoff | actionable finding; not an independent verdict | The record header and ledger still said `PASS WITH NOTE` even though the merge head had no independent review; the review/thread appeared after later metadata head `7d6b363d6e3b5279e21c7faaa91a32ec3c84043c` was pushed | Review `PRR_kwDORqx5mc8AAAABFuUwhw` names reviewed commit `f4e879ce82`; thread `PRRT_kwDORqx5mc6QKC1J` |
+| 10 | repair | not exposed by runtime | not exposed by runtime | Review-comment finding against merge head `f4e879ce8247488ea3632b3bcc634c112b6f9069`, observed after metadata head `7d6b363d6e3b5279e21c7faaa91a32ec3c84043c` | Mark current record and ledger status in progress, retain prior passing verdict as historical, and leave exact-head review/thread/check gates pending | completed at `905b8314a1e316526b42102b647976a8eaa8feab`; independent re-review pending | Removed the false current-pass signal without changing EXP-001 artifacts, runtime behavior, or the guarded policy | Commit `905b8314a1e316526b42102b647976a8eaa8feab` |
+| 11 | re-review | not exposed by runtime | not exposed by runtime | Status-repair head `905b8314a1e316526b42102b647976a8eaa8feab` plus synchronized live PR #10 body | Fresh independent heavier/Extra Thinking review against EXP-001, philosophy, applicable R0 checks, and guarded merge provenance | FAIL | P1 provenance blocker: cycle 10 and the live PR misattributed the automated review target to `7d6b363`; GitHub review `PRR_kwDORqx5mc8AAAABFuUwhw` actually reviewed merge head `f4e879ce`, and its thread was created only after `7d6b363` | Independent review handoff received 2026-07-12 |
+| 11 | repair | not exposed by runtime | not exposed by runtime | Independent `FAIL` against `905b8314a1e316526b42102b647976a8eaa8feab` | Correct the automated-review target and event ordering everywhere, preserve the status-repair identity, append the failed review, and keep all guarded gates pending | completed locally; independent re-review pending | Record and live handoff now distinguish merge head `f4e879ce`, later metadata head `7d6b363`, and status-repair head `905b831` | Current docs-only repair diff |
 
 Allowed outcome interpretation: the two blocked attempts are not reviews
 performed and are not passing reviews. Historical `pending` text records the
@@ -312,13 +314,13 @@ NOTE` after both repairs.
 - Authorization covers this named PR or bounded ticket/goal series: yes — the
   existing roadmap PR series #10 through #15; it does not authorize unrelated
   PRs or expand any prohibited category.
-- Exact independently reviewed head SHA: pending — merging `origin/main` changes
-  the head and requires fresh independent review of the pushed integration
-  commit.
-- Latest independent verdict / model / mode: pending for the integration head;
-  the earlier `PASS WITH NOTE` at
-  `6baa1aade77cc7c83db8bc4a13023ecf6df4195d` does not authorize the changed
-  head. Exact review model/mode must be recorded as exposed by the runtime.
+- Exact independently reviewed head SHA:
+  `905b8314a1e316526b42102b647976a8eaa8feab` returned `FAIL`; the current
+  provenance-repair head is pending independent re-review.
+- Latest independent verdict / model / mode: `FAIL` / not exposed by runtime /
+  not exposed by runtime (requested heavier reviewer / Extra Thinking). The
+  earlier `PASS WITH NOTE` at
+  `6baa1aade77cc7c83db8bc4a13023ecf6df4195d` does not authorize a later head.
 - All actionable findings repaired and independently re-reviewed: yes for the
   pre-integration head; pending for the integration head.
 - Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: pending
@@ -367,19 +369,29 @@ NOTE` after both repairs.
 
 ## Integration review-comment repair
 
-- Finding target: `7d6b363d6e3b5279e21c7faaa91a32ec3c84043c`.
+- Finding target: merge head
+  `f4e879ce8247488ea3632b3bcc634c112b6f9069`.
 - Finding: the top-level record and ledger advertised `PASS WITH NOTE` while the
   merge-authority section correctly said the integrated head was unreviewed.
-- Finding source: automated GitHub review thread
-  `PRRT_kwDORqx5mc6QKC1J`; this is actionable feedback, not the required fresh
-  independent heavy-model verdict.
+- Finding source: automated GitHub review
+  `PRR_kwDORqx5mc8AAAABFuUwhw`, whose body names reviewed commit `f4e879ce82`,
+  and thread `PRRT_kwDORqx5mc6QKC1J`. The review/thread appeared after metadata
+  head `7d6b363d6e3b5279e21c7faaa91a32ec3c84043c`; that metadata commit recorded
+  observed thread state and was not the automated review target. This is
+  actionable feedback, not the required fresh independent heavy-model verdict.
 - Repair model / mode: not exposed by runtime / not exposed by runtime.
-- Repair: current record and ledger status are `in progress`; prior
+- Status-repair head: `905b8314a1e316526b42102b647976a8eaa8feab`.
+- Repair: current record and ledger status became `in progress`; prior
   `PASS WITH NOTE` results remain append-only historical verdicts tied to their
   exact reviewed heads.
 - Deliberately unchanged: experiment artifacts, resolved Hydra fixture, runtime
   code, guarded-policy text from `main`, and prior review evidence.
-- Required next review: an independent heavier/Extra Thinking review of the
-  exact pushed repair head, followed by thread, check, parity, and final-audit
-  gates. No current passing verdict or merge authority is claimed from this
-  repair alone.
+- Independent re-review of `905b8314a1e316526b42102b647976a8eaa8feab`:
+  `FAIL`; model/mode not exposed by runtime / not exposed by runtime (requested
+  heavier reviewer / Extra Thinking). The P1 blocker was this section's and the
+  live PR's incorrect attribution of the automated review to `7d6b363`.
+- Current repair: corrected the review target and chronology while retaining
+  `905b831` as the status-repair head. An independent heavier/Extra Thinking
+  re-review of the exact pushed provenance-repair head is required before
+  thread, check, parity, or final-audit gates can pass. No current passing
+  verdict or merge authority is claimed from this repair alone.
