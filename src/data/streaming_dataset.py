@@ -62,6 +62,8 @@ def create_streaming_token_dataloader(
     drop_last: bool = True,
     num_workers: int = 0,
     pin_memory: bool = False,
+    generator: torch.Generator | None = None,
+    worker_init_fn=None,
 ) -> DataLoader:
     dataset = StreamingTokenDataset(
         config=config,
@@ -73,6 +75,8 @@ def create_streaming_token_dataloader(
         drop_last=drop_last,
         num_workers=num_workers,
         pin_memory=pin_memory,
+        generator=generator,
+        worker_init_fn=worker_init_fn,
         collate_fn=causal_lm_collate_fn,
     )
 

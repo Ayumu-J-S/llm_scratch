@@ -41,6 +41,20 @@ def create_autoregressive_training_data(token_ids, seq_len, device=None):
     )
 
 
-def create_autoregressive_dataloader(token_ids, seq_len, batch_size, shuffle=True):
+def create_autoregressive_dataloader(
+    token_ids,
+    seq_len,
+    batch_size,
+    shuffle=True,
+    *,
+    generator=None,
+    worker_init_fn=None,
+):
     dataset = AutoregressiveTextDataset(token_ids=token_ids, seq_len=seq_len)
-    return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
+    return DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=shuffle,
+        generator=generator,
+        worker_init_fn=worker_init_fn,
+    )

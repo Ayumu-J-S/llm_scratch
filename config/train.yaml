@@ -13,6 +13,11 @@ data:
     validation:
       max_tokens: max
 
+reproducibility:
+  seed: 42
+  deterministic: true
+  reject_dirty: true
+
 training:
   optimizer:
     _target_: torch.optim.AdamW

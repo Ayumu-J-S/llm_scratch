@@ -12,8 +12,19 @@ class ConfigPreflightError(ValueError):
     """Raised when a profile is empty, unsafe, or contains a critical typo."""
 
 
-_TOP_LEVEL = {"tokenizer", "profile", "runtime", "data", "training", "model", "artifacts", "wandb"}
+_TOP_LEVEL = {
+    "tokenizer",
+    "profile",
+    "runtime",
+    "reproducibility",
+    "data",
+    "training",
+    "model",
+    "artifacts",
+    "wandb",
+}
 _RUNTIME = {"device"}
+_REPRODUCIBILITY = {"seed", "deterministic", "reject_dirty"}
 _PROFILE = {"name", "purpose", "task"}
 _DATA = {"mode", "memorization", "streaming"}
 _STREAMING = {
@@ -138,8 +149,17 @@ def validate_training_config(config: Mapping[str, Any] | DictConfig) -> dict[str
     cfg = _plain(config)
     _check_keys(cfg, _TOP_LEVEL, "<root>")
     _required(cfg, ("profile", "runtime", "data", "training", "model", "tokenizer"), "<root>")
-    for key, allowed in (("profile", _PROFILE), ("runtime", _RUNTIME), ("data", _DATA), ("training", _TRAINING), ("model", _MODEL), ("artifacts", _ARTIFACTS), ("wandb", _WANDB)):
+    for key, allowed in (("profile", _PROFILE), ("runtime", _RUNTIME), ("reproducibility", _REPRODUCIBILITY), ("data", _DATA), ("training", _TRAINING), ("model", _MODEL), ("artifacts", _ARTIFACTS), ("wandb", _WANDB)):
         _check_nested(cfg, key, allowed, "<root>")
+
+    reproducibility = _plain(cfg["reproducibility"])
+    _required(reproducibility, ("seed",), "reproducibility")
+    if (
+        isinstance(reproducibility["seed"], bool)
+        or not isinstance(reproducibility["seed"], int)
+        or reproducibility["seed"] < 0
+    ):
+        raise ConfigPreflightError("reproducibility.seed must be a non-negative integer")
 
     profile = _plain(cfg["profile"])
     _required(profile, ("name",), "profile")
