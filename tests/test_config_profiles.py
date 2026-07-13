@@ -5,7 +5,11 @@ import pytest
 from omegaconf import OmegaConf
 
 import train as train_module
-from runtime.config import ConfigPreflightError, validate_training_config
+from runtime.config import (
+    ConfigPreflightError,
+    validate_evaluation_config,
+    validate_training_config,
+)
 
 
 CONFIG_DIR = Path(__file__).parents[1] / "config"
@@ -124,9 +128,22 @@ def test_evaluation_profile_is_rejected_by_training_preflight(monkeypatch):
         raise AssertionError("evaluation profile must stop before tokenizer initialization")
 
     monkeypatch.setattr(train_module.CanonicalTokenizer, "from_config", fail_if_tokenizer_is_loaded)
-    with pytest.raises(ConfigPreflightError, match="composition-only"):
+    with pytest.raises(ConfigPreflightError, match="standalone-only"):
         train_module.main.__wrapped__(config)
     assert not tokenizer_touched
+
+
+def test_evaluation_preflight_accepts_only_explicit_operational_controls():
+    config = compose(
+        "profile=evaluation",
+        "evaluation.checkpoint_path=/tmp/milestone.pt",
+    )
+    validate_evaluation_config(config)
+
+    OmegaConf.set_struct(config, False)
+    config.evaluation.wandb.raw_documents = True
+    with pytest.raises(ConfigPreflightError, match="unknown critical"):
+        validate_evaluation_config(config)
 
 
 @pytest.mark.parametrize(

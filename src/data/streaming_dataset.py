@@ -114,7 +114,7 @@ class StreamingTokenDataset(IterableDataset):
         self._cursor = probe.state_dict()
 
 
-def causal_lm_collate_fn(samples: list[dict[str, torch.Tensor]]) -> dict[str, torch.Tensor]:
+def causal_lm_collate_fn(samples: list[dict[str, Any]]) -> dict[str, Any]:
     input_ids = torch.stack([sample["input_ids"] for sample in samples]).long()
     if input_ids.size(1) < 2:
         raise ValueError("causal LM batches require at least two tokens per sample")
@@ -127,7 +127,9 @@ def causal_lm_collate_fn(samples: list[dict[str, torch.Tensor]]) -> dict[str, to
         if not all("target_sources" in sample for sample in samples):
             raise ValueError("all samples in a metadata-preserving batch need target_sources")
         batch["target_sources"] = [list(sample["target_sources"]) for sample in samples]
-        batch["source_spans"] = [copy.deepcopy(sample.get("source_spans", [])) for sample in samples]
+        batch["source_spans"] = [
+            copy.deepcopy(sample.get("source_spans", [])) for sample in samples
+        ]
     return batch
 
 

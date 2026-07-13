@@ -7,6 +7,7 @@ import os
 import tempfile
 from pathlib import Path
 from typing import Any
+from collections.abc import Mapping
 
 import hydra
 import wandb
@@ -15,13 +16,14 @@ from omegaconf import DictConfig, OmegaConf
 
 from evaluation.scoring import CausalLMScorer, manifest_identities
 from models.simple_decoder_transformer import SimpleDecoderTransformer
+from runtime.config import validate_evaluation_config, validate_training_config
 from runtime.device import select_device
 from tokenizer.canonical import CanonicalTokenizer
 from train import build_validation_loader_factory, build_streaming_dataloader
 from train import validate_streaming_dataloaders
 from training.checkpoint import (
     checkpoint_file_identity,
-    load_checkpoint_file,
+    load_checkpoint_for_generation,
 )
 from data.identity import canonical_fingerprint
 
@@ -29,20 +31,43 @@ from data.identity import canonical_fingerprint
 def evaluate_checkpoint(cfg: DictConfig) -> Path:
     """Evaluate one verified checkpoint and atomically write a compact JSON result."""
 
+    validate_evaluation_config(cfg)
     evaluation_cfg = cfg.get("evaluation")
-    if evaluation_cfg is None or not evaluation_cfg.get("checkpoint_path"):
-        raise ValueError("evaluation.checkpoint_path is required")
+    assert evaluation_cfg is not None
     checkpoint_path = Path(str(evaluation_cfg.checkpoint_path))
     if not checkpoint_path.is_absolute():
         checkpoint_path = (Path.cwd() / checkpoint_path).resolve()
-    payload = load_checkpoint_file(checkpoint_path)
+    payload = load_checkpoint_for_generation(checkpoint_path)
     state = payload["state"]
-    checkpoint_cfg = OmegaConf.create(state.get("resolved_config"))
-    if not checkpoint_cfg:
+    resolved_config = state.get("resolved_config")
+    if not isinstance(resolved_config, Mapping):
         raise ValueError("checkpoint is missing its resolved Hydra configuration")
+    checkpoint_cfg = OmegaConf.create(resolved_config)
+    validate_training_config(checkpoint_cfg)
+    if checkpoint_cfg.data.mode != "streaming" or checkpoint_cfg.profile.purpose != "pretraining":
+        raise ValueError("held-out evaluation requires a pretraining streaming checkpoint")
+    if any(
+        source.selection != "train" for source in checkpoint_cfg.data.streaming.train.sources
+    ) or any(
+        source.selection != "validation"
+        for source in checkpoint_cfg.data.streaming.validation.sources
+    ):
+        raise ValueError(
+            "held-out evaluation requires explicit train and validation manifest selections"
+        )
 
     device = select_device(str(evaluation_cfg.get("device", "cpu")))
     tokenizer = CanonicalTokenizer.from_config(checkpoint_cfg.tokenizer)
+    identity = payload["identity"]
+    model_config = OmegaConf.to_container(checkpoint_cfg.model, resolve=True)
+    if not isinstance(model_config, dict) or identity.get("model_config") != model_config:
+        raise ValueError(
+            "checkpoint model identity does not match its resolved model configuration"
+        )
+    if identity.get("tokenizer_fingerprint") != tokenizer.fingerprint:
+        raise ValueError(
+            "checkpoint tokenizer identity does not match the canonical tokenizer artifact"
+        )
     validation_factory = build_validation_loader_factory(checkpoint_cfg, device=device)
     validation_loader = validation_factory()
     if checkpoint_cfg.data.mode == "streaming":
@@ -74,11 +99,7 @@ def evaluate_checkpoint(cfg: DictConfig) -> Path:
     result = scorer.score(
         model,
         validation_factory,
-        namespace=(
-            "memorization"
-            if checkpoint_cfg.data.mode == "memorization_smoke"
-            else "validation"
-        ),
+        namespace="validation",
         logical_checkpoint_identity=checkpoint_identity,
         physical_checkpoint_identity=physical_identity,
         manifest_identity=manifest_identities(
@@ -90,6 +111,8 @@ def evaluate_checkpoint(cfg: DictConfig) -> Path:
         "evaluation": {
             "kind": result.namespace,
             "scorer_revision": result.scorer_revision,
+            "device": str(device),
+            "precision": str(checkpoint_cfg.training.get("precision", "fp32")),
             "checkpoint_config_sha256": canonical_fingerprint(
                 OmegaConf.to_container(checkpoint_cfg, resolve=True)
             ),
@@ -103,7 +126,7 @@ def evaluate_checkpoint(cfg: DictConfig) -> Path:
     }
     output_path = _output_path(evaluation_cfg)
     _write_json_atomic(output_path, output)
-    _maybe_log_wandb(evaluation_cfg, result, output)
+    _maybe_log_wandb(evaluation_cfg, result)
     return output_path
 
 
@@ -126,7 +149,14 @@ def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
     temporary = Path(temporary_name)
     try:
         with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            json.dump(payload, handle, ensure_ascii=False, indent=2, sort_keys=True)
+            json.dump(
+                payload,
+                handle,
+                ensure_ascii=False,
+                indent=2,
+                sort_keys=True,
+                allow_nan=False,
+            )
             handle.write("\n")
             handle.flush()
             os.fsync(handle.fileno())
@@ -140,7 +170,7 @@ def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
         temporary.unlink(missing_ok=True)
 
 
-def _maybe_log_wandb(evaluation_cfg: DictConfig, result, output: dict[str, Any]) -> None:
+def _maybe_log_wandb(evaluation_cfg: DictConfig, result) -> None:
     wandb_cfg = evaluation_cfg.get("wandb", {}) or {}
     if not wandb_cfg.get("enabled", False):
         return
@@ -162,8 +192,7 @@ def _maybe_log_wandb(evaluation_cfg: DictConfig, result, output: dict[str, Any])
                 "evaluation/evaluated_token_sha256": result.evaluated_token_sha256,
                 "evaluation/pause_seconds": result.pause_seconds,
                 "evaluation/by_corpus": {
-                    name: score.as_dict()
-                    for name, score in sorted(result.by_corpus.items())
+                    name: score.as_dict() for name, score in sorted(result.by_corpus.items())
                 },
             }
         )

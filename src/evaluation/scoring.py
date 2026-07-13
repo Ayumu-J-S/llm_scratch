@@ -10,9 +10,10 @@ from __future__ import annotations
 import hashlib
 import math
 import struct
+import sys
 import time
-from dataclasses import dataclass, replace
 from collections.abc import Callable, Iterable, Mapping
+from dataclasses import dataclass
 from typing import Any
 
 import torch
@@ -29,14 +30,18 @@ _DEFAULT_SOURCE = "aggregate"
 class CorpusScore:
     """Token-weighted metrics for one source/corpus."""
 
+    nll_sum: float
     nll: float
-    perplexity: float
+    perplexity: float | None
+    perplexity_overflow: bool
     target_tokens: int
 
     def as_dict(self) -> dict[str, Any]:
         return {
+            "nll_sum": self.nll_sum,
             "nll": self.nll,
             "perplexity": self.perplexity,
+            "perplexity_overflow": self.perplexity_overflow,
             "target_tokens": self.target_tokens,
         }
 
@@ -62,7 +67,7 @@ class EvaluationResult:
         return self.aggregate.nll
 
     @property
-    def perplexity(self) -> float:
+    def perplexity(self) -> float | None:
         return self.aggregate.perplexity
 
     @property
@@ -70,24 +75,17 @@ class EvaluationResult:
         return self.aggregate.target_tokens
 
     @property
-    def evaluated_targets_per_second(self) -> float:
+    def evaluated_targets_per_second(self) -> float | None:
         if self.pause_seconds <= 0.0:
-            return float("inf")
+            return None
         return self.target_tokens / self.pause_seconds
-
-    def with_physical_checkpoint(self, identity: Mapping[str, Any]) -> "EvaluationResult":
-        """Attach a file identity only after the corresponding state is saved."""
-
-        return replace(self, physical_checkpoint_identity=dict(identity))
 
     def as_dict(self) -> dict[str, Any]:
         return {
             "namespace": self.namespace,
             "scorer_revision": self.scorer_revision,
             "aggregate": self.aggregate.as_dict(),
-            "by_corpus": {
-                name: score.as_dict() for name, score in sorted(self.by_corpus.items())
-            },
+            "by_corpus": {name: score.as_dict() for name, score in sorted(self.by_corpus.items())},
             "evaluated_windows": self.evaluated_windows,
             "evaluated_window_sha256": self.evaluated_window_sha256,
             "evaluated_token_sha256": self.evaluated_token_sha256,
@@ -132,6 +130,11 @@ class CausalLMScorer:
         if namespace not in {"validation", "memorization"}:
             raise ValueError("evaluation namespace must be validation or memorization")
         loader = loader_or_factory() if callable(loader_or_factory) else loader_or_factory
+        resolved_manifest_identity = dict(
+            manifest_identity
+            if manifest_identity is not None
+            else _manifest_identity_from_loader(loader)
+        )
         iterator = iter(loader)
         was_training = model.training
         model.eval()
@@ -189,6 +192,8 @@ class CausalLMScorer:
                                 error.batch_index = batch_index
                                 raise error
                             source = str(sources[token_index])
+                            if not source:
+                                raise ValueError("every valid validation target needs a source")
                             value = float(loss)
                             token_id = int(label)
                             aggregate_loss += value
@@ -201,6 +206,7 @@ class CausalLMScorer:
                             window_digest,
                             input_row,
                             label_row,
+                            sources,
                             self.ignore_index,
                         )
                         evaluated_windows += 1
@@ -213,6 +219,16 @@ class CausalLMScorer:
 
         if aggregate_tokens == 0:
             raise ValueError("validation loader is empty or contains zero target tokens")
+        if namespace == "validation" and resolved_manifest_identity:
+            expected_sources = set(resolved_manifest_identity)
+            observed_sources = set(corpus_tokens)
+            if observed_sources != expected_sources:
+                raise ValueError(
+                    "validation target attribution does not match declared manifests; "
+                    f"expected={sorted(expected_sources)}, observed={sorted(observed_sources)}"
+                )
+        if sum(corpus_tokens.values()) != aggregate_tokens:
+            raise RuntimeError("per-corpus validation target counts do not reconcile")
         aggregate = _make_score(aggregate_loss, aggregate_tokens)
         by_corpus = {
             source: _make_score(corpus_loss[source], corpus_tokens[source])
@@ -225,7 +241,7 @@ class CausalLMScorer:
             evaluated_windows=evaluated_windows,
             evaluated_window_sha256=window_digest.hexdigest(),
             evaluated_token_sha256=token_digest.hexdigest(),
-            manifest_identity=dict(manifest_identity or _manifest_identity_from_loader(loader)),
+            manifest_identity=resolved_manifest_identity,
             logical_checkpoint_identity=(
                 dict(logical_checkpoint_identity)
                 if logical_checkpoint_identity is not None
@@ -248,10 +264,14 @@ def manifest_identities(manifests: Mapping[str, Any] | None) -> dict[str, Any]:
         return {}
     result: dict[str, Any] = {}
     for name, manifest in sorted(manifests.items()):
+        purpose = getattr(manifest.purpose, "value", manifest.purpose)
         result[str(name)] = {
             "manifest_fingerprint": str(manifest.manifest_fingerprint),
             "dataset_fingerprint": str(manifest.dataset_fingerprint),
+            "purpose": str(purpose),
             "selection": str(manifest.selection),
+            "split_fingerprints": dict(manifest.split_fingerprints),
+            "split_policy_fingerprint": manifest.split_policy_fingerprint,
         }
     return result
 
@@ -278,11 +298,18 @@ def _target_source_rows(value: Any, labels: torch.Tensor) -> list[list[str]]:
 
 def _make_score(loss_sum: float, target_tokens: int) -> CorpusScore:
     nll = loss_sum / target_tokens
-    try:
+    overflow = nll > math.log(sys.float_info.max)
+    if overflow:
+        perplexity = None
+    else:
         perplexity = math.exp(nll)
-    except OverflowError:
-        perplexity = float("inf")
-    return CorpusScore(nll=nll, perplexity=perplexity, target_tokens=target_tokens)
+    return CorpusScore(
+        nll_sum=loss_sum,
+        nll=nll,
+        perplexity=perplexity,
+        perplexity_overflow=overflow,
+        target_tokens=target_tokens,
+    )
 
 
 def _update_int(digest: "hashlib._Hash", value: int) -> None:
@@ -299,6 +326,7 @@ def _update_window_digest(
     digest: "hashlib._Hash",
     inputs: list[int],
     labels: list[int],
+    sources: list[str],
     ignore_index: int,
 ) -> None:
     """Hash one window as a framed record, independent of batch grouping."""
@@ -310,6 +338,9 @@ def _update_window_digest(
     digest.update(struct.pack("<Q", len(labels)))
     for value in labels:
         _update_int(digest, int(value))
+    digest.update(struct.pack("<Q", len(sources)))
+    for source in sources:
+        _update_text(digest, source)
     digest.update(struct.pack("<Q", sum(int(label) != ignore_index for label in labels)))
     # Valid target IDs are included in the separate target digest.  The window
     # digest only needs the mask and window boundaries, so no floating losses

@@ -212,9 +212,7 @@ def build_validation_loader_factory(
             seq_len=cfg.training.sequence_length,
             batch_size=cfg.training.batch_size,
             shuffle=False,
-            generator=dataloader_generator(
-                int(cfg.reproducibility.seed), stream="validation"
-            ),
+            generator=dataloader_generator(int(cfg.reproducibility.seed), stream="validation"),
             worker_init_fn=dataloader_worker_init_fn,
         )
         # Map-style memorization smoke has no stream dataset object, but its

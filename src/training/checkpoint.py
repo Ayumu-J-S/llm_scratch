@@ -130,14 +130,6 @@ def checkpoint_file_identity(path: str | Path) -> dict[str, Any]:
     }
 
 
-def load_checkpoint_file(path: str | Path) -> dict[str, Any]:
-    """Verify and load one checkpoint without trusting a caller-supplied identity."""
-
-    checkpoint_path = Path(path)
-    manager = CheckpointManager(checkpoint_path.parent, keep_last_n=1, identity={})
-    return manager._read_verified(checkpoint_path)
-
-
 def build_checkpoint_identity(
     cfg: DictConfig | Mapping[str, Any], *, run_manifest_path: str | Path | None = None
 ) -> dict[str, Any]:

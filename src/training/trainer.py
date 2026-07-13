@@ -27,7 +27,6 @@ from training.checkpoint import (
     CheckpointManager,
     ResumeCheckpoint,
     build_checkpoint_identity,
-    checkpoint_file_identity,
     capture_rng_state,
     require_exact_stream_resume_state,
     restore_rng_state,
@@ -224,6 +223,7 @@ class Trainer:
                     if isinstance(self.scheduler, ReduceLROnPlateau):
                         if validation_loss is None:
                             validation_result = self._evaluate()
+                            self._update_elapsed()
                             validation_loss = _evaluation_nll(validation_result)
                             self._latest_validation_loss = validation_loss
                             self._record_validation_metrics(validation_result)
@@ -387,15 +387,15 @@ class Trainer:
         )
         if should_validate and self._last_validation_step != step:
             validation_result = self._evaluate()
+            self._update_elapsed()
             validation_loss = _evaluation_nll(validation_result)
             self._latest_validation_loss = validation_loss
             self._last_validation_step = step
-            if self._best_validation_loss is None or validation_loss < self._best_validation_loss:
+            if not self._is_memorization_run() and (
+                self._best_validation_loss is None or validation_loss < self._best_validation_loss
+            ):
                 self._best_validation_loss = validation_loss
                 best_path = self._save_best_checkpoint()
-                validation_result = validation_result.with_physical_checkpoint(
-                    checkpoint_file_identity(best_path)
-                )
                 self._record_metrics(
                     {
                         "event": "best_checkpoint",
@@ -543,7 +543,10 @@ class Trainer:
 
     def _is_memorization_run(self) -> bool:
         data = self.cfg.get("data", {}) or {}
-        return data.get("mode") == "memorization_smoke"
+        profile = self.cfg.get("profile", {}) or {}
+        return data.get("mode") == "memorization_smoke" or str(
+            profile.get("purpose", "")
+        ).startswith("memorization")
 
     def _logical_checkpoint_identity(self) -> dict[str, Any]:
         return {
