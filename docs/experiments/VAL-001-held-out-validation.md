@@ -28,7 +28,7 @@
 | --- | --- | --- |
 | Correctness | Full CPU suite plus focused identity/timing regressions | Known-logit and failure-path tests are authoritative after the pre-repair fixture became invalid |
 | DGX target smoke | Three matched validation-off/on pairs, 60 steps per arm | CHECK repeated-measurement and VAL-001 pause-isolation requirements |
-| Training work | 122,880 targets per arm; 737,280 targets across six runs | 2,048 effective targets/update |
+| Training work | 245,760 targets per arm; 1,474,560 targets across six acceptance runs | 4,096 effective targets/update in the repaired sequence-4,096 protocol |
 | Validation | 65,536 fixed targets at steps 25 and 50 in each on arm | Six Japanese/English 50/50 validation events |
 | Checkpoints | Final in every arm; best after each improving held-out score | Required parity, identity, and pause evidence |
 | Resource trace | GPU at 5 Hz; host and container at 1 Hz | Continuous attribution and at least 90% expected sample coverage |
@@ -152,7 +152,7 @@ The container also warned that memory-efficient attention defaults to a
 nondeterministic algorithm. Exact trajectory parity was observed for this pair,
 but it is not a cross-platform bitwise reproducibility promise.
 
-## Attempt 3 — predeclared post-repair DGX R3 protocol
+## Attempt 3 — stopped post-repair DGX R3 protocol
 
 This protocol is committed before measurement. It replaces the insufficient
 single-pair performance claim; Attempt 2 remains historical evidence only.
@@ -237,6 +237,59 @@ docker run --rm --gpus all --ipc=host \
 - GPU sample coverage and host/container coverage must each reach at least 90%
   of their expected intervals.
 
+### Outcome and stop decision
+
+- The first launch failed before data/model initialization because container
+  Git rejected the read-only `/workspace` bind mount as dubious ownership. The
+  retry added only explicit Git `safe.directory=/workspace` environment values;
+  the failed launch remains under the raw evidence root.
+- Pair 1 then completed at exact head `78e0448`: both arms reached 60 steps and
+  122,880 targets; the off arm had zero validation events and the on arm had
+  validation exactly at steps 25/50. All non-time step records matched exactly.
+- Post-warm-up throughput was 3,721.61 targets/s off and 3,808.35 targets/s on,
+  a +2.33% on/off delta. Validation event pauses were 22.2045 s and 22.3052 s,
+  with 20.1137 s and 19.7149 s scoring; attribution error stayed below 0.3 ms.
+- The attempt nevertheless stopped as predeclared: data wait consumed 82.60%
+  of off-arm and 82.47% of on-arm step time, well above the 10% FAIL gate.
+  Cache names/sizes/content were unchanged and all leases were released, so the
+  failure was producer/window overhead rather than download, eviction, or a
+  validation-induced regression.
+- Validation-off diagnostics kept the same model/data/image and isolated context
+  shape. Data-wait fraction fell from 82.60% at sequence 8 to 14.76% at 256,
+  8.96% at 1,024, 5.45% at 2,048, and 0.86% at 4,096. Sequence 4,096 used at
+  most 7.40 GB PyTorch reserved memory and 6.49 GB allocated memory. These
+  diagnostics choose the repaired protocol; they are not acceptance runs.
+
+## Attempt 4 — predeclared sequence-4,096 DGX R3 retry
+
+This retry is committed before its acceptance runs. It changes only the train
+shape needed to remove the evidenced per-window producer bottleneck:
+
+- sequence length 4,096, micro batch 1, accumulation 1, 4,096 targets/update;
+- 60 steps and 245,760 train targets per arm;
+- the same exact code, model, tokenizer, manifests, seed, cache, image, hardware,
+  warm-up cutoff, validation windows/65,536 targets, cadences, sampler rates,
+  run order, trajectory/identity checks, and pass/fail gates as Attempt 3;
+- run order `1-off`, `1-on`, `2-on`, `2-off`, `3-off`, `3-on`; and
+- the explicit container Git safe-directory environment setting retained from
+  the no-work launch repair.
+
+The acceptance command template changes these three Hydra values from Attempt 3:
+
+```text
+training.sequence_length=4096
+training.batch_size=1
+training.gradient_accumulation_steps=1
+```
+
+PASS still requires a median paired throughput regression under 5%, steady
+data wait at or below 5%, exact trajectory/final-model parity inside every pair,
+all validation/standalone identities and scores exact, validation/checkpoint
+budgets met, memory recovery, zero cache mutation, and continuous-trace coverage.
+The sequence-4,096 choice was made from validation-off diagnostics before any
+sequence-4,096 on/off comparison, so it does not select a favorable validation
+effect.
+
 ## Independent review FAIL and repair
 
 The independent review requested `gpt-5.6-sol` / Max for `41191cb` and returned
@@ -266,8 +319,9 @@ The repair phase, requested as `gpt-5.6-luna` / Extra High, has implemented:
 - direct imports from `evaluation.scoring` without package-level re-exports.
 
 The ordinary path adds no CUDA synchronization. Benchmark mode deliberately
-uses one end-step boundary synchronization so CUDA event timings are valid. No
-post-repair DGX result exists yet; Attempt 3 is the predeclared next action.
+uses one end-step boundary synchronization so CUDA event timings are valid.
+Attempt 3 produced a stopped current-head pair and diagnostics; Attempt 4 is
+the predeclared acceptance retry.
 Exact displayed repair model and reasoning mode are not exposed by runtime.
 
 Local repair verification: focused validation/checkpoint/trainer/generation

@@ -174,6 +174,27 @@ trigger. The predeclared repair-head protocol requires three matched pairs,
 continuous traces, phase/data-wait evidence, exact trajectory/model parity, and
 a median paired regression below 5%.
 
+### Current-head DGX Attempt 3 — stopped on data wait
+
+- Exact head `78e0448`, pinned image/GB10/cache, and continuous GPU/host/container
+  traces were used. A no-work launch first failed on container Git ownership;
+  explicit `safe.directory=/workspace` environment values repaired only that
+  operational boundary.
+- The completed sequence-8 pair reached 60 steps/122,880 targets per arm,
+  preserved exact non-time trajectory parity, emitted zero off-arm validation
+  events and step-25/50 on-arm events, and showed a +2.33% on/off throughput
+  delta rather than the old-head regression.
+- Validation pauses were 22.2045 s and 22.3052 s, with less than 0.3 ms
+  attribution error, inside the predeclared pause budgets.
+- The attempt correctly stopped before pairs 2/3 because steady data wait was
+  82.60% off and 82.47% on, exceeding the zero-tolerance 10% gate. Cache
+  inventory/content stayed exact and leases were released.
+- Validation-off diagnostics localized per-window producer overhead: data wait
+  fell monotonically to 0.86% at sequence 4,096, with only 7.40 GB reserved
+  memory. Attempt 4 is predeclared before acceptance measurement at sequence
+  4,096, batch 1, accumulation 1, and 4,096 targets/update. Diagnostic arms are
+  excluded from acceptance replication.
+
 The R2 measured `2133248`; `0a13838` only changes exceptional iterator cleanup.
 No successful scoring/training code path or performance control changed. This
 parent-head relationship is disclosed rather than misrepresented as exact-head
@@ -270,14 +291,15 @@ measurement.
 
 - Known trade-off: the fixed 65,536-target validation pass costs about 19.52 s
   plus about 1.8–2.4 s when an improving best checkpoint is saved.
-- Evidence blocker: the single old-head pair is insufficient and shows an
-  approximately 10.13% p50-derived throughput regression; current-head repeated
-  measurement and continuous traces are required.
+- Evidence blocker: current-head Attempt 3 repaired the apparent on/off
+  regression but failed its absolute data-wait gate; the predeclared
+  sequence-4,096 Attempt 4 needs three passing matched pairs and continuous
+  traces.
 - Dependency: this stacked PR still depends on DATA-004, whose source-rights
   disposition is a human policy gate.
 - Merge path: human review and merge; no self-merge authorization exists.
-- Exactly one next step: run and analyze the predeclared current-head DGX
-  protocol; independent heavy re-review follows only if it passes.
+- Exactly one next step: run and analyze predeclared DGX Attempt 4; independent
+  heavy re-review follows only if it passes.
 
 ## Merge authority and final audit
 
