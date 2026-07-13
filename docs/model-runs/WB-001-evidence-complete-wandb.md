@@ -8,7 +8,11 @@
   becoming training authority, bulk storage, or a local failure mode.
 - Experiment record: `docs/experiments/WB-001-evidence-complete-wandb.md`
 - Started: 2026-07-13
-- Final verdict: local `PASS WITH NOTE`; independent heavy review pending
+- Final verdict: mandatory independent heavy review `FAIL` at exact head
+  `23b6d2120f1a3738d4a3baf92e50c9b8f3c227f9`; cycle-13 repair is implemented
+  and locally validated, and a focused independent repair audit passes. The
+  mandatory exact-head heavy re-review remains pending. The retained Attempt 8
+  measurement remains `PASS WITH NOTE`.
 - Final record owner: lead roadmap agent
 
 ## Scope and decision context
@@ -66,7 +70,9 @@
 | 11 | review | not exposed by runtime | not exposed by runtime | uncommitted depth-26 repair and records | Final prelaunch audit before Attempt 8 | PASS | Exact work/validation/watch/resources/gates agree; fresh-root enforcement and production-versus-measurement identity wording were repaired and re-audited | two independent delegated audits; 18 focused tests and static checks pass |
 | 11 | validation | not exposed by runtime | not exposed by runtime | exact clean `b59f844` Attempt 8 | Run and verify the full fresh matrix | PASS WITH NOTE | All 170 gates passed; 6.53–8.54% data wait and 6.56% offline-on/5.46% watch medians trigger only the predeclared 5% investigation notes | raw root plus `WB-001-dgx-r8-pass-with-note.json` |
 | 11 | review | not exposed by runtime | not exposed by runtime | exact raw and durable Attempt 8 evidence | Independently recompute the result before the mandatory heavy review | PASS WITH NOTE | Raw per-arm denominators, paired formula/medians, exact work, identities, W&B records, samplers, memory, and swap agree; the 11 warnings are exactly the declared investigation notes | two delegated validations plus byte/hash and raw-row recomputation |
-| 12 | review | pending | pending | exact integration/evidence head pending | Mandatory heavy review against philosophy, ticket, and applicable CHECK after evidence | pending | pending | pending |
+| 12 | review | not exposed by runtime | not exposed by runtime | exact clean `23b6d2120f1a3738d4a3baf92e50c9b8f3c227f9` | Requested `gpt-5.6-sol` / Extra High (`xhigh`); mandatory heavy review against philosophy, ticket, and applicable CHECK | FAIL; repair pending | Cumulative milestone quota was not reserved, synchronous scalar logging could stall training, partial watch installation could leak hooks, canonical DGX docs were stale, checkpoint equality was overstated, and the PR mixed requested with actual provenance | `/tmp/WB-001-heavy-review.txt`; reviewer independently reproduced the byte-identical 170/170 Attempt 8 result |
+| 13 | repair | not exposed by runtime | not exposed by runtime | cycle-12 mandatory `FAIL` and exact reviewed head `23b6d21` | Delegated appropriate GPT-5.6 implementation: repair the three P1 findings without changing model/data/trainer cadence or retained evidence | implemented and locally validated; mandatory re-review pending | Added Hydra `wandb.log_timeout_seconds=5`, one persistent bounded scalar worker with circuit breaker, tracker-lifetime cumulative quota reservations using strictest observed usage/limit, and unconditional partial-watch cleanup | `55 passed` focused; `102 passed` relevant; full `379 passed, 1 skipped`; static/config/shell/JSON checks pass |
+| 13 | review | not exposed by runtime | not exposed by runtime | final live cycle-13 repair diff | Independently audit only heavy-review findings 1–3; not the mandatory exact-head heavy re-review | PASS; mandatory re-review still pending | No remaining actionable quota, scalar-boundary, or watch-cleanup finding; conservative false blocking and a daemonized permanently stuck SDK worker are bounded documented trade-offs | focused `55 passed in 2.71s`; Ruff, four-file format, and diff checks pass; `/root/wb001_repair_audit` |
 
 Requested values are recorded separately from actual runtime display. The
 delegated runtime did not expose the actual model identifier or reasoning mode;
@@ -77,7 +83,13 @@ they are not inferred from the request.
 | Namespace | Product | Displayed family | Exact model identifier | Reasoning mode | Source / unavailable reason |
 | --- | --- | --- | --- | --- | --- |
 | requested | Codex | GPT-5.6 Luna-equivalent implementation tier | `gpt-5.6-luna` | Extra High (`xhigh`) or higher | explicit task request |
-| actual | not exposed by runtime | not exposed by runtime | not exposed by runtime | not exposed by runtime | active delegated runtime did not display these values |
+| actual implementation | not exposed by runtime | not exposed by runtime | not exposed by runtime | not exposed by runtime | implementation runtime did not display these values |
+| requested review | Codex | GPT-5.6 heavier review tier | `gpt-5.6-sol` | Extra High (`xhigh`) | explicit mandatory-review invocation |
+| actual review | not exposed by runtime | not exposed by runtime | not exposed by runtime | not exposed by runtime | reviewer runtime did not display these values |
+| requested repair | Codex | appropriate GPT-5.6 implementation tier | appropriate GPT-5.6 implementation model | not exposed by runtime | explicit delegated repair request |
+| actual repair | not exposed by runtime | not exposed by runtime | not exposed by runtime | not exposed by runtime | delegated repair runtime did not display these values |
+| requested repair audit | not exposed by runtime | independent repair audit | not exposed by runtime | not exposed by runtime | exact model/mode request was not exposed; task explicitly scoped findings 1–3 |
+| actual repair audit | not exposed by runtime | not exposed by runtime | not exposed by runtime | not exposed by runtime | repair-audit runtime did not display these values |
 
 - Capture files:
   `docs/model-runs/evidence/WB-001-implementation-provenance.json`,
@@ -92,8 +104,11 @@ they are not inferred from the request.
   `docs/model-runs/evidence/WB-001-r7-thermal-repair-provenance.json`,
   `docs/model-runs/evidence/WB-001-r9-compute-repair-provenance.json`,
   `docs/model-runs/evidence/WB-001-r10-depth-repair-provenance.json`,
-  `docs/model-runs/evidence/WB-001-r11-depth-repair-provenance.json`, and
-  `docs/model-runs/evidence/WB-001-r8-validation-provenance.json`
+  `docs/model-runs/evidence/WB-001-r11-depth-repair-provenance.json`,
+  `docs/model-runs/evidence/WB-001-r8-validation-provenance.json`,
+  `docs/model-runs/evidence/WB-001-heavy-review-provenance.json`,
+  `docs/model-runs/evidence/WB-001-cycle13-repair-provenance.json`, and
+  `docs/model-runs/evidence/WB-001-cycle13-repair-audit-provenance.json`
 - Codex CLI version: `codex-cli 0.144.1`
 - Branch/commit: `codex/wb-001-evidence-safe-wandb` / input `74d9e24`
 - Phase/role/task path: implementation / implementation /
@@ -281,7 +296,105 @@ they are not inferred from the request.
   predeclared 5% investigation and 10% failure thresholds. Watch-on contained
   one valid decoded 315-series histogram record per arm; all exactness,
   checkpoint, validation, storage, sampler, memory, and swap gates passed.
-- Commit reviewed next: pending exact evidence/documentation head.
+- Commit reviewed next: exact evidence/documentation head
+  `23b6d2120f1a3738d4a3baf92e50c9b8f3c227f9`; mandatory review `FAIL`.
+
+### Review cycle 12 — mandatory independent heavy review
+
+- Requested review model / mode: `gpt-5.6-sol` / Extra High (`xhigh`).
+- Actual review model / mode: not exposed by runtime / not exposed by runtime.
+- Commit reviewed: exact clean
+  `23b6d2120f1a3738d4a3baf92e50c9b8f3c227f9` against baseline
+  `74d9e24c251b62b23892b11ba0c1c9c723cd8a12`.
+- Selected `CHECK.md` sections: minimum review; §3; resource/storage portions
+  of §§5.3–5.4; §6.3; §§7.1–7.3; §§8.1 and 8.3; checkpoint-binding portions
+  of §9.1; and §9.2.
+- Major sections marked N/A and why: production data/tokenizer semantics,
+  architecture quality, benchmark leakage/scoring, an R3 thermal pilot, and
+  long-run preflight did not change or exceed WB-001's bounded R2 scope.
+- Ticket acceptance result: `FAIL`. The Attempt 8 R2 evidence independently
+  recomputed byte-for-byte to 170/170 passing gates, but quota safety and
+  external-failure isolation remained acceptance blockers.
+- Philosophy alignment: local authority, compact evidence, and Hydra-only
+  configuration align; cumulative quota accounting and stalled/partial SDK
+  operations did not yet satisfy the external-boundary policy.
+- Complexity / change-surface result: direct one-boundary design; no shim,
+  separate `config.py`, or speculative plugin framework found.
+- ML-system result: exact model, normalized resume, cursor, and trajectory
+  identity passed across arms; physical checkpoint file SHA-256 values differ
+  because arm-local operational metadata is retained.
+- Verdict: `FAIL`; all six findings remain in the review record and repair plus
+  independent exact-head re-review is required.
+
+#### Findings
+
+| Severity | Area | Finding | Required repair |
+| --- | --- | --- | --- |
+| P1 | quota safety | Successful earlier milestone uploads were not accumulated against the visible usage snapshot, so multiple individually allowed uploads could collectively exceed quota | reserve each committed upload cumulatively or require an equivalently fresh authoritative snapshot, then test multiple milestones |
+| P1 | scalar failure isolation | Synchronous `run.log()` could stall training indefinitely even though exceptions were caught | add a bounded call boundary and disable/circuit-break tracking after timeout without aborting local training |
+| P1 | watch cleanup | A failure after partial W&B hook installation could leave hooks attached because the watched model was recorded only after `watch()` returned | make partial installation cleanup unconditional and prove it with a partial-failure regression |
+| P2 | canonical docs | `docs/wandb.md` still described the superseded 100-step/10-warm-up protocol and claimed no DGX result | document retained depth-26 Attempt 8, 260/26 steps, result, scope, and limitations |
+| P2 | checkpoint evidence wording | The experiment record said physical checkpoint digests were identical although the evidence has distinct file SHA-256 values | claim only identical model, normalized resume, cursor, and trajectory digests; explain physical-file differences |
+| P2 | PR provenance | Actual model/reasoning columns combined `not exposed` with requested values | keep actual runtime values and requested invocation values in separate fields |
+
+### Failed-review handoff — mandatory cycle 12
+
+- Failed check and why: WB-001 quota responsibility and external-failure
+  isolation fail findings 1–3; documentation/provenance accuracy fail findings
+  4–6.
+- Review evidence:
+  `docs/model-runs/evidence/WB-001-heavy-review-provenance.json` records the
+  invocation and `/tmp/WB-001-heavy-review.txt` output hash; the reviewer also
+  recomputed the retained Attempt 8 projection exactly, SHA-256
+  `df51d5c1c22bfec4a444460336be6d7c9cd5efb99e3f4b39fac4f858c61c0802`.
+- Invariants and constraints: Hydra only; local training/checkpoints/metrics
+  remain authoritative; no raw corpus or recovery-checkpoint upload; public SDK
+  only; fail closed on unknown quota; no compatibility shim; preserve Attempt 8
+  and all failed evidence unchanged.
+- Repair status: documentation findings 4–6 and implementation findings 1–3
+  are implemented in the current worktree. The focused suite passes 55 tests,
+  the relevant selection passes 102, the full suite passes 379 with one skip,
+  and the focused independent repair audit returns `PASS`. The mandatory
+  exact-head heavy re-review remains pending, so the prior `FAIL` is not
+  cleared.
+- Repair request issued: close findings 1–3 with focused regressions, rerun the
+  proportional repository checks, update this record and the PR handoff, then
+  obtain an independent `PASS` or justified `PASS WITH NOTE` on the exact
+  repaired head.
+
+### Repair cycle 13 — mandatory-review P1 findings
+
+- Repair model / mode: delegated appropriate GPT-5.6 implementation model;
+  actual exact model identifier and reasoning mode not exposed by runtime.
+- Input handoff: mandatory cycle-12 findings, exact reviewed head `23b6d21`,
+  ROADMAP/PHILOSOPHY constraints, and the requirement to preserve local
+  authority plus retained R2 evidence.
+- Changes made: added strict positive Hydra
+  `wandb.log_timeout_seconds` with a 5-second default; routed scalar SDK calls
+  through one persistent tracker-owned worker and a one-item queue; opened a
+  permanent per-run circuit breaker after timeout, SDK exception, or queue
+  saturation; reserved candidate bytes before cloud submission under a tracker
+  lock; retained reservations after ambiguous submission/completion failures;
+  used maximum observed usage and minimum observed limit across snapshot
+  refreshes; registered watch state before installation and used global cleanup
+  after partial-install or model-specific teardown failure.
+- What was deliberately not changed: model, objective, data, optimizer,
+  trainer scalar cadence, watch/artifact defaults, public usage-snapshot
+  source, Attempt 8 runner/verifier/raw evidence, and prior failed evidence.
+- Local evidence: `uv run pytest -q tests/test_wandb_tracking.py
+  tests/test_config_profiles.py` returned `55 passed in 2.70s`, including
+  serial/concurrent cumulative quota, ambiguous submission reservation,
+  strictest-snapshot, blocking/error scalar, worker shutdown, and partial-watch
+  cleanup regressions. The broader relevant selection returned `102 passed in
+  3.68s`; lead validation returned `379 passed, 1 skipped in 69.10s`, with
+  repository Ruff, four changed Python files formatted, lock, runner shell
+  syntax, JSON, and diff checks passing.
+- Focused repair audit: `PASS`, actual model/mode not exposed. It independently
+  ran the 55 tests in 2.71s plus scoped Ruff, format, and diff checks and found
+  no remaining actionable item for findings 1–3. It is not the mandatory heavy
+  re-review.
+- Status: implementation and local validation complete; exact repair commit and
+  mandatory independent heavy re-review pending.
 
 ## Final evidence
 
@@ -294,13 +407,18 @@ they are not inferred from the request.
   allowed. W&B config receives only manifest and external-reference metadata,
   never inline documents. Compact summary uses
   checkpoint-owned experiment/Git/config/lock/tokenizer/data fingerprints.
-- Validation and measurements: focused integration `115 passed in 11.26s` plus
-  `16 passed` for the R2 verifier and `2 passed` for the offline inspector; full
-  repository suite `369 passed, 1 skipped in 66.85s`. Canonical disabled
-  plus offline smoke passed with credentials removed and name resolution,
+- Validation and measurements: historical focused integration `115 passed in
+  11.26s` plus `16 passed` for the R2 verifier and `2 passed` for the offline
+  inspector; current full repository suite `379 passed, 1 skipped in 69.10s`.
+  Canonical disabled plus offline smoke passed with credentials removed and name resolution,
   `connect`, `connect_ex`, and `sendto` blocked. Ruff, changed-file format,
   lock, and diff checks pass. Whole-tree format reports four unchanged baseline
   files outside the WB-001 diff.
+- Cycle-13 validation: W&B/config tests pass `55 passed in 2.70s`; the relevant
+  W&B/config/trainer/reproducibility/verifier selection passes `102 passed in
+  3.68s`; scoped repair audit `PASS` independently reproduces `55 passed in
+  2.71s`; repository Ruff, four-file changed-Python format, lock, runner shell
+  syntax, JSON, and diff checks pass.
 - Performance/resource result: DGX Attempt 2 retained a `FAIL` at exact commit
   `049acf7`: all nine processes and exact trajectory/checkpoint gates passed,
   but data wait reached 12.68%, container coverage was about 48%, and watch-on
@@ -322,7 +440,11 @@ they are not inferred from the request.
   storage usage.
 - Unresolved risks: real online auth/service behavior remains unexercised and
   fail-closed. The R2 result is limited to the pinned depth-26 workload/runtime,
-  and 5–10% data-wait/watch overhead remains a monitoring note.
+  and 5–10% data-wait/watch overhead remains a monitoring note. Cycle 13
+  implements cumulative milestone quota, bounded scalar calls, and partial-watch
+  cleanup, and local validation plus the focused repair audit pass. The
+  mandatory heavy-review `FAIL` remains until the independent exact-head heavy
+  re-review passes.
 - Human decision requested: human review/merge after a passing independent
   review; no self-merge authorization exists.
 
@@ -332,10 +454,15 @@ they are not inferred from the request.
 - Human authorization: `N/A — human merge`
 - Authorization evidence location: N/A
 - Authorization covers this named PR or bounded ticket/goal series: N/A
-- Exact independently reviewed head SHA: pending
-- Latest independent verdict / model / mode: pending
-- All actionable findings repaired and independently re-reviewed: pending
-- Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: pending
+- Exact independently reviewed head SHA:
+  `23b6d2120f1a3738d4a3baf92e50c9b8f3c227f9`
+- Latest independent verdict / model / mode: `FAIL`; requested
+  `gpt-5.6-sol` / Extra High (`xhigh`); actual model/mode not exposed by runtime
+- All actionable findings repaired and independently re-reviewed: implemented,
+  locally validated, and focused repair-audit `PASS`; mandatory exact-head
+  heavy re-review pending
+- Blocking review decision / outstanding `CHANGES_REQUESTED` evidence:
+  mandatory independent `FAIL` retained in this record
 - Newer human objections since authorization/review: none observed
 - Human review dismissed by an agent: no
 - Unresolved review threads at final audit: pending
@@ -362,13 +489,16 @@ they are not inferred from the request.
 
 | Model / mode | Role | What it handled well | What it missed or made worse | Context that helped | Outcome |
 | --- | --- | --- | --- | --- | --- |
-| actual not exposed / actual mode not exposed; requested `gpt-5.6-luna` / Extra High | implementation | Kept the design within one Hydra surface, isolated external failures, used public SDK behavior, and added policy/identity/cadence tests | First offline smoke used W&B's default repository-local run directory; repaired by an explicit temporary `WANDB_DIR` | WB-001 scope, official SDK research, existing trainer/checkpoint/VAL contracts, CHECK router | implemented; independent review pending |
+| actual not exposed / actual mode not exposed | implementation (requested `gpt-5.6-luna` / Extra High) | Kept the design within one Hydra surface, isolated external failures, used public SDK behavior, and added policy/identity/cadence tests | First offline smoke used W&B's default repository-local run directory; repaired by an explicit temporary `WANDB_DIR` | WB-001 scope, official SDK research, existing trainer/checkpoint/VAL contracts, CHECK router | implemented; mandatory independent review failed at cycle 12 |
+| actual not exposed / actual mode not exposed | mandatory review (requested `gpt-5.6-sol` / Extra High) | Recomputed the durable DGX result exactly and distinguished normalized checkpoint identity from physical file hashes | Found three P1 implementation blockers and three P2 handoff inaccuracies | Exact clean head, ROADMAP/PHILOSOPHY/CHECK, raw and durable Attempt 8 evidence | `FAIL`; repair pending |
+| actual not exposed / actual mode not exposed | repair (requested appropriate GPT-5.6 implementation model) | Localized all three P1 repairs to Hydra validation and the existing tracker boundary while retaining model/data/cadence and evidence | Real online behavior remains unexercised | Complete cycle-12 handoff and focused regressions | implemented; full `379 passed, 1 skipped`; mandatory re-review pending |
+| actual not exposed / actual mode not exposed | focused repair audit | Verified quota monotonicity/concurrency, bounded scalar shutdown, and real partial-hook cleanup with no actionable finding | Not the mandatory exact-head heavy re-review | Final live diff, findings 1–3, focused and static checks | `PASS`; mandatory heavy re-review pending |
 
 ## Ledger update
 
 - [x] Added the PR/ticket row to `docs/model-runs/README.md`.
 - [x] Updated aggregate implementation, repair, success, and review counts
-  through the latest completed review; the pending cycle-11 review is excluded.
+  through the completed mandatory cycle-12 `FAIL`.
 - [ ] Confirmed that the final PR execution trail matches this record.
 - [x] Recorded human merge as the default.
 - [x] Confirmed this is not the bootstrap policy PR.

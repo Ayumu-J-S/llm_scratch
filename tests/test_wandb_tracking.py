@@ -10,6 +10,7 @@ from types import SimpleNamespace
 import pytest
 import torch
 import wandb
+from wandb.integration.torch.wandb_torch import TorchHistory
 from omegaconf import OmegaConf
 
 from training.checkpoint import CheckpointManager, build_checkpoint_identity
@@ -152,6 +153,7 @@ def _config(
                 "entity": "research-team",
                 "name": None,
                 "init_timeout_seconds": 3,
+                "log_timeout_seconds": 0.01,
                 "watch": {"enabled": watch, "log": "gradients", "log_freq": 17},
                 "artifact": {
                     "policy": policy,
@@ -448,6 +450,158 @@ def test_verified_login_entity_quota_upload_and_duplicate_are_recorded(tmp_path:
     assert uploaded["artifact"]["id"] == "artifact-id"
 
 
+def test_successful_uploads_accumulate_against_the_same_visible_snapshot(tmp_path: Path):
+    snapshot = tmp_path / "usage.json"
+    fake = FakeWandb()
+    tracker = _tracker(
+        tmp_path,
+        _config(policy="milestone", snapshot_path=snapshot),
+        fake,
+    )
+    tracker.start(object())
+    first_checkpoint = _checkpoint(tmp_path / "first", tracker=tracker, kind="milestone", step=5)
+    second_checkpoint = _checkpoint(tmp_path / "second", tracker=tracker, kind="milestone", step=6)
+    used_bytes = 10
+    _snapshot(
+        snapshot,
+        used_bytes=used_bytes,
+        limit_bytes=(
+            used_bytes + first_checkpoint.stat().st_size + second_checkpoint.stat().st_size - 1
+        ),
+    )
+
+    first = tracker.consider_artifact(reason="milestone", checkpoint_path=first_checkpoint, step=5)
+    _snapshot(
+        snapshot,
+        used_bytes=used_bytes,
+        limit_bytes=(
+            used_bytes + first_checkpoint.stat().st_size + second_checkpoint.stat().st_size - 1
+        ),
+    )
+    second = tracker.consider_artifact(
+        reason="milestone", checkpoint_path=second_checkpoint, step=6
+    )
+
+    assert first["outcome"] == "uploaded"
+    assert second["outcome"] == "blocked"
+    assert second["block_reason"] == "visible_quota_insufficient"
+    assert second["quota"]["used_bytes"] == used_bytes
+    assert second["quota"]["reserved_by_tracker_bytes"] == first_checkpoint.stat().st_size
+    assert second["projected_bytes"] == (
+        used_bytes + first_checkpoint.stat().st_size + second_checkpoint.stat().st_size
+    )
+    assert len(fake.run.uploads) == 1
+
+
+def test_cloud_submission_failure_retains_quota_reservation(tmp_path: Path):
+    snapshot = tmp_path / "usage.json"
+    fake = FakeWandb(upload_error=RuntimeError("submission state unknown"))
+    tracker = _tracker(
+        tmp_path,
+        _config(policy="milestone", snapshot_path=snapshot),
+        fake,
+    )
+    tracker.start(object())
+    first_checkpoint = _checkpoint(tmp_path / "first", tracker=tracker, kind="milestone", step=5)
+    second_checkpoint = _checkpoint(tmp_path / "second", tracker=tracker, kind="milestone", step=6)
+    used_bytes = 10
+    _snapshot(
+        snapshot,
+        used_bytes=used_bytes,
+        limit_bytes=(
+            used_bytes + first_checkpoint.stat().st_size + second_checkpoint.stat().st_size - 1
+        ),
+    )
+
+    first = tracker.consider_artifact(reason="milestone", checkpoint_path=first_checkpoint, step=5)
+    second = tracker.consider_artifact(
+        reason="milestone", checkpoint_path=second_checkpoint, step=6
+    )
+
+    assert first["outcome"] == "upload_failed"
+    assert second["block_reason"] == "visible_quota_insufficient"
+    assert second["quota"]["reserved_by_tracker_bytes"] == first_checkpoint.stat().st_size
+
+
+def test_quota_ledger_retains_strictest_values_across_snapshot_refreshes(tmp_path: Path):
+    snapshot = tmp_path / "usage.json"
+    fake = FakeWandb()
+    tracker = _tracker(
+        tmp_path,
+        _config(policy="milestone", snapshot_path=snapshot),
+        fake,
+    )
+    tracker.start(object())
+    first_checkpoint = _checkpoint(tmp_path / "first", tracker=tracker, kind="milestone", step=5)
+    second_checkpoint = _checkpoint(tmp_path / "second", tracker=tracker, kind="milestone", step=6)
+    _snapshot(snapshot, used_bytes=10, limit_bytes=10_000_000)
+    first = tracker.consider_artifact(reason="milestone", checkpoint_path=first_checkpoint, step=5)
+    strict_limit = 20 + first_checkpoint.stat().st_size + second_checkpoint.stat().st_size - 1
+    _snapshot(snapshot, used_bytes=20, limit_bytes=strict_limit)
+    strict = tracker.consider_artifact(
+        reason="milestone", checkpoint_path=second_checkpoint, step=6
+    )
+    _snapshot(snapshot, used_bytes=15, limit_bytes=strict_limit + 1_000_000)
+    relaxed = tracker.consider_artifact(
+        reason="milestone", checkpoint_path=second_checkpoint, step=6
+    )
+
+    assert first["outcome"] == "uploaded"
+    assert strict["block_reason"] == "visible_quota_insufficient"
+    assert relaxed["block_reason"] == "visible_quota_insufficient"
+    assert relaxed["quota"]["effective_baseline_used_bytes"] == 20
+    assert relaxed["quota"]["effective_limit_bytes"] == strict_limit
+    assert relaxed["quota"]["reserved_by_tracker_bytes"] == first_checkpoint.stat().st_size
+
+
+def test_concurrent_artifact_selection_reserves_quota_before_upload(tmp_path: Path):
+    first_submitted = threading.Event()
+    release_first = threading.Event()
+
+    class BlockingFirstUploadRun(FakeRun):
+        def log_artifact(self, artifact, aliases):
+            self.uploads.append((artifact, aliases))
+            if len(self.uploads) == 1:
+                first_submitted.set()
+                release_first.wait(1.0)
+            return self.artifact_result
+
+    snapshot = tmp_path / "usage.json"
+    fake = FakeWandb()
+    fake.run = BlockingFirstUploadRun()
+    tracker = _tracker(
+        tmp_path,
+        _config(policy="milestone", snapshot_path=snapshot),
+        fake,
+    )
+    tracker.start(object())
+    first_checkpoint = _checkpoint(tmp_path / "first", tracker=tracker, kind="milestone", step=5)
+    second_checkpoint = _checkpoint(tmp_path / "second", tracker=tracker, kind="milestone", step=6)
+    _snapshot(
+        snapshot,
+        used_bytes=10,
+        limit_bytes=(10 + first_checkpoint.stat().st_size + second_checkpoint.stat().st_size - 1),
+    )
+    decisions = []
+    first_thread = threading.Thread(
+        target=lambda: decisions.append(
+            tracker.consider_artifact(reason="milestone", checkpoint_path=first_checkpoint, step=5)
+        )
+    )
+    first_thread.start()
+    assert first_submitted.wait(1.0)
+
+    second = tracker.consider_artifact(
+        reason="milestone", checkpoint_path=second_checkpoint, step=6
+    )
+    release_first.set()
+    first_thread.join(1.0)
+
+    assert second["block_reason"] == "visible_quota_insufficient"
+    assert decisions[0]["outcome"] == "uploaded"
+    assert len(fake.run.uploads) == 1
+
+
 def test_missing_login_and_upload_failure_preserve_local_retry_evidence(tmp_path: Path):
     snapshot = tmp_path / "usage.json"
     _snapshot(snapshot, limit_bytes=10_000_000)
@@ -669,6 +823,120 @@ def test_finish_is_bounded_and_tracker_persists_timeout(tmp_path: Path):
     assert finish["error"]["type"] == "TimeoutError"
 
 
+def test_blocking_scalar_log_is_bounded_and_opens_circuit_breaker(tmp_path: Path):
+    release = threading.Event()
+    sdk_lock = threading.Lock()
+
+    class BlockingRun(FakeRun):
+        def log(self, values) -> None:
+            with sdk_lock:
+                self.logs.append(values)
+                release.wait(1.0)
+
+        def finish(self) -> None:
+            with sdk_lock:
+                self.finished = True
+
+    cfg = _config(mode="offline", policy="none")
+    cfg.wandb.finish_timeout_seconds = 0.01
+    fake = FakeWandb()
+    fake.run = BlockingRun()
+    tracker = _tracker(tmp_path, cfg, fake)
+    tracker.start(object())
+
+    started = time.monotonic()
+    tracker.log({"optimizer_step": 1, "train/loss": 1.0})
+    elapsed = time.monotonic() - started
+    tracker.log({"optimizer_step": 2, "train/loss": 0.5})
+    worker = tracker._scalar_log_worker
+    finish_started = time.monotonic()
+    tracker.finish()
+    finish_elapsed = time.monotonic() - finish_started
+    release.set()
+
+    assert elapsed < 0.2
+    assert finish_elapsed < 0.2
+    assert fake.run.finished is False
+    assert fake.run.logs == [{"optimizer_step": 1, "train/loss": 1.0}]
+    assert tracker._scalar_log_worker is worker
+    failure = next(
+        json.loads(line)
+        for line in (tmp_path / "wandb_events.jsonl").read_text(encoding="utf-8").splitlines()
+        if '"action": "log"' in line and '"outcome": "failed"' in line
+    )
+    assert failure["error"]["type"] == "TimeoutError"
+    assert failure["circuit_breaker"] == "opened"
+    finish_failure = next(
+        json.loads(line)
+        for line in (tmp_path / "wandb_events.jsonl").read_text(encoding="utf-8").splitlines()
+        if '"action": "finish"' in line and '"outcome": "failed"' in line
+    )
+    assert "scalar log worker exceeded" in finish_failure["error"]["message"]
+
+
+def test_scalar_log_worker_exits_after_normal_finish(tmp_path: Path):
+    fake = FakeWandb()
+    tracker = _tracker(
+        tmp_path,
+        _config(mode="offline", policy="none"),
+        fake,
+    )
+    tracker.start(object())
+    tracker.log({"optimizer_step": 1, "train/loss": 1.0})
+    worker = tracker._scalar_log_worker
+    assert worker is not None and worker.is_alive()
+
+    tracker.finish()
+
+    assert not worker.is_alive()
+    assert fake.run.finished is True
+
+
+def test_worker_stop_cancels_queued_scalar_log_without_sdk_call(tmp_path: Path):
+    entered = threading.Event()
+    release = threading.Event()
+
+    class BlockingRun(FakeRun):
+        def log(self, values) -> None:
+            self.logs.append(values)
+            entered.set()
+            release.wait(1.0)
+
+    cfg = _config(mode="offline", policy="none")
+    cfg.wandb.log_timeout_seconds = 0.5
+    cfg.wandb.finish_timeout_seconds = 0.01
+    fake = FakeWandb()
+    fake.run = BlockingRun()
+    tracker = _tracker(tmp_path, cfg, fake)
+    tracker.start(object())
+    callers = [
+        threading.Thread(
+            target=tracker.log,
+            args=({"optimizer_step": step, "train/loss": float(step)},),
+        )
+        for step in (1, 2)
+    ]
+    callers[0].start()
+    assert entered.wait(1.0)
+    callers[1].start()
+    deadline = time.monotonic() + 1.0
+    while tracker._scalar_log_queue.qsize() != 1 and time.monotonic() < deadline:
+        time.sleep(0.001)
+    assert tracker._scalar_log_queue.qsize() == 1
+
+    tracker.finish()
+    release.set()
+    for caller in callers:
+        caller.join(1.0)
+    worker = tracker._scalar_log_worker
+    assert worker is not None
+    worker.join(1.0)
+
+    assert fake.run.logs == [{"optimizer_step": 1, "train/loss": 1.0}]
+    assert not worker.is_alive()
+    assert all(not caller.is_alive() for caller in callers)
+
+
 def test_watch_is_off_by_default_and_optional_hooks_are_torn_down(tmp_path: Path):
     for enabled in (False, True):
         fake = FakeWandb()
@@ -684,6 +952,138 @@ def test_watch_is_off_by_default_and_optional_hooks_are_torn_down(tmp_path: Path
         assert len(fake.run.unwatches) == int(enabled)
         if enabled:
             assert fake.run.watches[0][1] == {"log": "gradients", "log_freq": 17}
+
+
+def test_partial_watch_installation_is_torn_down_immediately(tmp_path: Path):
+    class PartialWatchRun(FakeRun):
+        def __init__(self) -> None:
+            super().__init__()
+            self.torch_history = TorchHistory()
+
+        def watch(self, model, **kwargs) -> None:
+            self.watches.append((model, kwargs))
+            self.torch_history.add_log_parameters_hook(
+                model,
+                log_freq=kwargs["log_freq"],
+            )
+            raise RuntimeError("watch failed after installing hooks")
+
+        def unwatch(self, model=None) -> None:
+            self.unwatches.append(model)
+            if model is None:
+                self.torch_history.unhook_all()
+                return
+            for name in model._wandb_hook_names:
+                self.torch_history.unhook(name)
+            delattr(model, "_wandb_hook_names")
+
+    fake = FakeWandb()
+    fake.run = PartialWatchRun()
+    tracker = _tracker(
+        tmp_path,
+        _config(mode="offline", policy="none", watch=True),
+        fake,
+    )
+    model = torch.nn.Linear(2, 2)
+
+    tracker.start(model)
+
+    assert fake.run.unwatches == [None]
+    assert not model._forward_hooks
+    assert fake.run.torch_history._hook_handles == {}
+    assert not hasattr(model, "_wandb_hook_names")
+    failure = next(
+        json.loads(line)
+        for line in (tmp_path / "wandb_events.jsonl").read_text(encoding="utf-8").splitlines()
+        if '"action": "watch"' in line and '"outcome": "failed"' in line
+    )
+    assert failure["error"]["message"] == "watch failed after installing hooks"
+
+
+def test_model_specific_unwatch_failure_falls_back_to_all_hooks(tmp_path: Path):
+    class FallbackCleanupRun(FakeRun):
+        def __init__(self) -> None:
+            super().__init__()
+            self.torch_history = TorchHistory()
+
+        def watch(self, model, **kwargs) -> None:
+            self.watches.append((model, kwargs))
+            self.torch_history.add_log_parameters_hook(
+                model,
+                log_freq=kwargs["log_freq"],
+            )
+
+        def unwatch(self, model=None) -> None:
+            self.unwatches.append(model)
+            if model is not None:
+                raise KeyError("partial model hook registry")
+            self.torch_history.unhook_all()
+
+    fake = FakeWandb()
+    fake.run = FallbackCleanupRun()
+    tracker = _tracker(
+        tmp_path,
+        _config(mode="offline", policy="none", watch=True),
+        fake,
+    )
+    model = torch.nn.Linear(2, 2)
+    tracker.start(model)
+    assert model._forward_hooks
+
+    tracker.finish()
+
+    assert fake.run.unwatches == [model, None]
+    assert not model._forward_hooks
+    assert fake.run.torch_history._hook_handles == {}
+    assert not hasattr(model, "_wandb_hook_names")
+
+
+def test_stuck_scalar_worker_does_not_prevent_watch_hook_cleanup(tmp_path: Path):
+    release = threading.Event()
+
+    class BlockingWatchedRun(FakeRun):
+        def __init__(self) -> None:
+            super().__init__()
+            self.torch_history = TorchHistory()
+
+        def watch(self, model, **kwargs) -> None:
+            self.watches.append((model, kwargs))
+            self.torch_history.add_log_parameters_hook(
+                model,
+                log_freq=kwargs["log_freq"],
+            )
+
+        def unwatch(self, model=None) -> None:
+            self.unwatches.append(model)
+            if model is None:
+                self.torch_history.unhook_all()
+                return
+            for name in model._wandb_hook_names:
+                self.torch_history.unhook(name)
+            delattr(model, "_wandb_hook_names")
+
+        def log(self, values) -> None:
+            self.logs.append(values)
+            release.wait(1.0)
+
+    cfg = _config(mode="offline", policy="none", watch=True)
+    cfg.wandb.finish_timeout_seconds = 0.01
+    fake = FakeWandb()
+    fake.run = BlockingWatchedRun()
+    tracker = _tracker(tmp_path, cfg, fake)
+    model = torch.nn.Linear(2, 2)
+    tracker.start(model)
+    assert model._forward_hooks
+    tracker.log({"optimizer_step": 1, "train/loss": 1.0})
+
+    tracker.finish()
+    release.set()
+
+    assert not model._forward_hooks
+    assert fake.run.torch_history._hook_handles == {}
+    assert not hasattr(model, "_wandb_hook_names")
+    assert fake.run.unwatches == [model]
+    assert fake.run.finished is False
 
 
 @pytest.mark.parametrize(

@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import queue
 import threading
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -236,8 +237,23 @@ class WandbTracker:
         self.wandb = wandb_module
         self.run = None
         self._uploaded_sha256: set[str] = set()
+        self._reserved_sha256: set[str] = set()
+        self._usage_snapshot: UsageSnapshot | None = None
+        self._max_observed_used_bytes = 0
+        self._min_observed_limit_bytes: int | None = None
+        self._reserved_bytes_by_tracker = 0
+        self._artifact_lock = threading.Lock()
         self._evidence_path = self.evidence_dir / "wandb_events.jsonl"
         self._watched_model = None
+        self._scalar_logging_disabled = False
+        self._scalar_log_queue: queue.Queue[
+            tuple[Any, dict[str, Any], threading.Event, list[Exception]] | None
+        ] = queue.Queue(maxsize=1)
+        self._scalar_log_worker: threading.Thread | None = None
+        self._scalar_log_worker_lock = threading.Lock()
+        self._scalar_log_state_lock = threading.Lock()
+        self._scalar_log_stop = threading.Event()
+        self._watch_cleanup_all = False
 
     @property
     def mode(self) -> str:
@@ -288,16 +304,18 @@ class WandbTracker:
 
         watch = self.wandb_cfg.get("watch", {}) or {}
         if watch.get("enabled", False):
+            self._watched_model = model
             try:
                 self.run.watch(
                     model,
                     log=str(watch.get("log", "gradients")),
                     log_freq=int(watch.get("log_freq", 1000)),
                 )
-                self._watched_model = model
                 self._record("watch", "succeeded")
             except Exception as error:
                 self._record_failure("watch", error)
+                self._watch_cleanup_all = True
+                self._teardown_watch()
         else:
             self._record("watch", "disabled")
 
@@ -316,12 +334,84 @@ class WandbTracker:
         self.update_summary(summary)
 
     def log(self, values: Mapping[str, Any]) -> None:
-        if self.run is None:
+        completed = threading.Event()
+        errors: list[Exception] = []
+        queue_full = False
+        with self._scalar_log_state_lock:
+            if self.run is None or self._scalar_logging_disabled:
+                return
+            self._start_scalar_log_worker()
+            try:
+                self._scalar_log_queue.put_nowait((self.run, dict(values), completed, errors))
+            except queue.Full:
+                queue_full = True
+        if queue_full:
+            self._disable_scalar_logging(RuntimeError("W&B scalar log queue is full"), values)
             return
-        try:
-            self.run.log(dict(values))
-        except Exception as error:
-            self._record_failure("log", error, {"optimizer_step": values.get("optimizer_step")})
+        timeout_seconds = float(self.wandb_cfg.get("log_timeout_seconds", 5.0))
+        if not completed.wait(timeout_seconds):
+            self._disable_scalar_logging(
+                TimeoutError(f"W&B scalar log exceeded {timeout_seconds:.3f} seconds"),
+                values,
+            )
+            return
+        if not errors:
+            return
+        self._disable_scalar_logging(errors[0], values)
+
+    def _disable_scalar_logging(
+        self,
+        error: Exception,
+        values: Mapping[str, Any],
+    ) -> None:
+        with self._scalar_log_state_lock:
+            if self._scalar_logging_disabled:
+                return
+            self._scalar_logging_disabled = True
+            self._request_scalar_log_worker_stop()
+        self._record_failure(
+            "log",
+            error,
+            {
+                "optimizer_step": values.get("optimizer_step"),
+                "circuit_breaker": "opened",
+            },
+        )
+
+    def _start_scalar_log_worker(self) -> None:
+        if self._scalar_log_worker is not None:
+            return
+        with self._scalar_log_worker_lock:
+            if self._scalar_log_worker is not None:
+                return
+
+            def work() -> None:
+                while True:
+                    request = self._scalar_log_queue.get()
+                    if request is None:
+                        return
+                    run, values, completed, errors = request
+                    if self._scalar_log_stop.is_set():
+                        errors.append(RuntimeError("W&B scalar log cancelled during shutdown"))
+                        completed.set()
+                        self._cancel_queued_scalar_logs()
+                        return
+                    try:
+                        run.log(values)
+                    except Exception as error:
+                        errors.append(error)
+                    finally:
+                        completed.set()
+                    if self._scalar_log_stop.is_set():
+                        self._cancel_queued_scalar_logs()
+                        return
+
+            self._scalar_log_worker = threading.Thread(
+                target=work,
+                name="wandb-scalar-log",
+                daemon=True,
+            )
+            self._scalar_log_worker.start()
 
     def update_summary(self, values: Mapping[str, Any]) -> None:
         if self.run is None:
@@ -367,9 +457,6 @@ class WandbTracker:
             decision["checkpoint"] = asdict(candidate)
         except Exception as error:
             return self._artifact_blocked(decision, "checkpoint_identity_unavailable", error)
-        if candidate.sha256 in self._uploaded_sha256:
-            return self._artifact_blocked(decision, "duplicate_checkpoint")
-
         artifact_cfg = self.wandb_cfg.get("artifact", {}) or {}
         usage_path = artifact_cfg.get("usage_snapshot_path")
         if not usage_path:
@@ -383,22 +470,6 @@ class WandbTracker:
             decision["usage"] = {"outcome": "visible", **asdict(snapshot)}
         except Exception as error:
             return self._artifact_blocked(decision, "usage_snapshot_invalid", error)
-
-        try:
-            auth = self._authenticated_entity()
-            decision["auth"] = {"outcome": "verified", **auth}
-        except Exception as error:
-            return self._artifact_blocked(decision, "authentication_or_entity_mismatch", error)
-
-        projected = snapshot.used_bytes + candidate.size_bytes + decision["reserve_bytes"]
-        decision["projected_bytes"] = projected
-        decision["quota"] = {
-            "outcome": "allowed" if projected <= snapshot.limit_bytes else "exceeded",
-            "used_bytes": snapshot.used_bytes,
-            "limit_bytes": snapshot.limit_bytes,
-        }
-        if projected > snapshot.limit_bytes:
-            return self._artifact_blocked(decision, "visible_quota_insufficient")
 
         try:
             artifact = self.wandb.Artifact(
@@ -427,6 +498,62 @@ class WandbTracker:
                 candidate.ctime_ns,
             ):
                 raise RuntimeError("checkpoint changed while W&B captured the artifact")
+
+            block_reason = None
+            auth_error = None
+            with self._artifact_lock:
+                if self._usage_snapshot is None:
+                    self._usage_snapshot = snapshot
+                self._max_observed_used_bytes = max(
+                    self._max_observed_used_bytes,
+                    snapshot.used_bytes,
+                )
+                self._min_observed_limit_bytes = min(
+                    value
+                    for value in (
+                        self._min_observed_limit_bytes,
+                        snapshot.limit_bytes,
+                    )
+                    if value is not None
+                )
+                if candidate.sha256 in self._uploaded_sha256 | self._reserved_sha256:
+                    block_reason = "duplicate_checkpoint"
+                else:
+                    try:
+                        auth = self._authenticated_entity()
+                        decision["auth"] = {"outcome": "verified", **auth}
+                    except Exception as error:
+                        auth_error = error
+                        block_reason = "authentication_or_entity_mismatch"
+                    if block_reason is None:
+                        baseline_used_bytes = self._max_observed_used_bytes
+                        effective_limit_bytes = self._min_observed_limit_bytes
+                        assert effective_limit_bytes is not None
+                        projected = (
+                            baseline_used_bytes
+                            + self._reserved_bytes_by_tracker
+                            + candidate.size_bytes
+                            + decision["reserve_bytes"]
+                        )
+                        decision["projected_bytes"] = projected
+                        decision["quota"] = {
+                            "outcome": (
+                                "allowed" if projected <= effective_limit_bytes else "exceeded"
+                            ),
+                            "used_bytes": snapshot.used_bytes,
+                            "effective_baseline_used_bytes": baseline_used_bytes,
+                            "reserved_by_tracker_bytes": self._reserved_bytes_by_tracker,
+                            "limit_bytes": snapshot.limit_bytes,
+                            "effective_limit_bytes": effective_limit_bytes,
+                        }
+                        if projected > effective_limit_bytes:
+                            block_reason = "visible_quota_insufficient"
+                        else:
+                            self._reserved_sha256.add(candidate.sha256)
+                            self._reserved_bytes_by_tracker += candidate.size_bytes
+            if block_reason is not None:
+                return self._artifact_blocked(decision, block_reason, auth_error)
+
             logged = self.run.log_artifact(
                 artifact,
                 aliases=[reason, f"step-{step}", "latest"],
@@ -437,7 +564,8 @@ class WandbTracker:
             committed = wait(timeout=int(artifact_cfg.get("upload_timeout_seconds", 600)))
             if getattr(committed, "state", None) != "COMMITTED":
                 raise RuntimeError("W&B artifact did not reach COMMITTED state")
-            self._uploaded_sha256.add(candidate.sha256)
+            with self._artifact_lock:
+                self._uploaded_sha256.add(candidate.sha256)
             decision["outcome"] = "uploaded"
             decision["retry_outcome"] = "not_needed"
             decision["artifact"] = {
@@ -459,23 +587,77 @@ class WandbTracker:
     def finish(self) -> None:
         if self.run is None:
             return
+        finish_timeout = float(self.wandb_cfg.get("finish_timeout_seconds", 30.0))
         try:
-            if self._watched_model is not None:
-                try:
-                    self.run.unwatch(self._watched_model)
-                    self._record("unwatch", "succeeded")
-                except Exception as error:
-                    self._record_failure("unwatch", error)
+            worker_stopped = self._stop_scalar_log_worker(timeout_seconds=finish_timeout)
+            self._teardown_watch()
+            if not worker_stopped:
+                raise TimeoutError(
+                    f"W&B scalar log worker exceeded {finish_timeout:.3f} seconds during finish"
+                )
             finish_run_bounded(
                 self.run,
-                timeout_seconds=float(self.wandb_cfg.get("finish_timeout_seconds", 30.0)),
+                timeout_seconds=finish_timeout,
             )
             self._record("finish", "succeeded")
         except Exception as error:
             self._record_failure("finish", error)
         finally:
+            self._scalar_logging_disabled = True
             self.run = None
             self._watched_model = None
+
+    def _stop_scalar_log_worker(self, *, timeout_seconds: float) -> bool:
+        with self._scalar_log_state_lock:
+            self._scalar_logging_disabled = True
+            worker = self._scalar_log_worker
+            if worker is None:
+                return True
+            self._request_scalar_log_worker_stop()
+        worker.join(timeout_seconds)
+        return not worker.is_alive()
+
+    def _request_scalar_log_worker_stop(self) -> None:
+        self._scalar_log_stop.set()
+        try:
+            self._scalar_log_queue.put_nowait(None)
+        except queue.Full:
+            pass
+
+    def _cancel_queued_scalar_logs(self) -> None:
+        while True:
+            try:
+                request = self._scalar_log_queue.get_nowait()
+            except queue.Empty:
+                return
+            if request is None:
+                continue
+            _, _, completed, errors = request
+            errors.append(RuntimeError("W&B scalar log cancelled during shutdown"))
+            completed.set()
+
+    def _teardown_watch(self) -> None:
+        if self.run is None or self._watched_model is None:
+            return
+        model = self._watched_model
+        try:
+            if self._watch_cleanup_all:
+                self.run.unwatch()
+                if hasattr(model, "_wandb_hook_names"):
+                    delattr(model, "_wandb_hook_names")
+            else:
+                try:
+                    self.run.unwatch(model)
+                except Exception:
+                    self._watch_cleanup_all = True
+                    self.run.unwatch()
+                    if hasattr(model, "_wandb_hook_names"):
+                        delattr(model, "_wandb_hook_names")
+            self._watched_model = None
+            self._watch_cleanup_all = False
+            self._record("unwatch", "succeeded")
+        except Exception as error:
+            self._record_failure("unwatch", error)
 
     def _candidate(
         self,

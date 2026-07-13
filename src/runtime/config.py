@@ -130,6 +130,7 @@ _WANDB = {
     "entity",
     "name",
     "init_timeout_seconds",
+    "log_timeout_seconds",
     "finish_timeout_seconds",
     "watch",
     "artifact",
@@ -348,6 +349,7 @@ def validate_training_config(config: Mapping[str, Any] | DictConfig) -> dict[str
             "project",
             "entity",
             "init_timeout_seconds",
+            "log_timeout_seconds",
             "finish_timeout_seconds",
             "watch",
             "artifact",
@@ -370,6 +372,14 @@ def validate_training_config(config: Mapping[str, Any] | DictConfig) -> dict[str
         or float(init_timeout) <= 0
     ):
         raise ConfigPreflightError("wandb.init_timeout_seconds must be positive")
+    log_timeout = wandb_config.get("log_timeout_seconds")
+    if (
+        isinstance(log_timeout, bool)
+        or not isinstance(log_timeout, (int, float))
+        or not math.isfinite(float(log_timeout))
+        or float(log_timeout) <= 0
+    ):
+        raise ConfigPreflightError("wandb.log_timeout_seconds must be positive")
     finish_timeout = wandb_config.get("finish_timeout_seconds")
     if (
         isinstance(finish_timeout, bool)

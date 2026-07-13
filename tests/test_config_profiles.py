@@ -102,6 +102,7 @@ def test_wandb_defaults_and_nested_schema_are_strict():
     validate_training_config(config)
 
     assert config.wandb.mode == "disabled"
+    assert config.wandb.log_timeout_seconds == 5
     assert config.wandb.finish_timeout_seconds == 30
     assert config.wandb.watch.enabled is False
     assert config.wandb.watch.log_freq == 1000
@@ -115,6 +116,11 @@ def test_wandb_defaults_and_nested_schema_are_strict():
     config = compose("profile=pretrain_streaming")
     config.wandb.finish_timeout_seconds = 0
     with pytest.raises(ConfigPreflightError, match="finish_timeout_seconds"):
+        validate_training_config(config)
+
+    config = compose("profile=pretrain_streaming")
+    config.wandb.log_timeout_seconds = 0
+    with pytest.raises(ConfigPreflightError, match="log_timeout_seconds"):
         validate_training_config(config)
 
     config = compose("profile=pretrain_streaming")

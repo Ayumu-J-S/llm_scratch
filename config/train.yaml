@@ -82,6 +82,7 @@ wandb:
   entity: sunday-research
   name: null
   init_timeout_seconds: 10
+  log_timeout_seconds: 5
   finish_timeout_seconds: 30
   watch:
     enabled: false

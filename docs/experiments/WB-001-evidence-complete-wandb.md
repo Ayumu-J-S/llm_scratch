@@ -6,8 +6,11 @@
   no GitHub publication command; complete body prepared at
   `/tmp/WB-001-pr-body.md`
 - Experiment owner: implementation agent
-- Status: local `PASS WITH NOTE` — R1 passed and depth-26 DGX Attempt 8 passed
-  all 170 gates with predeclared 5% investigation notes
+- Status: mandatory independent review `FAIL`; cycle-13 repairs pass local
+  validation and a focused independent repair audit, while the mandatory
+  exact-head heavy re-review remains pending. R1 and the retained depth-26 DGX
+  Attempt 8 result remain `PASS WITH NOTE` with all 170 measurement gates
+  passing.
 - Started (UTC): 2026-07-13
 - Last updated (UTC): 2026-07-13
 - Model-run provenance: `docs/model-runs/WB-001-evidence-complete-wandb.md`
@@ -91,7 +94,7 @@
 
 - Automated result after integration repairs: focused integration `115 passed
   in 11.26s` plus `16 passed` for the R2 verifier and `2 passed` for the offline
-  inspector; final full repository suite `369 passed, 1 skipped in 66.85s`.
+  inspector; current full repository suite `379 passed, 1 skipped in 69.10s`.
 - Offline smoke: both disabled and offline invocations completed while
   credentials were removed; name resolution, non-Unix `connect`, `connect_ex`,
   and `sendto` operations were blocked. Offline W&B 0.25.1 initialized, logged
@@ -410,12 +413,14 @@ structured summary is
 `docs/experiments/evidence/WB-001-dgx-r8-pass-with-note.json`.
 
 All 170 verifier gates passed. Every arm completed 260 optimizer steps and
-133,120 targets with identical trajectories and checkpoint digests. Data wait
-ranged from 6.53% to 8.54%, below the 10% failure limit but above the 5%
-investigation threshold in every arm. Offline/watch-off versus disabled had a
-1.75% median change. Offline/watch-on versus disabled had a 6.56% median, and
-watch-on versus offline/watch-off had a 5.46% median; both are investigation
-notes below the 10% failure threshold.
+133,120 targets with identical model, normalized resume, cursor, and trajectory
+digests. Physical checkpoint file SHA-256 values may differ because each arm
+retains arm-local operational metadata. Data wait ranged from 6.53% to 8.54%,
+below the 10% failure limit but above the 5% investigation threshold in every
+arm. Offline/watch-off versus disabled had a 1.75% median change.
+Offline/watch-on versus disabled had a 6.56% median, and watch-on versus
+offline/watch-off had a 5.46% median; both are investigation notes below the
+10% failure threshold.
 
 Each watch-on arm contained exactly one structurally valid decoded histogram
 record with 315 gradient series; watch-off and disabled arms contained none.
@@ -425,6 +430,41 @@ checkpoints, sampler coverage, memory stability, and zero swap-I/O gates all
 passed. No online auth, quota, retention, upload, or cloud behavior is inferred
 from this network-isolated artifact-policy-none matrix.
 
+## Mandatory review and cycle-13 repair
+
+The mandatory independent review of exact clean head
+`23b6d2120f1a3738d4a3baf92e50c9b8f3c227f9` returned `FAIL` even though it
+independently reproduced Attempt 8 byte-for-byte and confirmed all 170 gates.
+It found that multiple milestone candidates could reuse the same visible quota
+headroom, synchronous `run.log()` could stall training, and a partial
+`run.watch()` failure could leave hooks installed. It also required the
+protocol, checkpoint-identity wording, and PR provenance corrections retained
+in this record and the prepared handoff.
+
+Cycle 13 implements the three runtime repairs without changing the model,
+objective, data, trainer cadence, Attempt 8 evidence, or default artifact/watch
+policy:
+
+- one persistent tracker-owned scalar worker bounds each SDK log call by Hydra
+  `wandb.log_timeout_seconds=5`; timeout, exception, or queue saturation opens
+  a circuit breaker and preserves local training evidence;
+- a tracker-lifetime quota ledger reserves each accepted candidate before cloud
+  submission, includes all earlier reservations, and retains the maximum
+  observed usage plus minimum observed limit across refreshed snapshots; and
+- watch state is registered before SDK installation so partial failure triggers
+  immediate global cleanup, while normal teardown falls back to the same
+  all-hook cleanup.
+
+The final focused W&B/config suite passes `55 passed in 2.70s`, the relevant
+WB/config/trainer/reproducibility/verifier selection passes `102 passed in
+3.68s`, and lead validation passes the full repository suite at `379 passed, 1
+skipped in 69.10s`. Repository Ruff, four-file changed-Python format, lock,
+runner shell syntax, JSON parsing, and diff checks pass. A separate focused
+repair audit returned `PASS` with `55 passed in 2.71s` plus clean static checks;
+it is not the mandatory heavy exact-head re-review. That re-review has not yet
+completed, so the ticket verdict remains `FAIL` and no online/cloud claim is
+added.
+
 ## Conclusion
 
 - Hypothesis result: supported at R1 and `PASS WITH NOTE` at R2. Attempt 8
@@ -432,10 +472,13 @@ from this network-isolated artifact-policy-none matrix.
   remain explicit investigation notes rather than failures.
 - Evidence-backed conclusion: the implementation can preserve local metrics and
   checkpoints across disabled/offline W&B and tested external failure paths,
-  while fail-closing every artifact safety gate.
+  while the retained measurement evidence remains valid. Cycle-13 quota,
+  scalar-boundary, and watch-cleanup repairs pass local validation and a focused
+  repair audit but require the mandatory exact-head heavy re-review before the
+  artifact-safety acceptance claim passes.
 - Uncertainty and limitations: no online service call, real quota consumption,
   or artifact upload was performed; failed DGX evidence is retained, and no
   cross-attempt performance claim is made. The positive R2 result is scoped to
   the depth-26 target workload and the pinned runtime.
-- Exactly one next step: run the mandatory independent heavy review against the
-  exact evidence head, then repair and re-review any actionable finding.
+- Exactly one next step: commit the validated cycle-13 repair and run the
+  mandatory independent heavy re-review against that exact head.
