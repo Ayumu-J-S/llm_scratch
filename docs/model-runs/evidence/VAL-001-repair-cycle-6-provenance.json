@@ -1,0 +1,60 @@
+{
+  "schema_version": "1.0",
+  "captured_at": "2026-07-13T15:25:54Z",
+  "phase": "repair",
+  "role": "implementation-agent",
+  "task_path": "VAL-001",
+  "requested": {
+    "model": {
+      "value": "available GPT-5.6 implementation model",
+      "source": "delegated repair request",
+      "status": "observed"
+    },
+    "reasoning_mode": {
+      "value": "highest appropriate reasoning",
+      "source": "delegated repair request",
+      "status": "observed"
+    }
+  },
+  "actual": {
+    "product": {
+      "value": "Codex",
+      "source": "active runtime display",
+      "status": "observed"
+    },
+    "exact_model_identifier": {
+      "value": "not exposed by runtime",
+      "source": "not exposed by runtime",
+      "status": "unavailable",
+      "unavailable_reason": "The delegated runtime did not expose an exact model identifier."
+    },
+    "reasoning_mode": {
+      "value": "not exposed by runtime",
+      "source": "not exposed by runtime",
+      "status": "unavailable",
+      "unavailable_reason": "The delegated runtime did not expose a reasoning mode."
+    }
+  },
+  "environment": {
+    "branch": "codex/val-001-held-out-validation",
+    "input_commit": "91ede1386e04ec151c03c28a49a19d7587f0d235",
+    "output_commit": "working tree; recorded after integration commit",
+    "thread_id": "not recorded (privacy)"
+  },
+  "outcome": "implemented; full verification passed; independent heavy re-review pending",
+  "verification": {
+    "focused_tests": "59 passed in 11.14s",
+    "full_tests": "314 passed, 1 skipped in 67.45s",
+    "recomputation_attempt_5": "69 checks passed",
+    "recomputation_attempt_6": "70 checks passed",
+    "ruff": "passed",
+    "diff_check": "passed"
+  },
+  "privacy": {
+    "raw_thread_id_recorded": false,
+    "prompts_recorded": false,
+    "hidden_chain_of_thought_recorded": false,
+    "token_counts_recorded": false,
+    "secrets_recorded": false
+  }
+}

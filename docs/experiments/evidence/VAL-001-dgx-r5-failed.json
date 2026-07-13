@@ -179,6 +179,13 @@
     "actual_model": "not exposed by runtime",
     "actual_reasoning": "not exposed by runtime"
   },
+  "recomputation": {
+    "record": "VAL-001-dgx-r5-recompute.json",
+    "record_sha256": "31618b6ae43473a31a5899ca2076136f2953ba8c5b3da49ba15ce7f76bf67be8",
+    "scope": "training trajectory, final-model tensor equality, replicated validation score/identity, and training-time/standalone score/identity parity",
+    "verifier": "verify_val001_dgx.py",
+    "verifier_sha256": "7b17fec49fc75fc0f8efc3cfdb36a1d8556b06ff1fac88f10816f0df6ac770c8"
+  },
   "runs": [
     {
       "arm": "off",

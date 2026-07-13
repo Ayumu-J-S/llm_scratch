@@ -124,6 +124,12 @@ def _git(root_dir: Path) -> dict[str, Any]:
     }
 
 
+def collect_git_identity(root_dir: str | Path) -> dict[str, Any]:
+    """Return the observable commit and dirty state for an evaluator or run."""
+
+    return _git(Path(root_dir).resolve())
+
+
 def _plain(value: Any) -> Any:
     if isinstance(value, Mapping):
         return {str(key): _plain(item) for key, item in value.items()}

@@ -20,7 +20,7 @@ import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, BinaryIO
 
 import numpy as np
 import torch
@@ -80,6 +80,14 @@ class CheckpointWriteMeasurement:
         return self.size_bytes / self.write_seconds if self.write_seconds > 0 else float("inf")
 
 
+@dataclass(frozen=True)
+class LoadedCheckpoint:
+    """A verified payload and physical identity captured through one open file."""
+
+    payload: dict[str, Any]
+    physical_identity: dict[str, Any]
+
+
 def capture_rng_state() -> dict[str, Any]:
     """Capture every process RNG that can affect a resumed single-process run."""
 
@@ -111,23 +119,6 @@ def restore_rng_state(state: Mapping[str, Any]) -> None:
                 "checkpoint contains CUDA RNG state but CUDA is unavailable for resume"
             )
         torch.cuda.set_rng_state_all(cuda_state)
-
-
-def checkpoint_file_identity(path: str | Path) -> dict[str, Any]:
-    """Return a physical identity for a checkpoint that already exists."""
-
-    checkpoint_path = Path(path).resolve()
-    if not checkpoint_path.is_file():
-        raise CheckpointVerificationError(f"checkpoint file does not exist: {checkpoint_path}")
-    digest = hashlib.sha256()
-    with checkpoint_path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return {
-        "path": str(checkpoint_path),
-        "sha256": digest.hexdigest(),
-        "size_bytes": checkpoint_path.stat().st_size,
-    }
 
 
 def build_checkpoint_identity(
@@ -526,7 +517,7 @@ def _torch_load(path: Path) -> Any:
         return torch.load(path, map_location="cpu")
 
 
-def load_checkpoint_for_generation(path: str | Path) -> dict[str, Any]:
+def load_checkpoint_for_generation(path: str | Path) -> LoadedCheckpoint:
     """Load the verified inference-relevant part of a full-state checkpoint.
 
     Generation deliberately accepts only repository checkpoint files.  The
@@ -535,16 +526,43 @@ def load_checkpoint_for_generation(path: str | Path) -> dict[str, Any]:
     dimensions or tokenizer settings with CLI arguments.
     """
 
-    checkpoint_path = Path(path)
-    if not checkpoint_path.is_file():
+    checkpoint_path = Path(path).resolve()
+    try:
+        with checkpoint_path.open("rb") as handle:
+            stat = os.fstat(handle.fileno())
+            digest = hashlib.sha256()
+            size_bytes = 0
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+                size_bytes += len(chunk)
+            if size_bytes != stat.st_size:
+                raise CheckpointVerificationError(
+                    f"checkpoint {checkpoint_path} changed while its identity was captured"
+                )
+            if size_bytes == 0:
+                raise CheckpointVerificationError(f"checkpoint {checkpoint_path} is empty")
+            physical_identity = {
+                "path": str(checkpoint_path),
+                "sha256": digest.hexdigest(),
+                "size_bytes": size_bytes,
+                "device": stat.st_dev,
+                "inode": stat.st_ino,
+            }
+            handle.seek(0)
+            try:
+                payload = _torch_load_handle(handle)
+            except Exception as error:  # Torch exposes several format-specific error types.
+                raise CheckpointVerificationError(
+                    f"unable to read checkpoint {checkpoint_path}: {error}"
+                ) from error
+            final_stat = os.fstat(handle.fileno())
+            if final_stat.st_size != stat.st_size or final_stat.st_mtime_ns != stat.st_mtime_ns:
+                raise CheckpointVerificationError(
+                    f"checkpoint {checkpoint_path} changed while it was loaded"
+                )
+    except OSError as error:
         raise CheckpointVerificationError(
             f"generation checkpoint does not exist or is not a file: {checkpoint_path}"
-        )
-    try:
-        payload = _torch_load(checkpoint_path)
-    except Exception as error:  # torch exposes several format-specific error types.
-        raise CheckpointVerificationError(
-            f"unable to read checkpoint {checkpoint_path}: {error}"
         ) from error
     if not isinstance(payload, dict):
         raise CheckpointVerificationError(f"checkpoint {checkpoint_path} is not a mapping")
@@ -586,7 +604,17 @@ def load_checkpoint_for_generation(path: str | Path) -> dict[str, Any]:
         raise CheckpointCompatibilityError(
             "checkpoint envelope identity differs from its full-state run_identity"
         )
-    return payload
+    return LoadedCheckpoint(payload=payload, physical_identity=physical_identity)
+
+
+def _torch_load_handle(handle: BinaryIO) -> Any:
+    """Deserialize from the same open checkpoint file used to hash its bytes."""
+
+    try:
+        return torch.load(handle, map_location="cpu", weights_only=False)
+    except TypeError:  # Older PyTorch does not expose weights_only.
+        handle.seek(0)
+        return torch.load(handle, map_location="cpu")
 
 
 def _fsync_file(path: Path) -> None:

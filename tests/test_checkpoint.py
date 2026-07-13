@@ -130,7 +130,7 @@ def _trainer(directory: Path, *, resume_path: str | Path | None = None) -> Train
         optimizer=optimizer,
         scheduler=scheduler,
         train_loader=CursorLoader(dataset),
-        validation_loader=CursorLoader(CursorDataset(total_batches=1)),
+        validation_loader_factory=lambda: CursorLoader(CursorDataset(total_batches=1)),
         checkpoint_dir=directory,
         cfg=cfg,
         device=torch.device("cpu"),

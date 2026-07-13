@@ -316,14 +316,12 @@ def prepare_trainer(cfg: DictConfig, *, run_dir: Path | None = None) -> Trainer:
         logger.info("Resume checkpoint compatibility preflight passed: {}", resume_path)
 
     smoke_manifest = None
-    validation_loader_factory = None
     if data_mode == "memorization_smoke":
         smoke_manifest = resolve_memorization_smoke(cfg.data)
 
     if data_mode == "memorization_smoke":
         assert smoke_manifest is not None
         train_token_ids = resolved_manifest_token_ids(smoke_manifest, tokenizer)
-        validation_token_ids = list(train_token_ids)
         logger.info(
             "Explicit memorization smoke uses manifest {} for both train and validation",
             smoke_manifest.manifest_fingerprint,
@@ -338,17 +336,10 @@ def prepare_trainer(cfg: DictConfig, *, run_dir: Path | None = None) -> Trainer:
             generator=dataloader_generator(int(cfg.reproducibility.seed), stream="train"),
             worker_init_fn=dataloader_worker_init_fn,
         )
-        validation_loader = create_autoregressive_dataloader(
-            token_ids=validation_token_ids,
-            seq_len=cfg.training.sequence_length,
-            batch_size=cfg.training.batch_size,
-            shuffle=False,
-            generator=dataloader_generator(int(cfg.reproducibility.seed), stream="validation"),
-            worker_init_fn=dataloader_worker_init_fn,
-        )
         validation_loader_factory = build_validation_loader_factory(
             cfg, tokenizer=tokenizer, device=device
         )
+        validation_loader = validation_loader_factory()
     elif data_mode == "streaming":
         logger.info("Building streaming causal-LM dataloaders...")
         train_loader = build_streaming_dataloader(cfg, "train", device=device)
@@ -405,13 +396,12 @@ def prepare_trainer(cfg: DictConfig, *, run_dir: Path | None = None) -> Trainer:
         optimizer=optimizer,
         scheduler=scheduler,
         train_loader=train_loader,
-        validation_loader=validation_loader,
+        validation_loader_factory=validation_loader_factory,
         checkpoint_dir=checkpoint_dir,
         cfg=cfg,
         device=device,
         checkpoint_identity=checkpoint_identity,
         resume_path=resume_path,
-        validation_loader_factory=validation_loader_factory,
     )
     return trainer
 

@@ -402,6 +402,13 @@
     "actual_model": "not exposed by runtime",
     "actual_reasoning": "not exposed by runtime"
   },
+  "recomputation": {
+    "record": "VAL-001-dgx-r6-recompute.json",
+    "record_sha256": "15cd320bc775a8d429ec29446d4c24ff440bbe403b09d7c60d7390788f9a2f2c",
+    "scope": "training trajectory, final-model tensor equality, replicated validation score/identity, and training-time/standalone score/identity parity",
+    "verifier": "verify_val001_dgx.py",
+    "verifier_sha256": "7b17fec49fc75fc0f8efc3cfdb36a1d8556b06ff1fac88f10816f0df6ac770c8"
+  },
   "runs": [
     {
       "arm": "off",

@@ -81,7 +81,8 @@ class CheckpointSampler:
         resolved_device = torch.device(device)
         if resolved_device.type == "cuda" and not torch.cuda.is_available():
             raise SamplingError("CUDA was requested for generation but is unavailable")
-        payload = load_checkpoint_for_generation(path)
+        loaded = load_checkpoint_for_generation(path)
+        payload = loaded.payload
         state = _mapping(payload["state"], "checkpoint state")
         config = _mapping(state["resolved_config"], "checkpoint resolved_config")
         model_config = _mapping(config.get("model"), "checkpoint resolved_config.model")

@@ -3,7 +3,7 @@
 - Roadmap ticket: `VAL-001`
 - Branch: `codex/val-001-held-out-validation`
 - Draft PR: [#42](https://github.com/Ayumu-J-S/llm_scratch/pull/42)
-- Status: Attempt 6 evidence `PASS WITH NOTE`; independent re-review pending
+- Status: Attempt 6 evidence `PASS WITH NOTE`; cycle 6 repair verified, exact-head heavy re-review pending
 - Started / last updated (UTC): 2026-07-13 / 2026-07-13
 - Model-run record: `docs/model-runs/VAL-001-held-out-validation.md`
 
@@ -336,6 +336,14 @@ gates remain unchanged.
 
 The compact failed-attempt record is
 [`VAL-001-dgx-r5-failed.json`](evidence/VAL-001-dgx-r5-failed.json).
+Its durable recomputation projection is
+[`VAL-001-dgx-r5-recompute.json`](evidence/VAL-001-dgx-r5-recompute.json).
+The projection retains every non-time step row, every validation metric row,
+the complete standalone payload, and per-tensor final-checkpoint hashes, each
+bound to the SHA-256 and byte size of its raw source artifact. It is therefore
+possible to recheck trajectory/final-model equality, replicated validation
+score and identity, and training-time/standalone parity without the ephemeral
+raw directory or 3.6 GB of duplicate checkpoint containers.
 
 - All six arms completed at exact head `4264e4a`. Every pair's 60-step non-time
   trajectory and canonical final-model digest matched exactly. Paired on/off
@@ -402,10 +410,19 @@ validation interval. PyTorch per-step allocator measurements and the 5 Hz GPU /
 Attempt 6 protocol script SHA-256 is
 `4fc1cfee44f5c44657e6deeb87a3a5d301872d3c456588c381ad3b39f93c7914`.
 
-### Outcome — `PASS WITH NOTE`, independent re-review pending
+### Outcome — `PASS WITH NOTE`, cycle 6 repaired and heavy re-review pending
 
 The compact decision record is
 [`VAL-001-dgx-r6.json`](evidence/VAL-001-dgx-r6.json).
+Its durable recomputation projection is
+[`VAL-001-dgx-r6-recompute.json`](evidence/VAL-001-dgx-r6-recompute.json).
+Together with
+[`verify_val001_dgx.py`](evidence/verify_val001_dgx.py), the committed projection
+recomputes the same trajectory, final-model, validation-replication, and
+standalone-parity assertions from retained inputs and verifies their linkage to
+the raw artifact hashes in the compact record. Raw corpus/token contents and
+the 600 MB checkpoint containers remain excluded; per-tensor hashes preserve a
+reviewable equality proof without treating Git or W&B as bulk storage.
 
 - All six arms completed at exact head `497a7b6`. Every pair's full 60-step
   non-time trajectory and canonical final-model digest matched exactly. Paired
@@ -475,16 +492,36 @@ Attempts 3-5 produced stopped current-head evidence; fresh Attempt 6 returned
 `PASS WITH NOTE` under its predeclared adaptive evidence protocol.
 Exact displayed repair model and reasoning mode are not exposed by runtime.
 
-Local repair verification: focused validation/checkpoint/trainer/generation
-tests `55 passed`; full repository tests `310 passed, 1 skipped`; full Ruff,
-`uv lock --check`, changed-Python-file format check, and `git diff --check` pass.
-The repository-wide formatter still reports four pre-existing unrelated files,
-which were not changed. Independent re-review is still required.
+The later independent heavy re-review of exact head `91ede13` returned `FAIL`.
+It independently reconciled the Attempt 6 arithmetic and adaptive-protocol
+chronology, then found six implementation/handoff gaps: checkpoint bytes and
+physical identity were obtained through separate path opens; evaluator output
+could alias the input checkpoint; evaluator-run identity and checkpoint kind
+were absent; W&B summaries omitted compact result identities; Trainer/scorer
+retained compatibility paths; and the raw hashes lacked a durable recomputation
+locator.
+
+Cycle 6 repairs all six findings. Checkpoint hashing and deserialization share
+one open descriptor with an atomic path-replacement regression; path and inode
+output collisions fail before evaluation; standalone JSON records evaluator
+Git/dirty state, resolved Hydra config/digest, lock, runtime/container, and
+checkpoint kind; W&B receives checkpoint/manifest/scorer/local-result
+identities; scorer and Trainer interfaces require factories and
+`EvaluationResult`; and the Attempt 5/6 recomputation projections plus verifier
+retain sufficient committed inputs for trajectory, validation, standalone, and
+pairwise final-tensor equality checks.
+
+Local cycle 6 verification: focused tests `59 passed in 11.14s`; full repository
+tests `314 passed, 1 skipped in 67.45s`; Ruff, changed-file format, JSON,
+recomputation, and `git diff --check` pass. A separate scoped evidence reviewer
+returned `PASS` with 69/69 Attempt 5 and 70/70 Attempt 6 checks without using the
+ephemeral raw roots. Exact-head independent heavy re-review is still required.
 
 ## Conclusion
 
 The prior DGX R2 is insufficient current performance evidence, and failed
 Attempts 3-5 remain visible. Attempt 6 provides current-head repeated acceptance
-evidence with an explicit adaptive-protocol note. VAL-001 remains incomplete
-only until an independent heavy re-review accepts the exact documented evidence
-head as `PASS` or justified `PASS WITH NOTE`.
+evidence with an explicit adaptive-protocol note. The `91ede13` review failure
+and its verified cycle 6 repair remain visible. VAL-001 remains incomplete only
+until an independent heavy re-review accepts the exact repair head as `PASS` or
+justified `PASS WITH NOTE`.

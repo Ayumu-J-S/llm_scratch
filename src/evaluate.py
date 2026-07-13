@@ -5,29 +5,34 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
-from collections.abc import Mapping
 
 import hydra
 import wandb
 from hydra.core.hydra_config import HydraConfig
 from omegaconf import DictConfig, OmegaConf
 
-from evaluation.scoring import CausalLMScorer
+from data.identity import canonical_json_bytes
+from evaluation.scoring import CausalLMScorer, EvaluationResult
 from models.simple_decoder_transformer import SimpleDecoderTransformer
 from runtime.config import validate_evaluation_config, validate_training_config
 from runtime.device import select_device
+from runtime.environment import collect_environment
+from runtime.reproducibility import collect_git_identity, sha256_bytes, sha256_file
 from tokenizer.canonical import CanonicalTokenizer
 from train import build_validation_loader_factory, build_streaming_dataloader
 from train import validate_streaming_dataloaders
 from training.checkpoint import (
     build_logical_checkpoint_identity,
-    checkpoint_file_identity,
     checkpoint_config_sha256,
     configured_manifest_fingerprints,
     load_checkpoint_for_generation,
 )
+
+
+ROOT_DIR = Path(__file__).resolve().parents[1]
 
 
 def evaluate_checkpoint(cfg: DictConfig) -> Path:
@@ -39,7 +44,11 @@ def evaluate_checkpoint(cfg: DictConfig) -> Path:
     checkpoint_path = Path(str(evaluation_cfg.checkpoint_path))
     if not checkpoint_path.is_absolute():
         checkpoint_path = (Path.cwd() / checkpoint_path).resolve()
-    payload = load_checkpoint_for_generation(checkpoint_path)
+    output_path = _output_path(evaluation_cfg).resolve()
+    _reject_output_checkpoint_collision(checkpoint_path, output_path)
+    evaluator_run_identity = _evaluator_run_identity(cfg)
+    loaded = load_checkpoint_for_generation(checkpoint_path)
+    payload = loaded.payload
     state = payload["state"]
     resolved_config = state.get("resolved_config")
     if not isinstance(resolved_config, Mapping):
@@ -90,7 +99,6 @@ def evaluate_checkpoint(cfg: DictConfig) -> Path:
     checkpoint_identity = build_logical_checkpoint_identity(
         payload["identity"], state.get("counters", {})
     )
-    physical_identity = checkpoint_file_identity(checkpoint_path)
     scorer = CausalLMScorer(
         device=device,
         precision=str(checkpoint_cfg.training.get("precision", "fp32")),
@@ -101,11 +109,12 @@ def evaluate_checkpoint(cfg: DictConfig) -> Path:
         validation_factory,
         namespace="validation",
         logical_checkpoint_identity=checkpoint_identity,
-        physical_checkpoint_identity=physical_identity,
+        physical_checkpoint_identity=loaded.physical_identity,
         configured_data_fingerprints=configured_manifest_fingerprints(checkpoint_cfg),
     )
     output = {
         "schema_version": 1,
+        "evaluator_run": evaluator_run_identity,
         "evaluation": {
             "kind": result.namespace,
             "scorer_revision": result.scorer_revision,
@@ -115,14 +124,24 @@ def evaluate_checkpoint(cfg: DictConfig) -> Path:
             "tokenizer_fingerprint": tokenizer.fingerprint,
         },
         "checkpoint": {
+            "kind": payload["kind"],
             "logical": checkpoint_identity,
-            "physical": physical_identity,
+            "physical": loaded.physical_identity,
         },
         "result": result.as_dict(),
     }
-    output_path = _output_path(evaluation_cfg)
     _write_json_atomic(output_path, output)
-    _maybe_log_wandb(evaluation_cfg, result)
+    local_result_identity = {
+        "path": str(output_path),
+        "sha256": sha256_file(output_path),
+        "size_bytes": output_path.stat().st_size,
+    }
+    _maybe_log_wandb(
+        evaluation_cfg,
+        result,
+        checkpoint_kind=str(payload["kind"]),
+        local_result_identity=local_result_identity,
+    )
     return output_path
 
 
@@ -166,7 +185,52 @@ def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
         temporary.unlink(missing_ok=True)
 
 
-def _maybe_log_wandb(evaluation_cfg: DictConfig, result) -> None:
+def _reject_output_checkpoint_collision(checkpoint_path: Path, output_path: Path) -> None:
+    """Reject paths that could overwrite the checkpoint used for evaluation."""
+
+    checkpoint = checkpoint_path.resolve()
+    output = output_path.resolve()
+    if checkpoint == output:
+        raise ValueError("evaluation output path must not be the checkpoint path")
+    try:
+        if output.exists() and os.path.samefile(checkpoint, output):
+            raise ValueError("evaluation output and checkpoint must not share an inode")
+    except FileNotFoundError:
+        return
+
+
+def _evaluator_run_identity(cfg: DictConfig) -> dict[str, Any]:
+    resolved_config = OmegaConf.to_container(cfg, resolve=True)
+    if not isinstance(resolved_config, dict):
+        raise ValueError("evaluation requires a mapping Hydra configuration")
+    environment = collect_environment()
+    return {
+        "git": collect_git_identity(ROOT_DIR),
+        "resolved_config": resolved_config,
+        "resolved_config_sha256": sha256_bytes(canonical_json_bytes(resolved_config)),
+        "lock": {
+            "path": str(ROOT_DIR / "uv.lock"),
+            "sha256": sha256_file(ROOT_DIR / "uv.lock"),
+        },
+        "environment": {
+            "os": environment["os"],
+            "os_release": environment["os_release"],
+            "architecture": environment["architecture"],
+            "python": environment["python"],
+            "torch": environment["torch"],
+            "cuda": environment["cuda"],
+            "container_image": environment["container_image"],
+        },
+    }
+
+
+def _maybe_log_wandb(
+    evaluation_cfg: DictConfig,
+    result: EvaluationResult,
+    *,
+    checkpoint_kind: str,
+    local_result_identity: Mapping[str, Any],
+) -> None:
     wandb_cfg = evaluation_cfg.get("wandb", {}) or {}
     if not wandb_cfg.get("enabled", False):
         return
@@ -187,6 +251,14 @@ def _maybe_log_wandb(evaluation_cfg: DictConfig, result) -> None:
                 "evaluation/evaluated_window_sha256": result.evaluated_window_sha256,
                 "evaluation/evaluated_token_sha256": result.evaluated_token_sha256,
                 "evaluation/pause_seconds": result.pause_seconds,
+                "evaluation/scorer_identity": {"revision": result.scorer_revision},
+                "evaluation/checkpoint_identity": {
+                    "kind": checkpoint_kind,
+                    "logical": result.logical_checkpoint_identity,
+                    "physical": result.physical_checkpoint_identity,
+                },
+                "evaluation/manifest_identity": result.manifest_identity,
+                "evaluation/local_result_identity": dict(local_result_identity),
                 "evaluation/by_corpus": {
                     name: score.as_dict() for name, score in sorted(result.by_corpus.items())
                 },

@@ -7,7 +7,7 @@
   standalone checkpoint results with complete immutable evaluation identity.
 - Experiment: `docs/experiments/VAL-001-held-out-validation.md`
 - Started: 2026-07-13
-- Current verdict: Attempt 6 evidence `PASS WITH NOTE`; independent re-review pending
+- Current verdict: independent re-review at `91ede13` `FAIL`; repair cycle 6 verified, exact-head re-review pending
 - Final record owner: implementation agent
 
 ## Scope and decision context
@@ -40,6 +40,9 @@
 | 4 | repair QA | `gpt-5.6-luna` / Extra High (`xhigh` invocation) | not exposed by runtime / not exposed by runtime | `74a6d6b` working tree | PASS | Read-only focused review found no issue and agreed strict fail-closed determinism is the smallest sound repair; not the required final heavy re-review |
 | 5 | evidence-protocol repair | not exposed by runtime / not exposed by runtime | not exposed by runtime / not exposed by runtime | `4264e4a` | Attempt 6 `PASS WITH NOTE`; heavy re-review pending | Preserved Attempt 5 as FAIL, repaired container sampling/start barrier, prospectively bounded the adaptive first-step recovery gate, and prohibited further relaxation |
 | 5 | protocol review | not exposed by runtime / not exposed by runtime | not exposed by runtime / not exposed by runtime | `4264e4a` working tree | PASS WITH NOTE | Adaptive 5% gate is defensible only with a fully fresh matrix, CHECK-anchored disclosure, phase attribution, coarse container claims, and no further revision |
+| 6 | independent heavy re-review | `gpt-5.6-sol` / Max | not exposed by runtime / not exposed by runtime | `91ede13` | FAIL | Attempt 6 arithmetic/protocol reconciled, but checkpoint byte identity, output collision safety, evaluator/W&B provenance, compatibility paths, and durable raw-evidence recomputability failed review |
+| 6 | repair | available GPT-5.6 implementation model / highest appropriate reasoning | not exposed by runtime / not exposed by runtime | `91ede13` | implemented; re-review pending | Bound hash and deserialization to one open checkpoint descriptor, rejected output collisions, added evaluator/W&B identities, removed compatibility paths, and committed sufficient recomputation inputs |
+| 6 | scoped evidence repair review | available GPT-5.6 review model | not exposed by runtime / not exposed by runtime | `91ede13` plus repair working tree | PASS | Attempts 5/6 passed 139 durable recomputation checks without ephemeral raw roots; complete tensor manifests establish pairwise final-model equality |
 
 Requested values are invocation/config values, not claimed actual deployment
 identifiers. The runtime did not expose the exact identifier or reasoning mode to
@@ -65,6 +68,12 @@ the caller for implementation/repair, so those actual fields remain unavailable.
   `docs/model-runs/evidence/VAL-001-repair-cycle-4-luna-review-provenance.json`.
 - Attempt 6 protocol review capture:
   `docs/model-runs/evidence/VAL-001-attempt6-protocol-review-provenance.json`.
+- Review-cycle-6 capture:
+  `docs/model-runs/evidence/VAL-001-review-cycle-6-provenance.json`.
+- Repair-cycle-6 capture:
+  `docs/model-runs/evidence/VAL-001-repair-cycle-6-provenance.json`.
+- Repair-cycle-6 scoped evidence review:
+  `docs/model-runs/evidence/VAL-001-repair-cycle-6-evidence-review-provenance.json`.
 - Codex CLI: `codex-cli 0.144.1` for recorded implementation/repair captures.
 - Implementation head: `a8520d7fad718574d1fca4293e6f969c7a478b79`.
 - Main invariant repair: `057983c`; measured merged head:
@@ -78,6 +87,8 @@ the caller for implementation/repair, so those actual fields remain unavailable.
 - CUDA determinism repair head: working tree after `74a6d6b`; no uncommitted-tree
   commit SHA is claimed before local verification completes.
 - Attempt 5 measured head: `4264e4a`; compact failed evidence is retained.
+- Failed independent re-review: requested `gpt-5.6-sol` / Max at `91ede13`;
+  exact runtime model/mode not exposed.
 - Privacy: no prompts, hidden chain-of-thought, token counts, secrets, or raw
   thread IDs are recorded.
 
@@ -399,6 +410,30 @@ measurement.
 - Completion evidence requested: focused and full tests, Ruff, format, lock,
   diff checks, then independent re-review of the exact repair head.
 
+### Failed-review handoff — cycle 6
+
+- Review target/verdict: exact head `91ede13`, `FAIL`.
+- Review model/mode: requested `gpt-5.6-sol` / Max; exact runtime values were
+  not exposed.
+- Validated evidence: the reviewer independently reconciled all derivable
+  Attempt 5/6 arithmetic and confirmed Attempt 6 was prospectively declared,
+  fresh, and appropriately bounded.
+- Failed checks: checkpoint physical identity was hashed after loading through
+  a second path open; output could alias the input checkpoint; standalone
+  results lacked evaluator-run identity and checkpoint kind; W&B summaries
+  lacked compact result identities; Trainer/scorer retained compatibility
+  paths; raw artifact hashes had no durable recomputation locator.
+- Repair request: hash and deserialize through one descriptor with a path-swap
+  regression; reject path/inode collisions; record evaluator Git/dirty,
+  resolved Hydra config, lock, runtime/container, and checkpoint kind; log
+  compact checkpoint/manifest/scorer/local-result W&B identities; require
+  factories and `EvaluationResult`; retain sufficient recomputation inputs.
+- Selected repair model: delegated available GPT-5.6 implementation model at
+  the highest appropriate reasoning; exact runtime model/mode not exposed.
+- Completion evidence requested: race/collision/provenance/interface tests,
+  full suite, Ruff/format/diff checks, independent durable-evidence audit, then
+  exact-head heavy re-review.
+
 ## Repair result
 
 - Repair cycle: 3.
@@ -443,6 +478,35 @@ measurement.
 - Commit reviewed next: the evidence/docs head containing this record.
 - Re-review verdict: pending; the prior independent verdict remains `FAIL`.
 
+### Identity and durable-evidence repair result
+
+- Repair cycle: 6.
+- Input: failed `gpt-5.6-sol` / Max review of exact head `91ede13`; exact
+  runtime model/mode not exposed.
+- Code changes: checkpoint hashing and deserialization now use one open file
+  descriptor with pre/post `fstat` guards; atomic path replacement keeps the
+  loaded payload and physical identity on the same inode. Standalone evaluation
+  rejects same-path and hard-link output collisions, records evaluator Git and
+  dirty state, resolved Hydra config and digest, lock, OS/runtime/container,
+  and checkpoint kind, and logs compact checkpoint/manifest/scorer/local-result
+  W&B identities. Scorer and Trainer now require loader factories and
+  `EvaluationResult` directly.
+- Evidence changes: committed projections retain every non-time trajectory row,
+  validation row, complete standalone payload, raw source hash/size inventory,
+  and complete per-tensor final-checkpoint hash manifests. The verifier uses
+  only committed-path inputs.
+- Verification: focused suite `59 passed in 11.14s`; full suite `314 passed, 1
+  skipped in 67.45s`; Ruff, changed-file formatting, diff check, and the
+  Attempt 5/6 recomputation verifier pass. Independent scoped evidence review
+  returned `PASS` with 69/69 and 70/70 checks.
+- Deliberate trade-offs: standalone checkpoint verification performs two
+  sequential reads through one descriptor to avoid a 600 MB RAM snapshot.
+  Multi-GB checkpoint containers and raw corpus/token contents remain outside
+  Git; complete tensor manifests prove pairwise equality but cannot recreate
+  the historical canonical digest without retained raw bytes.
+- Re-review verdict: pending exact repair-head independent heavy review; the
+  last heavy verdict remains `FAIL` until then.
+
 ## Risks and handoff
 
 - Known trade-off: on current Attempt 6, each fixed 65,536-target validation
@@ -450,12 +514,15 @@ measurement.
   is saved. The earlier 19.52 s scorer result remains historical R2 evidence.
 - Evidence status: fresh Attempt 6 is `PASS WITH NOTE` across all three matched
   pairs, exact identities/scores, standalone parity, recovery, and valid traces.
-  Independent heavy re-review remains the only technical completion gate.
+  Cycle 6 repairs are locally verified and their durable-evidence subset passed
+  independent scoped review. Exact-head heavy re-review remains the only
+  technical completion gate.
 - Dependency: this stacked PR still depends on DATA-004, whose source-rights
   disposition is a human policy gate.
 - Merge path: human review and merge; no self-merge authorization exists.
-- Exactly one next step: independently heavy-review the exact Attempt 6 evidence
-  head against VAL-001, `PHILOSOPHY.md`, and applicable `CHECK.md`.
+- Exactly one next step: commit the verified cycle 6 repair and independently
+  heavy-review that exact head against VAL-001, `PHILOSOPHY.md`, and applicable
+  `CHECK.md`.
 
 ## Merge authority and final audit
 

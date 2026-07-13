@@ -12,7 +12,7 @@ import math
 import re
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import torch
 import torch.nn.functional as F
@@ -52,20 +52,18 @@ class Trainer:
         optimizer,
         scheduler,
         train_loader,
-        validation_loader,
+        validation_loader_factory: Callable[[], Any],
         checkpoint_dir: Path,
         cfg: DictConfig,
         device: torch.device,
         checkpoint_identity: dict[str, Any] | None = None,
         resume_path: str | Path | None = None,
-        validation_loader_factory=None,
     ) -> None:
         self.model = model
         self.optimizer = optimizer
         self.scheduler = scheduler
         self.train_loader = train_loader
-        self.validation_loader = validation_loader
-        self.validation_loader_factory = validation_loader_factory or (lambda: validation_loader)
+        self.validation_loader_factory = validation_loader_factory
         self.checkpoint_dir = Path(checkpoint_dir)
         self.cfg = cfg
         self.device = device
@@ -273,7 +271,7 @@ class Trainer:
                         if validation_loss is None:
                             validation_result = self._evaluate()
                             self._update_elapsed()
-                            validation_loss = _evaluation_nll(validation_result)
+                            validation_loss = validation_result.nll
                             self._latest_validation_loss = validation_loss
                             self._record_validation_metrics(validation_result)
                         self._step_scheduler(validation_loss)
@@ -505,7 +503,7 @@ class Trainer:
                 else validation_result.pause_seconds
             )
             self._update_elapsed()
-            validation_loss = _evaluation_nll(validation_result)
+            validation_loss = validation_result.nll
             self._latest_validation_loss = validation_loss
             self._last_validation_step = step
             best_checkpoint_seconds = 0.0
@@ -704,49 +702,35 @@ class Trainer:
             send_to_wandb=False,
         )
 
-    def _record_validation_metrics(self, validation_result: EvaluationResult | float) -> None:
-        if isinstance(validation_result, EvaluationResult):
-            namespace = validation_result.namespace
-            values: dict[str, Any] = {
-                "event": namespace,
-                "optimizer_step": self.optimizer_step,
-                "target_tokens": self.target_tokens,
-                "elapsed_seconds": self.elapsed_seconds,
-                f"{namespace}/loss": validation_result.nll,
-                f"{namespace}/perplexity": validation_result.perplexity,
-                f"{namespace}/target_tokens": validation_result.target_tokens,
-                f"{namespace}/evaluated_windows": validation_result.evaluated_windows,
-                f"{namespace}/evaluated_window_sha256": validation_result.evaluated_window_sha256,
-                f"{namespace}/evaluated_token_sha256": validation_result.evaluated_token_sha256,
-                f"{namespace}/pause_seconds": validation_result.pause_seconds,
-                f"{namespace}/timing": validation_result.timing,
-                f"{namespace}/evaluated_targets_per_second": (
-                    validation_result.evaluated_targets_per_second
-                ),
-                f"{namespace}/manifest_identity": validation_result.manifest_identity,
-                f"{namespace}/logical_checkpoint_identity": (
-                    validation_result.logical_checkpoint_identity
-                ),
-                f"{namespace}/physical_checkpoint_identity": (
-                    validation_result.physical_checkpoint_identity
-                ),
-                f"{namespace}/by_corpus": {
-                    name: score.as_dict()
-                    for name, score in sorted(validation_result.by_corpus.items())
-                },
-            }
-        else:
-            # Small unit-test fixtures may still monkeypatch the private method
-            # with a scalar.  The production path always uses EvaluationResult.
-            namespace = "memorization" if self._is_memorization_run() else "validation"
-            values = {
-                "event": namespace,
-                "optimizer_step": self.optimizer_step,
-                "target_tokens": self.target_tokens,
-                "elapsed_seconds": self.elapsed_seconds,
-                f"{namespace}/loss": float(validation_result),
-                f"{namespace}/perplexity": _perplexity(float(validation_result)),
-            }
+    def _record_validation_metrics(self, validation_result: EvaluationResult) -> None:
+        namespace = validation_result.namespace
+        values: dict[str, Any] = {
+            "event": namespace,
+            "optimizer_step": self.optimizer_step,
+            "target_tokens": self.target_tokens,
+            "elapsed_seconds": self.elapsed_seconds,
+            f"{namespace}/loss": validation_result.nll,
+            f"{namespace}/perplexity": validation_result.perplexity,
+            f"{namespace}/target_tokens": validation_result.target_tokens,
+            f"{namespace}/evaluated_windows": validation_result.evaluated_windows,
+            f"{namespace}/evaluated_window_sha256": validation_result.evaluated_window_sha256,
+            f"{namespace}/evaluated_token_sha256": validation_result.evaluated_token_sha256,
+            f"{namespace}/pause_seconds": validation_result.pause_seconds,
+            f"{namespace}/timing": validation_result.timing,
+            f"{namespace}/evaluated_targets_per_second": (
+                validation_result.evaluated_targets_per_second
+            ),
+            f"{namespace}/manifest_identity": validation_result.manifest_identity,
+            f"{namespace}/logical_checkpoint_identity": (
+                validation_result.logical_checkpoint_identity
+            ),
+            f"{namespace}/physical_checkpoint_identity": (
+                validation_result.physical_checkpoint_identity
+            ),
+            f"{namespace}/by_corpus": {
+                name: score.as_dict() for name, score in sorted(validation_result.by_corpus.items())
+            },
+        }
         self._record_metrics(values, send_to_wandb=True)
 
     def _is_memorization_run(self) -> bool:
@@ -1278,7 +1262,3 @@ def _perplexity(loss: float) -> float:
         return math.exp(loss)
     except OverflowError:
         return float("inf")
-
-
-def _evaluation_nll(value: EvaluationResult | float) -> float:
-    return value.nll if isinstance(value, EvaluationResult) else float(value)

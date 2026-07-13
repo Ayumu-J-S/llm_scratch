@@ -116,7 +116,7 @@ class CausalLMScorer:
     def score(
         self,
         model: torch.nn.Module,
-        loader_or_factory: Iterable[Mapping[str, Any]] | Callable[[], Iterable[Mapping[str, Any]]],
+        loader_factory: Callable[[], Iterable[Mapping[str, Any]]],
         *,
         namespace: str = "validation",
         logical_checkpoint_identity: Mapping[str, Any] | None = None,
@@ -126,15 +126,15 @@ class CausalLMScorer:
     ) -> EvaluationResult:
         """Return exact token-weighted metrics and identities for one score pass.
 
-        A callable is preferred and is invoked for each pass.  Passing an
-        iterable remains useful for small map-style fixtures and tests.
+        The factory is invoked for each pass so validation never reuses an
+        exhausted iterator or a stateful streaming cursor.
         """
 
         if namespace not in {"validation", "memorization"}:
             raise ValueError("evaluation namespace must be validation or memorization")
         started = time.perf_counter()
         loader_started = time.perf_counter()
-        loader = loader_or_factory() if callable(loader_or_factory) else loader_or_factory
+        loader = loader_factory()
         loader_construction_seconds = time.perf_counter() - loader_started
         actual_manifest_identity, loader_configured_fingerprints = _manifest_identity_from_loader(
             loader, namespace=namespace

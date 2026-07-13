@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import copy
+import hashlib
 import json
+import os
 from dataclasses import replace
 from pathlib import Path
 
@@ -10,6 +13,7 @@ import torch
 from omegaconf import OmegaConf, open_dict
 
 import evaluate as evaluate_module
+import training.checkpoint as checkpoint_module
 from data.streaming_dataset import causal_lm_collate_fn, target_sources_from_spans
 from evaluation.scoring import CausalLMScorer, manifest_identities
 from models.simple_decoder_transformer import SimpleDecoderTransformer
@@ -153,7 +157,7 @@ def _milestone_checkpoint(tmp_path: Path):
 def test_known_logits_match_token_weighted_nll_and_perplexity():
     model = FixedLogitModel([0.0, 1.0, 2.0])
     batch = _batch([[0, 1, 2]])
-    result = _scorer().score(model, [batch])
+    result = _scorer().score(model, lambda: [batch])
 
     expected = torch.nn.functional.cross_entropy(
         model.logits.detach().expand(3, -1), torch.tensor([0, 1, 2])
@@ -183,7 +187,7 @@ def test_partial_and_ignored_labels_reconcile_by_corpus():
         [[0, -100, 1], [2, 3, -100]],
         [["ja", "ja", "en"], ["en", "en", "en"]],
     )
-    result = _scorer().score(model, [batch])
+    result = _scorer().score(model, lambda: [batch])
 
     assert result.target_tokens == 4
     assert result.by_corpus["ja"].target_tokens == 1
@@ -242,8 +246,8 @@ def test_fixed_window_score_is_batching_independent_and_repeated():
     }
     one_batch["target_sources"] = [*windows[0]["target_sources"], *windows[1]["target_sources"]]
     scorer = _scorer()
-    batched = scorer.score(model, [one_batch])
-    split = scorer.score(model, windows)
+    batched = scorer.score(model, lambda: [one_batch])
+    split = scorer.score(model, lambda: windows)
     repeated = scorer.score(model, lambda: windows)
 
     assert batched.evaluated_window_sha256 == split.evaluated_window_sha256
@@ -256,8 +260,8 @@ def test_fixed_window_score_is_batching_independent_and_repeated():
     }
     context_changed["inputs"][0, 0] = 2
     reassigned = {**one_batch, "target_sources": [["en", "ja"], ["en", "en"]]}
-    changed_context_result = scorer.score(model, [context_changed])
-    reassigned_result = scorer.score(model, [reassigned])
+    changed_context_result = scorer.score(model, lambda: [context_changed])
+    reassigned_result = scorer.score(model, lambda: [reassigned])
     assert changed_context_result.evaluated_window_sha256 != batched.evaluated_window_sha256
     assert reassigned_result.evaluated_window_sha256 != batched.evaluated_window_sha256
     assert reassigned_result.evaluated_token_sha256 != batched.evaluated_token_sha256
@@ -268,13 +272,13 @@ def test_validation_attribution_must_match_declared_manifests():
     with pytest.raises(ValueError, match="does not match the actual validation loader"):
         _scorer().score(
             model,
-            [_batch([[0, 1]], [["en", "en"]])],
+            lambda: [_batch([[0, 1]], [["en", "en"]])],
             manifest_identity={"ja": {"selection": "validation"}},
         )
 
 
 def test_perplexity_overflow_is_standards_safe_json(tmp_path):
-    result = _scorer().score(FixedLogitModel([0.0, 1000.0]), [_batch([[0]])])
+    result = _scorer().score(FixedLogitModel([0.0, 1000.0]), lambda: [_batch([[0]])])
     assert result.perplexity is None
     assert result.aggregate.perplexity_overflow is True
 
@@ -288,23 +292,23 @@ def test_perplexity_overflow_is_standards_safe_json(tmp_path):
 def test_scoring_closes_iterator_when_model_fails():
     loader = ClosingLoader([_batch([[0, 1]])])
     with pytest.raises(FloatingPointError, match="non-finite"):
-        _scorer().score(NaNModel([0.0, 1.0]), loader)
+        _scorer().score(NaNModel([0.0, 1.0]), lambda: loader)
     assert loader.iterator is not None
     assert loader.iterator.closed is True
 
 
 def test_scoring_rejects_zero_valid_targets():
     with pytest.raises(ValueError, match="zero target tokens"):
-        _scorer().score(FixedLogitModel([0.0, 1.0]), [_batch([[-100, -100]])])
+        _scorer().score(FixedLogitModel([0.0, 1.0]), lambda: [_batch([[-100, -100]])])
 
 
 def test_scorer_restores_model_mode():
     model = FixedLogitModel([0.0, 1.0])
     model.eval()
-    _scorer().score(model, [_batch([[0, 1]])])
+    _scorer().score(model, lambda: [_batch([[0, 1]])])
     assert model.training is False
     model.train()
-    _scorer().score(model, [_batch([[0, 1]])])
+    _scorer().score(model, lambda: [_batch([[0, 1]])])
     assert model.training is True
 
 
@@ -313,7 +317,7 @@ def test_scorer_restores_model_mode_when_iterator_close_fails():
     model.train()
 
     with pytest.raises(RuntimeError, match="iterator close failed"):
-        _scorer().score(model, FailingCloseLoader([_batch([[0, 1]])]))
+        _scorer().score(model, lambda: FailingCloseLoader([_batch([[0, 1]])]))
 
     assert model.training is True
 
@@ -348,7 +352,7 @@ def test_trainer_memorization_metrics_have_no_validation_namespace(tmp_path):
         optimizer=torch.optim.SGD(model.parameters(), lr=0.0),
         scheduler=None,
         train_loader=[batch],
-        validation_loader=[batch],
+        validation_loader_factory=lambda: [batch],
         checkpoint_dir=tmp_path,
         cfg=cfg,
         device=torch.device("cpu"),
@@ -394,12 +398,132 @@ def test_standalone_milestone_matches_shared_training_time_score(tmp_path):
     assert result["evaluated_window_sha256"] == live_result.evaluated_window_sha256
     assert result["evaluated_token_sha256"] == live_result.evaluated_token_sha256
     assert result["manifest_identity"] == live_result.manifest_identity
+    assert standalone["checkpoint"]["kind"] == "milestone"
     assert standalone["checkpoint"]["logical"] == live_result.logical_checkpoint_identity
     assert standalone["checkpoint"]["physical"]["path"] == str(checkpoint.resolve())
     assert len(standalone["checkpoint"]["physical"]["sha256"]) == 64
+    evaluator_run = standalone["evaluator_run"]
+    assert len(evaluator_run["git"]["sha"]) == 40
+    assert isinstance(evaluator_run["git"]["dirty"], bool)
+    assert evaluator_run["resolved_config"]["evaluation"]["checkpoint_path"] == str(checkpoint)
+    assert len(evaluator_run["resolved_config_sha256"]) == 64
+    assert evaluator_run["lock"]["path"].endswith("uv.lock")
+    assert len(evaluator_run["lock"]["sha256"]) == 64
+    assert evaluator_run["environment"]["os_release"]["name"]
+    assert evaluator_run["environment"]["python"]
+    assert evaluator_run["environment"]["torch"]["version"]
+    assert "container_image" in evaluator_run["environment"]
     rendered = result_path.read_text(encoding="utf-8")
     assert '"inputs"' not in rendered
     assert '"labels"' not in rendered
+
+
+def test_checkpoint_snapshot_payload_and_identity_survive_atomic_replacement(tmp_path, monkeypatch):
+    checkpoint, *_ = _milestone_checkpoint(tmp_path / "checkpoints")
+    original_bytes = checkpoint.read_bytes()
+    replacement_payload = copy.deepcopy(
+        torch.load(checkpoint, map_location="cpu", weights_only=False)
+    )
+    replacement_payload["state"]["counters"]["optimizer_step"] = 8
+    replacement_payload["state"]["counters"]["target_tokens"] = 23
+    replacement = tmp_path / "replacement.pt"
+    torch.save(replacement_payload, replacement)
+    replacement_bytes = replacement.read_bytes()
+    assert replacement_bytes != original_bytes
+
+    deserialize_handle = checkpoint_module._torch_load_handle
+
+    def replace_then_deserialize(handle):
+        os.replace(replacement, checkpoint)
+        return deserialize_handle(handle)
+
+    monkeypatch.setattr(checkpoint_module, "_torch_load_handle", replace_then_deserialize)
+    loaded = checkpoint_module.load_checkpoint_for_generation(checkpoint)
+
+    assert loaded.payload["state"]["counters"]["optimizer_step"] == 7
+    assert loaded.physical_identity["sha256"] == hashlib.sha256(original_bytes).hexdigest()
+    assert loaded.physical_identity["size_bytes"] == len(original_bytes)
+    assert loaded.physical_identity["inode"] != checkpoint.stat().st_ino
+    assert (
+        hashlib.sha256(checkpoint.read_bytes()).hexdigest()
+        == hashlib.sha256(replacement_bytes).hexdigest()
+    )
+    assert loaded.physical_identity["sha256"] != hashlib.sha256(checkpoint.read_bytes()).hexdigest()
+
+
+@pytest.mark.parametrize("collision_kind", ["same_path", "same_inode"])
+def test_standalone_rejects_output_checkpoint_collisions_before_evaluation(
+    tmp_path, collision_kind
+):
+    checkpoint, *_ = _milestone_checkpoint(tmp_path / "checkpoints")
+    original = checkpoint.read_bytes()
+    if collision_kind == "same_path":
+        output_path = checkpoint
+        expected = "checkpoint path"
+    else:
+        output_path = tmp_path / "checkpoint-hardlink.json"
+        os.link(checkpoint, output_path)
+        expected = "share an inode"
+    evaluation_config = _compose("profile=evaluation")
+    with open_dict(evaluation_config):
+        evaluation_config.evaluation.checkpoint_path = str(checkpoint)
+        evaluation_config.evaluation.output_path = str(output_path)
+
+    with pytest.raises(ValueError, match=expected):
+        evaluate_module.evaluate_checkpoint(evaluation_config)
+
+    assert checkpoint.read_bytes() == original
+
+
+def test_standalone_wandb_summary_records_compact_identities_and_local_hash(tmp_path, monkeypatch):
+    checkpoint, *_ = _milestone_checkpoint(tmp_path / "checkpoints")
+
+    class Summary:
+        def __init__(self):
+            self.values = {}
+
+        def update(self, values):
+            self.values.update(values)
+
+    class Run:
+        def __init__(self):
+            self.summary = Summary()
+            self.finished = False
+
+        def finish(self):
+            self.finished = True
+
+    run = Run()
+    monkeypatch.setattr(evaluate_module.wandb, "init", lambda **kwargs: run)
+    evaluation_config = _compose("profile=evaluation")
+    output_path = tmp_path / "wandb-standalone.json"
+    with open_dict(evaluation_config):
+        evaluation_config.evaluation.checkpoint_path = str(checkpoint)
+        evaluation_config.evaluation.output_path = str(output_path)
+        evaluation_config.evaluation.wandb.enabled = True
+        evaluation_config.evaluation.wandb.mode = "offline"
+
+    result_path = evaluate_module.evaluate_checkpoint(evaluation_config)
+    local_bytes = result_path.read_bytes()
+    local_payload = json.loads(local_bytes)
+    values = run.summary.values
+
+    assert run.finished is True
+    assert values["evaluation/scorer_identity"] == {
+        "revision": local_payload["result"]["scorer_revision"]
+    }
+    assert values["evaluation/checkpoint_identity"]["kind"] == "milestone"
+    assert values["evaluation/checkpoint_identity"]["logical"]
+    assert (
+        values["evaluation/checkpoint_identity"]["physical"]["sha256"]
+        == hashlib.sha256(checkpoint.read_bytes()).hexdigest()
+    )
+    assert values["evaluation/manifest_identity"]
+    assert values["evaluation/local_result_identity"] == {
+        "path": str(result_path),
+        "sha256": hashlib.sha256(local_bytes).hexdigest(),
+        "size_bytes": len(local_bytes),
+    }
 
 
 def test_checkpoint_resolved_config_tampering_is_rejected_before_evaluation(tmp_path):
