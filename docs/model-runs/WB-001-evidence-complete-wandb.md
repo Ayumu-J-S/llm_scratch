@@ -1,20 +1,20 @@
 # WB-001 — Evidence-complete, quota-safe W&B
 
-- PR: unavailable during delegated implementation; complete body at
-  `/tmp/WB-001-pr-body.md`
+- PR: unavailable because the `gh` publication prerequisite is missing;
+  complete body at `/tmp/WB-001-pr-body.md`
 - Branch: `codex/wb-001-evidence-safe-wandb`
 - Ticket: `WB-001`
 - Hypothesis: optional W&B tracking can remain compact and useful without
   becoming training authority, bulk storage, or a local failure mode.
 - Experiment record: `docs/experiments/WB-001-evidence-complete-wandb.md`
 - Started: 2026-07-13
-- Final verdict: mandatory independent heavy review `FAIL` at exact head
-  `23b6d2120f1a3738d4a3baf92e50c9b8f3c227f9`; cycle-13 repair is implemented
-  and locally validated, a focused independent repair audit passes, and fresh
-  repaired-head Attempt 9 measurement evidence is `PASS WITH NOTE`. The
-  mandatory exact-head heavy re-review remains pending. Attempt 9 supersedes
-  Attempt 8 as repaired-code performance evidence; Attempt 8 remains retained
-  as history.
+- Final verdict: mandatory independent heavy re-review `PASS WITH NOTE` at
+  exact clean implementation/evidence head
+  `5a0a7437e9f94fe56f0ed2dd4cad622cd9d9e25e`; all six findings from the
+  retained cycle-12 `FAIL` at `23b6d21` are closed. Attempt 9 supersedes
+  Attempt 8 as repaired-code performance evidence; Attempt 8 and the failed
+  review remain retained as history. A final exact-head docs-only no-drift
+  review is pending after this record update.
 - Final record owner: lead roadmap agent
 
 ## Scope and decision context
@@ -73,11 +73,12 @@
 | 11 | validation | not exposed by runtime | not exposed by runtime | exact clean `b59f844` Attempt 8 | Run and verify the full fresh matrix | PASS WITH NOTE | All 170 gates passed; 6.53–8.54% data wait and 6.56% offline-on/5.46% watch medians trigger only the predeclared 5% investigation notes | raw root plus `WB-001-dgx-r8-pass-with-note.json` |
 | 11 | review | not exposed by runtime | not exposed by runtime | exact raw and durable Attempt 8 evidence | Independently recompute the result before the mandatory heavy review | PASS WITH NOTE | Raw per-arm denominators, paired formula/medians, exact work, identities, W&B records, samplers, memory, and swap agree; the 11 warnings are exactly the declared investigation notes | two delegated validations plus byte/hash and raw-row recomputation |
 | 12 | review | not exposed by runtime | not exposed by runtime | exact clean `23b6d2120f1a3738d4a3baf92e50c9b8f3c227f9` | Requested `gpt-5.6-sol` / Extra High (`xhigh`); mandatory heavy review against philosophy, ticket, and applicable CHECK | FAIL; repair pending | Cumulative milestone quota was not reserved, synchronous scalar logging could stall training, partial watch installation could leak hooks, canonical DGX docs were stale, checkpoint equality was overstated, and the PR mixed requested with actual provenance | `/tmp/WB-001-heavy-review.txt`; reviewer independently reproduced the byte-identical 170/170 Attempt 8 result |
-| 13 | repair | not exposed by runtime | not exposed by runtime | cycle-12 mandatory `FAIL` and exact reviewed head `23b6d21` | Delegated appropriate GPT-5.6 implementation: repair the three P1 findings without changing model/data/trainer cadence or retained evidence | implemented and locally validated; mandatory re-review pending | Added Hydra `wandb.log_timeout_seconds=5`, one persistent bounded scalar worker with circuit breaker, tracker-lifetime cumulative quota reservations using strictest observed usage/limit, and unconditional partial-watch cleanup | `55 passed` focused; `102 passed` relevant; full `379 passed, 1 skipped`; static/config/shell/JSON checks pass |
-| 13 | review | not exposed by runtime | not exposed by runtime | final live cycle-13 repair diff | Independently audit only heavy-review findings 1–3; not the mandatory exact-head heavy re-review | PASS; mandatory re-review still pending | No remaining actionable quota, scalar-boundary, or watch-cleanup finding; conservative false blocking and a daemonized permanently stuck SDK worker are bounded documented trade-offs | focused `55 passed in 2.71s`; Ruff, four-file format, and diff checks pass; `/root/wb001_repair_audit` |
+| 13 | repair | not exposed by runtime | not exposed by runtime | cycle-12 mandatory `FAIL` and exact reviewed head `23b6d21` | Delegated appropriate GPT-5.6 implementation: repair the three P1 findings without changing model/data/trainer cadence or retained evidence | implemented, locally validated, and accepted by mandatory re-review | Added Hydra `wandb.log_timeout_seconds=5`, one persistent bounded scalar worker with circuit breaker, tracker-lifetime cumulative quota reservations using strictest observed usage/limit, and unconditional partial-watch cleanup | `55 passed` focused; `102 passed` relevant; full `379 passed, 1 skipped`; static/config/shell/JSON checks pass |
+| 13 | review | not exposed by runtime | not exposed by runtime | final live cycle-13 repair diff | Independently audit only heavy-review findings 1–3; not the mandatory exact-head heavy re-review | PASS; later confirmed by mandatory re-review | No remaining actionable quota, scalar-boundary, or watch-cleanup finding; conservative false blocking and a daemonized permanently stuck SDK worker are bounded documented trade-offs | focused `55 passed in 2.71s`; Ruff, four-file format, and diff checks pass; `/root/wb001_repair_audit` |
 | 13 | review | not exposed by runtime | not exposed by runtime | exact clean repaired head `e507a3447ab0895960530cdb207ca0702ec41f85` | Independently audit the unchanged target-hardware protocol before Attempt 9 | PASS | Attempt 8's 3×3×260/26 protocol, exact work, validation, cadence, watch emission, resources, and thresholds remain intact; only the declared 5-second scalar timeout is added | `73 passed` focused plus actual local W&B worker/watch smoke; `WB-001-attempt9-prelaunch-provenance.json` |
 | 13 | validation | not exposed by runtime | not exposed by runtime | exact clean `e507a3447ab0895960530cdb207ca0702ec41f85` Attempt 9 | Run and verify the full fresh repaired-code matrix | PASS WITH NOTE | All 168 applicable dynamic gates passed; data wait was 6.3273–8.1949%, all three paired medians were below 5%, all paired values were below 10%, and the nine warnings are only per-arm data-wait investigations | raw root plus `WB-001-dgx-r9-pass-with-note.json` |
 | 13 | review | not exposed by runtime | not exposed by runtime | exact raw and durable Attempt 9 evidence | Independently regenerate and validate the repaired-code result before the mandatory heavy re-review | PASS WITH NOTE | Two independent validators agree: raw regeneration is byte-identical, while the separate policy/quality audit confirms 159 required plus nine data-wait-note gates, semantic checkpoint equality, isolation, resources, performance, and limitations with no actionable finding | `/tmp/wb001-r9-independent-summary.json`; `WB-001-attempt9-validation-provenance.json`; `WB-001-attempt9-policy-validation-provenance.json` |
+| 13 | review | not exposed by runtime | not exposed by runtime | exact clean implementation/evidence head `5a0a7437e9f94fe56f0ed2dd4cad622cd9d9e25e` | Requested `gpt-5.6-sol` / Extra High (`xhigh`); mandatory heavy re-review against the prior FAIL, philosophy, ticket, applicable CHECK, repaired implementation, and Attempt 9 evidence | PASS WITH NOTE | All six prior findings are closed with no actionable blocker; byte-identical Attempt 9 regeneration confirms 159 required plus nine note gates, while bounded data wait, network-isolated scope, tracker-lifetime quota scope, and a potentially process-lifetime daemon worker remain explicit nonblocking notes | `/tmp/WB-001-heavy-rereview.txt`; `WB-001-heavy-rereview-provenance.json` |
 
 Requested values are recorded separately from actual runtime display. The
 delegated runtime did not expose the actual model identifier or reasoning mode;
@@ -97,6 +98,8 @@ they are not inferred from the request.
 | actual repair audit | not exposed by runtime | not exposed by runtime | not exposed by runtime | not exposed by runtime | repair-audit runtime did not display these values |
 | requested Attempt 9 audits | Codex | GPT-5.6 appropriate model | GPT-5.6 appropriate model | high protocol/evidence validation | explicit delegated prelaunch and post-run validation requests |
 | actual Attempt 9 audits | not exposed by runtime | not exposed by runtime | not exposed by runtime | not exposed by runtime | audit runtimes did not display these values |
+| requested mandatory re-review | Codex | GPT-5.6 heavier review tier | `gpt-5.6-sol` | Extra High (`xhigh`) | explicit mandatory re-review invocation |
+| actual mandatory re-review | not exposed by runtime | not exposed by runtime | not exposed by runtime | not exposed by runtime | reviewer runtime did not display these values |
 
 - Capture files:
   `docs/model-runs/evidence/WB-001-implementation-provenance.json`,
@@ -117,8 +120,10 @@ they are not inferred from the request.
   `docs/model-runs/evidence/WB-001-cycle13-repair-provenance.json`,
   `docs/model-runs/evidence/WB-001-cycle13-repair-audit-provenance.json`,
   `docs/model-runs/evidence/WB-001-attempt9-prelaunch-provenance.json`,
-  `docs/model-runs/evidence/WB-001-attempt9-validation-provenance.json`, and
-  `docs/model-runs/evidence/WB-001-attempt9-policy-validation-provenance.json`
+  `docs/model-runs/evidence/WB-001-attempt9-validation-provenance.json`,
+  `docs/model-runs/evidence/WB-001-attempt9-policy-validation-provenance.json`,
+  and
+  `docs/model-runs/evidence/WB-001-heavy-rereview-provenance.json`
 - Codex CLI version: `codex-cli 0.144.1`
 - Branch/commit: `codex/wb-001-evidence-safe-wandb` / input `74d9e24`
 - Phase/role/task path: implementation / implementation /
@@ -367,8 +372,9 @@ they are not inferred from the request.
   tests, the relevant selection passes 102, the full suite passes 379 with one
   skip, the focused independent repair audit returns `PASS`, and fresh
   repaired-head Attempt 9 evidence returns `PASS WITH NOTE`. The mandatory
-  exact-head heavy re-review remains pending, so the prior `FAIL` is not
-  cleared.
+  heavy re-review of exact clean implementation/evidence head `5a0a743` returns
+  `PASS WITH NOTE`, closes all six findings, and retains the prior `FAIL` as
+  review history.
 - Repair request issued: close findings 1–3 with focused regressions, rerun the
   proportional repository checks, update this record and the PR handoff, then
   obtain an independent `PASS` or justified `PASS WITH NOTE` on the exact
@@ -407,8 +413,9 @@ they are not inferred from the request.
   re-review.
 - Status: implementation and local validation complete at exact repair commit
   `e507a3447ab0895960530cdb207ca0702ec41f85`; fresh repaired-head measurement
-  is recorded below, and the mandatory independent heavy re-review remains
-  pending.
+  is recorded below, and the mandatory independent heavy re-review accepts the
+  resulting exact clean implementation/evidence head `5a0a743` with no
+  actionable finding.
 
 ### Attempt 9 — repaired-head performance validation
 
@@ -458,8 +465,43 @@ they are not inferred from the request.
   `none` mean no online auth, quota, retention, upload, or cloud claim. Unified
   memory is interpreted from host/container/allocator evidence, and decoded
   W&B binary records prove local history/watch content only.
-- Status: the measurement is complete and independently validated, but it does
-  not substitute for or clear the pending mandatory heavy exact-head re-review.
+- Status: the measurement is complete and independently validated. The
+  mandatory heavy re-review below accepts it as repaired-head evidence.
+
+### Review cycle 13 — mandatory independent heavy re-review
+
+- Requested review model / mode: `gpt-5.6-sol` / Extra High (`xhigh`).
+- Actual review model / mode: not exposed by runtime / not exposed by runtime.
+- Commit reviewed: exact clean implementation/evidence head
+  `5a0a7437e9f94fe56f0ed2dd4cad622cd9d9e25e`, containing repaired
+  implementation commit `e507a3447ab0895960530cdb207ca0702ec41f85`, against
+  baseline `74d9e24c251b62b23892b11ba0c1c9c723cd8a12` and the retained prior
+  `FAIL` at `23b6d2120f1a3738d4a3baf92e50c9b8f3c227f9`.
+- Selected `CHECK.md` sections: minimum review; §3; resource/storage portions
+  of §§5.3–5.4; §6.3; §§7.1–7.3; §§8.1 and 8.3; checkpoint-binding portions
+  of §9.1; and §9.2.
+- Verdict: `PASS WITH NOTE`; no actionable blocker remains. All six prior
+  findings are closed.
+- Evidence recomputation: the raw Attempt 9 regeneration is byte-identical to
+  the durable summary at SHA-256
+  `d8a5b4683b192df2b5f5876819dcdb628ed88de5c118fae3f306293660d6a598`;
+  all 168 applicable gates pass, comprising 159 required gates and nine
+  declared data-wait-note gates, with zero failures.
+- Nonblocking notes: per-arm data wait is 6.3273–8.1949%; network isolation and
+  artifact policy `none` support no online/cloud claim; cumulative quota
+  reservation is conservative within one tracker lifetime rather than an
+  account-global multi-process reservation; and a permanently stuck daemon
+  SDK worker may remain until process exit while training and tracker shutdown
+  stay bounded.
+- Review evidence: `/tmp/WB-001-heavy-rereview.txt`, SHA-256
+  `586bfe867db9373c82b693c1083339d8a8b5b6e1f1e887928daf8d3f2d879605`,
+  and
+  `docs/model-runs/evidence/WB-001-heavy-rereview-provenance.json`.
+- Handoff status: the technical ticket is accepted `PASS WITH NOTE` at the
+  reviewed implementation/evidence head. These documentation edits require a
+  final exact-head docs-only no-drift confirmation. PR publication remains
+  unavailable because the `gh` prerequisite is missing; human review and merge
+  are required and no self-merge is authorized.
 
 ## Final evidence
 
@@ -511,11 +553,14 @@ they are not inferred from the request.
   fail-closed. The R2 result is limited to the pinned depth-26 workload/runtime,
   and 5–10% per-arm data wait remains a monitoring note. Cycle 13 implements
   cumulative milestone quota, bounded scalar calls, and partial-watch cleanup;
-  local validation, the focused repair audit, and fresh Attempt 9 target-hardware
-  evidence pass. The mandatory heavy-review `FAIL` remains until the independent
-  exact-head heavy re-review passes.
-- Human decision requested: human review/merge after a passing independent
-  review; no self-merge authorization exists.
+  local validation, the focused repair audit, fresh Attempt 9 target-hardware
+  evidence, and mandatory heavy re-review pass with the stated notes. Quota
+  reservations are tracker-lifetime rather than account-global across multiple
+  processes, and a permanently stuck daemon SDK worker can remain until process
+  exit while local training and shutdown remain bounded.
+- Human decision requested: publish the prepared draft PR when the missing
+  `gh` prerequisite is available, then human review/merge; no self-merge
+  authorization exists.
 
 ## Merge authority and final audit
 
@@ -524,14 +569,13 @@ they are not inferred from the request.
 - Authorization evidence location: N/A
 - Authorization covers this named PR or bounded ticket/goal series: N/A
 - Exact independently reviewed head SHA:
-  `23b6d2120f1a3738d4a3baf92e50c9b8f3c227f9`
-- Latest independent verdict / model / mode: `FAIL`; requested
+  `5a0a7437e9f94fe56f0ed2dd4cad622cd9d9e25e`
+- Latest independent verdict / model / mode: `PASS WITH NOTE`; requested
   `gpt-5.6-sol` / Extra High (`xhigh`); actual model/mode not exposed by runtime
-- All actionable findings repaired and independently re-reviewed: implemented,
-  locally validated, and focused repair-audit `PASS`; mandatory exact-head
-  heavy re-review pending
+- All actionable findings repaired and independently re-reviewed: yes; all six
+  prior findings are closed with no actionable blocker
 - Blocking review decision / outstanding `CHANGES_REQUESTED` evidence:
-  mandatory independent `FAIL` retained in this record
+  none in the local review record; prior `FAIL` is retained as history
 - Newer human objections since authorization/review: none observed
 - Human review dismissed by an agent: no
 - Unresolved review threads at final audit: pending
@@ -547,7 +591,9 @@ they are not inferred from the request.
   no authorization exists and online credentials/quota were not used
 - Admin/bypass/force/disabled-check requirement: no
 - Final audit PR body/comment location: pending human merge
-- Final audit changed reviewed head: no final audit yet
+- Final audit changed reviewed head: these record-only edits follow the reviewed
+  implementation/evidence head, so an exact-head docs-only no-drift review is
+  pending
 - Immediate pre-merge re-fetch/compare observation location: pending
 - Immediate refresh compared authorization, head, base, review
   decision/objections, threads, expected checks/statuses, and mergeability: no
@@ -560,15 +606,17 @@ they are not inferred from the request.
 | --- | --- | --- | --- | --- | --- |
 | actual not exposed / actual mode not exposed | implementation (requested `gpt-5.6-luna` / Extra High) | Kept the design within one Hydra surface, isolated external failures, used public SDK behavior, and added policy/identity/cadence tests | First offline smoke used W&B's default repository-local run directory; repaired by an explicit temporary `WANDB_DIR` | WB-001 scope, official SDK research, existing trainer/checkpoint/VAL contracts, CHECK router | implemented; mandatory independent review failed at cycle 12 |
 | actual not exposed / actual mode not exposed | mandatory review (requested `gpt-5.6-sol` / Extra High) | Recomputed the durable DGX result exactly and distinguished normalized checkpoint identity from physical file hashes | Found three P1 implementation blockers and three P2 handoff inaccuracies | Exact clean head, ROADMAP/PHILOSOPHY/CHECK, raw and durable Attempt 8 evidence | `FAIL`; repair pending |
-| actual not exposed / actual mode not exposed | repair (requested appropriate GPT-5.6 implementation model) | Localized all three P1 repairs to Hydra validation and the existing tracker boundary while retaining model/data/cadence and evidence | Real online behavior remains unexercised | Complete cycle-12 handoff and focused regressions | implemented; full `379 passed, 1 skipped`; mandatory re-review pending |
-| actual not exposed / actual mode not exposed | focused repair audit | Verified quota monotonicity/concurrency, bounded scalar shutdown, and real partial-hook cleanup with no actionable finding | Not the mandatory exact-head heavy re-review | Final live diff, findings 1–3, focused and static checks | `PASS`; mandatory heavy re-review pending |
-| actual not exposed / actual mode not exposed | Attempt 9 prelaunch and evidence validation | Preserved the audited protocol, exercised actual local W&B worker/watch cleanup, independently regenerated byte-identical 168/168 evidence, and separately confirmed policy/evidence quality with no actionable finding | Network-isolated artifact-policy-none evidence cannot establish online service behavior; physical checkpoint archives are not claimed byte-identical | Exact `e507a344`, raw matrix, durable summary, retained Attempt 8 protocol | two independent validators `PASS WITH NOTE`; mandatory heavy re-review pending |
+| actual not exposed / actual mode not exposed | repair (requested appropriate GPT-5.6 implementation model) | Localized all three P1 repairs to Hydra validation and the existing tracker boundary while retaining model/data/cadence and evidence | Real online behavior remains unexercised | Complete cycle-12 handoff and focused regressions | implemented; full `379 passed, 1 skipped`; accepted by mandatory re-review |
+| actual not exposed / actual mode not exposed | focused repair audit | Verified quota monotonicity/concurrency, bounded scalar shutdown, and real partial-hook cleanup with no actionable finding | Not the mandatory exact-head heavy re-review | Final live diff, findings 1–3, focused and static checks | `PASS`; later confirmed by mandatory heavy re-review |
+| actual not exposed / actual mode not exposed | Attempt 9 prelaunch and evidence validation | Preserved the audited protocol, exercised actual local W&B worker/watch cleanup, independently regenerated byte-identical 168/168 evidence, and separately confirmed policy/evidence quality with no actionable finding | Network-isolated artifact-policy-none evidence cannot establish online service behavior; physical checkpoint archives are not claimed byte-identical | Exact `e507a344`, raw matrix, durable summary, retained Attempt 8 protocol | two independent validators `PASS WITH NOTE`; accepted by mandatory heavy re-review |
+| actual not exposed / actual mode not exposed | mandatory re-review (requested `gpt-5.6-sol` / Extra High) | Closed all six prior findings, regenerated Attempt 9 byte-identically, and separated required gates from monitoring notes | Retained bounded online-scope, tracker-lifetime quota, and daemon-worker limitations as explicit notes | Exact clean `5a0a743`, prior FAIL, repaired implementation, raw/durable Attempt 9 evidence, ROADMAP/PHILOSOPHY/CHECK | `PASS WITH NOTE`; no actionable blocker |
 
 ## Ledger update
 
 - [x] Added the PR/ticket row to `docs/model-runs/README.md`.
 - [x] Updated aggregate implementation, repair, success, and review counts
-  through the completed mandatory cycle-12 `FAIL`.
-- [ ] Confirmed that the final PR execution trail matches this record.
+  through the completed mandatory cycle-13 `PASS WITH NOTE` re-review.
+- [x] Confirmed that the prepared PR execution trail matches this record before
+  the final exact-head docs-only no-drift review.
 - [x] Recorded human merge as the default.
 - [x] Confirmed this is not the bootstrap policy PR.

@@ -191,6 +191,16 @@ The durable summary is
 supersedes Attempt 8 as repaired-code performance evidence; Attempt 8 and all
 failed or aborted earlier attempts remain in the experiment record.
 
+The mandatory independent heavy re-review of exact clean
+implementation/evidence head `5a0a7437e9f94fe56f0ed2dd4cad622cd9d9e25e`
+returned `PASS WITH NOTE` and closed all six findings from the retained prior
+`FAIL`. It independently confirmed the byte-identical Attempt 9 summary and
+159 required plus nine data-wait-note gates with zero failures. The remaining
+implementation notes are bounded: quota reservations are conservative within
+one tracker lifetime rather than account-global across multiple processes, and
+a permanently stuck daemon SDK worker may live until process exit while local
+training and tracker shutdown remain bounded.
+
 An optional online scalar arm and one selected artifact may run only when a
 human/operator supplies credentials and a fresh usage snapshot with headroom.
 It is not required for the network-free implementation proof and must not

@@ -2,17 +2,18 @@
 
 - Roadmap ticket: `WB-001`
 - Branch: `codex/wb-001-evidence-safe-wandb`
-- Draft PR: unavailable during implementation because the delegated runtime has
-  no GitHub publication command; complete body prepared at
-  `/tmp/WB-001-pr-body.md`
+- Draft PR: unavailable because the `gh` publication prerequisite is missing;
+  complete body prepared at `/tmp/WB-001-pr-body.md`
 - Experiment owner: implementation agent
-- Status: mandatory independent review `FAIL`; cycle-13 repairs pass local
-  validation and a focused independent repair audit, while the mandatory
-  exact-head heavy re-review remains pending. R1 and the repaired-code,
-  depth-26 DGX Attempt 9 result are `PASS WITH NOTE`; all 168 applicable
-  dynamically emitted measurement gates pass. Attempt 9 supersedes Attempt 8
-  as performance evidence for the repaired implementation, while Attempt 8 is
-  retained as history.
+- Status: mandatory independent heavy re-review `PASS WITH NOTE` at exact clean
+  implementation/evidence head
+  `5a0a7437e9f94fe56f0ed2dd4cad622cd9d9e25e`; all six findings from the
+  retained prior `FAIL` are closed with no actionable blocker. R1 and the
+  repaired-code, depth-26 DGX Attempt 9 result are `PASS WITH NOTE`; all 168
+  applicable dynamically emitted measurement gates pass. Attempt 9 supersedes
+  Attempt 8 as repaired-code performance evidence, while Attempt 8 is retained
+  as history. A final exact-head docs-only no-drift review remains pending after
+  this record update.
 - Started (UTC): 2026-07-13
 - Last updated (UTC): 2026-07-13
 - Model-run provenance: `docs/model-runs/WB-001-evidence-complete-wandb.md`
@@ -463,9 +464,10 @@ WB/config/trainer/reproducibility/verifier selection passes `102 passed in
 skipped in 69.10s`. Repository Ruff, four-file changed-Python format, lock,
 runner shell syntax, JSON parsing, and diff checks pass. A separate focused
 repair audit returned `PASS` with `55 passed in 2.71s` plus clean static checks;
-it is not the mandatory heavy exact-head re-review. That re-review has not yet
-completed, so the ticket verdict remains `FAIL` and no online/cloud claim is
-added.
+it is not the mandatory heavy exact-head re-review. The subsequent mandatory
+re-review of exact clean implementation/evidence head
+`5a0a7437e9f94fe56f0ed2dd4cad622cd9d9e25e` returned `PASS WITH NOTE` and
+closed all six prior findings without adding an online/cloud claim.
 
 ## Attempt 9 — repaired exact-head DGX result, PASS WITH NOTE
 
@@ -518,8 +520,37 @@ artifact-policy-none matrix does not exercise or support claims about online
 authentication, authoritative quota, retention, upload, or cloud behavior.
 DGX Spark unified-memory headroom is supported by host, container, and allocator
 evidence, and decoded W&B binary records prove only local history/watch content.
-The mandatory exact-head heavy re-review is still pending, so this measurement
-does not clear the prior ticket-level `FAIL` by itself.
+The mandatory heavy re-review accepted this evidence and the repaired
+implementation with the nonblocking limitations below.
+
+## Mandatory heavy re-review — PASS WITH NOTE
+
+The independent reviewer requested as `gpt-5.6-sol` / Extra High (`xhigh`)
+reviewed exact clean implementation/evidence head
+`5a0a7437e9f94fe56f0ed2dd4cad622cd9d9e25e` against baseline
+`74d9e24c251b62b23892b11ba0c1c9c723cd8a12`, repaired implementation
+`e507a3447ab0895960530cdb207ca0702ec41f85`, and the retained mandatory `FAIL`
+at `23b6d2120f1a3738d4a3baf92e50c9b8f3c227f9`. The runtime did not expose the
+actual model identifier or reasoning mode.
+
+The verdict is `PASS WITH NOTE` with no actionable blocker. All six prior
+findings are closed. The reviewer regenerated Attempt 9 byte-identically at
+SHA-256
+`d8a5b4683b192df2b5f5876819dcdb628ed88de5c118fae3f306293660d6a598`
+and confirmed 168/168 applicable gates: 159 required gates plus nine declared
+data-wait-note gates, with zero failures. The review output is
+`/tmp/WB-001-heavy-rereview.txt`, SHA-256
+`586bfe867db9373c82b693c1083339d8a8b5b6e1f1e887928daf8d3f2d879605`;
+durable provenance is in
+`docs/model-runs/evidence/WB-001-heavy-rereview-provenance.json`.
+
+The notes are bounded: per-arm data wait remains 6.3273–8.1949%; network
+isolation plus artifact policy `none` support no online/cloud claim; quota
+reservation is conservative within one tracker lifetime rather than an
+account-global multi-process reservation; and a permanently stuck daemon SDK
+worker may remain until process exit while local training and tracker shutdown
+stay bounded. PR publication is unavailable because the `gh` prerequisite is
+missing. Human review and merge remain required; no self-merge is authorized.
 
 ## Conclusion
 
@@ -531,12 +562,14 @@ does not clear the prior ticket-level `FAIL` by itself.
   checkpoints across disabled/offline W&B and tested external failure paths,
   while the repaired exact-head measurement evidence remains valid. Cycle-13
   quota, scalar-boundary, and watch-cleanup repairs pass local validation, a
-  focused repair audit, and the full fresh Attempt 9 matrix, but require the
-  mandatory exact-head heavy re-review before the artifact-safety acceptance
-  claim passes.
+  focused repair audit, the full fresh Attempt 9 matrix, and the mandatory heavy
+  re-review. The ticket is technically accepted `PASS WITH NOTE` at the
+  reviewed implementation/evidence head.
 - Uncertainty and limitations: no online service call, real quota consumption,
   or artifact upload was performed; failed DGX evidence is retained, and no
   cross-attempt performance claim is made. The positive R2 result is scoped to
-  the depth-26 target workload and the pinned runtime.
-- Exactly one next step: run the mandatory independent heavy re-review against
-  the exact repaired implementation/evidence head.
+  the depth-26 target workload and the pinned runtime; quota reservation is
+  tracker-lifetime, and a stuck daemon SDK worker is process-lifetime bounded.
+- Exactly one next step: complete a final exact-head docs-only no-drift review,
+  then publish the prepared draft PR when the missing `gh` prerequisite is
+  available for human review and merge.
