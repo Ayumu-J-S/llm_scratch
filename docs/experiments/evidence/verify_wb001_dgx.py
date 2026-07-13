@@ -38,8 +38,9 @@ ARM_CONFIG = {
 ROOT = Path(__file__).resolve().parents[3]
 MAX_STEPS = 260
 WARMUP_STEPS = 26
-TARGET_TOKENS = 532_480
-STREAM_MAX_TOKENS = 532_992
+TARGET_TOKENS = 133_120
+STREAM_MAX_TOKENS = 133_248
+MODEL_LAYERS = 18
 
 
 class Gates:
@@ -573,7 +574,8 @@ def _run(
         prefix + "fixed_work",
         config["profile"]["name"] == "stability_smoke"
         and streaming_train["max_tokens"] == STREAM_MAX_TOKENS
-        and training["sequence_length"] == 256
+        and training["sequence_length"] == 64
+        and config["model"]["num_layers"] == MODEL_LAYERS
         and training["max_steps"] == MAX_STEPS
         and training["precision"] == "bf16"
         and measurement["complete"] is True

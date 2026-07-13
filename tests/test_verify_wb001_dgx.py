@@ -70,9 +70,10 @@ def test_temporal_coverage_ignores_prestart_samples_and_fails_early_end():
 
 
 def test_current_attempt_target_horizon_covers_every_microbatch():
-    targets_per_step = 2 * 256 * 4
+    targets_per_step = 2 * 64 * 4
     assert VERIFY.TARGET_TOKENS == VERIFY.MAX_STEPS * targets_per_step
-    assert VERIFY.STREAM_MAX_TOKENS == VERIFY.TARGET_TOKENS + 2 * 256
+    assert VERIFY.STREAM_MAX_TOKENS == VERIFY.TARGET_TOKENS + 2 * 64
+    assert VERIFY.MODEL_LAYERS == 18
 
 
 def test_main_persists_structured_fail_when_evidence_is_incomplete(tmp_path, monkeypatch):

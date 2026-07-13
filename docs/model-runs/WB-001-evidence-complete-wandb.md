@@ -58,7 +58,10 @@
 | 8 | validation | not exposed by runtime | not exposed by runtime | exact clean `0dd2fd5` Attempt 5 | Run and verify the full fresh matrix | FAIL | All nine arms/exactness/W&B/resource gates passed, but every arm had 11.89–18.02% data wait and offline-off median regression was 10.99% | raw root plus `WB-001-dgx-r5-failed.json` |
 | 9 | repair | not exposed by runtime | not exposed by runtime | retained Attempt 5 FAIL | Increase compute intensity without changing decision thresholds | repaired; prelaunch review pending | Sequence 256, 260 steps, 26 warm-up, 532,992 stream cap for 1,040 microbatches/532,480 targets and one watch event | exact-loader/static evidence pending |
 | 9 | review | not exposed by runtime | not exposed by runtime | uncommitted sequence-256 repair | Final prelaunch audit before Attempt 6 | PASS | Exact loader 1,040/260/532,480, watch event, epoch-end cadence, unchanged gates, and no-cross-attempt scope are consistent | delegated audit plus independent loader composition |
-| 10 | review | pending | pending | exact integration/evidence head pending | Mandatory heavy review against philosophy, ticket, and applicable CHECK after evidence | pending | pending | pending |
+| 9 | validation | not exposed by runtime | not exposed by runtime | exact clean `54fb32b` Attempt 6 | Start the fresh matrix | FAIL during cache prime | Sequence 256 produced zero validation target windows in the tiny fixture; no measured arm launched | retained raw prime plus `WB-001-dgx-r6-aborted.json` |
+| 10 | repair | not exposed by runtime | not exposed by runtime | aborted Attempt 6 plus Attempt 5 phase evidence | Increase compute without invalidating real validation | repaired | Restore sequence 64; use 18 layers, 260 steps, 26 warm-up, 133,248 stream cap for 1,040 microbatches/133,120 targets | real CUDA one-step train/validation/checkpoint smoke passed |
+| 10 | review | not exposed by runtime | not exposed by runtime | uncommitted sequence-64/18-layer repair | Final prelaunch audit before Attempt 7 | PASS | Exact loader work and nonempty validation, watch emission, cadence, unchanged gates, fresh roots, and within-attempt-only comparison are consistent | delegated audit plus independent loader composition |
+| 11 | review | pending | pending | exact integration/evidence head pending | Mandatory heavy review against philosophy, ticket, and applicable CHECK after evidence | pending | pending | pending |
 
 Requested values are recorded separately from actual runtime display. The
 delegated runtime did not expose the actual model identifier or reasoning mode;
@@ -81,8 +84,9 @@ they are not inferred from the request.
   `docs/model-runs/evidence/WB-001-r4-protocol-reviews-provenance.json`,
   `docs/model-runs/evidence/WB-001-r5-horizon-review-provenance.json`,
   `docs/model-runs/evidence/WB-001-r6-container-sampler-provenance.json`,
-  `docs/model-runs/evidence/WB-001-r7-thermal-repair-provenance.json`, and
-  `docs/model-runs/evidence/WB-001-r9-compute-repair-provenance.json`
+  `docs/model-runs/evidence/WB-001-r7-thermal-repair-provenance.json`,
+  `docs/model-runs/evidence/WB-001-r9-compute-repair-provenance.json`, and
+  `docs/model-runs/evidence/WB-001-r10-depth-repair-provenance.json`
 - Codex CLI version: `codex-cli 0.144.1`
 - Branch/commit: `codex/wb-001-evidence-safe-wandb` / input `74d9e24`
 - Phase/role/task path: implementation / implementation /
@@ -243,7 +247,16 @@ they are not inferred from the request.
   groups, and 532,480 targets, retaining one default-frequency watch emission.
   All decision thresholds remain unchanged and no cross-attempt performance
   comparison is allowed.
-- Commit reviewed next: pending clean Attempt 6 head after final prelaunch audit.
+- Attempt 6 at exact `54fb32b`: cache prime failed before measurement because
+  sequence 256 left the tiny validation fixture with zero target windows.
+  Validation was not disabled or weakened; the partial root is a structured
+  `FAIL`.
+- Repair cycle 10: restore sequence 64 and set `model.num_layers=18`. Keep 260
+  steps/26 warm-up and use a 133,248 stream cap for 1,040 microbatches, 260 full
+  accumulation groups, and 133,120 targets. The pinned network-isolated CUDA
+  one-step train/validation/checkpoint smoke passed with 70,828,682 parameters.
+  Thresholds remain unchanged and no cross-attempt comparison is allowed.
+- Commit measured next: pending clean Attempt 7 head after PASS prelaunch audit.
 
 ## Final evidence
 
@@ -266,8 +279,9 @@ they are not inferred from the request.
   Attempt 3 was aborted before measured arms after its protocol audit failed.
   Attempt 4 stopped on its idle thermal precondition after one complete arm.
   Attempt 5 completed all arms but failed 11.89–18.02% data wait and a 10.99%
-  offline-off median regression. Compute-bound Attempt 6 is predeclared; no
-  positive throughput claim is made from Attempts 2–5.
+  offline-off median regression. Attempt 6 stopped during cache prime because
+  sequence 256 invalidated the tiny validation fixture. Depth-based Attempt 7
+  is predeclared; no positive throughput claim is made from Attempts 2–6.
 - Failed attempts retained: first offline smoke placed its W&B directory under
   the repository; it was removed and `WANDB_DIR` now points at the smoke temp
   root. No training failure occurred.
@@ -276,7 +290,7 @@ they are not inferred from the request.
   Billing UI/CSV snapshot because the public Python API does not expose current
   storage usage.
 - Unresolved risks: real online auth/service behavior remains unexercised and
-  fail-closed; DGX overhead remains unresolved until adaptive Attempt 6 passes.
+  fail-closed; DGX overhead remains unresolved until adaptive Attempt 7 passes.
 - Human decision requested: human review/merge after a passing independent
   review; no self-merge authorization exists.
 

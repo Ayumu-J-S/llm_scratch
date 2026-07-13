@@ -6,8 +6,8 @@
   no GitHub publication command; complete body prepared at
   `/tmp/WB-001-pr-body.md`
 - Experiment owner: implementation agent
-- Status: R1 repair validation passed; DGX Attempts 2 and 5 failed, Attempts 3
-  and 4 were aborted, and compute-bound Attempt 6 is predeclared
+- Status: R1 repair validation passed; DGX Attempts 2 and 5 failed, Attempts 3,
+  4, and 6 were aborted, and depth-based compute-bound Attempt 7 is predeclared
 - Started (UTC): 2026-07-13
 - Last updated (UTC): 2026-07-13
 - Model-run provenance: `docs/model-runs/WB-001-evidence-complete-wandb.md`
@@ -41,9 +41,9 @@
 | Resource | Limit | Derivation / measurement source |
 | --- | --- | --- |
 | CPU correctness | Focused tests plus one disabled and one offline canonical smoke | Ticket validation asks for test doubles, matrix, missing login, schema, offline smoke |
-| Elapsed time on target hardware | Retained Attempt 2: 3×3×100; retained Attempt 5: 3×3×300; predeclared Attempt 6: 3×3×260 steps | CHECK §§6.3 and 9.2 repeated disabled/offline/watch comparison; 260 steps execute 1,040 backward batches and one default-frequency watch event |
-| Training tokens | Attempt 6: 532,480 targets/arm from a 532,992-token streaming cap; identical in every arm | 260 steps × batch 2 × sequence 256 × accumulation 4; the extra 512 stream tokens provide full windows |
-| Optimizer steps | 2 CPU smoke invocations; retained Attempt 2: 900; retained Attempt 5: 2,700; Attempt 6: 2,340 | Attempt 6 uses 260 steps × 3 arms × 3 repetitions |
+| Elapsed time on target hardware | Retained Attempt 2: 3×3×100; retained Attempt 5: 3×3×300; predeclared Attempt 7: 3×3×260 steps | CHECK §§6.3 and 9.2 repeated disabled/offline/watch comparison; 260 steps execute 1,040 backward batches and one default-frequency watch event |
+| Training tokens | Attempt 7: 133,120 targets/arm from a 133,248-token streaming cap; identical in every arm | 260 steps × batch 2 × sequence 64 × accumulation 4; the extra 128 stream tokens provide full windows |
+| Optimizer steps | 2 CPU smoke invocations; retained Attempt 2: 900; retained Attempt 5: 2,700; Attempt 7: 2,340 | Attempt 7 uses 260 steps × 3 arms × 3 repetitions |
 | Evaluation work and cadence | Identical across all R2 arms; no extra W&B cadence | Isolates W&B/watch overhead |
 | Checkpoint count and bytes | Existing local checkpoint policy per arm, inventoried with exact bytes; no W&B artifact in required R2 | Artifact behavior is proven with test doubles, not service quota |
 | Local / external / W&B storage | Temp directories for CPU smoke; future R2 records W&B directory bytes; zero cloud bytes required | W&B is not backup or bulk storage |
@@ -326,17 +326,45 @@ paired median regression at least 10% remains a failure; at least 5% remains an
 investigation note. The matrix uses a fresh cache/root and exact clean commit;
 no Attempt 5 arm is reused.
 
+### Attempt 6 result — aborted during cache prime
+
+Attempt 6 started at exact commit `54fb32b68787330b6e893b99d30e18842b821196`
+and the pinned image, but sequence 256 left the deliberately tiny validation
+fixture with zero complete target windows. Cache prime stopped at epoch-end
+validation before any measured arm. Raw evidence is retained at
+`/tmp/wb001-r6-54fb32b68787330b6e893b99d30e18842b821196`; the structured
+failure projection is
+`docs/experiments/evidence/WB-001-dgx-r6-aborted.json`. Validation is not
+disabled or weakened to accommodate the performance protocol.
+
+### Predeclared Attempt 7 — 18-layer compute-bound retry
+
+Attempt 7 returns to sequence 64 so the actual validation fixture remains
+non-empty, and raises only `model.num_layers` from 6 to 18. It keeps 260
+optimizer steps, steps 1–26 as warm-up, and uses a 133,248-token stream cap for
+exactly 1,040 microbatches, 260 full accumulation groups, and 133,120 targets.
+The default 1,000-batch watch event is still required. The 18-layer model has
+70,828,682 parameters on the pinned runtime and passed a network-isolated CUDA
+one-step train/validation/checkpoint smoke before commit.
+
+Depth changes the model and compute work relative to prior attempts, so no
+cross-attempt throughput comparison is allowed. Within Attempt 7 every arm has
+the same seed/model/data/order/cadence/cooldown/samplers and artifact policy.
+All exactness, data-wait, 5% investigation, 10% failure, storage, memory, swap,
+and temporal gates remain unchanged. The full matrix uses a fresh cache/root
+and clean exact commit; no prior arm is reused.
+
 ## Conclusion
 
 - Hypothesis result: supported at R1; DGX Attempt 2 failed its measurement and
   watch-cost gates, Attempts 3 and 4 made no comparison claim, and Attempt 5
-  failed data-wait/performance gates, so the overhead conclusion remains
-  pending Attempt 6.
+  failed data-wait/performance gates. Attempt 6 stopped before measurement, so
+  the overhead conclusion remains pending Attempt 7.
 - Evidence-backed conclusion: the implementation can preserve local metrics and
   checkpoints across disabled/offline W&B and tested external failure paths,
   while fail-closing every artifact safety gate.
 - Uncertainty and limitations: no online service call, real quota consumption,
   or artifact upload was performed; the failed DGX evidence is retained rather
   than used for a positive performance claim.
-- Exactly one next step: run and verify the predeclared adaptive Attempt 6 on a
+- Exactly one next step: run and verify the predeclared adaptive Attempt 7 on a
   clean repair commit before the mandatory independent review.

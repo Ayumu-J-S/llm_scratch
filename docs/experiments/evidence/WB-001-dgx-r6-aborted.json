@@ -1,0 +1,15 @@
+{
+  "failures": [
+    "verification_exception"
+  ],
+  "image_id": "sha256:23a1bee69fe189e77105cdddeee9aeff6ef0763d58a691625fbfcab64efd1887",
+  "measured_commit": "54fb32b68787330b6e893b99d30e18842b821196",
+  "review_size": "R2",
+  "schema_version": 1,
+  "ticket": "WB-001",
+  "verdict": "FAIL",
+  "verification_error": {
+    "message": "[Errno 2] No such file or directory: '/tmp/wb001-r6-54fb32b68787330b6e893b99d30e18842b821196/r1-p1-disabled/conditions.env'",
+    "type": "FileNotFoundError"
+  }
+}

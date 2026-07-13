@@ -181,8 +181,8 @@ prime_cache() {
       -w /workspace "$IMAGE" \
       python src/train.py profile=stability_smoke runtime.device=cuda \
         data.streaming.cache.dir=/cache reproducibility.seed=42 \
-        data.streaming.train.max_tokens=532992 \
-        training.sequence_length=256 \
+        data.streaming.train.max_tokens=133248 \
+        training.sequence_length=64 model.num_layers=18 \
         training.max_steps=1 training.max_tokens=null training.max_time=null \
         artifacts.checkpoints_dir=/evidence/checkpoints measurement.enabled=false \
         wandb.mode=disabled wandb.watch.enabled=false wandb.artifact.policy=none \
@@ -233,8 +233,8 @@ run_one() {
     sh -c 'while [ ! -f /evidence/START ]; do sleep 0.05; done; exec "$@"' sh
     python src/train.py profile=stability_smoke runtime.device=cuda
     data.streaming.cache.dir=/cache reproducibility.seed=42
-    data.streaming.train.max_tokens=532992
-    training.sequence_length=256
+    data.streaming.train.max_tokens=133248
+    training.sequence_length=64 model.num_layers=18
     training.max_steps=260 training.max_tokens=null training.max_time=null
     artifacts.checkpoints_dir=/evidence/checkpoints
     measurement.enabled=true measurement.warmup_optimizer_steps=26
