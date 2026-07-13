@@ -148,14 +148,14 @@ but local completion never depends on that external behavior.
 
 ## WB-001 target-hardware protocol
 
-The retained DGX R2 comparison is Attempt 8 at exact commit
-`b59f84483d1f85a5cd42005d48e8b99d60ab2695` in pinned image
+The current repaired-code DGX R2 comparison is Attempt 9 at exact commit
+`e507a3447ab0895960530cdb207ca0702ec41f85` in pinned image
 `sha256:23a1bee69fe189e77105cdddeee9aeff6ef0763d58a691625fbfcab64efd1887`.
 All arms use the same resolved config, seed, pinned data/cache, depth-26 model,
 sequence length 64, CUDA/BF16 recipe, validation/checkpoint settings, 260
 optimizer steps, 26 warm-up steps, batch size 2, accumulation 4, 1,040
-backward batches, and 133,120 target tokens. Three Latin-square repetitions
-compare:
+backward batches, 133,120 target tokens, 10-step scalar cadence, and the
+declared 5-second scalar SDK timeout. Three Latin-square repetitions compare:
 
 - W&B disabled;
 - W&B offline with watch off; and
@@ -177,19 +177,24 @@ matrix after priming the shared cache, and
 trajectory, checkpoint, lifecycle, resource, storage, and paired-performance
 gates from the retained raw evidence.
 
-Attempt 8 passed all 170 verifier gates. Per-arm data wait was 6.53–8.54%; the
-paired median changes were 1.75% for offline/watch-off versus disabled, 6.56%
-for offline/watch-on versus disabled, and 5.46% for watch-on versus
-offline/watch-off. The latter two values and every per-arm data-wait value are
-retained as predeclared 5–10% investigation notes, so the R2 result is `PASS
-WITH NOTE`. The durable summary is
-`docs/experiments/evidence/WB-001-dgx-r8-pass-with-note.json`; failed and
-aborted earlier attempts remain in the experiment record.
+Attempt 9 passed all 168 applicable dynamically emitted verifier gates. Per-arm
+data wait was 6.3273–8.1949%; the paired median changes were 1.913997% for
+offline/watch-off versus disabled, 2.224572% for offline/watch-on versus
+disabled, and 2.632986% for watch-on versus offline/watch-off. Every median is
+below the 5% investigation threshold, every paired value is below 10%, and the
+nine warnings are exactly one predeclared 5–10% data-wait investigation per
+arm, so the R2 result is `PASS WITH NOTE`. The dynamic gate total is two lower
+than Attempt 8's 170 because the verifier emits its two aggregate investigation
+gates only when a paired median is at least 5%; neither is applicable here.
+The durable summary is
+`docs/experiments/evidence/WB-001-dgx-r9-pass-with-note.json`. Attempt 9
+supersedes Attempt 8 as repaired-code performance evidence; Attempt 8 and all
+failed or aborted earlier attempts remain in the experiment record.
 
 An optional online scalar arm and one selected artifact may run only when a
 human/operator supplies credentials and a fresh usage snapshot with headroom.
 It is not required for the network-free implementation proof and must not
-upload raw data or recovery checkpoints. Attempt 8 used network isolation and
+upload raw data or recovery checkpoints. Attempt 9 used network isolation and
 artifact policy `none`; it does not validate online authentication, live quota
 accounting, retention, artifact upload, or other cloud behavior. Its performance
 conclusion is limited to the pinned depth-26 workload/runtime and within-attempt

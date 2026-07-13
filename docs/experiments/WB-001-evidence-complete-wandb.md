@@ -8,9 +8,11 @@
 - Experiment owner: implementation agent
 - Status: mandatory independent review `FAIL`; cycle-13 repairs pass local
   validation and a focused independent repair audit, while the mandatory
-  exact-head heavy re-review remains pending. R1 and the retained depth-26 DGX
-  Attempt 8 result remain `PASS WITH NOTE` with all 170 measurement gates
-  passing.
+  exact-head heavy re-review remains pending. R1 and the repaired-code,
+  depth-26 DGX Attempt 9 result are `PASS WITH NOTE`; all 168 applicable
+  dynamically emitted measurement gates pass. Attempt 9 supersedes Attempt 8
+  as performance evidence for the repaired implementation, while Attempt 8 is
+  retained as history.
 - Started (UTC): 2026-07-13
 - Last updated (UTC): 2026-07-13
 - Model-run provenance: `docs/model-runs/WB-001-evidence-complete-wandb.md`
@@ -44,9 +46,9 @@
 | Resource | Limit | Derivation / measurement source |
 | --- | --- | --- |
 | CPU correctness | Focused tests plus one disabled and one offline canonical smoke | Ticket validation asks for test doubles, matrix, missing login, schema, offline smoke |
-| Elapsed time on target hardware | Retained Attempt 2: 3×3×100; retained Attempt 5: 3×3×300; retained Attempts 7 and 8: 3×3×260 steps each | CHECK §§6.3 and 9.2 repeated disabled/offline/watch comparison; 260 steps execute 1,040 backward batches and one default-frequency watch event |
-| Training tokens | Attempts 7 and 8: 133,120 targets/arm from a 133,248-token streaming cap; identical in every arm within an attempt | 260 steps × batch 2 × sequence 64 × accumulation 4; the extra 128 stream tokens provide full windows |
-| Optimizer steps | 2 CPU smoke invocations; retained Attempt 2: 900; retained Attempt 5: 2,700; retained Attempts 7 and 8: 2,340 each | Each current matrix uses 260 steps × 3 arms × 3 repetitions |
+| Elapsed time on target hardware | Retained Attempt 2: 3×3×100; retained Attempt 5: 3×3×300; retained Attempts 7, 8, and 9: 3×3×260 steps each | CHECK §§6.3 and 9.2 repeated disabled/offline/watch comparison; 260 steps execute 1,040 backward batches and one default-frequency watch event |
+| Training tokens | Attempts 7, 8, and 9: 133,120 targets/arm from a 133,248-token streaming cap; identical in every arm within an attempt | 260 steps × batch 2 × sequence 64 × accumulation 4; the extra 128 stream tokens provide full windows |
+| Optimizer steps | 2 CPU smoke invocations; retained Attempt 2: 900; retained Attempt 5: 2,700; retained Attempts 7, 8, and 9: 2,340 each | Each current matrix uses 260 steps × 3 arms × 3 repetitions |
 | Evaluation work and cadence | Identical across all R2 arms; no extra W&B cadence | Isolates W&B/watch overhead |
 | Checkpoint count and bytes | Existing local checkpoint policy per arm, inventoried with exact bytes; no W&B artifact in required R2 | Artifact behavior is proven with test doubles, not service quota |
 | Local / external / W&B storage | Temp directories for CPU smoke; future R2 records W&B directory bytes; zero cloud bytes required | W&B is not backup or bulk storage |
@@ -465,20 +467,76 @@ it is not the mandatory heavy exact-head re-review. That re-review has not yet
 completed, so the ticket verdict remains `FAIL` and no online/cloud claim is
 added.
 
+## Attempt 9 — repaired exact-head DGX result, PASS WITH NOTE
+
+An independent prelaunch audit returned `PASS` at exact clean repair commit
+`e507a3447ab0895960530cdb207ca0702ec41f85`. It confirmed that the runner,
+verifier, inspector, trainer, and `stability_smoke` profile retained the
+Attempt 8 protocol byte-for-byte: the 3×3 Latin square, depth 26, sequence 64,
+260 optimizer steps with 26 warm-up steps, 1,040 backward batches, 133,120
+targets, one epoch-end validation at step 260, 1,000-batch watch frequency,
+and 10-step scalar cadence. The repaired arms add only the declared 5-second
+scalar SDK timeout. The audit passed 73 focused tests and an actual local W&B
+worker/watch smoke with decoded histogram evidence and clean hook teardown.
+
+Attempt 9 then ran all nine fresh arms at that exact commit in image
+`sha256:23a1bee69fe189e77105cdddeee9aeff6ef0763d58a691625fbfcab64efd1887`.
+Raw evidence is retained at
+`/tmp/wb001-r9-e507a3447ab0895960530cdb207ca0702ec41f85`; the durable summary is
+`docs/experiments/evidence/WB-001-dgx-r9-pass-with-note.json`, SHA-256
+`d8a5b4683b192df2b5f5876819dcdb628ed88de5c118fae3f306293660d6a598`.
+Independent regeneration at `/tmp/wb001-r9-independent-summary.json` is
+byte-identical to that summary. A second independent policy/quality validator
+also returned `PASS WITH NOTE` with no actionable finding, classifying the
+result as 159 required gates plus nine passing per-arm data-wait note gates.
+
+All 168 applicable dynamically emitted gates passed with zero failures. The
+nine warnings are exactly one predeclared `data_wait_investigate` note per arm:
+data wait ranged from 6.3273% to 8.1949%, below the unchanged 10% failure
+threshold. Paired median throughput changes were 1.913997% for
+offline/watch-off versus disabled, 2.224572% for offline/watch-on versus
+disabled, and 2.632986% for watch-on versus offline/watch-off. Every paired
+value was below 10%, and all three medians were below 5%. Attempt 9 therefore
+has 168 gates rather than Attempt 8's 170: the verifier emits the two aggregate
+investigation gates only when a relevant paired median is at least 5%; neither
+conditional gate applies here.
+
+Every arm completed 260 total, 26 warm-up, and 234 measured optimizer steps;
+the corresponding target counts were 133,120 total and 119,808 measured.
+Validation occurred once at step 260. Each watch-on arm contained exactly one
+decoded histogram record with 315 series; watch-off and disabled arms contained
+none. No scalar failure occurred. Across the matrix, minimum host
+free/buffer/cache was 121,024,811,008 bytes; maxima were 3,263,101,403 bytes
+for container memory, 1,798,200,320 bytes CUDA allocated, 2,000,683,008 bytes
+CUDA reserved, and 1,078,947 local W&B bytes. The minimum post-run disk free
+space was 367,225,155,584 bytes, and the maximum sustained swap-I/O run was
+zero.
+
+Attempt 9 supersedes Attempt 8 as the repaired implementation's performance
+evidence; Attempt 8 remains retained for audit history. This network-isolated,
+artifact-policy-none matrix does not exercise or support claims about online
+authentication, authoritative quota, retention, upload, or cloud behavior.
+DGX Spark unified-memory headroom is supported by host, container, and allocator
+evidence, and decoded W&B binary records prove only local history/watch content.
+The mandatory exact-head heavy re-review is still pending, so this measurement
+does not clear the prior ticket-level `FAIL` by itself.
+
 ## Conclusion
 
-- Hypothesis result: supported at R1 and `PASS WITH NOTE` at R2. Attempt 8
-  passed all 170 gates; 5–10% data-wait and watch/online-offline overhead values
-  remain explicit investigation notes rather than failures.
+- Hypothesis result: supported at R1 and `PASS WITH NOTE` at R2. Repaired-code
+  Attempt 9 passed all 168 applicable dynamic gates. Its only notes are the
+  nine 5–10% per-arm data-wait investigations; all paired overhead medians are
+  below 5% and all paired values are below 10%.
 - Evidence-backed conclusion: the implementation can preserve local metrics and
   checkpoints across disabled/offline W&B and tested external failure paths,
-  while the retained measurement evidence remains valid. Cycle-13 quota,
-  scalar-boundary, and watch-cleanup repairs pass local validation and a focused
-  repair audit but require the mandatory exact-head heavy re-review before the
-  artifact-safety acceptance claim passes.
+  while the repaired exact-head measurement evidence remains valid. Cycle-13
+  quota, scalar-boundary, and watch-cleanup repairs pass local validation, a
+  focused repair audit, and the full fresh Attempt 9 matrix, but require the
+  mandatory exact-head heavy re-review before the artifact-safety acceptance
+  claim passes.
 - Uncertainty and limitations: no online service call, real quota consumption,
   or artifact upload was performed; failed DGX evidence is retained, and no
   cross-attempt performance claim is made. The positive R2 result is scoped to
   the depth-26 target workload and the pinned runtime.
-- Exactly one next step: commit the validated cycle-13 repair and run the
-  mandatory independent heavy re-review against that exact head.
+- Exactly one next step: run the mandatory independent heavy re-review against
+  the exact repaired implementation/evidence head.

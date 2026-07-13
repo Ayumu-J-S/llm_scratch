@@ -1,0 +1,51 @@
+{
+  "schema_version": "1.0",
+  "captured_at": "2026-07-13T20:24:31Z",
+  "phase": "prelaunch-review",
+  "role": "independent-attempt9-prelaunch-audit",
+  "task_path": "/root/wb001_attempt9_prelaunch",
+  "requested": {
+    "model": "GPT-5.6 appropriate model",
+    "reasoning_mode": "high experimental protocol audit"
+  },
+  "actual": {
+    "exact_model_identifier": "not exposed by runtime",
+    "reasoning_mode": "not exposed by runtime"
+  },
+  "input": {
+    "commit": "e507a3447ab0895960530cdb207ca0702ec41f85",
+    "purpose": "Confirm that the repaired implementation can be measured with the unchanged Attempt 8 target-hardware protocol."
+  },
+  "verdict": {
+    "result": "PASS",
+    "actionable_findings": [],
+    "protocol_unchanged_from_attempt8": true
+  },
+  "protocol": {
+    "matrix": "3 repetitions x 3-arm Latin square",
+    "model_num_layers": 26,
+    "sequence_length": 64,
+    "optimizer_steps_per_arm": 260,
+    "warmup_optimizer_steps_per_arm": 26,
+    "measured_optimizer_steps_per_arm": 234,
+    "microbatches_per_arm": 1040,
+    "optimizer_groups_per_arm": 260,
+    "microbatch_remainder": 0,
+    "total_targets_per_arm": 133120,
+    "validation_batches_per_arm": 1,
+    "validation_step": 260,
+    "watch_log_frequency_batches": 1000,
+    "scalar_log_cadence_steps": 10,
+    "scalar_log_timeout_seconds": 5
+  },
+  "validation": {
+    "focused_tests": "73 passed",
+    "actual_local_wandb_smoke": "PASS; worker and partial-watch cleanup paths exercised with decoded local histogram evidence and no leaked hooks"
+  },
+  "privacy": {
+    "prompts_recorded": false,
+    "hidden_chain_of_thought_recorded": false,
+    "token_counts_recorded": false,
+    "secrets_recorded": false
+  }
+}

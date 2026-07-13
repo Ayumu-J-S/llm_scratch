@@ -1,0 +1,50 @@
+{
+  "schema_version": "1.0",
+  "captured_at": "2026-07-13T20:30:47Z",
+  "phase": "post-run-policy-and-quality-validation",
+  "role": "independent-attempt9-policy-quality-validator",
+  "task_path": "/root/wb001_r9_policy_validation",
+  "requested": {
+    "model": "GPT-5.6 appropriate model",
+    "reasoning_mode": "independent policy and evidence-quality validation"
+  },
+  "actual": {
+    "exact_model_identifier": "not exposed by runtime",
+    "reasoning_mode": "not exposed by runtime"
+  },
+  "evidence": {
+    "measured_commit": "e507a3447ab0895960530cdb207ca0702ec41f85",
+    "image_id": "sha256:23a1bee69fe189e77105cdddeee9aeff6ef0763d58a691625fbfcab64efd1887",
+    "raw_root": "/tmp/wb001-r9-e507a3447ab0895960530cdb207ca0702ec41f85",
+    "durable_summary": "docs/experiments/evidence/WB-001-dgx-r9-pass-with-note.json",
+    "summary_sha256": "d8a5b4683b192df2b5f5876819dcdb628ed88de5c118fae3f306293660d6a598",
+    "verdict": "PASS WITH NOTE",
+    "actionable_findings": []
+  },
+  "gate_classification": {
+    "required_gates": 159,
+    "data_wait_investigation_note_gates": 9,
+    "total_applicable_dynamic_gates": 168,
+    "failed_gates": 0,
+    "interpretation": "All required gates passed. Each of the nine arms also passed its data-wait gate with a predeclared 5-10% investigation note."
+  },
+  "quality_findings": {
+    "checkpoint_identity": "Model, normalized resume, cursor, and trajectory semantics agree across arms; physical checkpoint archives are not claimed to be byte-identical because arm-local operational metadata may differ.",
+    "isolation": "The matrix used network isolation and artifact policy none; local W&B record evidence does not imply cloud behavior.",
+    "performance": "Per-arm data wait remained below 10%, all paired median overheads remained below 5%, and all paired values remained below 10%.",
+    "resources": "Host, container, CUDA allocator, disk, temporal sampler, and zero sustained swap-I/O gates passed.",
+    "wandb_content": "Watch-on arms each contained one decoded 315-series histogram record; watch-off and disabled arms contained none; no scalar failure was reported."
+  },
+  "limitations": [
+    "Network-isolated artifact-policy-none evidence makes no online auth, quota, retention, upload, or cloud claim.",
+    "DGX Spark unified-memory headroom is interpreted from host, container, and allocator evidence.",
+    "Decoded W&B binary records prove local history and watch content only.",
+    "Checkpoint equality is semantic and normalized; physical checkpoint archives are not required or claimed to be byte-identical."
+  ],
+  "privacy": {
+    "prompts_recorded": false,
+    "hidden_chain_of_thought_recorded": false,
+    "token_counts_recorded": false,
+    "secrets_recorded": false
+  }
+}

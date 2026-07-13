@@ -1,0 +1,74 @@
+{
+  "schema_version": "1.0",
+  "captured_at": "2026-07-13T20:24:31Z",
+  "phase": "post-run-evidence-validation",
+  "role": "independent-attempt9-validation",
+  "task_path": "/root/wb001_r9_raw_validation",
+  "requested": {
+    "model": "GPT-5.6 appropriate model",
+    "reasoning_mode": "high evidence validation"
+  },
+  "actual": {
+    "exact_model_identifier": "not exposed by runtime",
+    "reasoning_mode": "not exposed by runtime"
+  },
+  "evidence": {
+    "measured_commit": "e507a3447ab0895960530cdb207ca0702ec41f85",
+    "image_id": "sha256:23a1bee69fe189e77105cdddeee9aeff6ef0763d58a691625fbfcab64efd1887",
+    "raw_root": "/tmp/wb001-r9-e507a3447ab0895960530cdb207ca0702ec41f85",
+    "independent_summary": "/tmp/wb001-r9-independent-summary.json",
+    "durable_summary": "docs/experiments/evidence/WB-001-dgx-r9-pass-with-note.json",
+    "summary_sha256": "d8a5b4683b192df2b5f5876819dcdb628ed88de5c118fae3f306293660d6a598",
+    "byte_identical": true,
+    "passed_gates": 168,
+    "total_gates": 168,
+    "failures": [],
+    "warnings": 9,
+    "verdict": "PASS WITH NOTE"
+  },
+  "independent_recomputation": {
+    "per_arm_data_wait_percent_range": [6.3273, 8.1949],
+    "optimizer_steps_per_arm": 260,
+    "warmup_steps_per_arm": 26,
+    "measured_steps_per_arm": 234,
+    "total_targets_per_arm": 133120,
+    "measured_targets_per_arm": 119808,
+    "validation_step": 260,
+    "paired_median_percent": {
+      "offline_off_vs_disabled": 1.913997,
+      "offline_on_vs_disabled": 2.224572,
+      "watch_vs_offline_off": 2.632986
+    },
+    "maximum_paired_percent": 5.640517,
+    "watch_on_histogram_records_per_arm": 1,
+    "watch_on_histogram_series_per_record": 315,
+    "watch_off_and_disabled_histogram_records": 0,
+    "scalar_failures": 0,
+    "raw_rows_match_summary": true
+  },
+  "dynamic_gate_count": {
+    "attempt9": 168,
+    "attempt8": 170,
+    "explanation": "The verifier emits the two aggregate investigation gates only when a paired median is at least 5%; all three Attempt 9 medians are below 5%, so those conditional gates are not applicable."
+  },
+  "resource_extrema": {
+    "minimum_host_free_buffer_cache_bytes": 121024811008,
+    "maximum_container_memory_bytes": 3263101403,
+    "maximum_cuda_allocated_bytes": 1798200320,
+    "maximum_cuda_reserved_bytes": 2000683008,
+    "maximum_swap_io_run": 0,
+    "minimum_disk_free_after_bytes": 367225155584,
+    "maximum_local_wandb_bytes": 1078947
+  },
+  "limitations": [
+    "Network-isolated artifact-policy-none evidence makes no online auth, quota, retention, upload, or cloud claim.",
+    "DGX Spark unified-memory headroom uses host, container, and allocator evidence.",
+    "Decoded W&B binary records prove local history and watch content only."
+  ],
+  "privacy": {
+    "prompts_recorded": false,
+    "hidden_chain_of_thought_recorded": false,
+    "token_counts_recorded": false,
+    "secrets_recorded": false
+  }
+}

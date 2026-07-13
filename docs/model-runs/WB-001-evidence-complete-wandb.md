@@ -10,9 +10,11 @@
 - Started: 2026-07-13
 - Final verdict: mandatory independent heavy review `FAIL` at exact head
   `23b6d2120f1a3738d4a3baf92e50c9b8f3c227f9`; cycle-13 repair is implemented
-  and locally validated, and a focused independent repair audit passes. The
-  mandatory exact-head heavy re-review remains pending. The retained Attempt 8
-  measurement remains `PASS WITH NOTE`.
+  and locally validated, a focused independent repair audit passes, and fresh
+  repaired-head Attempt 9 measurement evidence is `PASS WITH NOTE`. The
+  mandatory exact-head heavy re-review remains pending. Attempt 9 supersedes
+  Attempt 8 as repaired-code performance evidence; Attempt 8 remains retained
+  as history.
 - Final record owner: lead roadmap agent
 
 ## Scope and decision context
@@ -73,6 +75,9 @@
 | 12 | review | not exposed by runtime | not exposed by runtime | exact clean `23b6d2120f1a3738d4a3baf92e50c9b8f3c227f9` | Requested `gpt-5.6-sol` / Extra High (`xhigh`); mandatory heavy review against philosophy, ticket, and applicable CHECK | FAIL; repair pending | Cumulative milestone quota was not reserved, synchronous scalar logging could stall training, partial watch installation could leak hooks, canonical DGX docs were stale, checkpoint equality was overstated, and the PR mixed requested with actual provenance | `/tmp/WB-001-heavy-review.txt`; reviewer independently reproduced the byte-identical 170/170 Attempt 8 result |
 | 13 | repair | not exposed by runtime | not exposed by runtime | cycle-12 mandatory `FAIL` and exact reviewed head `23b6d21` | Delegated appropriate GPT-5.6 implementation: repair the three P1 findings without changing model/data/trainer cadence or retained evidence | implemented and locally validated; mandatory re-review pending | Added Hydra `wandb.log_timeout_seconds=5`, one persistent bounded scalar worker with circuit breaker, tracker-lifetime cumulative quota reservations using strictest observed usage/limit, and unconditional partial-watch cleanup | `55 passed` focused; `102 passed` relevant; full `379 passed, 1 skipped`; static/config/shell/JSON checks pass |
 | 13 | review | not exposed by runtime | not exposed by runtime | final live cycle-13 repair diff | Independently audit only heavy-review findings 1–3; not the mandatory exact-head heavy re-review | PASS; mandatory re-review still pending | No remaining actionable quota, scalar-boundary, or watch-cleanup finding; conservative false blocking and a daemonized permanently stuck SDK worker are bounded documented trade-offs | focused `55 passed in 2.71s`; Ruff, four-file format, and diff checks pass; `/root/wb001_repair_audit` |
+| 13 | review | not exposed by runtime | not exposed by runtime | exact clean repaired head `e507a3447ab0895960530cdb207ca0702ec41f85` | Independently audit the unchanged target-hardware protocol before Attempt 9 | PASS | Attempt 8's 3×3×260/26 protocol, exact work, validation, cadence, watch emission, resources, and thresholds remain intact; only the declared 5-second scalar timeout is added | `73 passed` focused plus actual local W&B worker/watch smoke; `WB-001-attempt9-prelaunch-provenance.json` |
+| 13 | validation | not exposed by runtime | not exposed by runtime | exact clean `e507a3447ab0895960530cdb207ca0702ec41f85` Attempt 9 | Run and verify the full fresh repaired-code matrix | PASS WITH NOTE | All 168 applicable dynamic gates passed; data wait was 6.3273–8.1949%, all three paired medians were below 5%, all paired values were below 10%, and the nine warnings are only per-arm data-wait investigations | raw root plus `WB-001-dgx-r9-pass-with-note.json` |
+| 13 | review | not exposed by runtime | not exposed by runtime | exact raw and durable Attempt 9 evidence | Independently regenerate and validate the repaired-code result before the mandatory heavy re-review | PASS WITH NOTE | Two independent validators agree: raw regeneration is byte-identical, while the separate policy/quality audit confirms 159 required plus nine data-wait-note gates, semantic checkpoint equality, isolation, resources, performance, and limitations with no actionable finding | `/tmp/wb001-r9-independent-summary.json`; `WB-001-attempt9-validation-provenance.json`; `WB-001-attempt9-policy-validation-provenance.json` |
 
 Requested values are recorded separately from actual runtime display. The
 delegated runtime did not expose the actual model identifier or reasoning mode;
@@ -90,6 +95,8 @@ they are not inferred from the request.
 | actual repair | not exposed by runtime | not exposed by runtime | not exposed by runtime | not exposed by runtime | delegated repair runtime did not display these values |
 | requested repair audit | not exposed by runtime | independent repair audit | not exposed by runtime | not exposed by runtime | exact model/mode request was not exposed; task explicitly scoped findings 1–3 |
 | actual repair audit | not exposed by runtime | not exposed by runtime | not exposed by runtime | not exposed by runtime | repair-audit runtime did not display these values |
+| requested Attempt 9 audits | Codex | GPT-5.6 appropriate model | GPT-5.6 appropriate model | high protocol/evidence validation | explicit delegated prelaunch and post-run validation requests |
+| actual Attempt 9 audits | not exposed by runtime | not exposed by runtime | not exposed by runtime | not exposed by runtime | audit runtimes did not display these values |
 
 - Capture files:
   `docs/model-runs/evidence/WB-001-implementation-provenance.json`,
@@ -107,8 +114,11 @@ they are not inferred from the request.
   `docs/model-runs/evidence/WB-001-r11-depth-repair-provenance.json`,
   `docs/model-runs/evidence/WB-001-r8-validation-provenance.json`,
   `docs/model-runs/evidence/WB-001-heavy-review-provenance.json`,
-  `docs/model-runs/evidence/WB-001-cycle13-repair-provenance.json`, and
-  `docs/model-runs/evidence/WB-001-cycle13-repair-audit-provenance.json`
+  `docs/model-runs/evidence/WB-001-cycle13-repair-provenance.json`,
+  `docs/model-runs/evidence/WB-001-cycle13-repair-audit-provenance.json`,
+  `docs/model-runs/evidence/WB-001-attempt9-prelaunch-provenance.json`,
+  `docs/model-runs/evidence/WB-001-attempt9-validation-provenance.json`, and
+  `docs/model-runs/evidence/WB-001-attempt9-policy-validation-provenance.json`
 - Codex CLI version: `codex-cli 0.144.1`
 - Branch/commit: `codex/wb-001-evidence-safe-wandb` / input `74d9e24`
 - Phase/role/task path: implementation / implementation /
@@ -352,9 +362,11 @@ they are not inferred from the request.
   only; fail closed on unknown quota; no compatibility shim; preserve Attempt 8
   and all failed evidence unchanged.
 - Repair status: documentation findings 4–6 and implementation findings 1–3
-  are implemented in the current worktree. The focused suite passes 55 tests,
-  the relevant selection passes 102, the full suite passes 379 with one skip,
-  and the focused independent repair audit returns `PASS`. The mandatory
+  are implemented at exact repair commit
+  `e507a3447ab0895960530cdb207ca0702ec41f85`. The focused suite passes 55
+  tests, the relevant selection passes 102, the full suite passes 379 with one
+  skip, the focused independent repair audit returns `PASS`, and fresh
+  repaired-head Attempt 9 evidence returns `PASS WITH NOTE`. The mandatory
   exact-head heavy re-review remains pending, so the prior `FAIL` is not
   cleared.
 - Repair request issued: close findings 1–3 with focused regressions, rerun the
@@ -393,8 +405,61 @@ they are not inferred from the request.
   ran the 55 tests in 2.71s plus scoped Ruff, format, and diff checks and found
   no remaining actionable item for findings 1–3. It is not the mandatory heavy
   re-review.
-- Status: implementation and local validation complete; exact repair commit and
-  mandatory independent heavy re-review pending.
+- Status: implementation and local validation complete at exact repair commit
+  `e507a3447ab0895960530cdb207ca0702ec41f85`; fresh repaired-head measurement
+  is recorded below, and the mandatory independent heavy re-review remains
+  pending.
+
+### Attempt 9 — repaired-head performance validation
+
+- Prelaunch review: `PASS` at exact clean
+  `e507a3447ab0895960530cdb207ca0702ec41f85`; actual model/mode not exposed.
+  The reviewer confirmed the Attempt 8 runner/verifier/inspector/trainer/profile
+  protocol was byte-unchanged: depth 26, sequence 64, 3×3 Latin square, 260
+  steps with 26 warm-up, 1,040 microbatches, 133,120 targets, one validation at
+  step 260, watch frequency 1,000 batches, and scalar cadence 10. The only arm
+  configuration addition is the declared 5-second scalar timeout. Seventy-three
+  focused tests and an actual local W&B worker/watch smoke passed.
+- Measurement: all nine arms completed in pinned image
+  `sha256:23a1bee69fe189e77105cdddeee9aeff6ef0763d58a691625fbfcab64efd1887`.
+  Raw root:
+  `/tmp/wb001-r9-e507a3447ab0895960530cdb207ca0702ec41f85`; durable summary:
+  `docs/experiments/evidence/WB-001-dgx-r9-pass-with-note.json`; summary
+  SHA-256:
+  `d8a5b4683b192df2b5f5876819dcdb628ed88de5c118fae3f306293660d6a598`.
+- Verdict: `PASS WITH NOTE`. All 168 applicable dynamic gates passed with zero
+  failures. The nine warnings are the declared per-arm data-wait investigations
+  at 6.3273–8.1949%. Paired medians are 1.913997% offline-off versus disabled,
+  2.224572% offline-on versus disabled, and 2.632986% watch versus offline-off;
+  every paired value is below 10%. Attempt 9 emits 168 rather than Attempt 8's
+  170 gates because two aggregate investigation gates exist only when a paired
+  median is at least 5%; all Attempt 9 medians are below that threshold.
+- Work and W&B evidence: every arm completed 260 total, 26 warm-up, and 234
+  measured steps with 133,120 total and 119,808 measured targets; validation
+  occurred once at step 260. Each watch-on arm contained one decoded record
+  with 315 histogram series; watch-off and disabled contained none. No scalar
+  failure occurred.
+- Resource extrema: minimum host free/buffer/cache 121,024,811,008 bytes;
+  maximum container memory 3,263,101,403 bytes; maximum CUDA allocated
+  1,798,200,320 bytes; maximum CUDA reserved 2,000,683,008 bytes; minimum
+  post-run disk free 367,225,155,584 bytes; maximum local W&B storage 1,078,947
+  bytes; maximum sustained swap-I/O run zero.
+- Independent evidence validation: two validators return `PASS WITH NOTE` with
+  actual model/mode not exposed. The raw-evidence validator reproduced
+  `/tmp/wb001-r9-independent-summary.json` byte-identically to the durable
+  summary and confirmed its SHA, gates, counters, paired statistics, W&B
+  records, resources, and limitations. The separate policy/quality validator
+  found no actionable item and classified the 168 dynamic gates as 159
+  required gates plus nine passing per-arm data-wait investigation-note gates;
+  it also confirmed that checkpoint equality is semantic and normalized rather
+  than a claim of byte-identical physical archives.
+- Scope: Attempt 9 supersedes Attempt 8 as performance evidence for the repaired
+  code; Attempt 8 is retained as history. Network isolation and artifact policy
+  `none` mean no online auth, quota, retention, upload, or cloud claim. Unified
+  memory is interpreted from host/container/allocator evidence, and decoded
+  W&B binary records prove local history/watch content only.
+- Status: the measurement is complete and independently validated, but it does
+  not substitute for or clear the pending mandatory heavy exact-head re-review.
 
 ## Final evidence
 
@@ -429,7 +494,11 @@ they are not inferred from the request.
   offline-off median regression. Attempt 6 stopped during cache prime because
   sequence 256 invalidated the tiny validation fixture. Attempt 7 passed all
   paired overhead gates but failed three 10.49–11.90% per-arm data-wait gates.
-  Depth-26 Attempt 8 passed all 170 gates with 5–10% investigation notes; no
+  Depth-26 Attempt 8 passed all 170 gates with 5–10% investigation notes.
+  Repaired-head Attempt 9 supersedes it as current performance evidence: all
+  168 applicable dynamic gates passed, per-arm data wait was 6.3273–8.1949%,
+  all paired overhead medians were below 5%, every paired value was below 10%,
+  and its independent summary is byte-identical to the durable record. No
   cross-attempt performance claim is made.
 - Failed attempts retained: first offline smoke placed its W&B directory under
   the repository; it was removed and `WANDB_DIR` now points at the smoke temp
@@ -440,11 +509,11 @@ they are not inferred from the request.
   storage usage.
 - Unresolved risks: real online auth/service behavior remains unexercised and
   fail-closed. The R2 result is limited to the pinned depth-26 workload/runtime,
-  and 5–10% data-wait/watch overhead remains a monitoring note. Cycle 13
-  implements cumulative milestone quota, bounded scalar calls, and partial-watch
-  cleanup, and local validation plus the focused repair audit pass. The
-  mandatory heavy-review `FAIL` remains until the independent exact-head heavy
-  re-review passes.
+  and 5–10% per-arm data wait remains a monitoring note. Cycle 13 implements
+  cumulative milestone quota, bounded scalar calls, and partial-watch cleanup;
+  local validation, the focused repair audit, and fresh Attempt 9 target-hardware
+  evidence pass. The mandatory heavy-review `FAIL` remains until the independent
+  exact-head heavy re-review passes.
 - Human decision requested: human review/merge after a passing independent
   review; no self-merge authorization exists.
 
@@ -493,6 +562,7 @@ they are not inferred from the request.
 | actual not exposed / actual mode not exposed | mandatory review (requested `gpt-5.6-sol` / Extra High) | Recomputed the durable DGX result exactly and distinguished normalized checkpoint identity from physical file hashes | Found three P1 implementation blockers and three P2 handoff inaccuracies | Exact clean head, ROADMAP/PHILOSOPHY/CHECK, raw and durable Attempt 8 evidence | `FAIL`; repair pending |
 | actual not exposed / actual mode not exposed | repair (requested appropriate GPT-5.6 implementation model) | Localized all three P1 repairs to Hydra validation and the existing tracker boundary while retaining model/data/cadence and evidence | Real online behavior remains unexercised | Complete cycle-12 handoff and focused regressions | implemented; full `379 passed, 1 skipped`; mandatory re-review pending |
 | actual not exposed / actual mode not exposed | focused repair audit | Verified quota monotonicity/concurrency, bounded scalar shutdown, and real partial-hook cleanup with no actionable finding | Not the mandatory exact-head heavy re-review | Final live diff, findings 1–3, focused and static checks | `PASS`; mandatory heavy re-review pending |
+| actual not exposed / actual mode not exposed | Attempt 9 prelaunch and evidence validation | Preserved the audited protocol, exercised actual local W&B worker/watch cleanup, independently regenerated byte-identical 168/168 evidence, and separately confirmed policy/evidence quality with no actionable finding | Network-isolated artifact-policy-none evidence cannot establish online service behavior; physical checkpoint archives are not claimed byte-identical | Exact `e507a344`, raw matrix, durable summary, retained Attempt 8 protocol | two independent validators `PASS WITH NOTE`; mandatory heavy re-review pending |
 
 ## Ledger update
 
