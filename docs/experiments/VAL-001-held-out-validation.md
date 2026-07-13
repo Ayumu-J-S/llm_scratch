@@ -3,160 +3,162 @@
 - Roadmap ticket: `VAL-001`
 - Branch: `codex/val-001-held-out-validation`
 - Draft PR: [#42](https://github.com/Ayumu-J-S/llm_scratch/pull/42)
-- Experiment owner: implementation agent; exact runtime model/reasoning are not exposed
-- Status: implementation complete; independent heavy review and DGX evidence blocked
-- Started (UTC): 2026-07-13
-- Last updated (UTC): 2026-07-13T12:05:00Z
-- Model-run provenance: `docs/model-runs/VAL-001-held-out-validation.md`
+- Status: implementation and DGX evidence complete; independent heavy review pending
+- Started / last updated (UTC): 2026-07-13 / 2026-07-13
+- Model-run record: `docs/model-runs/VAL-001-held-out-validation.md`
 
 ## Predeclared question and decision rule
 
-- Hypothesis (one falsifiable claim): one token-weighted causal-LM scorer can
-  produce identical held-out NLL and perplexity from the training-time and
-  standalone checkpoint paths while retaining immutable checkpoint, manifest,
-  corpus, and evaluated-token identities.
-- Expected result: the two paths agree exactly on a deterministic CPU fixture;
-  known logits match analytically calculated NLL; Japanese, English, and
-  aggregate denominators reconcile; overlap and memorization misuse fail before
-  scoring.
-- Success condition: every VAL-001 acceptance criterion and its ticket-required
-  known-logit, parity, cadence, overlap, and checkpoint-milestone check passes.
-- Failure condition / stop condition: stop on any score-path divergence, identity
-  omission, denominator mismatch, train/validation overlap, or result that labels
-  same-corpus memorization as held-out validation.
-- Relevant baseline commit and run: DATA-004 stacked head
-  `e1d4ed8af98de84a3393cd0f6e517f9daf649138`; DATA-004 evidence is recorded in
-  `docs/experiments/DATA-004-pinned-baseline-mixture.md`.
-- Baseline metrics and evidence link: existing training-time validation behavior
-  and tests on the stacked base; no standalone VAL-001 score exists yet.
-- Smallest run capable of answering the question: deterministic CPU fixture
-  checkpoint evaluation plus focused and full network-free tests.
+- Hypothesis: one token-weighted causal-LM scorer can produce identical held-out
+  NLL/perplexity from training-time and standalone checkpoint paths while
+  retaining immutable checkpoint, manifest, corpus, and evaluated-token identity.
+- Expected result: both paths agree exactly; known logits match analytical NLL;
+  Japanese, English, and aggregate denominators reconcile; overlap and
+  memorization misuse fail before scoring.
+- Success: every ROADMAP acceptance criterion passes, the matched DGX run shows
+  bounded validation/checkpoint pauses without changing the train trajectory,
+  and independent review returns `PASS` or justified `PASS WITH NOTE`.
+- Failure / stop: any score divergence, identity omission, denominator mismatch,
+  train/validation overlap, or same-corpus result labeled held-out validation.
+- Baseline: stacked DATA-004 head `e1d4ed8af98de84a3393cd0f6e517f9daf649138`.
 
 ## Planned budget
 
-| Resource | Limit | Derivation / measurement source |
+| Resource | Limit / plan | Evidence basis |
 | --- | --- | --- |
-| Elapsed time on target hardware | N/A — correctness ticket uses CPU fixture | Ticket acceptance criteria |
-| Training tokens | Fixture only; no consequential pretraining run | Scoring parity, not model quality |
-| Optimizer steps | Small deterministic fixture checkpoint only | Checkpoint milestone acceptance |
-| Evaluation work and cadence | One fixed bounded validation pass per trigger | VAL-001 scope |
-| Checkpoint count and bytes | Minimum fixture checkpoint(s) | Standalone/training parity |
-| Local / external / W&B storage | Local JSON; W&B disabled in evidence run | Optional summary remains off by default |
-| DGX Spark BF16 smoke | 50–200 steps on the real DATA-004 path; record validation pause, evaluated targets/s, step median/p95, data wait, memory, and pre/post validation throughput recovery; prefer validation-off/on A/B | CHECK.md §6.3; target hardware/data availability is an explicit gate, never N/A |
+| Correctness fixture | One minimal CPU scorer/checkpoint exercise | Known-logit and failure-path tests are authoritative after the pre-repair fixture became invalid |
+| DGX target smoke | One matched validation-off/on pair, 50 steps each | CHECK R2 minimum and VAL-001 pause-isolation question |
+| Training work | 50 steps, 102,400 targets per arm | 2,048 effective targets/update |
+| Validation | 65,536 fixed targets at steps 25 and 50 in the on arm | Japanese/English 50/50 target allocation |
+| Checkpoints | Final in both arms; best after each improving held-out score | Required parity/identity evidence |
+| External logging | W&B disabled | Local JSON/JSONL is sufficient for this ticket |
 
-## Attempt 1 — implementation and CPU fixture evidence
+## Attempt 1 — pre-repair CPU fixture
 
-### Launch identity
+- Measured code: `a8520d7fad718574d1fca4293e6f969c7a478b79`.
+- Retained evidence:
+  [`VAL-001-cpu-parity.json`](evidence/VAL-001-cpu-parity.json).
+- Historical outcome: the fixture reported training-time/standalone score parity
+  under a same-corpus memorization profile.
+- Disposition: **invalidated as current acceptance evidence**. Later review found
+  that standalone evaluation must reject memorization, and memorization runs must
+  not create a `best.pt` validation checkpoint. The repaired implementation and
+  tests enforce both rules. The file remains versioned so the failed design is
+  not erased.
+- Also invalidated: the attempt called the DGX gate blocked because the host venv
+  contains CPU-only Torch. That diagnosis omitted the repository's pinned
+  `llm-scratch:env-001` CUDA container, which is the canonical DGX runtime.
 
-- Started / ended (UTC): 2026-07-13T12:01:10Z / 2026-07-13T12:01:11Z
-- Outcome: CPU correctness and training-time/standalone parity passed; real DGX
-  BF16 evidence is blocked by the installed CPU-only Torch runtime.
-- Exact command: see [`VAL-001-cpu-parity.json`](evidence/VAL-001-cpu-parity.json)
-- Fully resolved Hydra configuration: `/tmp/val001-cpu-a852/resolved_config.yaml`
-  (SHA-256 `6f1616500b513a0555ad6dd097af000e420dbc910694dcae3f33f0c275d99c3d`)
-- Standalone output: `/tmp/val001-eval-a852/result.json` (SHA-256
-  `b379b152e2df3b98981af5c2551577348f81b5e6e05d96c5ef2a95bcfef470e6`)
-- Git commit SHA: `a8520d7fad718574d1fca4293e6f969c7a478b79`
-- Worktree state: clean at the implementation commit when the evidence ran
-- Dependency lock identity: `uv.lock`, SHA-256
-  `a02dec14fc9a20e5314eae368e9e22a289616791f55cd81b68ceadd25b71ad91`
-- Container/image identity: `N/A — CPU fixture used; no container launched`
+## Repair cycle — scoring and trust invariants
 
-### Scientific identity
+- Implementation repair: `057983c` plus merge head
+  `21332488e8a1d2334cbb6e2d0593a77a598c1d01`.
+- Cleanup repair after the preliminary exact-head audit:
+  `0a138386a03e178a88b5ccca6334288b57188efb`.
+- Changes demonstrated by tests:
+  - standards-safe JSON for perplexity overflow;
+  - explicit aggregate and per-corpus NLL sums/denominators;
+  - exact label-aligned source attribution and reconciliation;
+  - batching-independent context/mask/token/source identities;
+  - verified checkpoint-owned standalone reconstruction;
+  - memorization namespace, no memorization best checkpoint, and standalone
+    memorization rejection;
+  - fresh fixed validation loaders and iterator closure;
+  - unconditional model-mode restoration even if iterator cleanup raises.
+- Pre-evidence full suite at `2133248`: `302 passed, 1 skipped`; lock, Ruff,
+  changed-file format, and `git diff --check` passed.
+- Post-cleanup focused test: `15 passed`; Ruff/format/diff checks passed.
 
-- Model architecture/config identity and parameter count: random-initialized
-  `SimpleDecoderTransformer`, embed 8, heads 2, layers 1, dropout 0, 860,562
-  parameters
-- Initialization / pretrained-weight check: random-initialized project model only
-- Tokenizer name, immutable revision/checksum, and special-token contract:
-  canonical LLM-jp tokenizer, fingerprint
-  `12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b`
-- Training/validation manifest identity/checksum: fixture manifest
-  `00c3797a7d0eda13950fd699a60c45fcd388829f016479caaeb369438767bd31`, dataset
-  fingerprint `21c82c527fb8fafbbba4e2ea2bdf7057aed48ec8ac995a369a356747c70cd05b`;
-  this is intentionally same-corpus memorization smoke, not held-out evidence
-- Train/validation disjointness evidence: production streaming preflight still
-  calls `validate_disjoint_manifests`; the CPU attempt used the explicitly
-  permitted same-corpus memorization profile and was namespace-separated
-- Random seeds: Hydra seed 42; deterministic CPU algorithms enabled; validation
-  loader factory derives the fixed validation stream from the validation seed
-- Hardware identity: `gx10-02db`, aarch64, NVIDIA GB10, driver `580.159.03`;
-  PyTorch `2.10.0+cpu`, CUDA unavailable
-- Software/runtime identity: Python 3.11.15, lock SHA above, commit above
-- Precision and numerical controls: FP32 deterministic fixture
+## Attempt 2 — matched DATA-004 DGX R2
 
-### Counters, evidence, and integrity
+The compact, machine-readable record is
+[`VAL-001-dgx-r2.json`](evidence/VAL-001-dgx-r2.json). It contains commands,
+resolved-config/run/checkpoint hashes, measured distributions, identities,
+resource snapshots, and limitations without raw corpus text or token sequences.
 
-- Actual elapsed time, optimizer steps, training tokens, examples, and target
-  tokens: one optimizer step; 64 training target tokens; 72 evaluated targets;
-  9 fixed windows
-- Training/validation/evaluation metrics with denominators: aggregate NLL
-  `11.207522365781996`, perplexity `73682.63004369408`; training-time and
-  standalone scores matched exactly
-- Evaluation identities: window SHA-256
-  `6cbbf181afc2cd44d4ce9859c49afb962d58c1a8ff8f729c1fa85dd2ba0d3f8c`; target
-  SHA-256 `5390413b4a8d6b982b31cae770df3856b7bda402dfe38d25bcd89690c9b97be3`
-- System metrics: CPU fixture only; training-time validation pause
-  `0.01193903700914234s`, standalone pause `0.008372592012165114s`; no DGX
-  throughput/memory claim is made
-- W&B run/project/artifact IDs: `N/A — W&B disabled`
-- Checkpoint identity: best logical checkpoint at step 1 / 64 training tokens;
-  physical SHA-256
-  `10695b16bd84e8fe68bf8aa4e56fb90d57203c1d3963a59ed1c49afb9be4bd05`,
-  10,365,425 bytes
-- Logs and immutable evidence: [`VAL-001-cpu-parity.json`](evidence/VAL-001-cpu-parity.json)
-- Integrity checks: no raw held-out text/tokens recorded; batching-independent
-  digests matched; memorization metrics used only `memorization/*`
-- Comparison with the predeclared baseline: baseline had aggregate-only
-  training-time validation and no standalone result; this attempt demonstrates
-  the new parity/identity contract on the fixed CPU fixture
+### Conditions
 
-### Attempt interpretation
+- Measured head: `21332488e8a1d2334cbb6e2d0593a77a598c1d01`.
+- Hardware: aarch64 DGX Spark, NVIDIA GB10, driver `580.159.03`, compute
+  capability 12.1, BF16 supported.
+- Runtime: `llm-scratch:env-001`, image ID
+  `sha256:23a1bee69fe189e77105cdddeee9aeff6ef0763d58a691625fbfcab64efd1887`,
+  PyTorch `2.13.0a0+8145d630e8.nv26.06`, CUDA 13.3.
+- Model: 49,535,114 parameters; width 384, 6 layers, 6 heads, dropout 0.1.
+- Work: BF16/CUDA, sequence 8, micro batch 64, accumulation 4, 2,048
+  effective targets/update, 50 steps, 102,400 targets, W&B disabled.
+- Data: the same warm DATA-004 cache and pinned Japanese/English manifests in
+  both arms. The only intended arm difference was validation cadence: 1,000
+  (no event in horizon) versus 25.
 
-- Result against success/failure conditions: CPU scorer, attribution, cadence,
-  mode restoration, milestone identity, and standalone parity conditions pass;
-  the CHECK §6.3 real-path condition remains blocked
-- Failure or anomaly: the target host exposes a GB10 but the locked environment
-  contains CPU-only Torch (`torch.cuda.is_available() == False`, CUDA build
-  `None`, BF16 `False`); the real DATA-004 path was not launched
-- Most likely cause and supporting evidence: environment diagnostic and
-  `nvidia-smi` output show the hardware/driver, while PyTorch reports no CUDA
-  runtime; this is a runtime packaging blocker, not a scorer result
-- Alternatives ruled out and how: network-free full suite and CPU parity passed;
-  no real-path performance conclusion is inferred from those checks
-- What remains uncertain: 50–200-step DGX BF16 validation pause, targets/s,
-  step median/p95, data wait, memory, and post-validation throughput recovery
-  must be measured after a CUDA-capable pinned runtime and DATA-004 sources are
-  available
+The first launch wrapped the container command in `/usr/bin/time -v` and failed
+before training with exit 127 because that executable is absent from the image.
+The successful runs used trainer metrics plus external `docker stats` and
+`nvidia-smi` snapshots. This failed attempt is retained in the JSON record.
 
-## DGX Spark CHECK §6.3 gate
+### Correctness and parity
 
-- Status: `blocked / PASS WITH NOTE candidate`, not N/A
-- Required command: a bounded 50–200-step BF16 smoke on the real DATA-004
-  profile with fixed validation windows, plus validation-off/on comparison when
-  practical
-- Attempted precondition evidence: `uv run --no-sync python
-  scripts/diagnose_environment.py` reported `gx10-02db`, `aarch64`, GB10,
-  driver `580.159.03`, but `PyTorch 2.10.0+cpu`, `CUDA: available=False`, and
-  `BF16=False`; `nvidia-smi` independently reported `NVIDIA GB10`
-- Missing measurements: validation pause, evaluated targets/s, step median/p95,
-  data wait, memory, and throughput recovery on the real path
-- Next operator action: install/use the repository's pinned CUDA-capable DGX
-  runtime, rerun the bounded smoke with the exact resolved Hydra config and
-  identities, then append the measurements without rewriting this blocked
-  attempt
+- Both arms completed exactly 50 steps and 102,400 training targets.
+- All 50 step losses were bit-identical; maximum absolute difference was 0.0.
+  Step payloads other than elapsed time also matched exactly, including gradient
+  norm, clipping, LR, and counters.
+- The off arm emitted zero validation events. The on arm emitted exactly two,
+  at steps 25 and 50, with no target overshoot.
+- Both validation passes evaluated the same 8,192 windows and 65,536 targets:
+  32,768 Japanese plus 32,768 English. Window and target SHA-256 identities were
+  identical across the two events.
+- Step-50 aggregate NLL was `9.033536911010742` over NLL sum `592021.875` and
+  65,536 targets. Japanese NLL was `9.078840732574463`; English NLL was
+  `8.988233089447021`.
+- Standalone evaluation of the verified step-50 best checkpoint matched every
+  aggregate/per-corpus value, denominator, manifest identity, logical checkpoint
+  identity, window count, window digest, and token digest exactly.
+
+### Pause and recovery evidence
+
+| Measurement | Validation off | Validation on |
+| --- | ---: | ---: |
+| Step time p50, steps 2–50 | 0.5087 s | 0.5661 s, excluding pause-contaminated step 26 |
+| Step time p95, steps 2–50 | 0.8500 s | 0.9230 s, excluding step 26 |
+| Step time max | 1.2167 s | 1.2932 s, excluding step 26 |
+| Approx. total including final save | 31.4407 s | 77.6661 s |
+
+- Validation scoring pauses were 19.5218 s and 19.5148 s, at 3,357.1 and
+  3,358.3 evaluated targets/s.
+- Best-checkpoint pauses were 1.8077 s and 2.3555 s. Combined validation plus
+  best-save pause was 43.1997 s.
+- The raw step-25→26 interval was 22.0297 s; after subtracting the first
+  validation and best-save pauses, it was 0.7002 s.
+- Step 27 was 0.5866 s. Steps 27–31 averaged 0.5778 s, 2.98% below the
+  immediate pre-validation steps 20–25 mean, so observed throughput returned to
+  its prior range on the first uncontaminated post-validation step.
+- Standalone scoring took 19.6951 s at 3,327.5 targets/s, within 0.93% of the
+  matching training-time score duration/throughput.
+- Snapshots observed 2.075–2.534 GiB container memory, 1,794 MiB GPU process
+  memory, 41–45°C, and 13.2–16.09 W. They are snapshots, not peak or
+  continuous-series claims.
+
+### CHECK §6.3 limitation
+
+This pair supports validation/checkpoint pause accounting, independent cadence,
+no off-by-one/trajectory change, and immediate recovery. It is not a general
+performance benchmark: there was one A/B pair, no predeclared warm-up cutoff,
+and no continuous GPU/system trace. The current trainer also does not separately
+time `next(loader)`, host/device preparation, forward/loss/backward, clipping,
+optimizer, scheduler, or metrics, so data-wait and a full phase breakdown cannot
+be reconstructed. This limitation is explicit for the independent reviewer;
+no timing was fabricated.
+
+The container also warned that memory-efficient attention defaults to a
+nondeterministic algorithm. Exact trajectory parity was observed for this pair,
+but it is not a cross-platform bitwise reproducibility promise.
 
 ## Conclusion
 
-- Hypothesis result: supported on the deterministic CPU fixture; overall ticket
-  handoff remains blocked pending the independent heavier review and DGX §6.3
-  measurement
-- Evidence-backed conclusion: one scorer now produces token-weighted aggregate
-  and per-corpus results, stable fixed-window/token identities, and exact
-  training-time/standalone parity. Same-corpus smoke is visibly
-  `memorization/*` and cannot masquerade as held-out validation.
-- Uncertainty and limitations: the real DATA-004 BF16 path was unavailable in
-  this locked environment; VAL-001 remains stacked on DATA-004 and will require
-  retarget/rebase after that dependency merges
-- Exactly one next step or next question: provide a CUDA-capable pinned DGX
-  runtime and run the bounded §6.3 smoke for the missing performance evidence.
+The VAL-001 hypothesis is supported by the real held-out path: training-time and
+standalone scoring agree exactly with complete identities, and validation does
+not alter the matched training trajectory. Acceptance-code tests pass. The DGX
+measurement is at parent head `2133248`; `0a13838` only hardens exceptional
+iterator cleanup and does not touch a successful scoring/training path. Final
+ticket disposition remains pending the mandated independent GPT-5.6 heavy review
+of the exact documented head and its judgment on the explicit §6.3 limitation.

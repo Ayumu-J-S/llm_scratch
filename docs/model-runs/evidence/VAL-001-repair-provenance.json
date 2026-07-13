@@ -1,0 +1,57 @@
+{
+  "schema_version": "1.0",
+  "captured_at": "2026-07-13T12:25:26.988614Z",
+  "phase": "repair",
+  "role": "primary-agent",
+  "task_path": "VAL-001",
+  "requested": {
+    "model": {
+      "value": "gpt-5.6-luna",
+      "source": "explicit invocation/config default",
+      "status": "observed"
+    },
+    "reasoning_mode": {
+      "value": "Extra High",
+      "source": "explicit invocation/config default",
+      "status": "observed"
+    }
+  },
+  "actual": {
+    "product": {
+      "value": "Codex",
+      "source": "active runtime display",
+      "status": "observed"
+    },
+    "displayed_model_family": {
+      "value": "not exposed by runtime",
+      "source": "not exposed by runtime",
+      "status": "unavailable",
+      "unavailable_reason": "The runtime did not expose a model family to the caller."
+    },
+    "exact_model_identifier": {
+      "value": "not exposed by runtime",
+      "source": "not exposed by runtime",
+      "status": "unavailable",
+      "unavailable_reason": "The active runtime did not expose an exact deployment/model identifier to the caller."
+    },
+    "reasoning_mode": {
+      "value": "not exposed by runtime",
+      "source": "not exposed by runtime",
+      "status": "unavailable",
+      "unavailable_reason": "The active runtime did not expose a reasoning mode to the caller."
+    }
+  },
+  "environment": {
+    "codex_cli_version": "codex-cli 0.144.1",
+    "branch": "codex/val-001-held-out-validation",
+    "commit": "0a138386a03e178a88b5ccca6334288b57188efb",
+    "thread_id": "not recorded (privacy)"
+  },
+  "privacy": {
+    "raw_thread_id_recorded": false,
+    "prompts_recorded": false,
+    "hidden_chain_of_thought_recorded": false,
+    "token_counts_recorded": false,
+    "secrets_recorded": false
+  }
+}
