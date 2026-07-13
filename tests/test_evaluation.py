@@ -64,6 +64,18 @@ class ClosingLoader:
         return self.iterator
 
 
+class FailingCloseIterator(ClosingIterator):
+    def close(self):
+        super().close()
+        raise RuntimeError("iterator close failed")
+
+
+class FailingCloseLoader(ClosingLoader):
+    def __iter__(self):
+        self.iterator = FailingCloseIterator(self.batches)
+        return self.iterator
+
+
 class NaNModel(FixedLogitModel):
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         return torch.full((*inputs.shape, self.logits.numel()), float("nan"))
@@ -280,6 +292,16 @@ def test_scorer_restores_model_mode():
     assert model.training is False
     model.train()
     _scorer().score(model, [_batch([[0, 1]])])
+    assert model.training is True
+
+
+def test_scorer_restores_model_mode_when_iterator_close_fails():
+    model = FixedLogitModel([0.0, 1.0])
+    model.train()
+
+    with pytest.raises(RuntimeError, match="iterator close failed"):
+        _scorer().score(model, FailingCloseLoader([_batch([[0, 1]])]))
+
     assert model.training is True
 
 

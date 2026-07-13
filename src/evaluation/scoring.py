@@ -211,11 +211,13 @@ class CausalLMScorer:
                         )
                         evaluated_windows += 1
         finally:
-            _close_evaluation_iterator(iterator)
-            if was_training:
-                model.train()
-            else:
-                model.eval()
+            try:
+                _close_evaluation_iterator(iterator)
+            finally:
+                if was_training:
+                    model.train()
+                else:
+                    model.eval()
 
         if aggregate_tokens == 0:
             raise ValueError("validation loader is empty or contains zero target tokens")
