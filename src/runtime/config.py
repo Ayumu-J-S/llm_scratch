@@ -23,6 +23,7 @@ _TOP_LEVEL = {
     "model",
     "artifacts",
     "wandb",
+    "evaluation",
 }
 _RUNTIME = {"device"}
 _REPRODUCIBILITY = {"seed", "deterministic", "reject_dirty"}
@@ -123,6 +124,7 @@ _TRAINING = {
 _MODEL = {"embed_size", "num_heads", "num_layers", "dropout"}
 _ARTIFACTS = {"checkpoints_dir", "keep_last_n", "resume_path"}
 _WANDB = {"enabled", "project", "entity", "name", "mode", "log_model_every_n_epoch"}
+_EVALUATION = {"checkpoint_path", "output_path", "device", "wandb"}
 
 
 def _plain(config: Mapping[str, Any] | DictConfig) -> dict[str, Any]:
@@ -220,6 +222,7 @@ def validate_training_config(config: Mapping[str, Any] | DictConfig) -> dict[str
         ("model", _MODEL),
         ("artifacts", _ARTIFACTS),
         ("wandb", _WANDB),
+        ("evaluation", _EVALUATION),
     ):
         _check_nested(cfg, key, allowed, "<root>")
 

@@ -59,7 +59,14 @@ class StreamingTokenDataset(IterableDataset):
                             "StreamingTokenDataset expected packed windows of "
                             f"{self.window_length} tokens, got {input_ids.numel()}"
                         )
-                    yield {"input_ids": input_ids}
+                    output: dict[str, Any] = {"input_ids": input_ids}
+                    if "source_spans" in sample:
+                        source_spans = copy.deepcopy(sample["source_spans"])
+                        output["source_spans"] = source_spans
+                        output["target_sources"] = target_sources_from_spans(
+                            source_spans, target_count=input_ids.numel() - 1
+                        )
+                    yield output
                 completed = True
             finally:
                 if self._active_loader is loader:
@@ -112,10 +119,16 @@ def causal_lm_collate_fn(samples: list[dict[str, torch.Tensor]]) -> dict[str, to
     if input_ids.size(1) < 2:
         raise ValueError("causal LM batches require at least two tokens per sample")
 
-    return {
+    batch: dict[str, Any] = {
         "inputs": input_ids[:, :-1].contiguous(),
         "labels": input_ids[:, 1:].contiguous(),
     }
+    if any("target_sources" in sample for sample in samples):
+        if not all("target_sources" in sample for sample in samples):
+            raise ValueError("all samples in a metadata-preserving batch need target_sources")
+        batch["target_sources"] = [list(sample["target_sources"]) for sample in samples]
+        batch["source_spans"] = [copy.deepcopy(sample.get("source_spans", [])) for sample in samples]
+    return batch
 
 
 def create_streaming_token_dataloader(
@@ -158,6 +171,35 @@ def _stream_loader_config(
     config_dict["sequence_length"] = window_length
     config_dict["drop_remainder"] = True
     return config_dict
+
+
+def target_sources_from_spans(
+    source_spans: list[Mapping[str, Any]], *, target_count: int
+) -> list[str]:
+    """Convert packed token spans to sources aligned with causal labels.
+
+    A packed window's source spans address positions in ``input_ids``.  Labels
+    address positions 1..W-1, so the source of label ``i`` is the span
+    containing packed position ``i + 1``.
+    """
+
+    if target_count < 0:
+        raise ValueError("target_count must be non-negative")
+    result: list[str] = []
+    for label_index in range(target_count):
+        packed_position = label_index + 1
+        matches = [
+            str(span["source"])
+            for span in source_spans
+            if int(span["start"]) <= packed_position < int(span["end"])
+        ]
+        if len(matches) != 1:
+            raise ValueError(
+                "source spans must cover each causal target exactly once; "
+                f"position={packed_position}, matches={matches}"
+            )
+        result.append(matches[0])
+    return result
 
 
 def _to_plain_dict(config: Mapping[str, Any] | DictConfig) -> dict[str, Any]:

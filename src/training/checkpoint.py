@@ -113,6 +113,31 @@ def restore_rng_state(state: Mapping[str, Any]) -> None:
         torch.cuda.set_rng_state_all(cuda_state)
 
 
+def checkpoint_file_identity(path: str | Path) -> dict[str, Any]:
+    """Return a physical identity for a checkpoint that already exists."""
+
+    checkpoint_path = Path(path).resolve()
+    if not checkpoint_path.is_file():
+        raise CheckpointVerificationError(f"checkpoint file does not exist: {checkpoint_path}")
+    digest = hashlib.sha256()
+    with checkpoint_path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return {
+        "path": str(checkpoint_path),
+        "sha256": digest.hexdigest(),
+        "size_bytes": checkpoint_path.stat().st_size,
+    }
+
+
+def load_checkpoint_file(path: str | Path) -> dict[str, Any]:
+    """Verify and load one checkpoint without trusting a caller-supplied identity."""
+
+    checkpoint_path = Path(path)
+    manager = CheckpointManager(checkpoint_path.parent, keep_last_n=1, identity={})
+    return manager._read_verified(checkpoint_path)
+
+
 def build_checkpoint_identity(
     cfg: DictConfig | Mapping[str, Any], *, run_manifest_path: str | Path | None = None
 ) -> dict[str, Any]:

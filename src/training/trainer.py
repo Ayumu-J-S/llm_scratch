@@ -21,11 +21,13 @@ from loguru import logger
 from omegaconf import DictConfig, OmegaConf
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
+from evaluation.scoring import CausalLMScorer, EvaluationResult
 from training.checkpoint import (
     CheckpointCompatibilityError,
     CheckpointManager,
     ResumeCheckpoint,
     build_checkpoint_identity,
+    checkpoint_file_identity,
     capture_rng_state,
     require_exact_stream_resume_state,
     restore_rng_state,
@@ -55,12 +57,14 @@ class Trainer:
         device: torch.device,
         checkpoint_identity: dict[str, Any] | None = None,
         resume_path: str | Path | None = None,
+        validation_loader_factory=None,
     ) -> None:
         self.model = model
         self.optimizer = optimizer
         self.scheduler = scheduler
         self.train_loader = train_loader
         self.validation_loader = validation_loader
+        self.validation_loader_factory = validation_loader_factory or (lambda: validation_loader)
         self.checkpoint_dir = Path(checkpoint_dir)
         self.cfg = cfg
         self.device = device
@@ -112,6 +116,11 @@ class Trainer:
         self.resume_path = Path(resume_path) if resume_path is not None else configured_resume
         self._resumed_from: ResumeCheckpoint | None = None
         self._best_validation_loss: float | None = None
+        self.validation_scorer = CausalLMScorer(
+            device=self.device,
+            precision=self.precision,
+            ignore_index=int(self._training_value("ignore_index", -100)),
+        )
         if self.resume_path is not None:
             self._restore_checkpoint(self.resume_path)
 
@@ -214,8 +223,10 @@ class Trainer:
                     validation_loss = self._latest_validation_loss
                     if isinstance(self.scheduler, ReduceLROnPlateau):
                         if validation_loss is None:
-                            validation_loss = self._evaluate()
-                            self._record_validation_metrics(validation_loss)
+                            validation_result = self._evaluate()
+                            validation_loss = _evaluation_nll(validation_result)
+                            self._latest_validation_loss = validation_loss
+                            self._record_validation_metrics(validation_result)
                         self._step_scheduler(validation_loss)
                     else:
                         self._step_scheduler()
@@ -345,44 +356,20 @@ class Trainer:
             learning_rate_used,
         )
 
-    def _evaluate(self) -> float:
-        self.model.eval()
-        total_loss = 0.0
-        total_tokens = 0
-        ignore_index = int(self._training_value("ignore_index", -100))
+    def _evaluate(self) -> EvaluationResult:
+        """Score one fresh fixed validation window pass through the shared scorer."""
+
+        namespace = "memorization" if self._is_memorization_run() else "validation"
         try:
-            with torch.no_grad():
-                for batch_index, batch in enumerate(self.validation_loader, start=1):
-                    input_batch = batch["inputs"].to(self.device)
-                    label_batch = batch["labels"].to(self.device)
-                    with autocast_context(self.device, self.precision):
-                        logits = self.model(input_batch)
-                        flat_labels = label_batch.reshape(-1)
-                        losses = F.cross_entropy(
-                            logits.reshape(-1, logits.size(-1)),
-                            flat_labels,
-                            reduction="none",
-                            ignore_index=ignore_index,
-                        )
-                    if not torch.isfinite(losses).all():
-                        self._record_numeric_failure("validation", batch_index)
-                        raise FloatingPointError(
-                            self._numeric_failure_message("validation", batch_index)
-                        )
-                    valid = flat_labels != ignore_index
-                    count = int(valid.sum().item())
-                    if count:
-                        total_loss += float(losses[valid].sum().item())
-                        total_tokens += count
-        finally:
-            self.model.train()
-        if total_tokens == 0:
-            raise ValueError("validation loader is empty or contains zero target tokens")
-        result = total_loss / total_tokens
-        if not math.isfinite(result):
-            self._record_numeric_failure("validation", None)
-            raise FloatingPointError(self._numeric_failure_message("validation", None))
-        return result
+            return self.validation_scorer.score(
+                self.model,
+                self.validation_loader_factory,
+                namespace=namespace,
+                logical_checkpoint_identity=self._logical_checkpoint_identity(),
+            )
+        except FloatingPointError as error:
+            self._record_numeric_failure("validation", getattr(error, "batch_index", None))
+            raise
 
     def _run_events(
         self,
@@ -399,25 +386,29 @@ class Trainer:
             "validation_every_n_steps", "validation_every_n_tokens", epoch_end
         )
         if should_validate and self._last_validation_step != step:
-            validation_loss = self._evaluate()
+            validation_result = self._evaluate()
+            validation_loss = _evaluation_nll(validation_result)
             self._latest_validation_loss = validation_loss
-            self._record_validation_metrics(validation_loss)
             self._last_validation_step = step
             if self._best_validation_loss is None or validation_loss < self._best_validation_loss:
                 self._best_validation_loss = validation_loss
                 best_path = self._save_best_checkpoint()
+                validation_result = validation_result.with_physical_checkpoint(
+                    checkpoint_file_identity(best_path)
+                )
                 self._record_metrics(
                     {
                         "event": "best_checkpoint",
                         "optimizer_step": step,
                         "target_tokens": self.target_tokens,
                         "elapsed_seconds": self.elapsed_seconds,
-                        "validation/loss": validation_loss,
+                        f"{validation_result.namespace}/loss": validation_loss,
                         "checkpoint": str(best_path),
                         **self._checkpoint_measurement_metrics(),
                     },
                     send_to_wandb=False,
                 )
+            self._record_validation_metrics(validation_result)
 
         should_log = self._event_due("log_every_n_steps", "log_every_n_tokens", epoch_end)
         if should_log and self._last_log_step != step:
@@ -506,18 +497,60 @@ class Trainer:
             send_to_wandb=False,
         )
 
-    def _record_validation_metrics(self, validation_loss: float) -> None:
-        self._record_metrics(
-            {
-                "event": "validation",
+    def _record_validation_metrics(self, validation_result: EvaluationResult | float) -> None:
+        if isinstance(validation_result, EvaluationResult):
+            namespace = validation_result.namespace
+            values: dict[str, Any] = {
+                "event": namespace,
                 "optimizer_step": self.optimizer_step,
                 "target_tokens": self.target_tokens,
                 "elapsed_seconds": self.elapsed_seconds,
-                "validation/loss": validation_loss,
-                "validation/perplexity": _perplexity(validation_loss),
-            },
-            send_to_wandb=True,
-        )
+                f"{namespace}/loss": validation_result.nll,
+                f"{namespace}/perplexity": validation_result.perplexity,
+                f"{namespace}/target_tokens": validation_result.target_tokens,
+                f"{namespace}/evaluated_windows": validation_result.evaluated_windows,
+                f"{namespace}/evaluated_window_sha256": validation_result.evaluated_window_sha256,
+                f"{namespace}/evaluated_token_sha256": validation_result.evaluated_token_sha256,
+                f"{namespace}/pause_seconds": validation_result.pause_seconds,
+                f"{namespace}/evaluated_targets_per_second": (
+                    validation_result.evaluated_targets_per_second
+                ),
+                f"{namespace}/manifest_identity": validation_result.manifest_identity,
+                f"{namespace}/logical_checkpoint_identity": (
+                    validation_result.logical_checkpoint_identity
+                ),
+                f"{namespace}/physical_checkpoint_identity": (
+                    validation_result.physical_checkpoint_identity
+                ),
+                f"{namespace}/by_corpus": {
+                    name: score.as_dict()
+                    for name, score in sorted(validation_result.by_corpus.items())
+                },
+            }
+        else:
+            # Small unit-test fixtures may still monkeypatch the private method
+            # with a scalar.  The production path always uses EvaluationResult.
+            namespace = "memorization" if self._is_memorization_run() else "validation"
+            values = {
+                "event": namespace,
+                "optimizer_step": self.optimizer_step,
+                "target_tokens": self.target_tokens,
+                "elapsed_seconds": self.elapsed_seconds,
+                f"{namespace}/loss": float(validation_result),
+                f"{namespace}/perplexity": _perplexity(float(validation_result)),
+            }
+        self._record_metrics(values, send_to_wandb=True)
+
+    def _is_memorization_run(self) -> bool:
+        data = self.cfg.get("data", {}) or {}
+        return data.get("mode") == "memorization_smoke"
+
+    def _logical_checkpoint_identity(self) -> dict[str, Any]:
+        return {
+            "checkpoint_identity": dict(self.checkpoint_identity),
+            "optimizer_step": self.optimizer_step,
+            "target_tokens": self.target_tokens,
+        }
 
     def _record_metrics(self, values: dict[str, Any], *, send_to_wandb: bool) -> None:
         record = {key: value for key, value in values.items() if value is not None}
@@ -910,3 +943,7 @@ def _perplexity(loss: float) -> float:
         return math.exp(loss)
     except OverflowError:
         return float("inf")
+
+
+def _evaluation_nll(value: EvaluationResult | float) -> float:
+    return value.nll if isinstance(value, EvaluationResult) else float(value)
