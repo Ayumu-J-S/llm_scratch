@@ -2,7 +2,7 @@
 
 - Roadmap ticket: `DATA-004`
 - Branch: `codex/data-004-pinned-baseline-mixture`
-- Draft PR: [#41](https://github.com/Ayumu-J-S/llm_scratch/pull/41)
+- PR: [#41](https://github.com/Ayumu-J-S/llm_scratch/pull/41) (ready for human review)
 - Experiment owner: implementation agent; exact runtime model/reasoning are not exposed
 - Status: technical PASS WITH NOTE `4681064118`; no blocking or actionable
   DATA-004 finding remains; agent self-merge remains rights-policy blocked

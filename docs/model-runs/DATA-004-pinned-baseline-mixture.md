@@ -1,6 +1,6 @@
 # DATA-004 - Pinned Baseline Mixture
 
-- PR: [#41](https://github.com/Ayumu-J-S/llm_scratch/pull/41) (draft)
+- PR: [#41](https://github.com/Ayumu-J-S/llm_scratch/pull/41) (ready for human review)
 - Branch: `codex/data-004-pinned-baseline-mixture`
 - Ticket: `DATA-004`
 - Hypothesis: exact shard manifests, content-disjoint splits, target-token scheduling, and bounded QA can provide a trustworthy 50/50 Japanese/English baseline stream.
@@ -214,8 +214,9 @@ Formal review repair cycle 2:
 
 - Guarded agent self-merge only after exact-head PASS/PASS WITH NOTE and all gates.
 - Bounded roadmap-series authorization remains in scope.
-- Latest independent verdict is PASS WITH NOTE `4681064118`; the PR remains
-  draft because the separate human source-rights disposition is unresolved.
+- Latest independent verdict is PASS WITH NOTE `4681064118`; the PR is ready
+  for human review so that the separate source-rights disposition and merge
+  decision can be made. Agent self-merge remains prohibited.
 - Target: `main@7648316` initially.
 - Review `4680931313` treats the disclosed underlying web-page rights caveat as
   an unresolved legal/licensing question that blocks agent self-merge. A human
