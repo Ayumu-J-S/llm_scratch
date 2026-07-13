@@ -141,11 +141,6 @@ def build_checkpoint_identity(
     """
 
     config = _plain_config(cfg)
-    artifacts = config.get("artifacts")
-    if isinstance(artifacts, dict):
-        artifacts = copy.deepcopy(artifacts)
-        artifacts.pop("resume_path", None)
-        config["artifacts"] = artifacts
 
     run_manifest: dict[str, Any] = {}
     if run_manifest_path is not None:
@@ -167,9 +162,17 @@ def build_checkpoint_identity(
         for item in data
         if isinstance(item, Mapping) and item.get("fingerprint") is not None
     ]
+    configured_data_fingerprints = configured_manifest_fingerprints(config)
+    if run_manifest_path is not None and data_fingerprints != configured_data_fingerprints:
+        if data_fingerprints or configured_data_fingerprints:
+            raise CheckpointError(
+                "configured and captured data manifest fingerprints are out of order or differ"
+            )
+    if configured_data_fingerprints:
+        data_fingerprints = configured_data_fingerprints
     identity = {
         "schema_version": CHECKPOINT_SCHEMA_VERSION,
-        "config_sha256": _sha256_json(config),
+        "config_sha256": checkpoint_config_sha256(config),
         "model_config": copy.deepcopy(config.get("model", {})),
         "tokenizer_fingerprint": tokenizer.get("fingerprint")
         if isinstance(tokenizer, Mapping)
@@ -198,6 +201,100 @@ def build_checkpoint_identity(
         identity["git_sha"] = git["sha"]
         identity["lock_sha256"] = lock["sha256"]
     return identity
+
+
+def checkpoint_config_sha256(cfg: DictConfig | Mapping[str, Any]) -> str:
+    """Hash a resolved config using the checkpoint identity's one exclusion."""
+
+    config = _plain_config(cfg)
+    artifacts = config.get("artifacts")
+    if isinstance(artifacts, dict):
+        artifacts = copy.deepcopy(artifacts)
+        artifacts.pop("resume_path", None)
+        config["artifacts"] = artifacts
+    return _sha256_json(config)
+
+
+def configured_manifest_fingerprints(cfg: DictConfig | Mapping[str, Any]) -> list[str]:
+    """Return configured manifest fingerprints in train-then-validation order."""
+
+    config = _plain_config(cfg)
+    data = config.get("data", {})
+    if not isinstance(data, Mapping):
+        return []
+    if data.get("mode") == "memorization_smoke":
+        smoke = data.get("memorization", {})
+        fingerprint = smoke.get("expected_fingerprint") if isinstance(smoke, Mapping) else None
+        return [str(fingerprint)] if fingerprint else []
+    if data.get("mode") != "streaming":
+        return []
+
+    result: list[str] = []
+    streaming = data.get("streaming", {})
+    if not isinstance(streaming, Mapping):
+        return result
+    for split_name in ("train", "validation"):
+        split = streaming.get(split_name, {})
+        if not isinstance(split, Mapping):
+            continue
+        sources = split.get("sources", split.get("datasets", []))
+        if not isinstance(sources, list):
+            continue
+        for source in sources:
+            if not isinstance(source, Mapping):
+                continue
+            source_type = source.get("type", source.get("source", "hf"))
+            fingerprint = source.get("expected_fingerprint")
+            if source_type == "manifest" and fingerprint:
+                result.append(str(fingerprint))
+    return result
+
+
+def verify_checkpoint_config_identity(
+    state: Mapping[str, Any], identity: Mapping[str, Any]
+) -> None:
+    """Prove that a full-state checkpoint config belongs to its envelope."""
+
+    resolved_config = state.get("resolved_config")
+    expected = identity.get("config_sha256")
+    if not isinstance(resolved_config, Mapping) or not isinstance(expected, str):
+        raise CheckpointVerificationError(
+            "full-state checkpoint requires resolved_config and identity.config_sha256"
+        )
+    actual = checkpoint_config_sha256(resolved_config)
+    if actual != expected:
+        raise CheckpointCompatibilityError(
+            "checkpoint resolved_config does not match identity.config_sha256"
+        )
+    expected_data = identity.get("data_fingerprints")
+    configured_data = configured_manifest_fingerprints(resolved_config)
+    if expected_data != configured_data:
+        raise CheckpointCompatibilityError(
+            "checkpoint resolved_config data manifests do not match identity.data_fingerprints"
+        )
+
+
+def build_logical_checkpoint_identity(
+    checkpoint_identity: Mapping[str, Any], counters: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Build the logical model identity shared by training and evaluation."""
+
+    optimizer_step = counters.get("optimizer_step")
+    target_tokens = counters.get("target_tokens")
+    if (
+        isinstance(optimizer_step, bool)
+        or not isinstance(optimizer_step, int)
+        or optimizer_step < 0
+        or isinstance(target_tokens, bool)
+        or not isinstance(target_tokens, int)
+        or target_tokens < 0
+    ):
+        raise CheckpointVerificationError("logical checkpoint counters are invalid")
+    return {
+        "checkpoint_identity": copy.deepcopy(dict(checkpoint_identity)),
+        "optimizer_step": optimizer_step,
+        "target_tokens": target_tokens,
+    }
 
 
 class CheckpointManager:
@@ -277,6 +374,8 @@ class CheckpointManager:
             raise CheckpointCompatibilityError(
                 "checkpoint payload identity differs from manager identity"
             )
+        if "resolved_config" in state:
+            verify_checkpoint_config_identity(state, self.identity)
         return {
             "schema_version": CHECKPOINT_SCHEMA_VERSION,
             "kind": kind,
@@ -339,6 +438,8 @@ class CheckpointManager:
             payload["state"], Mapping
         ):
             raise CheckpointVerificationError(f"checkpoint {path} has invalid identity or state")
+        if "resolved_config" in payload["state"]:
+            verify_checkpoint_config_identity(payload["state"], payload["identity"])
         _checkpoint_step(payload["state"])
         return payload
 
@@ -480,6 +581,7 @@ def load_checkpoint_for_generation(path: str | Path) -> dict[str, Any]:
         raise CheckpointVerificationError("checkpoint resolved_config must be a mapping")
     if not isinstance(state["run_identity"], Mapping):
         raise CheckpointVerificationError("checkpoint run_identity must be a mapping")
+    verify_checkpoint_config_identity(state, identity)
     if dict(state["run_identity"]) != dict(identity):
         raise CheckpointCompatibilityError(
             "checkpoint envelope identity differs from its full-state run_identity"

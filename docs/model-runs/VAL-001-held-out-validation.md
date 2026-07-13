@@ -7,7 +7,7 @@
   standalone checkpoint results with complete immutable evaluation identity.
 - Experiment: `docs/experiments/VAL-001-held-out-validation.md`
 - Started: 2026-07-13
-- Current verdict: implementation/evidence complete; independent heavy review pending
+- Current verdict: independent review `FAIL`; repair implemented; re-review pending
 - Final record owner: implementation agent
 
 ## Scope and decision context
@@ -33,7 +33,9 @@
 | 1 | independent review attempt | heavier review model / Extra Thinking | not exposed by runtime / not exposed by runtime | `a8520d7` | blocked before verdict | Earlier runtime path did not expose a selectable heavy reviewer; blocked attempt retained |
 | 2 | repair | `gpt-5.6-luna` / Extra High | not exposed by runtime / not exposed by runtime | `a8520d7` | implemented | Strict JSON, NLL sums/reconciliation, source/manifest trust, verified checkpoint reconstruction, memorization isolation, stronger failure tests |
 | 2 | preliminary audit repair | `gpt-5.6-luna` / Extra High | not exposed by runtime / not exposed by runtime | `2133248` | implemented | Model mode now restores even when iterator cleanup raises; regression test added at `0a13838` |
-| 2 | independent heavy review | `gpt-5.6-sol` / Max (Extra Thinking class) | pending runtime display | documented exact head | pending | Must return PASS, justified PASS WITH NOTE, or actionable FAIL |
+| 2 | independent heavy review | `gpt-5.6-sol` / Max | not exposed by runtime / not exposed by runtime | `41191cb` | FAIL | Checkpoint config was not bound to `identity.config_sha256`; configured/resolved manifest identity was not reconciled before scoring; scorer could trust a separately supplied manifest identity; training-time and standalone logical checkpoint identities differed; phase timing was incomplete for CHECK 6.3; evaluation package re-exports were unused |
+| 3 | repair | `gpt-5.6-luna` / Extra High | not exposed by runtime / not exposed by runtime | `41191cb` | implemented; DGX evidence and re-review pending | Added canonical config/data identity verification, fail-closed actual-loader fingerprint/selection verification, shared logical identity parity, tamper regressions, benchmark-only atomic measurement capture, and direct evaluation imports |
+| 3b | repair completion | not exposed by runtime / not exposed by runtime | not exposed by runtime / not exposed by runtime | `41191cb` working tree | implemented; DGX evidence and re-review pending | Replaced always-on/stale timing with disabled-by-default atomic measurement mode, separated optimizer/validation intervals, added CUDA-event and memory capture, closed loader selection/missing-metadata gaps, predeclared the repeated DGX protocol, and corrected provenance claims |
 
 Requested values are invocation/config values, not claimed actual deployment
 identifiers. The runtime did not expose the exact identifier or reasoning mode to
@@ -47,11 +49,22 @@ the caller for implementation/repair, so those actual fields remain unavailable.
   `docs/model-runs/evidence/VAL-001-review-provenance.json`.
 - Repair capture:
   `docs/model-runs/evidence/VAL-001-repair-provenance.json`.
+- Review-cycle-2 capture:
+  `docs/model-runs/evidence/VAL-001-review-cycle-2-provenance.json`.
+- Repair-cycle-3 capture:
+  `docs/model-runs/evidence/VAL-001-repair-cycle-3-provenance.json`.
+- Repair-cycle-3b capture:
+  `docs/model-runs/evidence/VAL-001-repair-cycle-3b-provenance.json`.
 - Codex CLI: `codex-cli 0.144.1` for recorded implementation/repair captures.
 - Implementation head: `a8520d7fad718574d1fca4293e6f969c7a478b79`.
 - Main invariant repair: `057983c`; measured merged head:
   `21332488e8a1d2334cbb6e2d0593a77a598c1d01`.
 - Exceptional-cleanup repair: `0a138386a03e178a88b5ccca6334288b57188efb`.
+- Failed independent review: requested `gpt-5.6-sol` / Max at `41191cb`;
+  exact runtime model/mode not exposed.
+- Repair phase model and reasoning: exact values not exposed by runtime.
+- Repair head: working tree after `41191cb`; no uncommitted-tree commit SHA is
+  claimed before local verification completes.
 - Privacy: no prompts, hidden chain-of-thought, token counts, secrets, or raw
   thread IDs are recorded.
 
@@ -74,21 +87,54 @@ No BENCH-001 work, generic framework, compatibility shim, or separate runtime
 configuration source was added. Hydra remains authoritative and imports are
 direct.
 
+## Independent review FAIL at `41191cb`
+
+The independent review requested `gpt-5.6-sol` / Max and returned `FAIL`; the
+exact runtime model and reasoning mode were not exposed. The following
+actionable findings were handed to the repair phase and remain visible here:
+
+| Finding | Repair and regression evidence |
+| --- | --- |
+| `state.resolved_config` was not cryptographically bound to `identity.config_sha256` using the existing identity semantics. | `checkpoint_config_sha256` centralizes the existing “exclude only `artifacts.resume_path`” rule; checkpoint write/read and standalone load verify it. Resolved-config tampering fails before evaluation. |
+| `identity.data_fingerprints` was not reconciled against ordered configured and actually resolved manifests. | Configured train-then-validation manifest fingerprints are checked against captured run identity and full-state identity; the scorer checks configured source order/fingerprint against the actual loader and rejects ordered-manifest tampering. |
+| The scorer could use a caller-supplied manifest identity instead of the loader that was actually scored. | The scorer now derives identity from the loader and strictly compares any supplied identity to it. Standalone evaluation relies on this derived identity. |
+| Training-time and standalone logical checkpoint identities had different shapes (`kind`/`counters` versus step/token fields). | `build_logical_checkpoint_identity` is used by both paths; the milestone parity regression asserts exact equality. |
+| CHECK §6.3 lacked local phase timing for repeated DGX analysis. | Hydra-controlled measurement is disabled by default. When enabled it buffers data-wait/host phases, CUDA-event phases, allocator memory, logging, checkpoint, and complete validation-event timing, then atomically writes one JSON. It deliberately synchronizes once at the measured step boundary; the ordinary path creates no events, synchronization, or measurement file. |
+| Unused evaluation package re-exports obscured the direct import boundary. | `evaluation.__init__` no longer re-exports scorer symbols; callers import `evaluation.scoring` directly. |
+
+No new DGX result is claimed during this repair. A three-pair, six-run,
+60-step warm-cache protocol with continuous GPU/host/container traces and
+predeclared pass/fail gates is recorded in the experiment document before it is
+run. The earlier R2 pair remains historical old-head evidence only.
+
 ## Validation and evidence
 
 ### Automated checks
 
 - Focused baseline audit: `77 passed` before the repair series.
+- Repair-focused suite after the final split/measurement repair: `55 passed`.
+- Full repository suite after the final split/measurement repair:
+  `310 passed, 1 skipped in 64.87s`.
 - Full repository suite at measured head `2133248`:
   `302 passed, 1 skipped in 64.17s`.
-- `uv lock --check`, full Ruff lint, changed-file format check, and
-  `git diff --check` passed at that head.
+- `uv lock --check`, full Ruff lint, changed-Python-file format check, and
+  `git diff --check` pass after repair. The repository-wide formatter check
+  still reports four pre-existing unrelated files:
+  `src/models/embedding.py`, `tests/test_ci_quality_gate.py`,
+  `tests/test_data003_stream_cursor.py`, and `tests/test_model_provenance.py`;
+  they were not changed in this repair.
 - Cleanup-repair focused check at `0a13838`: `15 passed`; Ruff, format, and diff
   checks passed.
 - Tests cover known logits, ignored/partial labels, NLL reconciliation, source
   boundaries/failures, batching/context/source digest changes, unknown sources,
   strict JSON overflow, iterator lifecycle, zero targets, mode restoration,
   memorization namespace/no-best, and standalone milestone parity/identity.
+- Repair-focused tests additionally cover exact logical identity parity,
+  resolved-config and data-fingerprint tampering, ordered manifest mismatch,
+  actual-loader fingerprint/selection verification, missing-loader-metadata
+  rejection, disabled measurement, atomic measurement flush, and separation of
+  optimizer-step and validation-event timing. The focused suite passes
+  (`55 passed`); the full suite passes (`310 passed, 1 skipped`).
 
 ### Invalidated evidence retained
 
@@ -121,12 +167,12 @@ Durable evidence:
 - Validation plus best-save pauses totaled 43.1997 seconds. The first clean
   post-validation step returned to the immediate pre-validation timing range.
 
-CHECK §6.3 is partially satisfied: pause accounting, independent cadence,
-trajectory isolation, counters, and recovery are demonstrated. This one A/B
-pair does not support a general speed claim, lacks a continuous system trace,
-and the trainer does not expose separate data-wait/forward/backward/etc. timing.
-The independent reviewer must decide whether this is a justified note for this
-validation ticket or requires added instrumentation/rerun.
+CHECK §6.3 remains `FAIL` pending current-head evidence. The prior R2 pair had
+no warm-up cutoff or continuous trace, and its reported p50 step times imply an
+approximately 10.13% on/off throughput regression, meeting CHECK's normal FAIL
+trigger. The predeclared repair-head protocol requires three matched pairs,
+continuous traces, phase/data-wait evidence, exact trajectory/model parity, and
+a median paired regression below 5%.
 
 The R2 measured `2133248`; `0a13838` only changes exceptional iterator cleanup.
 No successful scoring/training code path or performance control changed. This
@@ -143,30 +189,95 @@ measurement.
 - Historical blocker claims about DGX unavailability are superseded by the
   pinned-container R2 above.
 
-### Required review cycle 2
+### Review cycle 2 — failed
 
-- Requested reviewer: `gpt-5.6-sol`, Max reasoning (repository's independent
-  Extra Thinking class).
-- Target: exact documentation/code head after the R2 record is committed.
+- Reviewer request: `gpt-5.6-sol` / Max; exact runtime model/mode not exposed.
+- Target: `41191cb`.
 - Required review: `PHILOSOPHY.md`, VAL-001 acceptance criteria, minimum CHECK,
   6.1, 6.3, 7.1–7.3, 8.1–8.3, and applicable 9.1.
-- Specific questions: scoring math and masks; batching-independent identities;
-  source attribution; overlap/memorization separation; checkpoint physical and
-  logical trust; iterator/mode lifecycle; cadence/pause isolation; whether the
-  one-pair and missing phase breakdown are acceptable as `PASS WITH NOTE`.
-- Completion: all actionable findings repaired and independently re-reviewed,
-  then record exact runtime-displayed model/mode and verdict.
+- Verdict: `FAIL`.
+- Findings: see the explicit handoff above; all were sent to the repair phase.
+
+### Repair cycle 3
+
+- Repair model: requested `gpt-5.6-luna` / Extra High; exact displayed model and
+  reasoning mode are not exposed by runtime.
+- Input: failed review at `41191cb`, with the required checkpoint, manifest,
+  scorer, logical-identity, timing, and import-boundary repair request.
+- Outcome: implemented locally; focused checks pass; full verification and
+  independent re-review remain pending.
+- Completion: do not mark VAL-001 complete until an independent review returns
+  `PASS` or justified `PASS WITH NOTE` for the exact repair head.
+
+## Failed-review handoff
+
+- From review cycle: 2, independent review at `41191cb`.
+- Failed check and why: VAL-001 checkpoint/evaluation identity trust and CHECK
+  §6.3 evidence completeness failed because the saved config, configured data,
+  actual loader, logical parity, and phase timing were not all authoritative.
+- Review model / mode: requested `gpt-5.6-sol` / Max; exact runtime values not
+  exposed.
+- Implementation model / mode that produced the failed state: exact values not
+  exposed by runtime.
+- Commit/diff to repair: `41191cb` and the working-tree repair diff.
+- Reproduction command or evidence: independent review findings recorded above;
+  existing standalone parity and DGX R2 records showed the identity/timing gaps.
+- Relevant files/config/manifests: `src/training/checkpoint.py`,
+  `src/evaluation/scoring.py`, `src/training/trainer.py`, `src/evaluate.py`,
+  `src/evaluation/__init__.py`, and the VAL-001 tests.
+- Attempts already made: `a8520d7` initial implementation, `057983c` scoring
+  repair, `0a13838` cleanup repair, and the measured `41191cb` documentation
+  head.
+- Invariants and constraints: only `artifacts.resume_path` is excluded from
+  config hashing; manifests remain immutable and ordered; training and
+  standalone evaluation share one scorer and logical identity; no per-step CUDA
+  synchronization in the ordinary path; benchmark-only synchronization must be
+  explicit; no DGX result, PR edit, commit, or push was claimed by the repair
+  agent.
+- Selected next model / mode: requested `gpt-5.6-luna` / Extra High; actual
+  displayed model and reasoning mode are not exposed by runtime.
+- Why this model was selected: the findings are localized cross-component
+  wiring and instrumentation repairs within the existing direct Hydra path.
+- Exact repair request: bind saved config and ordered data identity, derive or
+  strictly verify loader manifests, make logical identity exactly shared, add
+  tamper/parity regressions, expose low-overhead phase timing, and remove unused
+  re-exports.
+- Completion evidence requested: focused and full tests, Ruff, format, lock,
+  diff checks, then independent re-review of the exact repair head.
+
+## Repair result
+
+- Repair cycle: 3.
+- Repair model / mode: exact displayed values not exposed by runtime; requested
+  `gpt-5.6-luna` / Extra High.
+- Input handoff: failed review at `41191cb`, requested as `gpt-5.6-sol` / Max;
+  exact runtime values not exposed.
+- Changes made: canonical checkpoint config/data verification; fail-closed
+  actual-loader fingerprint/selection trust; exact logical checkpoint parity;
+  tamper regressions; disabled-by-default atomic measurement JSON with CUDA
+  events and complete validation pauses; direct evaluation imports.
+- What was deliberately not changed: no Hydra alternative, generic framework,
+  compatibility shim, scorer math, DGX job, PR, commit, push, or claim of a
+  passing independent review.
+- Local evidence: focused suite `55 passed`; full suite `310 passed, 1 skipped`;
+  full Ruff, changed-Python format, lock, and diff checks pass. Full
+  repository formatter still reports four pre-existing unrelated files.
+- Commit reviewed next: pending local handoff; no commit was created.
+- Re-review model / mode: pending independent heavy review.
+- Re-review verdict: pending; the prior verdict remains `FAIL`.
 
 ## Risks and handoff
 
 - Known trade-off: the fixed 65,536-target validation pass costs about 19.52 s
   plus about 1.8–2.4 s when an improving best checkpoint is saved.
-- Evidence limitation: one matched pair, snapshots rather than a continuous
-  system trace, and no phase/data-wait timing.
+- Evidence blocker: the single old-head pair is insufficient and shows an
+  approximately 10.13% p50-derived throughput regression; current-head repeated
+  measurement and continuous traces are required.
 - Dependency: this stacked PR still depends on DATA-004, whose source-rights
   disposition is a human policy gate.
 - Merge path: human review and merge; no self-merge authorization exists.
-- Exactly one next step: independent GPT-5.6 heavy review of the documented head.
+- Exactly one next step: run and analyze the predeclared current-head DGX
+  protocol; independent heavy re-review follows only if it passes.
 
 ## Merge authority and final audit
 
@@ -192,6 +303,6 @@ measurement.
 
 - [x] VAL-001 row exists in `docs/model-runs/README.md`.
 - [x] Failed/invalidated attempts remain visible.
-- [ ] Independent review verdict and exact displayed provenance recorded.
+- [x] Failed independent review verdict and exact displayed provenance recorded.
 - [ ] Aggregate pass/repair/review counts updated after the final verdict.
 - [ ] Human merge/final audit recorded.

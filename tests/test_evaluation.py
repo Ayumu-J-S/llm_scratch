@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import hydra
@@ -14,7 +15,14 @@ from evaluation.scoring import CausalLMScorer, manifest_identities
 from models.simple_decoder_transformer import SimpleDecoderTransformer
 from tokenizer.canonical import CanonicalTokenizer
 from train import build_validation_loader_factory
-from training.checkpoint import CheckpointManager
+from training.checkpoint import (
+    CheckpointCompatibilityError,
+    CheckpointManager,
+    build_checkpoint_identity,
+    build_logical_checkpoint_identity,
+    configured_manifest_fingerprints,
+    load_checkpoint_for_generation,
+)
 from training.trainer import Trainer
 
 
@@ -128,13 +136,8 @@ def _milestone_checkpoint(tmp_path: Path):
         dropout=config.model.dropout,
         pad_token_id=tokenizer.pad_token_id,
     )
-    identity = {
-        "schema_version": 1,
-        "config_sha256": "validation-fixture-config",
-        "model_config": OmegaConf.to_container(config.model, resolve=True),
-        "tokenizer_fingerprint": tokenizer.fingerprint,
-        "data_fingerprints": ["validation-fixture-data"],
-    }
+    identity = build_checkpoint_identity(config)
+    identity["tokenizer_fingerprint"] = tokenizer.fingerprint
     counters = {"optimizer_step": 7, "target_tokens": 19, "elapsed_seconds": 1.25}
     checkpoint = CheckpointManager(tmp_path, keep_last_n=1, identity=identity).save_milestone(
         {
@@ -162,6 +165,16 @@ def test_known_logits_match_token_weighted_nll_and_perplexity():
     assert result.target_tokens == 3
     assert result.evaluated_windows == 1
     assert model.logits.grad is None
+    for field in (
+        "loader_construction_seconds",
+        "iterator_creation_seconds",
+        "data_wait_seconds",
+        "host_device_preparation_seconds",
+        "forward_seconds",
+        "loss_seconds",
+        "validation_seconds",
+    ):
+        assert result.timing[field] >= 0.0
 
 
 def test_partial_and_ignored_labels_reconcile_by_corpus():
@@ -252,7 +265,7 @@ def test_fixed_window_score_is_batching_independent_and_repeated():
 
 def test_validation_attribution_must_match_declared_manifests():
     model = FixedLogitModel([0.0, 1.0])
-    with pytest.raises(ValueError, match="does not match declared manifests"):
+    with pytest.raises(ValueError, match="does not match the actual validation loader"):
         _scorer().score(
             model,
             [_batch([[0, 1]], [["en", "en"]])],
@@ -360,11 +373,8 @@ def test_standalone_milestone_matches_shared_training_time_score(tmp_path):
         model,
         loader_factory,
         namespace="validation",
-        logical_checkpoint_identity={
-            "checkpoint_identity": identity,
-            "kind": "milestone",
-            "counters": counters,
-        },
+        logical_checkpoint_identity=build_logical_checkpoint_identity(identity, counters),
+        configured_data_fingerprints=configured_manifest_fingerprints(checkpoint_config),
         manifest_identity=manifest_identities(manifest_loader.dataset.resolved_manifests),
     )
 
@@ -384,13 +394,88 @@ def test_standalone_milestone_matches_shared_training_time_score(tmp_path):
     assert result["evaluated_window_sha256"] == live_result.evaluated_window_sha256
     assert result["evaluated_token_sha256"] == live_result.evaluated_token_sha256
     assert result["manifest_identity"] == live_result.manifest_identity
-    assert standalone["checkpoint"]["logical"]["kind"] == "milestone"
-    assert standalone["checkpoint"]["logical"]["counters"] == counters
+    assert standalone["checkpoint"]["logical"] == live_result.logical_checkpoint_identity
     assert standalone["checkpoint"]["physical"]["path"] == str(checkpoint.resolve())
     assert len(standalone["checkpoint"]["physical"]["sha256"]) == 64
     rendered = result_path.read_text(encoding="utf-8")
     assert '"inputs"' not in rendered
     assert '"labels"' not in rendered
+
+
+def test_checkpoint_resolved_config_tampering_is_rejected_before_evaluation(tmp_path):
+    checkpoint, *_ = _milestone_checkpoint(tmp_path / "checkpoints")
+    payload = torch.load(checkpoint, map_location="cpu", weights_only=False)
+    payload["state"]["resolved_config"]["training"]["sequence_length"] += 1
+    torch.save(payload, checkpoint)
+
+    with pytest.raises(CheckpointCompatibilityError, match="config_sha256"):
+        load_checkpoint_for_generation(checkpoint)
+
+    payload = torch.load(checkpoint, map_location="cpu", weights_only=False)
+    payload["state"]["resolved_config"]["training"]["sequence_length"] -= 1
+    payload["identity"]["data_fingerprints"] = ["tampered"]
+    torch.save(payload, checkpoint)
+    with pytest.raises(CheckpointCompatibilityError, match="data manifests"):
+        load_checkpoint_for_generation(checkpoint)
+
+
+def test_scorer_rejects_manifest_tampering_in_actual_loader(tmp_path):
+    checkpoint, checkpoint_config, model, identity, counters = _milestone_checkpoint(
+        tmp_path / "checkpoints"
+    )
+    del checkpoint
+    loader_factory = build_validation_loader_factory(checkpoint_config, device=torch.device("cpu"))
+
+    def tampered_factory():
+        loader = loader_factory()
+        name, manifest = next(iter(loader.dataset.resolved_manifests.items()))
+        loader.dataset.resolved_manifests = {name: replace(manifest, manifest_fingerprint="c" * 64)}
+        return loader
+
+    with pytest.raises(ValueError, match="fingerprint changed"):
+        _scorer().score(
+            model,
+            tampered_factory,
+            namespace="validation",
+            logical_checkpoint_identity=build_logical_checkpoint_identity(identity, counters),
+            configured_data_fingerprints=configured_manifest_fingerprints(checkpoint_config),
+        )
+
+
+def test_scorer_rejects_wrong_split_or_missing_loader_manifest_metadata(tmp_path):
+    _, checkpoint_config, model, identity, counters = _milestone_checkpoint(
+        tmp_path / "checkpoints"
+    )
+    loader_factory = build_validation_loader_factory(checkpoint_config, device=torch.device("cpu"))
+
+    def wrong_split_factory():
+        loader = loader_factory()
+        name, manifest = next(iter(loader.dataset.resolved_manifests.items()))
+        loader.dataset.resolved_manifests = {name: replace(manifest, selection="train")}
+        return loader
+
+    with pytest.raises(ValueError, match="selection 'train'.*expected 'validation'"):
+        _scorer().score(
+            model,
+            wrong_split_factory,
+            namespace="validation",
+            logical_checkpoint_identity=build_logical_checkpoint_identity(identity, counters),
+            configured_data_fingerprints=configured_manifest_fingerprints(checkpoint_config),
+        )
+
+    def missing_metadata_factory():
+        loader = loader_factory()
+        del loader.dataset.config
+        return loader
+
+    with pytest.raises(ValueError, match="missing required manifest identity metadata"):
+        _scorer().score(
+            model,
+            missing_metadata_factory,
+            namespace="validation",
+            logical_checkpoint_identity=build_logical_checkpoint_identity(identity, counters),
+            configured_data_fingerprints=configured_manifest_fingerprints(checkpoint_config),
+        )
 
 
 def test_standalone_held_out_evaluation_rejects_memorization_checkpoint(tmp_path):
@@ -410,13 +495,8 @@ def test_standalone_held_out_evaluation_rejects_memorization_checkpoint(tmp_path
         dropout=checkpoint_config.model.dropout,
         pad_token_id=tokenizer.pad_token_id,
     )
-    identity = {
-        "schema_version": 1,
-        "config_sha256": "memorization-fixture-config",
-        "model_config": OmegaConf.to_container(checkpoint_config.model, resolve=True),
-        "tokenizer_fingerprint": tokenizer.fingerprint,
-        "data_fingerprints": ["memorization-fixture-data"],
-    }
+    identity = build_checkpoint_identity(checkpoint_config)
+    identity["tokenizer_fingerprint"] = tokenizer.fingerprint
     checkpoint = CheckpointManager(
         tmp_path / "memorization", keep_last_n=1, identity=identity
     ).save_final(

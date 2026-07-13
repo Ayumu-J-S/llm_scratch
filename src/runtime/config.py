@@ -24,6 +24,7 @@ _TOP_LEVEL = {
     "artifacts",
     "wandb",
     "evaluation",
+    "measurement",
 }
 _RUNTIME = {"device"}
 _REPRODUCIBILITY = {"seed", "deterministic", "reject_dirty"}
@@ -126,6 +127,7 @@ _ARTIFACTS = {"checkpoints_dir", "keep_last_n", "resume_path"}
 _WANDB = {"enabled", "project", "entity", "name", "mode", "log_model_every_n_epoch"}
 _EVALUATION = {"checkpoint_path", "output_path", "device", "wandb"}
 _EVALUATION_WANDB = {"enabled", "project", "entity", "name", "mode"}
+_MEASUREMENT = {"enabled", "warmup_optimizer_steps", "cuda_events", "output_path"}
 
 
 def _plain(config: Mapping[str, Any] | DictConfig) -> dict[str, Any]:
@@ -258,6 +260,7 @@ def validate_training_config(config: Mapping[str, Any] | DictConfig) -> dict[str
         ("artifacts", _ARTIFACTS),
         ("wandb", _WANDB),
         ("evaluation", _EVALUATION),
+        ("measurement", _MEASUREMENT),
     ):
         _check_nested(cfg, key, allowed, "<root>")
 
@@ -269,6 +272,25 @@ def validate_training_config(config: Mapping[str, Any] | DictConfig) -> dict[str
         or reproducibility["seed"] < 0
     ):
         raise ConfigPreflightError("reproducibility.seed must be a non-negative integer")
+
+    measurement = _plain(cfg.get("measurement", {}))
+    if measurement:
+        for key in ("enabled", "cuda_events"):
+            value = measurement.get(key)
+            if not isinstance(value, bool):
+                raise ConfigPreflightError(f"measurement.{key} must be boolean")
+        warmup_steps = measurement.get("warmup_optimizer_steps")
+        if isinstance(warmup_steps, bool) or not isinstance(warmup_steps, int) or warmup_steps < 0:
+            raise ConfigPreflightError(
+                "measurement.warmup_optimizer_steps must be a non-negative integer"
+            )
+        output_path = measurement.get("output_path")
+        if output_path is not None and (
+            not isinstance(output_path, str) or not output_path.strip()
+        ):
+            raise ConfigPreflightError(
+                "measurement.output_path must be null or a non-empty path string"
+            )
 
     profile = _plain(cfg["profile"])
     _required(profile, ("name",), "profile")

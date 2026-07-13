@@ -3,7 +3,7 @@
 - Roadmap ticket: `VAL-001`
 - Branch: `codex/val-001-held-out-validation`
 - Draft PR: [#42](https://github.com/Ayumu-J-S/llm_scratch/pull/42)
-- Status: implementation and DGX evidence complete; independent heavy review pending
+- Status: independent review `FAIL` at `41191cb`; repair implemented; re-review pending
 - Started / last updated (UTC): 2026-07-13 / 2026-07-13
 - Model-run record: `docs/model-runs/VAL-001-held-out-validation.md`
 
@@ -26,12 +26,13 @@
 
 | Resource | Limit / plan | Evidence basis |
 | --- | --- | --- |
-| Correctness fixture | One minimal CPU scorer/checkpoint exercise | Known-logit and failure-path tests are authoritative after the pre-repair fixture became invalid |
-| DGX target smoke | One matched validation-off/on pair, 50 steps each | CHECK R2 minimum and VAL-001 pause-isolation question |
-| Training work | 50 steps, 102,400 targets per arm | 2,048 effective targets/update |
-| Validation | 65,536 fixed targets at steps 25 and 50 in the on arm | Japanese/English 50/50 target allocation |
-| Checkpoints | Final in both arms; best after each improving held-out score | Required parity/identity evidence |
-| External logging | W&B disabled | Local JSON/JSONL is sufficient for this ticket |
+| Correctness | Full CPU suite plus focused identity/timing regressions | Known-logit and failure-path tests are authoritative after the pre-repair fixture became invalid |
+| DGX target smoke | Three matched validation-off/on pairs, 60 steps per arm | CHECK repeated-measurement and VAL-001 pause-isolation requirements |
+| Training work | 122,880 targets per arm; 737,280 targets across six runs | 2,048 effective targets/update |
+| Validation | 65,536 fixed targets at steps 25 and 50 in each on arm | Six Japanese/English 50/50 validation events |
+| Checkpoints | Final in every arm; best after each improving held-out score | Required parity, identity, and pause evidence |
+| Resource trace | GPU at 5 Hz; host and container at 1 Hz | Continuous attribution and at least 90% expected sample coverage |
+| External logging | W&B disabled | Local metrics, one measurement JSON, and compact evidence are sufficient for this ticket |
 
 ## Attempt 1 — pre-repair CPU fixture
 
@@ -143,22 +144,142 @@ The successful runs used trainer metrics plus external `docker stats` and
 This pair supports validation/checkpoint pause accounting, independent cadence,
 no off-by-one/trajectory change, and immediate recovery. It is not a general
 performance benchmark: there was one A/B pair, no predeclared warm-up cutoff,
-and no continuous GPU/system trace. The current trainer also does not separately
-time `next(loader)`, host/device preparation, forward/loss/backward, clipping,
-optimizer, scheduler, or metrics, so data-wait and a full phase breakdown cannot
-be reconstructed. This limitation is explicit for the independent reviewer;
-no timing was fabricated.
+and no continuous GPU/system trace. The repair adds local phase timing for
+future repeated CHECK §6.3 analysis, but no post-repair DGX measurement was
+run, so those fields have no new hardware evidence yet.
 
 The container also warned that memory-efficient attention defaults to a
 nondeterministic algorithm. Exact trajectory parity was observed for this pair,
 but it is not a cross-platform bitwise reproducibility promise.
 
+## Attempt 3 — predeclared post-repair DGX R3 protocol
+
+This protocol is committed before measurement. It replaces the insufficient
+single-pair performance claim; Attempt 2 remains historical evidence only.
+
+### Fixed conditions and run order
+
+- Exact repaired commit, pinned `llm-scratch:env-001` image, one warm DATA-004
+  cache, seed 42, BF16/CUDA, sequence length 8, micro batch 64, accumulation 4,
+  2,048 effective targets/update, 60 steps, 122,880 targets, W&B disabled.
+- Steps 1–10 are warm-up and excluded from steady-state comparisons.
+- Validation-off uses cadence 1,000; validation-on uses cadence 25. The only
+  intended semantic arm difference is validation cadence.
+- Run order is `1-off`, `1-on`, `2-on`, `2-off`, `3-off`, `3-on`, all on the
+  same hardware/image/cache. Validation occurs at steps 25 and 50.
+- Measurement mode is enabled identically in every arm with CUDA events and one
+  end-step boundary synchronization. The ordinary path remains disabled by
+  default and adds no CUDA events, synchronization, or measurement file.
+- Before each arm: require no competing GPU process and zero active cache
+  leases. A download or eviction invalidates and restarts the matched pair.
+- Retain resolved config, run manifest, metrics, atomic measurement JSON,
+  stdout/stderr, 5 Hz `nvidia-smi`, 1 Hz `vmstat`, and 1 Hz `docker stats`, with
+  SHA-256 for each raw artifact. Raw time series stay separately hashed; the
+  committed record contains compact summaries rather than raw corpus content.
+
+Each arm uses this canonical template, where `VALIDATION_CADENCE` is `1000` or
+`25` and `RUN_NAME`, `CACHE`, and `OUT` identify only that arm:
+
+```bash
+docker run --rm --gpus all --ipc=host \
+  --ulimit memlock=-1 --ulimit stack=67108864 \
+  --name "$RUN_NAME" \
+  -v "$PWD:/workspace:ro" -v "$CACHE:/cache" -v "$OUT:/evidence" \
+  -w /workspace llm-scratch:env-001 \
+  python src/train.py profile=pretrain_streaming runtime.device=cuda \
+    data.streaming.cache.dir=/cache reproducibility.seed=42 \
+    training.precision=bf16 training.max_steps=60 training.max_tokens=null \
+    training.max_time=null training.batch_size=64 training.sequence_length=8 \
+    training.gradient_accumulation_steps=4 training.log_every_n_steps=1 \
+    training.checkpoint_every_n_steps=1000 \
+    training.milestone_every_n_steps=1000 \
+    training.validation_every_n_steps="$VALIDATION_CADENCE" \
+    artifacts.checkpoints_dir=/evidence/checkpoints wandb.enabled=false \
+    measurement.enabled=true measurement.warmup_optimizer_steps=10 \
+    measurement.cuda_events=true \
+    measurement.output_path=/evidence/measurement.json \
+    hydra.run.dir=/evidence/hydra
+```
+
+### Aggregation and zero-tolerance checks
+
+- Compute each run's target tokens/s as total post-warm-up targets divided by
+  total post-warm-up optimizer-step wall time; report p50/p95/max step time,
+  data-wait fraction, phase distributions, memory, and resource coverage.
+- Report all three paired throughput deltas plus median and min–max; do not pool
+  individual steps as independent replicates.
+- Require every pair's 60-step loss, gradient norm, clipping, LR, counters, and
+  final canonical model-tensor digest to match exactly.
+- Require every on arm to validate exactly at steps 25/50, every off arm to have
+  zero validation events, and every arm to finish at exactly 122,880 targets.
+- Require fixed manifest/window/token identities across all six validation
+  events and exact training-time/standalone parity for pair 1's step-50 best
+  checkpoint.
+- Any identity, score, trajectory, split, non-finite, cache, or counter mismatch
+  is an immediate `FAIL` for the affected pair.
+
+### Predeclared performance/resource gates
+
+- Maximum complete validation-event pause: 25 seconds with a best save;
+  scoring alone: 22 seconds. Event attribution must reconcile within the larger
+  of 5 ms or 1% of its full pause.
+- Median paired steady-training throughput regression must be under 5%. A
+  5–10% result requires diagnosis and a repeated pair; 10% or more is `FAIL`
+  absent an explicitly accepted trade.
+- Steady data wait must be at most 5% of step time. Above 5% requires loader
+  diagnosis; above 10% or recurring correlated GPU gaps is `FAIL`.
+- The first post-validation step must be no slower than the preceding five-step
+  p95, and the following five-step mean must remain within 5% of both its
+  pre-event window and paired off-arm positions.
+- Step-time p95 above 1.5 times the median requires a phase/resource explanation.
+  Memory must recover within `max(128 MiB, 5%)`; monotonic post-warm-up growth,
+  sustained swap, or a trace gap spanning validation is `FAIL`.
+- GPU sample coverage and host/container coverage must each reach at least 90%
+  of their expected intervals.
+
+## Independent review FAIL and repair
+
+The independent review requested `gpt-5.6-sol` / Max for `41191cb` and returned
+`FAIL`; the exact runtime model and reasoning mode were not exposed. It
+found that checkpoint `state.resolved_config` was not bound to
+`identity.config_sha256`, configured and resolved manifest identities were not
+reconciled in order before scoring, the scorer could trust a separately passed
+manifest identity, and training-time and standalone logical checkpoint
+identities did not have exact parity. It also required complete low-overhead
+local phase timing for repeated CHECK §6.3 analysis and removal of unused
+evaluation package re-exports.
+
+The repair phase, requested as `gpt-5.6-luna` / Extra High, has implemented:
+
+- one canonical checkpoint config hash that excludes only
+  `artifacts.resume_path`, with write/read/standalone verification;
+- ordered configured manifest reconciliation and actual-loader manifest
+  derivation/strict verification;
+- one logical checkpoint identity builder used by training-time and standalone
+  evaluation, with an exact-parity regression;
+- resolved-config, data-fingerprint, ordered-manifest, and stale-loader
+  tamper regressions;
+- disabled-by-default benchmark timing for data wait, host/device preparation,
+  forward, loss, backward, finite checks, clipping, optimizer, scheduler,
+  metrics/logging, checkpoint, validation, CUDA-event phases, and allocator
+  memory, retained in one atomically flushed measurement JSON; and
+- direct imports from `evaluation.scoring` without package-level re-exports.
+
+The ordinary path adds no CUDA synchronization. Benchmark mode deliberately
+uses one end-step boundary synchronization so CUDA event timings are valid. No
+post-repair DGX result exists yet; Attempt 3 is the predeclared next action.
+Exact displayed repair model and reasoning mode are not exposed by runtime.
+
+Local repair verification: focused validation/checkpoint/trainer/generation
+tests `55 passed`; full repository tests `310 passed, 1 skipped`; full Ruff,
+`uv lock --check`, changed-Python-file format check, and `git diff --check` pass.
+The repository-wide formatter still reports four pre-existing unrelated files,
+which were not changed. Independent re-review is still required.
+
 ## Conclusion
 
-The VAL-001 hypothesis is supported by the real held-out path: training-time and
-standalone scoring agree exactly with complete identities, and validation does
-not alter the matched training trajectory. Acceptance-code tests pass. The DGX
-measurement is at parent head `2133248`; `0a13838` only hardens exceptional
-iterator cleanup and does not touch a successful scoring/training path. Final
-ticket disposition remains pending the mandated independent GPT-5.6 heavy review
-of the exact documented head and its judgment on the explicit §6.3 limitation.
+The prior DGX R2 is insufficient current performance evidence because it is a
+single old-head pair with an observed roughly 10% on/off throughput delta. The
+repair is locally implemented and its focused tests pass, but VAL-001 remains
+`FAIL` until the predeclared repeated post-repair DGX protocol passes and an
+independent heavy re-review accepts the exact documented head.

@@ -14,7 +14,7 @@ import wandb
 from hydra.core.hydra_config import HydraConfig
 from omegaconf import DictConfig, OmegaConf
 
-from evaluation.scoring import CausalLMScorer, manifest_identities
+from evaluation.scoring import CausalLMScorer
 from models.simple_decoder_transformer import SimpleDecoderTransformer
 from runtime.config import validate_evaluation_config, validate_training_config
 from runtime.device import select_device
@@ -22,10 +22,12 @@ from tokenizer.canonical import CanonicalTokenizer
 from train import build_validation_loader_factory, build_streaming_dataloader
 from train import validate_streaming_dataloaders
 from training.checkpoint import (
+    build_logical_checkpoint_identity,
     checkpoint_file_identity,
+    checkpoint_config_sha256,
+    configured_manifest_fingerprints,
     load_checkpoint_for_generation,
 )
-from data.identity import canonical_fingerprint
 
 
 def evaluate_checkpoint(cfg: DictConfig) -> Path:
@@ -85,11 +87,9 @@ def evaluate_checkpoint(cfg: DictConfig) -> Path:
     ).to(device)
     model.load_state_dict(state["model"], strict=True)
 
-    checkpoint_identity = {
-        "checkpoint_identity": payload["identity"],
-        "kind": payload["kind"],
-        "counters": dict(state.get("counters", {})),
-    }
+    checkpoint_identity = build_logical_checkpoint_identity(
+        payload["identity"], state.get("counters", {})
+    )
     physical_identity = checkpoint_file_identity(checkpoint_path)
     scorer = CausalLMScorer(
         device=device,
@@ -102,9 +102,7 @@ def evaluate_checkpoint(cfg: DictConfig) -> Path:
         namespace="validation",
         logical_checkpoint_identity=checkpoint_identity,
         physical_checkpoint_identity=physical_identity,
-        manifest_identity=manifest_identities(
-            getattr(getattr(validation_loader, "dataset", None), "resolved_manifests", None)
-        ),
+        configured_data_fingerprints=configured_manifest_fingerprints(checkpoint_cfg),
     )
     output = {
         "schema_version": 1,
@@ -113,9 +111,7 @@ def evaluate_checkpoint(cfg: DictConfig) -> Path:
             "scorer_revision": result.scorer_revision,
             "device": str(device),
             "precision": str(checkpoint_cfg.training.get("precision", "fp32")),
-            "checkpoint_config_sha256": canonical_fingerprint(
-                OmegaConf.to_container(checkpoint_cfg, resolve=True)
-            ),
+            "checkpoint_config_sha256": checkpoint_config_sha256(checkpoint_cfg),
             "tokenizer_fingerprint": tokenizer.fingerprint,
         },
         "checkpoint": {

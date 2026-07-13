@@ -218,6 +218,16 @@ def build_validation_loader_factory(
         # Map-style memorization smoke has no stream dataset object, but its
         # manifest remains part of the evaluation identity.
         loader.dataset.resolved_manifests = {smoke_manifest.name: smoke_manifest}
+        loader.dataset.config = {
+            "datasets": [
+                {
+                    "name": smoke_manifest.name,
+                    "type": "manifest",
+                    "expected_fingerprint": smoke_manifest.manifest_fingerprint,
+                    "selection": smoke_manifest.selection,
+                }
+            ]
+        }
         return loader
 
     return factory

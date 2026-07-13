@@ -134,7 +134,7 @@ def _trainer(directory: Path, *, resume_path: str | Path | None = None) -> Train
         checkpoint_dir=directory,
         cfg=cfg,
         device=torch.device("cpu"),
-        checkpoint_identity=_identity(),
+        checkpoint_identity=build_checkpoint_identity(cfg),
         resume_path=resume_path,
     )
 
@@ -284,7 +284,7 @@ def test_checkpoint_identity_requires_recorded_run_identity_fields(tmp_path: Pat
         "git": {"sha": "a" * 40},
         "lock": {"sha256": "b" * 64},
         "tokenizer": {"fingerprint": "tokenizer"},
-        "data": [{"fingerprint": "train"}, {"fingerprint": "validation"}],
+        "data": [],
     }
     first = tmp_path / "first.json"
     same = tmp_path / "same.json"
@@ -311,6 +311,44 @@ def test_checkpoint_identity_requires_recorded_run_identity_fields(tmp_path: Pat
             CheckpointManager(
                 tmp_path / name, keep_last_n=2, identity=changed_identity
             ).load_resume("latest")
+
+
+def test_checkpoint_identity_reconciles_configured_manifest_order(tmp_path: Path):
+    config = OmegaConf.create(
+        {
+            "data": {
+                "mode": "streaming",
+                "streaming": {
+                    "train": {
+                        "sources": [
+                            {"name": "train", "type": "manifest", "expected_fingerprint": "a" * 64}
+                        ]
+                    },
+                    "validation": {
+                        "sources": [
+                            {
+                                "name": "validation",
+                                "type": "manifest",
+                                "expected_fingerprint": "b" * 64,
+                            }
+                        ]
+                    },
+                },
+            }
+        }
+    )
+    manifest = {
+        "experiment_id": "exp-ordered-manifests",
+        "git": {"sha": "a" * 40},
+        "lock": {"sha256": "b" * 64},
+        "tokenizer": {"fingerprint": "tokenizer"},
+        "data": [{"fingerprint": "b" * 64}, {"fingerprint": "a" * 64}],
+    }
+    path = tmp_path / "run.json"
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(CheckpointError, match="out of order"):
+        build_checkpoint_identity(config, run_manifest_path=path)
 
 
 def test_checkpoint_identity_rejects_incomplete_run_manifest(tmp_path: Path):

@@ -78,6 +78,22 @@ def test_stability_smoke_exposes_the_bf16_update_recipe():
     assert config.training.scheduler.decay_steps == 100
 
 
+def test_benchmark_measurement_is_disabled_by_default_and_strict():
+    config = compose("profile=pretrain_streaming")
+    assert config.measurement.enabled is False
+    validate_training_config(config)
+
+    config.measurement.enabled = True
+    config.measurement.warmup_optimizer_steps = 0
+    config.measurement.cuda_events = False
+    config.measurement.output_path = "/tmp/measurement.json"
+    validate_training_config(config)
+
+    config.measurement.warmup_optimizer_steps = -1
+    with pytest.raises(ConfigPreflightError, match="warmup_optimizer_steps"):
+        validate_training_config(config)
+
+
 def test_gate_overfit_uses_versioned_distinct_fixture_manifests_without_validation_events():
     config = compose("profile=gate_overfit")
     validate_training_config(config)

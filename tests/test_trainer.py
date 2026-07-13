@@ -92,7 +92,13 @@ class NonFiniteValidationModel(FixedLogitModel):
         return logits.expand(*inputs.shape, -1)
 
 
-def _trainer(tmp_path: Path, batches, **training_overrides) -> Trainer:
+def _trainer(
+    tmp_path: Path,
+    batches,
+    *,
+    measurement: dict | None = None,
+    **training_overrides,
+) -> Trainer:
     model = FixedLogitModel()
     cfg = OmegaConf.create(
         {
@@ -109,6 +115,7 @@ def _trainer(tmp_path: Path, batches, **training_overrides) -> Trainer:
                 **training_overrides,
             },
             "wandb": {"enabled": False},
+            "measurement": measurement or {"enabled": False},
         }
     )
     return Trainer(
@@ -184,6 +191,67 @@ def test_partial_batch_metric_is_token_weighted(tmp_path: Path):
     assert step_record["train/loss_step"] == pytest.approx(expected)
     assert step_record["train/target_tokens_step"] == 4
     assert trainer.target_tokens == 4
+    assert "timing" not in step_record
+    assert not (tmp_path / "measurement.json").exists()
+
+
+def test_benchmark_measurement_is_explicit_and_flushed_once(tmp_path: Path):
+    trainer = _trainer(
+        tmp_path,
+        [_batch([[0, 1]]) for _ in range(2)],
+        max_steps=2,
+        measurement={
+            "enabled": True,
+            "warmup_optimizer_steps": 1,
+            "cuda_events": True,
+            "output_path": str(tmp_path / "timing.json"),
+        },
+    )
+
+    trainer.fit()
+
+    payload = json.loads((tmp_path / "timing.json").read_text(encoding="utf-8"))
+    assert payload["complete"] is True
+    assert payload["cuda_events"] is False
+    steps = [row for row in payload["rows"] if row["event"] == "optimizer_step"]
+    assert [row["optimizer_step"] for row in steps] == [1, 2]
+    assert [row["warmup"] for row in steps] == [True, False]
+    assert all(row["data_wait_calls"] == 1 for row in steps)
+    assert all(row["step_wall_seconds"] >= row["host_seconds"]["data_wait"] for row in steps)
+    assert all(row["cuda_milliseconds"] == {} for row in steps)
+    assert not (tmp_path / "timing.jsonl").exists()
+
+
+def test_benchmark_measurement_separates_validation_from_optimizer_steps(tmp_path: Path):
+    trainer = _trainer(
+        tmp_path,
+        [_batch([[0, 1]]) for _ in range(2)],
+        max_steps=2,
+        validation_every_n_steps=1,
+        measurement={
+            "enabled": True,
+            "warmup_optimizer_steps": 0,
+            "cuda_events": False,
+            "output_path": str(tmp_path / "timing.json"),
+        },
+    )
+
+    trainer.fit()
+
+    rows = json.loads((tmp_path / "timing.json").read_text(encoding="utf-8"))["rows"]
+    steps = [row for row in rows if row["event"] == "optimizer_step"]
+    validations = [row for row in rows if row["event"] == "validation"]
+    assert len(steps) == len(validations) == 2
+    assert all(
+        step["wall_end_unix_ns"] <= validation["wall_start_unix_ns"]
+        for step, validation in zip(steps, validations, strict=True)
+    )
+    assert all(validation["full_event_pause_seconds"] >= 0.0 for validation in validations)
+    assert all(
+        abs(validation["unattributed_seconds"])
+        <= max(0.005, validation["full_event_pause_seconds"] * 0.01)
+        for validation in validations
+    )
 
 
 def test_max_steps_boundary_does_not_fetch_or_update_extra_batch(tmp_path: Path):
