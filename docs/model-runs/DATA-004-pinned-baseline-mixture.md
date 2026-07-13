@@ -6,8 +6,8 @@
 - Hypothesis: exact shard manifests, content-disjoint splits, target-token scheduling, and bounded QA can provide a trustworthy 50/50 Japanese/English baseline stream.
 - Experiment record: `docs/experiments/DATA-004-pinned-baseline-mixture.md`
 - Started: 2026-07-12
-- Current verdict: four technical findings from FAIL `4680931313` repaired;
-  independent re-review pending; agent self-merge rights-policy blocked
+- Current verdict: PASS WITH NOTE `4681064118`; no blocking or actionable
+  technical findings remain; agent self-merge rights-policy blocked
 - Final record owner: implementation agent
 
 ## Scope and decision context
@@ -30,6 +30,7 @@
 | 1 | review | not exposed by runtime | not exposed by runtime | exact `51aa6e239f8cd40c6e1a1b9279d2526cbd3404a9`; strongest GPT-5.6-class Extra Thinking requested | Review PHILOSOPHY, acceptance, CHECK all 4/5.3/5.4/8.2 and applicable 3/R2/R3. | FAIL `4680931313` | Content split did not guarantee/report document-ID disjointness; §4/R2/R3 throughput evidence absent; quota truncation unreported; live config hashes not reproducible. Underlying page-rights caveat blocks agent self-merge. | GitHub review `4680931313`; exact-head Actions `29212016075` success |
 | 2 | repair | not exposed by runtime | not exposed by runtime | failed review `4680931313` at `51aa6e2`; strongest available GPT-5.6-class Extra High requested | Repair every technical finding without changing source pins, mixture gates, cache bounds, or VAL/DGX/OPS scope. | repair complete at `fee0f1a` | Content-bound schema-v2 IDs; ID and content overlap gates; production read/tokenizer/row/missing and process metrics; cursor-persisted quota-truncation accounting; complete resolved-config/argv retention; opt-in performance instrumentation; repeat summarizer; regression coverage. | `fee0f1a231e24957cee86568d9ef89f04eb4e27d`; 287 passed, 1 skipped; lock/lint/format/diff/config checks pass |
 | 2 | handoff | not exposed by runtime | not exposed by runtime | code `fee0f1a`; evidence commit `458dbdc`; exact pinned manifests/tokenizer and fixed three-shard cache | Rerun cold/warm, three repeated warm observations, representative R3, and real-data CUDA/BF16 R2; retain reproducible commands/configs and failures. | scoped evidence PASS; re-review pending | Cold/warm membership, IDs, accounting and 50/50 targets match; repeats bound variance/resources; R3 provides an 18.34-minute loader observation; R2 provides 50 finite optimizer steps and checkpoint evidence. The web-page rights question remains a separate human gate. | `reports/data/DATA-004/`; `458dbdc4b08ae255cc740f1596f7ef041d0f1476` |
+| 2 | independent re-review | not exposed by runtime | not exposed by runtime | exact `7542b3d1156b6474729021ed960f5090aa9dc959`; strongest GPT-5.6-class Extra Thinking requested | Re-review all four original failures, ROADMAP acceptance, PHILOSOPHY, applicable CHECK sections, and scoped evidence. | PASS WITH NOTE `4681064118` | All four technical failures are repaired; no blocking or actionable DATA-004 finding remains. R3 is loader-only and R2 is intentionally short, so long-duration GPU thermals, end-to-end/model-only headroom, and final UMA sizing remain DGX-001 scope. The separate source-rights policy gate remains open. | GitHub review `4681064118`; exact-head Actions `29214355192` success; 287 passed, 1 skipped; source recapture and all report hashes reproduced |
 
 ## Runtime provenance block
 
@@ -52,14 +53,15 @@
 
 ## Check selection and verdicts
 
-- Review model/mode and commit: not exposed / not exposed at exact `51aa6e2`.
+- Re-review model/mode and commit: not exposed / not exposed at exact
+  `7542b3d1156b6474729021ed960f5090aa9dc959`.
 - Selected sections: all 4, 5.3, 5.4, 8.2, comparison rules in 3, applicable R2/R3.
 - Other major sections: N/A unless touched by implementation.
 - Review `4680931313` verdict: FAIL; four actionable evidence/identity/
   accounting/reproducibility findings, with implementation strengths retained.
 - Repair status: all four technical findings have code, tests, and rerun
-  evidence at `fee0f1a` / `458dbdc`; an independent exact-head re-review has
-  not yet issued a verdict.
+  evidence at `fee0f1a` / `458dbdc`; independent review `4681064118` returned
+  PASS WITH NOTE with no blocking or actionable DATA-004 finding.
 - Policy status: the review's unresolved underlying web-page rights finding is
   separate from the technical repair and prohibits agent self-merge pending a
   human rights/policy disposition.
@@ -118,9 +120,9 @@ Formal review repair cycle 2:
 - Network-free evidence: `uv run pytest -q` returned 287 passed, 1 skipped;
   `uv lock --check`, Ruff lint/changed-file format, runtime requirements,
   `git diff --check`, and metadata-only config composition passed.
-- Review status: repair implementation and evidence complete; independent
-  re-review pending. Do not count this as a successful repair until that review
-  returns `PASS` or justified `PASS WITH NOTE`.
+- Review status: independent re-review `4681064118` returned PASS WITH NOTE;
+  this repair now counts as successful. The note defers long-duration GPU
+  thermals, model-only/end-to-end headroom, and final UMA sizing to DGX-001.
 - Merge status: the source-rights policy question remains unresolved and blocks
   agent self-merge regardless of the eventual technical verdict.
 
@@ -212,8 +214,8 @@ Formal review repair cycle 2:
 
 - Guarded agent self-merge only after exact-head PASS/PASS WITH NOTE and all gates.
 - Bounded roadmap-series authorization remains in scope.
-- Latest independent verdict is FAIL; its technical repair is complete, but a
-  Ready transition still requires independent exact-head re-review.
+- Latest independent verdict is PASS WITH NOTE `4681064118`; the PR remains
+  draft because the separate human source-rights disposition is unresolved.
 - Target: `main@7648316` initially.
 - Review `4680931313` treats the disclosed underlying web-page rights caveat as
   an unresolved legal/licensing question that blocks agent self-merge. A human
@@ -224,5 +226,5 @@ Formal review repair cycle 2:
 ## Ledger update
 
 - [x] Added draft PR row and implementation count.
-- [x] Pre-review repair and execution trail synchronized; review counts pending.
+- [x] Repair, passing re-review, and execution trail synchronized.
 - [ ] Guarded merge evidence complete.

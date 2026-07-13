@@ -4,8 +4,8 @@
 - Branch: `codex/data-004-pinned-baseline-mixture`
 - Draft PR: [#41](https://github.com/Ayumu-J-S/llm_scratch/pull/41)
 - Experiment owner: implementation agent; exact runtime model/reasoning are not exposed
-- Status: review `4680931313` technical repairs and rerun evidence complete;
-  independent re-review pending; agent self-merge remains rights-policy blocked
+- Status: technical PASS WITH NOTE `4681064118`; no blocking or actionable
+  DATA-004 finding remains; agent self-merge remains rights-policy blocked
 - Started (UTC): 2026-07-12T21:43:54Z
 - Model-run provenance: `docs/model-runs/DATA-004-pinned-baseline-mixture.md`
 
@@ -228,7 +228,9 @@ and report; production source/tokenizer/row/missing-data and process metrics are
 retained; quota truncation is explicit through resume/prefetch accounting; and
 each report embeds a secret-checked complete resolved config plus exact argv
 whose hash reproduces. Cold/warm, repeated warm, R2, and 18-minute R3 evidence
-all pass their scoped gates. Independent re-review is still mandatory. The
-reviewer's underlying web-page rights finding remains a separate human policy/
-rights disposition gate that prohibits agent self-merge. No model-quality or
-perfect-data claim is made.
+all pass their scoped gates. Independent re-review `4681064118` returned PASS
+WITH NOTE with no blocking or actionable DATA-004 finding. The note correctly
+leaves long-duration GPU thermals, model-only/end-to-end headroom, and final UMA
+sizing to DGX-001. The underlying web-page rights finding remains a separate
+human policy/rights disposition gate that prohibits agent self-merge. No
+model-quality or perfect-data claim is made.
