@@ -44,7 +44,9 @@
 - Capture file/evidence: `docs/model-runs/evidence/VAL-001-implementation-provenance.json`;
   blocked review attempt: `docs/model-runs/evidence/VAL-001-review-provenance.json`
 - Codex CLI version: unavailable; `gh` is also unavailable, so PR operations use the connected GitHub integration
-- Branch/commit: `codex/val-001-held-out-validation` / `a8520d7fad718574d1fca4293e6f969c7a478b79` implementation commit; docs follow-up pending
+- Branch/commit: `codex/val-001-held-out-validation` / implementation
+  `a8520d7fad718574d1fca4293e6f969c7a478b79`; evidence/handoff
+  `ed70f37b7c76144ba7ddb13ebdb13539314d453f`
 - Phase/role/task path: implementation / primary and delegated audits
 - Privacy confirmation: no prompts, hidden chain-of-thought, token counts, secrets, or raw thread ID recorded.
 
@@ -170,7 +172,8 @@ by the passing focused/full tests.
 - No-check evidence when both inventories are empty: N/A
 - Target branch and base SHA at final audit: stacked on `codex/data-004-pinned-baseline-mixture` / `e1d4ed8`
 - Up-to-date, conflict-free, and mergeable evidence: pending
-- Record, ledger, PR trail, validation, and risks parity: pending final docs commit and PR body refresh
+- Record, ledger, PR trail, validation, and risks parity: synchronized in
+  `ed70f37`; PR #42 body records the same implementation/evidence heads
 - Prohibited self-merge categories: human merge selected
 - Admin/bypass/force/disabled-check requirement: no
 - Final audit PR body/comment location: PR #42 draft body; final guarded audit is not applicable before human review
