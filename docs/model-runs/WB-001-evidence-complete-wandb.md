@@ -8,7 +8,7 @@
   becoming training authority, bulk storage, or a local failure mode.
 - Experiment record: `docs/experiments/WB-001-evidence-complete-wandb.md`
 - Started: 2026-07-13
-- Final verdict: in progress — independent heavy review pending
+- Final verdict: in progress — Attempt 8 measurement and independent heavy review pending
 - Final record owner: lead roadmap agent
 
 ## Scope and decision context
@@ -61,7 +61,10 @@
 | 9 | validation | not exposed by runtime | not exposed by runtime | exact clean `54fb32b` Attempt 6 | Start the fresh matrix | FAIL during cache prime | Sequence 256 produced zero validation target windows in the tiny fixture; no measured arm launched | retained raw prime plus `WB-001-dgx-r6-aborted.json` |
 | 10 | repair | not exposed by runtime | not exposed by runtime | aborted Attempt 6 plus Attempt 5 phase evidence | Increase compute without invalidating real validation | repaired | Restore sequence 64; use 18 layers, 260 steps, 26 warm-up, 133,248 stream cap for 1,040 microbatches/133,120 targets | real CUDA one-step train/validation/checkpoint smoke passed |
 | 10 | review | not exposed by runtime | not exposed by runtime | uncommitted sequence-64/18-layer repair | Final prelaunch audit before Attempt 7 | PASS | Exact loader work and nonempty validation, watch emission, cadence, unchanged gates, fresh roots, and within-attempt-only comparison are consistent | delegated audit plus independent loader composition |
-| 11 | review | pending | pending | exact integration/evidence head pending | Mandatory heavy review against philosophy, ticket, and applicable CHECK after evidence | pending | pending | pending |
+| 10 | validation | not exposed by runtime | not exposed by runtime | exact clean `a4117ce` Attempt 7 | Run and verify the full fresh matrix | FAIL | 163/166 gates passed and all paired medians were <5%, but two offline-off and one disabled arm exceeded 10% data wait | raw root plus `WB-001-dgx-r7-failed.json` |
+| 11 | repair | not exposed by runtime | not exposed by runtime | retained Attempt 7 FAIL and depth-scaling evidence | Increase compute enough to clear the unchanged per-arm data-wait gate | repaired | Change only depth 18→26; retain sequence 64, 260/26 steps, 1,040 batches, target horizon, validation, watch cadence, thresholds, and fresh matrix; reject any pre-existing output/cache root | two delegated sizing reviews plus real CUDA one-step train/validation/checkpoint smoke |
+| 11 | review | not exposed by runtime | not exposed by runtime | uncommitted depth-26 repair and records | Final prelaunch audit before Attempt 8 | PASS | Exact work/validation/watch/resources/gates agree; fresh-root enforcement and production-versus-measurement identity wording were repaired and re-audited | two independent delegated audits; 18 focused tests and static checks pass |
+| 12 | review | pending | pending | exact integration/evidence head pending | Mandatory heavy review against philosophy, ticket, and applicable CHECK after evidence | pending | pending | pending |
 
 Requested values are recorded separately from actual runtime display. The
 delegated runtime did not expose the actual model identifier or reasoning mode;
@@ -85,8 +88,9 @@ they are not inferred from the request.
   `docs/model-runs/evidence/WB-001-r5-horizon-review-provenance.json`,
   `docs/model-runs/evidence/WB-001-r6-container-sampler-provenance.json`,
   `docs/model-runs/evidence/WB-001-r7-thermal-repair-provenance.json`,
-  `docs/model-runs/evidence/WB-001-r9-compute-repair-provenance.json`, and
-  `docs/model-runs/evidence/WB-001-r10-depth-repair-provenance.json`
+  `docs/model-runs/evidence/WB-001-r9-compute-repair-provenance.json`,
+  `docs/model-runs/evidence/WB-001-r10-depth-repair-provenance.json`, and
+  `docs/model-runs/evidence/WB-001-r11-depth-repair-provenance.json`
 - Codex CLI version: `codex-cli 0.144.1`
 - Branch/commit: `codex/wb-001-evidence-safe-wandb` / input `74d9e24`
 - Phase/role/task path: implementation / implementation /
@@ -256,18 +260,33 @@ they are not inferred from the request.
   accumulation groups, and 133,120 targets. The pinned network-isolated CUDA
   one-step train/validation/checkpoint smoke passed with 70,828,682 parameters.
   Thresholds remain unchanged and no cross-attempt comparison is allowed.
-- Commit measured next: pending clean Attempt 7 head after PASS prelaunch audit.
+- Attempt 7 at exact `a4117ce`: all nine arms completed, and 163/166 gates
+  passed. Exactness, checkpoint, validation, W&B histogram/lifecycle/storage,
+  samplers, memory, swap, and all paired overhead medians passed. It remained
+  `FAIL` only because two offline-off arms and one disabled arm had 10.49–11.90%
+  data wait.
+- Repair cycle 11: change only `model.num_layers=18` to 26. Worst-arm timing
+  requires 31.29 ms more non-wait work per measured step. Retained depth scaling
+  projects depth 24 at an unsafe 9.97–10.15% and depth 26 at 9.47–9.65%.
+  Sequence, loader horizon, cadence, validation, warm-up, thresholds, and the
+  fresh-matrix requirement remain unchanged. A network-isolated CUDA one-step
+  train/validation/checkpoint smoke passed with 85,024,394 parameters.
+- Commit measured next: pending clean Attempt 8 head after prelaunch audit.
 
 ## Final evidence
 
 - Resolved Hydra controls: `wandb.mode=disabled|offline|online`, watch nested
   config, and artifact `none|best|final|milestone` with operator usage path,
   freshness, and reserve bytes; full example in `docs/wandb.md`.
-- Data/tokenizer/model identity: unchanged. W&B config receives only manifest
-  and external-reference metadata, never inline documents. Compact summary uses
+- Production data/tokenizer/model code and the within-attempt identity are
+  unchanged. The predeclared measurement workload changes depth between failed
+  attempts only to clear data starvation; no cross-attempt performance claim is
+  allowed. W&B config receives only manifest and external-reference metadata,
+  never inline documents. Compact summary uses
   checkpoint-owned experiment/Git/config/lock/tokenizer/data fingerprints.
 - Validation and measurements: focused integration `115 passed in 11.26s` plus
-  `10 passed` for the R2 verifier; full repository suite `361 passed, 1 skipped
+  `16 passed` for the R2 verifier and `2 passed` for the offline inspector; full
+  repository suite `361 passed, 1 skipped
   in 68.20s`. Canonical disabled
   plus offline smoke passed with credentials removed and name resolution,
   `connect`, `connect_ex`, and `sendto` blocked. Ruff, changed-file format,
@@ -280,8 +299,9 @@ they are not inferred from the request.
   Attempt 4 stopped on its idle thermal precondition after one complete arm.
   Attempt 5 completed all arms but failed 11.89–18.02% data wait and a 10.99%
   offline-off median regression. Attempt 6 stopped during cache prime because
-  sequence 256 invalidated the tiny validation fixture. Depth-based Attempt 7
-  is predeclared; no positive throughput claim is made from Attempts 2–6.
+  sequence 256 invalidated the tiny validation fixture. Attempt 7 passed all
+  paired overhead gates but failed three 10.49–11.90% per-arm data-wait gates.
+  Depth-26 Attempt 8 is predeclared; no cross-attempt performance claim is made.
 - Failed attempts retained: first offline smoke placed its W&B directory under
   the repository; it was removed and `WANDB_DIR` now points at the smoke temp
   root. No training failure occurred.
@@ -290,7 +310,8 @@ they are not inferred from the request.
   Billing UI/CSV snapshot because the public Python API does not expose current
   storage usage.
 - Unresolved risks: real online auth/service behavior remains unexercised and
-  fail-closed; DGX overhead remains unresolved until adaptive Attempt 7 passes.
+  fail-closed; the target-workload verdict remains unresolved until fresh
+  Attempt 8 passes.
 - Human decision requested: human review/merge after a passing independent
   review; no self-merge authorization exists.
 
@@ -335,8 +356,8 @@ they are not inferred from the request.
 ## Ledger update
 
 - [x] Added the PR/ticket row to `docs/model-runs/README.md`.
-- [x] Updated implementation attempt count; review/pass/repair counts remain
-  unchanged until a review returns.
+- [x] Updated aggregate implementation, repair, success, and review counts
+  through the latest completed review; the pending cycle-11 review is excluded.
 - [ ] Confirmed that the final PR execution trail matches this record.
 - [x] Recorded human merge as the default.
 - [x] Confirmed this is not the bootstrap policy PR.

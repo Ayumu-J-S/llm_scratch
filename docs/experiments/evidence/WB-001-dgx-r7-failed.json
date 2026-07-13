@@ -1,0 +1,4939 @@
+{
+  "failures": [
+    "r1-p2-offline-off:data_wait_fail",
+    "r3-p1-offline-off:data_wait_fail",
+    "r3-p3-disabled:data_wait_fail"
+  ],
+  "gates": [
+    {
+      "detail": null,
+      "name": "matrix_identity",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "cache_prime",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p1-disabled:inventory",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p1-disabled:identity_isolation",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p1-disabled:cache_unchanged",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p1-disabled:arm_config",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p1-disabled:fixed_work",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p1-disabled:cadence_validation",
+      "passed": true
+    },
+    {
+      "detail": [
+        [
+          "init",
+          "disabled"
+        ]
+      ],
+      "name": "r1-p1-disabled:wandb_lifecycle",
+      "passed": true
+    },
+    {
+      "detail": {
+        "bytes": 0,
+        "file_count": 0,
+        "forbidden": [],
+        "run_file_count": 0
+      },
+      "name": "r1-p1-disabled:wandb_storage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "file_count": 0,
+        "wandb_version": "0.25.1",
+        "watch_histogram_records": 0,
+        "watch_histogram_series": 0,
+        "watch_histograms": 0,
+        "watch_history_steps": []
+      },
+      "name": "r1-p1-disabled:wandb_record_content",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9964285714285714,
+        "end_gap_seconds": 0.072099886,
+        "expected": 280,
+        "max_gap_seconds": 0.201999872,
+        "power_w": {
+          "max": 21.16,
+          "median": 20.04,
+          "min": 4.89
+        },
+        "samples": 279,
+        "sm_clock_mhz": {
+          "max": 2411.0,
+          "median": 2411.0,
+          "min": 208.0
+        },
+        "start_delay_seconds": 0.121826221,
+        "temperature_c": {
+          "max": 42.0,
+          "median": 40.0,
+          "min": 35.0
+        },
+        "temporal_coverage": true,
+        "utilization_percent": {
+          "max": 80.0,
+          "median": 67.0,
+          "min": 0.0
+        }
+      },
+      "name": "r1-p1-disabled:gpu_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9821428571428571,
+        "end_gap_seconds": 0.245100078,
+        "expected": 56,
+        "longest_swap_io_run": 0,
+        "max_gap_seconds": 2.0,
+        "minimum_free_buffer_cache_bytes": 121548328960,
+        "samples": 55,
+        "start_delay_seconds": 0.707826093,
+        "temporal_coverage": true
+      },
+      "name": "r1-p1-disabled:host_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9642857142857143,
+        "end_gap_seconds": 1.886467554,
+        "expected": 28,
+        "max_gap_seconds": 2.011054272,
+        "max_memory_bytes": 2269890215,
+        "samples": 27,
+        "start_delay_seconds": 1.911219562,
+        "temporal_coverage": true
+      },
+      "name": "r1-p1-disabled:container_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9821428571428571,
+        "end_gap_seconds": 0.245100078,
+        "expected": 56,
+        "longest_swap_io_run": 0,
+        "max_gap_seconds": 2.0,
+        "minimum_free_buffer_cache_bytes": 121548328960,
+        "samples": 55,
+        "start_delay_seconds": 0.707826093,
+        "temporal_coverage": true
+      },
+      "name": "r1-p1-disabled:swap",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1508506368.0,
+        "last_20_median": 1509244928.0,
+        "maximum": 1520719360
+      },
+      "name": "r1-p1-disabled:allocated_stable",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1606418432.0,
+        "last_20_median": 1606418432.0,
+        "maximum": 1606418432
+      },
+      "name": "r1-p1-disabled:reserved_stable",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p1-disabled:data_wait_fail",
+      "passed": true
+    },
+    {
+      "detail": 0.0855856378189338,
+      "name": "r1-p1-disabled:data_wait_investigate",
+      "passed": true,
+      "warning": true
+    },
+    {
+      "detail": 1.5840635725293448,
+      "name": "r1-p1-disabled:step_tail_investigate",
+      "passed": true,
+      "warning": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p2-offline-off:inventory",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p2-offline-off:identity_isolation",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p2-offline-off:cache_unchanged",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p2-offline-off:arm_config",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p2-offline-off:fixed_work",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p2-offline-off:cadence_validation",
+      "passed": true
+    },
+    {
+      "detail": [
+        [
+          "init",
+          "succeeded"
+        ],
+        [
+          "watch",
+          "disabled"
+        ],
+        [
+          "finish",
+          "succeeded"
+        ]
+      ],
+      "name": "r1-p2-offline-off:wandb_lifecycle",
+      "passed": true
+    },
+    {
+      "detail": {
+        "bytes": 64333,
+        "file_count": 5,
+        "forbidden": [],
+        "run_file_count": 4
+      },
+      "name": "r1-p2-offline-off:wandb_storage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "file_count": 1,
+        "wandb_version": "0.25.1",
+        "watch_histogram_records": 0,
+        "watch_histogram_series": 0,
+        "watch_histograms": 0,
+        "watch_history_steps": []
+      },
+      "name": "r1-p2-offline-off:wandb_record_content",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9964664310954063,
+        "end_gap_seconds": 0.077043773,
+        "expected": 283,
+        "max_gap_seconds": 0.201000192,
+        "power_w": {
+          "max": 21.11,
+          "median": 20.259999999999998,
+          "min": 5.05
+        },
+        "samples": 282,
+        "sm_clock_mhz": {
+          "max": 2411.0,
+          "median": 2411.0,
+          "min": 208.0
+        },
+        "start_delay_seconds": 0.112239156,
+        "temperature_c": {
+          "max": 44.0,
+          "median": 42.0,
+          "min": 38.0
+        },
+        "temporal_coverage": true,
+        "utilization_percent": {
+          "max": 78.0,
+          "median": 63.0,
+          "min": 0.0
+        }
+      },
+      "name": "r1-p2-offline-off:gpu_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9824561403508771,
+        "end_gap_seconds": 1.066043965,
+        "expected": 57,
+        "longest_swap_io_run": 0,
+        "max_gap_seconds": 1.0,
+        "minimum_free_buffer_cache_bytes": 121518329856,
+        "samples": 56,
+        "start_delay_seconds": 0.462239028,
+        "temporal_coverage": true
+      },
+      "name": "r1-p2-offline-off:host_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9655172413793104,
+        "end_gap_seconds": 0.446005047,
+        "expected": 29,
+        "max_gap_seconds": 2.012884701,
+        "max_memory_bytes": 2977486077,
+        "samples": 28,
+        "start_delay_seconds": 1.915439671,
+        "temporal_coverage": true
+      },
+      "name": "r1-p2-offline-off:container_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9824561403508771,
+        "end_gap_seconds": 1.066043965,
+        "expected": 57,
+        "longest_swap_io_run": 0,
+        "max_gap_seconds": 1.0,
+        "minimum_free_buffer_cache_bytes": 121518329856,
+        "samples": 56,
+        "start_delay_seconds": 0.462239028,
+        "temporal_coverage": true
+      },
+      "name": "r1-p2-offline-off:swap",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1508506368.0,
+        "last_20_median": 1509244928.0,
+        "maximum": 1520719360
+      },
+      "name": "r1-p2-offline-off:allocated_stable",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1606418432.0,
+        "last_20_median": 1606418432.0,
+        "maximum": 1606418432
+      },
+      "name": "r1-p2-offline-off:reserved_stable",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p2-offline-off:data_wait_fail",
+      "passed": false
+    },
+    {
+      "detail": null,
+      "name": "r1-p3-offline-on:inventory",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p3-offline-on:identity_isolation",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p3-offline-on:cache_unchanged",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p3-offline-on:arm_config",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p3-offline-on:fixed_work",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p3-offline-on:cadence_validation",
+      "passed": true
+    },
+    {
+      "detail": [
+        [
+          "init",
+          "succeeded"
+        ],
+        [
+          "watch",
+          "succeeded"
+        ],
+        [
+          "unwatch",
+          "succeeded"
+        ],
+        [
+          "finish",
+          "succeeded"
+        ]
+      ],
+      "name": "r1-p3-offline-on:wandb_lifecycle",
+      "passed": true
+    },
+    {
+      "detail": {
+        "bytes": 773781,
+        "file_count": 5,
+        "forbidden": [],
+        "run_file_count": 4
+      },
+      "name": "r1-p3-offline-on:wandb_storage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "file_count": 1,
+        "wandb_version": "0.25.1",
+        "watch_histogram_records": 1,
+        "watch_histogram_series": 219,
+        "watch_histograms": 219,
+        "watch_history_steps": [
+          24
+        ]
+      },
+      "name": "r1-p3-offline-on:wandb_record_content",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9932659932659933,
+        "end_gap_seconds": 0.190469157,
+        "expected": 297,
+        "max_gap_seconds": 0.203000064,
+        "power_w": {
+          "max": 20.75,
+          "median": 20.14,
+          "min": 5.16
+        },
+        "samples": 295,
+        "sm_clock_mhz": {
+          "max": 2411.0,
+          "median": 2411.0,
+          "min": 208.0
+        },
+        "start_delay_seconds": 0.122860721,
+        "temperature_c": {
+          "max": 45.0,
+          "median": 43.0,
+          "min": 39.0
+        },
+        "temporal_coverage": true,
+        "utilization_percent": {
+          "max": 75.0,
+          "median": 65.0,
+          "min": 0.0
+        }
+      },
+      "name": "r1-p3-offline-on:gpu_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9833333333333333,
+        "end_gap_seconds": 0.644469029,
+        "expected": 60,
+        "longest_swap_io_run": 0,
+        "max_gap_seconds": 1.0,
+        "minimum_free_buffer_cache_bytes": 121532657664,
+        "samples": 59,
+        "start_delay_seconds": 0.605860785,
+        "temporal_coverage": true
+      },
+      "name": "r1-p3-offline-on:host_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9666666666666667,
+        "end_gap_seconds": 1.166767187,
+        "expected": 30,
+        "max_gap_seconds": 2.019412088,
+        "max_memory_bytes": 3046205554,
+        "samples": 29,
+        "start_delay_seconds": 1.917202452,
+        "temporal_coverage": true
+      },
+      "name": "r1-p3-offline-on:container_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9833333333333333,
+        "end_gap_seconds": 0.644469029,
+        "expected": 60,
+        "longest_swap_io_run": 0,
+        "max_gap_seconds": 1.0,
+        "minimum_free_buffer_cache_bytes": 121532657664,
+        "samples": 59,
+        "start_delay_seconds": 0.605860785,
+        "temporal_coverage": true
+      },
+      "name": "r1-p3-offline-on:swap",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1508506368.0,
+        "last_20_median": 1509244928.0,
+        "maximum": 1520719360
+      },
+      "name": "r1-p3-offline-on:allocated_stable",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1606418432.0,
+        "last_20_median": 1606418432.0,
+        "maximum": 1606418432
+      },
+      "name": "r1-p3-offline-on:reserved_stable",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p3-offline-on:data_wait_fail",
+      "passed": true
+    },
+    {
+      "detail": 0.09683183666650129,
+      "name": "r1-p3-offline-on:data_wait_investigate",
+      "passed": true,
+      "warning": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p1-offline-on:inventory",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p1-offline-on:identity_isolation",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p1-offline-on:cache_unchanged",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p1-offline-on:arm_config",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p1-offline-on:fixed_work",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p1-offline-on:cadence_validation",
+      "passed": true
+    },
+    {
+      "detail": [
+        [
+          "init",
+          "succeeded"
+        ],
+        [
+          "watch",
+          "succeeded"
+        ],
+        [
+          "unwatch",
+          "succeeded"
+        ],
+        [
+          "finish",
+          "succeeded"
+        ]
+      ],
+      "name": "r2-p1-offline-on:wandb_lifecycle",
+      "passed": true
+    },
+    {
+      "detail": {
+        "bytes": 773674,
+        "file_count": 5,
+        "forbidden": [],
+        "run_file_count": 4
+      },
+      "name": "r2-p1-offline-on:wandb_storage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "file_count": 1,
+        "wandb_version": "0.25.1",
+        "watch_histogram_records": 1,
+        "watch_histogram_series": 219,
+        "watch_histograms": 219,
+        "watch_history_steps": [
+          24
+        ]
+      },
+      "name": "r2-p1-offline-on:wandb_record_content",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9964788732394366,
+        "end_gap_seconds": 0.128429547,
+        "expected": 284,
+        "max_gap_seconds": 0.202000128,
+        "power_w": {
+          "max": 21.35,
+          "median": 20.42,
+          "min": 5.28
+        },
+        "samples": 283,
+        "sm_clock_mhz": {
+          "max": 2411.0,
+          "median": 2405.0,
+          "min": 208.0
+        },
+        "start_delay_seconds": 0.119692494,
+        "temperature_c": {
+          "max": 45.0,
+          "median": 44.0,
+          "min": 40.0
+        },
+        "temporal_coverage": true,
+        "utilization_percent": {
+          "max": 79.0,
+          "median": 66.0,
+          "min": 0.0
+        }
+      },
+      "name": "r2-p1-offline-on:gpu_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 1.0,
+        "end_gap_seconds": 0.616429547,
+        "expected": 57,
+        "longest_swap_io_run": 0,
+        "max_gap_seconds": 1.0,
+        "minimum_free_buffer_cache_bytes": 121530793984,
+        "samples": 57,
+        "start_delay_seconds": 0.181692622,
+        "temporal_coverage": true
+      },
+      "name": "r2-p1-offline-on:host_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9655172413793104,
+        "end_gap_seconds": 0.714085576,
+        "expected": 29,
+        "max_gap_seconds": 2.014852012,
+        "max_memory_bytes": 2960306208,
+        "samples": 28,
+        "start_delay_seconds": 1.915675416,
+        "temporal_coverage": true
+      },
+      "name": "r2-p1-offline-on:container_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 1.0,
+        "end_gap_seconds": 0.616429547,
+        "expected": 57,
+        "longest_swap_io_run": 0,
+        "max_gap_seconds": 1.0,
+        "minimum_free_buffer_cache_bytes": 121530793984,
+        "samples": 57,
+        "start_delay_seconds": 0.181692622,
+        "temporal_coverage": true
+      },
+      "name": "r2-p1-offline-on:swap",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1508506368.0,
+        "last_20_median": 1509244928.0,
+        "maximum": 1520719360
+      },
+      "name": "r2-p1-offline-on:allocated_stable",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1606418432.0,
+        "last_20_median": 1606418432.0,
+        "maximum": 1606418432
+      },
+      "name": "r2-p1-offline-on:reserved_stable",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p1-offline-on:data_wait_fail",
+      "passed": true
+    },
+    {
+      "detail": 0.09235251268711864,
+      "name": "r2-p1-offline-on:data_wait_investigate",
+      "passed": true,
+      "warning": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p2-disabled:inventory",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p2-disabled:identity_isolation",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p2-disabled:cache_unchanged",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p2-disabled:arm_config",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p2-disabled:fixed_work",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p2-disabled:cadence_validation",
+      "passed": true
+    },
+    {
+      "detail": [
+        [
+          "init",
+          "disabled"
+        ]
+      ],
+      "name": "r2-p2-disabled:wandb_lifecycle",
+      "passed": true
+    },
+    {
+      "detail": {
+        "bytes": 0,
+        "file_count": 0,
+        "forbidden": [],
+        "run_file_count": 0
+      },
+      "name": "r2-p2-disabled:wandb_storage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "file_count": 0,
+        "wandb_version": "0.25.1",
+        "watch_histogram_records": 0,
+        "watch_histogram_series": 0,
+        "watch_histograms": 0,
+        "watch_history_steps": []
+      },
+      "name": "r2-p2-disabled:wandb_record_content",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9963369963369964,
+        "end_gap_seconds": 0.042165702,
+        "expected": 273,
+        "max_gap_seconds": 0.202000128,
+        "power_w": {
+          "max": 21.2,
+          "median": 21.02,
+          "min": 5.22
+        },
+        "samples": 272,
+        "sm_clock_mhz": {
+          "max": 2411.0,
+          "median": 2398.0,
+          "min": 208.0
+        },
+        "start_delay_seconds": 0.123371499,
+        "temperature_c": {
+          "max": 46.0,
+          "median": 44.0,
+          "min": 40.0
+        },
+        "temporal_coverage": true,
+        "utilization_percent": {
+          "max": 77.0,
+          "median": 65.0,
+          "min": 0.0
+        }
+      },
+      "name": "r2-p2-disabled:gpu_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9636363636363636,
+        "end_gap_seconds": 1.536165574,
+        "expected": 55,
+        "longest_swap_io_run": 0,
+        "max_gap_seconds": 1.0,
+        "minimum_free_buffer_cache_bytes": 121633316864,
+        "samples": 53,
+        "start_delay_seconds": 0.970371307,
+        "temporal_coverage": true
+      },
+      "name": "r2-p2-disabled:host_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9642857142857143,
+        "end_gap_seconds": 0.430261854,
+        "expected": 28,
+        "max_gap_seconds": 2.017295496,
+        "max_memory_bytes": 2269890215,
+        "samples": 27,
+        "start_delay_seconds": 1.911014183,
+        "temporal_coverage": true
+      },
+      "name": "r2-p2-disabled:container_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9636363636363636,
+        "end_gap_seconds": 1.536165574,
+        "expected": 55,
+        "longest_swap_io_run": 0,
+        "max_gap_seconds": 1.0,
+        "minimum_free_buffer_cache_bytes": 121633316864,
+        "samples": 53,
+        "start_delay_seconds": 0.970371307,
+        "temporal_coverage": true
+      },
+      "name": "r2-p2-disabled:swap",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1508506368.0,
+        "last_20_median": 1509244928.0,
+        "maximum": 1520719360
+      },
+      "name": "r2-p2-disabled:allocated_stable",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1606418432.0,
+        "last_20_median": 1606418432.0,
+        "maximum": 1606418432
+      },
+      "name": "r2-p2-disabled:reserved_stable",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p2-disabled:data_wait_fail",
+      "passed": true
+    },
+    {
+      "detail": 0.08704618394491424,
+      "name": "r2-p2-disabled:data_wait_investigate",
+      "passed": true,
+      "warning": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p3-offline-off:inventory",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p3-offline-off:identity_isolation",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p3-offline-off:cache_unchanged",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p3-offline-off:arm_config",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p3-offline-off:fixed_work",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p3-offline-off:cadence_validation",
+      "passed": true
+    },
+    {
+      "detail": [
+        [
+          "init",
+          "succeeded"
+        ],
+        [
+          "watch",
+          "disabled"
+        ],
+        [
+          "finish",
+          "succeeded"
+        ]
+      ],
+      "name": "r2-p3-offline-off:wandb_lifecycle",
+      "passed": true
+    },
+    {
+      "detail": {
+        "bytes": 64480,
+        "file_count": 5,
+        "forbidden": [],
+        "run_file_count": 4
+      },
+      "name": "r2-p3-offline-off:wandb_storage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "file_count": 1,
+        "wandb_version": "0.25.1",
+        "watch_histogram_records": 0,
+        "watch_histogram_series": 0,
+        "watch_histograms": 0,
+        "watch_history_steps": []
+      },
+      "name": "r2-p3-offline-off:wandb_record_content",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9965034965034965,
+        "end_gap_seconds": 0.08053483,
+        "expected": 286,
+        "max_gap_seconds": 0.202000128,
+        "power_w": {
+          "max": 20.86,
+          "median": 20.48,
+          "min": 5.18
+        },
+        "samples": 285,
+        "sm_clock_mhz": {
+          "max": 2411.0,
+          "median": 2398.0,
+          "min": 208.0
+        },
+        "start_delay_seconds": 0.079233885,
+        "temperature_c": {
+          "max": 46.0,
+          "median": 44.0,
+          "min": 41.0
+        },
+        "temporal_coverage": true,
+        "utilization_percent": {
+          "max": 77.0,
+          "median": 61.0,
+          "min": 0.0
+        }
+      },
+      "name": "r2-p3-offline-off:gpu_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9827586206896551,
+        "end_gap_seconds": 1.033535022,
+        "expected": 58,
+        "longest_swap_io_run": 0,
+        "max_gap_seconds": 1.0,
+        "minimum_free_buffer_cache_bytes": 121484251136,
+        "samples": 57,
+        "start_delay_seconds": 0.092233821,
+        "temporal_coverage": true
+      },
+      "name": "r2-p3-offline-off:host_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9655172413793104,
+        "end_gap_seconds": 1.043247182,
+        "expected": 29,
+        "max_gap_seconds": 2.017890426,
+        "max_memory_bytes": 3050500521,
+        "samples": 28,
+        "start_delay_seconds": 1.913294507,
+        "temporal_coverage": true
+      },
+      "name": "r2-p3-offline-off:container_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9827586206896551,
+        "end_gap_seconds": 1.033535022,
+        "expected": 58,
+        "longest_swap_io_run": 0,
+        "max_gap_seconds": 1.0,
+        "minimum_free_buffer_cache_bytes": 121484251136,
+        "samples": 57,
+        "start_delay_seconds": 0.092233821,
+        "temporal_coverage": true
+      },
+      "name": "r2-p3-offline-off:swap",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1508506368.0,
+        "last_20_median": 1509244928.0,
+        "maximum": 1520719360
+      },
+      "name": "r2-p3-offline-off:allocated_stable",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1606418432.0,
+        "last_20_median": 1606418432.0,
+        "maximum": 1606418432
+      },
+      "name": "r2-p3-offline-off:reserved_stable",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p3-offline-off:data_wait_fail",
+      "passed": true
+    },
+    {
+      "detail": 0.09587167150184403,
+      "name": "r2-p3-offline-off:data_wait_investigate",
+      "passed": true,
+      "warning": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p1-offline-off:inventory",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p1-offline-off:identity_isolation",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p1-offline-off:cache_unchanged",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p1-offline-off:arm_config",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p1-offline-off:fixed_work",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p1-offline-off:cadence_validation",
+      "passed": true
+    },
+    {
+      "detail": [
+        [
+          "init",
+          "succeeded"
+        ],
+        [
+          "watch",
+          "disabled"
+        ],
+        [
+          "finish",
+          "succeeded"
+        ]
+      ],
+      "name": "r3-p1-offline-off:wandb_lifecycle",
+      "passed": true
+    },
+    {
+      "detail": {
+        "bytes": 64480,
+        "file_count": 5,
+        "forbidden": [],
+        "run_file_count": 4
+      },
+      "name": "r3-p1-offline-off:wandb_storage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "file_count": 1,
+        "wandb_version": "0.25.1",
+        "watch_histogram_records": 0,
+        "watch_histogram_series": 0,
+        "watch_histograms": 0,
+        "watch_history_steps": []
+      },
+      "name": "r3-p1-offline-off:wandb_record_content",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9930313588850174,
+        "end_gap_seconds": 0.141577098,
+        "expected": 287,
+        "max_gap_seconds": 0.208999936,
+        "power_w": {
+          "max": 20.82,
+          "median": 20.55,
+          "min": 5.15
+        },
+        "samples": 285,
+        "sm_clock_mhz": {
+          "max": 2411.0,
+          "median": 2398.0,
+          "min": 208.0
+        },
+        "start_delay_seconds": 0.114886324,
+        "temperature_c": {
+          "max": 46.0,
+          "median": 45.0,
+          "min": 41.0
+        },
+        "temporal_coverage": true,
+        "utilization_percent": {
+          "max": 77.0,
+          "median": 60.0,
+          "min": 0.0
+        }
+      },
+      "name": "r3-p1-offline-off:gpu_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9827586206896551,
+        "end_gap_seconds": 0.568577162,
+        "expected": 58,
+        "longest_swap_io_run": 0,
+        "max_gap_seconds": 1.0,
+        "minimum_free_buffer_cache_bytes": 121562570752,
+        "samples": 57,
+        "start_delay_seconds": 0.653886388,
+        "temporal_coverage": true
+      },
+      "name": "r3-p1-offline-off:host_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9655172413793104,
+        "end_gap_seconds": 1.145141761,
+        "expected": 29,
+        "max_gap_seconds": 2.01751948,
+        "max_memory_bytes": 3023656976,
+        "samples": 28,
+        "start_delay_seconds": 1.907886079,
+        "temporal_coverage": true
+      },
+      "name": "r3-p1-offline-off:container_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9827586206896551,
+        "end_gap_seconds": 0.568577162,
+        "expected": 58,
+        "longest_swap_io_run": 0,
+        "max_gap_seconds": 1.0,
+        "minimum_free_buffer_cache_bytes": 121562570752,
+        "samples": 57,
+        "start_delay_seconds": 0.653886388,
+        "temporal_coverage": true
+      },
+      "name": "r3-p1-offline-off:swap",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1508506368.0,
+        "last_20_median": 1509244928.0,
+        "maximum": 1520719360
+      },
+      "name": "r3-p1-offline-off:allocated_stable",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1606418432.0,
+        "last_20_median": 1606418432.0,
+        "maximum": 1606418432
+      },
+      "name": "r3-p1-offline-off:reserved_stable",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p1-offline-off:data_wait_fail",
+      "passed": false
+    },
+    {
+      "detail": null,
+      "name": "r3-p2-offline-on:inventory",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p2-offline-on:identity_isolation",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p2-offline-on:cache_unchanged",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p2-offline-on:arm_config",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p2-offline-on:fixed_work",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p2-offline-on:cadence_validation",
+      "passed": true
+    },
+    {
+      "detail": [
+        [
+          "init",
+          "succeeded"
+        ],
+        [
+          "watch",
+          "succeeded"
+        ],
+        [
+          "unwatch",
+          "succeeded"
+        ],
+        [
+          "finish",
+          "succeeded"
+        ]
+      ],
+      "name": "r3-p2-offline-on:wandb_lifecycle",
+      "passed": true
+    },
+    {
+      "detail": {
+        "bytes": 773856,
+        "file_count": 5,
+        "forbidden": [],
+        "run_file_count": 4
+      },
+      "name": "r3-p2-offline-on:wandb_storage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "file_count": 1,
+        "wandb_version": "0.25.1",
+        "watch_histogram_records": 1,
+        "watch_histogram_series": 219,
+        "watch_histograms": 219,
+        "watch_history_steps": [
+          24
+        ]
+      },
+      "name": "r3-p2-offline-on:wandb_record_content",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.993127147766323,
+        "end_gap_seconds": 0.181502422,
+        "expected": 291,
+        "max_gap_seconds": 0.201000192,
+        "power_w": {
+          "max": 21.06,
+          "median": 20.7,
+          "min": 5.17
+        },
+        "samples": 289,
+        "sm_clock_mhz": {
+          "max": 2411.0,
+          "median": 2398.0,
+          "min": 208.0
+        },
+        "start_delay_seconds": 0.15455357,
+        "temperature_c": {
+          "max": 46.0,
+          "median": 45.0,
+          "min": 41.0
+        },
+        "temporal_coverage": true,
+        "utilization_percent": {
+          "max": 77.0,
+          "median": 68.0,
+          "min": 0.0
+        }
+      },
+      "name": "r3-p2-offline-on:gpu_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9830508474576272,
+        "end_gap_seconds": 0.892502486,
+        "expected": 59,
+        "longest_swap_io_run": 0,
+        "max_gap_seconds": 1.0,
+        "minimum_free_buffer_cache_bytes": 121543622656,
+        "samples": 58,
+        "start_delay_seconds": 0.160553698,
+        "temporal_coverage": true
+      },
+      "name": "r3-p2-offline-on:host_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9333333333333333,
+        "end_gap_seconds": 1.96634182,
+        "expected": 30,
+        "max_gap_seconds": 2.017885693,
+        "max_memory_bytes": 2962453692,
+        "samples": 28,
+        "start_delay_seconds": 1.91533466,
+        "temporal_coverage": true
+      },
+      "name": "r3-p2-offline-on:container_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9830508474576272,
+        "end_gap_seconds": 0.892502486,
+        "expected": 59,
+        "longest_swap_io_run": 0,
+        "max_gap_seconds": 1.0,
+        "minimum_free_buffer_cache_bytes": 121543622656,
+        "samples": 58,
+        "start_delay_seconds": 0.160553698,
+        "temporal_coverage": true
+      },
+      "name": "r3-p2-offline-on:swap",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1508506368.0,
+        "last_20_median": 1509244928.0,
+        "maximum": 1520719360
+      },
+      "name": "r3-p2-offline-on:allocated_stable",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1606418432.0,
+        "last_20_median": 1606418432.0,
+        "maximum": 1606418432
+      },
+      "name": "r3-p2-offline-on:reserved_stable",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p2-offline-on:data_wait_fail",
+      "passed": true
+    },
+    {
+      "detail": 0.09998601052348473,
+      "name": "r3-p2-offline-on:data_wait_investigate",
+      "passed": true,
+      "warning": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p3-disabled:inventory",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p3-disabled:identity_isolation",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p3-disabled:cache_unchanged",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p3-disabled:arm_config",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p3-disabled:fixed_work",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p3-disabled:cadence_validation",
+      "passed": true
+    },
+    {
+      "detail": [
+        [
+          "init",
+          "disabled"
+        ]
+      ],
+      "name": "r3-p3-disabled:wandb_lifecycle",
+      "passed": true
+    },
+    {
+      "detail": {
+        "bytes": 0,
+        "file_count": 0,
+        "forbidden": [],
+        "run_file_count": 0
+      },
+      "name": "r3-p3-disabled:wandb_storage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "file_count": 0,
+        "wandb_version": "0.25.1",
+        "watch_histogram_records": 0,
+        "watch_histogram_series": 0,
+        "watch_histograms": 0,
+        "watch_history_steps": []
+      },
+      "name": "r3-p3-disabled:wandb_record_content",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9929078014184397,
+        "end_gap_seconds": 0.13888376,
+        "expected": 282,
+        "max_gap_seconds": 0.201000192,
+        "power_w": {
+          "max": 21.56,
+          "median": 20.73,
+          "min": 5.36
+        },
+        "samples": 280,
+        "sm_clock_mhz": {
+          "max": 2411.0,
+          "median": 2398.0,
+          "min": 208.0
+        },
+        "start_delay_seconds": 0.110922512,
+        "temperature_c": {
+          "max": 46.0,
+          "median": 45.0,
+          "min": 41.0
+        },
+        "temporal_coverage": true,
+        "utilization_percent": {
+          "max": 77.0,
+          "median": 61.0,
+          "min": 0.0
+        }
+      },
+      "name": "r3-p3-disabled:gpu_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9649122807017544,
+        "end_gap_seconds": 1.496883888,
+        "expected": 57,
+        "longest_swap_io_run": 0,
+        "max_gap_seconds": 1.0,
+        "minimum_free_buffer_cache_bytes": 121730682880,
+        "samples": 55,
+        "start_delay_seconds": 0.717922576,
+        "temporal_coverage": true
+      },
+      "name": "r3-p3-disabled:host_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9655172413793104,
+        "end_gap_seconds": 0.155816495,
+        "expected": 29,
+        "max_gap_seconds": 2.016402396,
+        "max_memory_bytes": 2940978855,
+        "samples": 28,
+        "start_delay_seconds": 1.911450569,
+        "temporal_coverage": true
+      },
+      "name": "r3-p3-disabled:container_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9649122807017544,
+        "end_gap_seconds": 1.496883888,
+        "expected": 57,
+        "longest_swap_io_run": 0,
+        "max_gap_seconds": 1.0,
+        "minimum_free_buffer_cache_bytes": 121730682880,
+        "samples": 55,
+        "start_delay_seconds": 0.717922576,
+        "temporal_coverage": true
+      },
+      "name": "r3-p3-disabled:swap",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1508506368.0,
+        "last_20_median": 1509244928.0,
+        "maximum": 1520719360
+      },
+      "name": "r3-p3-disabled:allocated_stable",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1606418432.0,
+        "last_20_median": 1606418432.0,
+        "maximum": 1606418432
+      },
+      "name": "r3-p3-disabled:reserved_stable",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p3-disabled:data_wait_fail",
+      "passed": false
+    },
+    {
+      "detail": null,
+      "name": "normalized_config_exact",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "experiment_id_exact",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "manifest_git_exact",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "tokenizer_exact",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "data_exact",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "hardware_exact",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "trajectory_exact",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "model_exact",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "resume_exact",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "cursor_exact",
+      "passed": true
+    },
+    {
+      "detail": {
+        "max": 3.585158667799961,
+        "median": 2.0219202899965536,
+        "min": -2.8709632689846694,
+        "values": [
+          -2.8709632689846694,
+          3.585158667799961,
+          2.0219202899965536
+        ]
+      },
+      "name": "offline_off_vs_disabled_under_10_percent",
+      "passed": true
+    },
+    {
+      "detail": {
+        "max": 4.021365732133003,
+        "median": 3.371511299976134,
+        "min": 3.3574387424295358,
+        "values": [
+          3.3574387424295358,
+          3.371511299976134,
+          4.021365732133003
+        ]
+      },
+      "name": "offline_on_vs_disabled_under_10_percent",
+      "passed": true
+    },
+    {
+      "detail": {
+        "max": 6.054577320451759,
+        "median": 2.0407069091927803,
+        "min": -0.22159178490757328,
+        "values": [
+          6.054577320451759,
+          -0.22159178490757328,
+          2.0407069091927803
+        ]
+      },
+      "name": "watch_vs_offline_off_under_10_percent",
+      "passed": true
+    }
+  ],
+  "image_id": "sha256:23a1bee69fe189e77105cdddeee9aeff6ef0763d58a691625fbfcab64efd1887",
+  "limitations": [
+    "network=none and artifact policy none make no online auth, quota, retention, or upload claim",
+    "DGX Spark unified-memory headroom is interpreted from host, container, and allocator evidence rather than nvidia-smi memory alone",
+    "W&B binary run files are decoded only to prove local history/watch content; no cloud behavior is inferred"
+  ],
+  "matrix": [
+    {
+      "arm": "disabled",
+      "position": 1,
+      "repetition": 1,
+      "run_id": "r1-p1-disabled"
+    },
+    {
+      "arm": "offline-off",
+      "position": 2,
+      "repetition": 1,
+      "run_id": "r1-p2-offline-off"
+    },
+    {
+      "arm": "offline-on",
+      "position": 3,
+      "repetition": 1,
+      "run_id": "r1-p3-offline-on"
+    },
+    {
+      "arm": "offline-on",
+      "position": 1,
+      "repetition": 2,
+      "run_id": "r2-p1-offline-on"
+    },
+    {
+      "arm": "disabled",
+      "position": 2,
+      "repetition": 2,
+      "run_id": "r2-p2-disabled"
+    },
+    {
+      "arm": "offline-off",
+      "position": 3,
+      "repetition": 2,
+      "run_id": "r2-p3-offline-off"
+    },
+    {
+      "arm": "offline-off",
+      "position": 1,
+      "repetition": 3,
+      "run_id": "r3-p1-offline-off"
+    },
+    {
+      "arm": "offline-on",
+      "position": 2,
+      "repetition": 3,
+      "run_id": "r3-p2-offline-on"
+    },
+    {
+      "arm": "disabled",
+      "position": 3,
+      "repetition": 3,
+      "run_id": "r3-p3-disabled"
+    }
+  ],
+  "measured_commit": "a4117cec2e86e3b0079f3a867ee76059a93dc988",
+  "paired_aggregates": {
+    "offline_off_vs_disabled": {
+      "max": 3.585158667799961,
+      "median": 2.0219202899965536,
+      "min": -2.8709632689846694,
+      "values": [
+        -2.8709632689846694,
+        3.585158667799961,
+        2.0219202899965536
+      ]
+    },
+    "offline_on_vs_disabled": {
+      "max": 4.021365732133003,
+      "median": 3.371511299976134,
+      "min": 3.3574387424295358,
+      "values": [
+        3.3574387424295358,
+        3.371511299976134,
+        4.021365732133003
+      ]
+    },
+    "watch_vs_offline_off": {
+      "max": 6.054577320451759,
+      "median": 2.0407069091927803,
+      "min": -0.22159178490757328,
+      "values": [
+        6.054577320451759,
+        -0.22159178490757328,
+        2.0407069091927803
+      ]
+    }
+  },
+  "pairs": [
+    {
+      "offline_off_vs_disabled": -2.8709632689846694,
+      "offline_on_vs_disabled": 3.3574387424295358,
+      "repetition": 1,
+      "watch_vs_offline_off": 6.054577320451759
+    },
+    {
+      "offline_off_vs_disabled": 3.585158667799961,
+      "offline_on_vs_disabled": 3.371511299976134,
+      "repetition": 2,
+      "watch_vs_offline_off": -0.22159178490757328
+    },
+    {
+      "offline_off_vs_disabled": 2.0219202899965536,
+      "offline_on_vs_disabled": 4.021365732133003,
+      "repetition": 3,
+      "watch_vs_offline_off": 2.0407069091927803
+    }
+  ],
+  "review_size": "R2",
+  "runs": [
+    {
+      "arm": "disabled",
+      "checkpoint": {
+        "counters": {
+          "optimizer_step": 260,
+          "target_tokens": 133120
+        },
+        "cursor_digest": "124d231c37969ae2c8e2c68495b517c50b464239154198b713fc220d2147ec56",
+        "model_digest": "37a6d109aefae5aa34439920e5d84d4a877a1bb0e2c53b7e442ab625a160f56c",
+        "resume_digest": "d0d470e8e7df74369df8d3b14c6c76109fa1f32371499e47a2866aae21cf56d9",
+        "sha256": "460edd27249cef84adc9ebebdd2881a7b332a0b2e440a48752739b4835f599cd",
+        "size_bytes": 850365344
+      },
+      "container_wall_seconds": 55.952926171,
+      "disk": {
+        "checkpoint_bytes": 2551113924,
+        "checkpoint_files": 3,
+        "free_after_bytes": 452034240512,
+        "free_before_bytes": 454586380288
+      },
+      "hashes": {
+        "config": "4870f3c983afce1adb7c7f29c4d015252f1187cd127bac41a5087f1bbb0a0227",
+        "container": "da561192742f22faf7fdc00878badc2848efa898bff04fb2e2bf90e51af4a324",
+        "gpu": "a1886e1024b3bbffb19c3e0a9ba432e7802545f78db3de348cb551ed05a5cc4d",
+        "manifest": "196b93955ec0ade60f581acfd6216499e77747ac90ab8f084e0160026bef73f1",
+        "measurement": "bb3534e3c8d0b65b9188e4cc064ae99eb9d0e4b73328d009a64568f9dc1d4fb7",
+        "metrics": "4c85ce0389cf7b4376c57d3a49a9d03fdd9ab9e5bc14c7c8f88eda290aba117d",
+        "vmstat": "e7bbfb175101c47418c95126e75b32b5d0be77662c4dfbcc1f23ee0afc9f604e",
+        "wandb_events": "78a47471d3981b91a4c7e0ca4bed02a56a68d105ce2d7e0dad37b55bbbc291f6",
+        "wandb_records": "807f07b030e9968c3251e7cb84095c3108f107ea9f1d469983ee5bb59ee4f5db"
+      },
+      "manifest": {
+        "data": [
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19",
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19"
+        ],
+        "experiment_id": "exp-f05ea598b9eaea5a77bb",
+        "git_sha": "a4117cec2e86e3b0079f3a867ee76059a93dc988",
+        "hardware": "bbba66a7fd419b86064a23e5dca8c40078d1cdb46860754e2b245c41dc317d0c",
+        "tokenizer": "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b"
+      },
+      "normalized_config": "b991de89884991fc43b2d3e80ddeec26d101d960430b6f236f24fb7d65527f85",
+      "performance": {
+        "allocated": {
+          "first_20_median": 1508506368.0,
+          "last_20_median": 1509244928.0,
+          "maximum": 1520719360
+        },
+        "cuda_phase_median_milliseconds": {
+          "backward": 45.68492794036865,
+          "clipping": 4.737551927566528,
+          "forward": 31.483168125152588,
+          "gradient_finite_check": 11.080895900726318,
+          "gradient_norm_and_scalar_read": 2.157855987548828,
+          "gradient_scale": 2.703216075897217,
+          "host_device_prepare": 2.3042240906506777,
+          "loss": 1.5424960255622864,
+          "loss_scalar_read": 0.012624000199139118,
+          "optimizer": 28.569583892822266,
+          "parameter_finite_check": 11.11958360671997,
+          "scheduler": 0.013439999893307686
+        },
+        "data_wait_fraction": 0.0855856378189338,
+        "host_phase_median_seconds": {
+          "backward": 0.041232359493733384,
+          "clipping": 0.001333847496425733,
+          "data_wait": 0.013704012497328222,
+          "forward": 0.027422069484600797,
+          "gradient_finite_check": 0.01386950800952036,
+          "gradient_norm_and_scalar_read": 0.0021654760057572275,
+          "gradient_scale": 0.0012104955094400793,
+          "host_device_prepare": 0.0024298880161950365,
+          "loss": 0.0003898610011674464,
+          "loss_scalar_read": 1.857700408436358e-05,
+          "optimizer": 0.0032180729904212058,
+          "parameter_finite_check": 0.03994578499987256,
+          "scheduler": 2.019351813942194e-05,
+          "step_metrics": 0.00022846049978397787
+        },
+        "reserved": {
+          "first_20_median": 1606418432.0,
+          "last_20_median": 1606418432.0,
+          "maximum": 1606418432
+        },
+        "step_max_seconds": 0.2514549680054188,
+        "step_median_seconds": 0.15718654749798588,
+        "step_p95_seconds": 0.24899348398321308,
+        "steps": 234,
+        "target_tokens": 119808,
+        "target_tokens_per_second": 3041.4206274010558,
+        "wall_seconds": 39.39211792036076
+      },
+      "position": 1,
+      "repetition": 1,
+      "resources": {
+        "container": {
+          "coverage": 0.9642857142857143,
+          "end_gap_seconds": 1.886467554,
+          "expected": 28,
+          "max_gap_seconds": 2.011054272,
+          "max_memory_bytes": 2269890215,
+          "samples": 27,
+          "start_delay_seconds": 1.911219562,
+          "temporal_coverage": true
+        },
+        "gpu": {
+          "coverage": 0.9964285714285714,
+          "end_gap_seconds": 0.072099886,
+          "expected": 280,
+          "max_gap_seconds": 0.201999872,
+          "power_w": {
+            "max": 21.16,
+            "median": 20.04,
+            "min": 4.89
+          },
+          "samples": 279,
+          "sm_clock_mhz": {
+            "max": 2411.0,
+            "median": 2411.0,
+            "min": 208.0
+          },
+          "start_delay_seconds": 0.121826221,
+          "temperature_c": {
+            "max": 42.0,
+            "median": 40.0,
+            "min": 35.0
+          },
+          "temporal_coverage": true,
+          "utilization_percent": {
+            "max": 80.0,
+            "median": 67.0,
+            "min": 0.0
+          }
+        },
+        "host": {
+          "coverage": 0.9821428571428571,
+          "end_gap_seconds": 0.245100078,
+          "expected": 56,
+          "longest_swap_io_run": 0,
+          "max_gap_seconds": 2.0,
+          "minimum_free_buffer_cache_bytes": 121548328960,
+          "samples": 55,
+          "start_delay_seconds": 0.707826093,
+          "temporal_coverage": true
+        }
+      },
+      "run_id": "r1-p1-disabled",
+      "scheduled_log_seconds": {
+        "max": 6.296299397945404e-05,
+        "median": 4.917100886814296e-05,
+        "total": 0.001279093004995957
+      },
+      "trajectory": "dd20989eccb4af66eb46ad12c9c0c12078b98edfa9d7e4db1c004f718285d318",
+      "wandb": {
+        "lifecycle": [
+          [
+            "init",
+            "disabled"
+          ]
+        ],
+        "records": {
+          "file_count": 0,
+          "files": [],
+          "schema_version": 1,
+          "wandb_version": "0.25.1",
+          "watch_histogram_records": 0,
+          "watch_histogram_series": [],
+          "watch_histograms": 0,
+          "watch_history_steps": []
+        },
+        "storage": {
+          "bytes": 0,
+          "file_count": 0,
+          "forbidden": [],
+          "run_file_count": 0
+        }
+      }
+    },
+    {
+      "arm": "offline-off",
+      "checkpoint": {
+        "counters": {
+          "optimizer_step": 260,
+          "target_tokens": 133120
+        },
+        "cursor_digest": "124d231c37969ae2c8e2c68495b517c50b464239154198b713fc220d2147ec56",
+        "model_digest": "37a6d109aefae5aa34439920e5d84d4a877a1bb0e2c53b7e442ab625a160f56c",
+        "resume_digest": "d0d470e8e7df74369df8d3b14c6c76109fa1f32371499e47a2866aae21cf56d9",
+        "sha256": "eb4f7015ee8879bf4987771d3cea2b7b172f518b806df84b34ef337be3cf806d",
+        "size_bytes": 850365344
+      },
+      "container_wall_seconds": 56.528282993,
+      "disk": {
+        "checkpoint_bytes": 2551113924,
+        "checkpoint_files": 3,
+        "free_after_bytes": 449481998336,
+        "free_before_bytes": 452034215936
+      },
+      "hashes": {
+        "config": "e63994d5e83f38e7a49e149a896ab48a090f24568a97b1ba4facd769818ddd32",
+        "container": "cde2ffa218e24e08414e3e05ccaa6ced0f4892129e1bbaf50e21fd9e9206a740",
+        "gpu": "030a12127928cae730ecc9a6fe5f7830252fcab51bcb533f9b3e3543c0aa46f0",
+        "manifest": "ca71595ae011d7390176344b2459c80d1126b0c950f617495993b94aefbd8fc2",
+        "measurement": "0e3773f88222fb1576437cfc10cb959c32cf3d270064115c3272f8353fc24aa9",
+        "metrics": "f7a84f092e176dd8a3ab8826f15a1f70d9ac2618a5bb1909382a576543933766",
+        "vmstat": "bbbce7a1dd99dc8cbc5d7e6fd3b9b8a296b73bcdef27a6e874fcd2851860a723",
+        "wandb_events": "63cc9ed239ec8d61e23a147e364a45574de0b31c7d5129f695b27f796bbf1609",
+        "wandb_records": "2fc9338ee41498a7c29072b6379a2a24018b525cbddd6691660190699c6cada1"
+      },
+      "manifest": {
+        "data": [
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19",
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19"
+        ],
+        "experiment_id": "exp-f05ea598b9eaea5a77bb",
+        "git_sha": "a4117cec2e86e3b0079f3a867ee76059a93dc988",
+        "hardware": "bbba66a7fd419b86064a23e5dca8c40078d1cdb46860754e2b245c41dc317d0c",
+        "tokenizer": "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b"
+      },
+      "normalized_config": "b991de89884991fc43b2d3e80ddeec26d101d960430b6f236f24fb7d65527f85",
+      "performance": {
+        "allocated": {
+          "first_20_median": 1508506368.0,
+          "last_20_median": 1509244928.0,
+          "maximum": 1520719360
+        },
+        "cuda_phase_median_milliseconds": {
+          "backward": 50.599727153778076,
+          "clipping": 4.737328052520752,
+          "forward": 32.19550371170044,
+          "gradient_finite_check": 11.036143779754639,
+          "gradient_norm_and_scalar_read": 2.134768009185791,
+          "gradient_scale": 2.7042720317840576,
+          "host_device_prepare": 0.29516800306737423,
+          "loss": 1.5384799987077713,
+          "loss_scalar_read": 0.013232000172138214,
+          "optimizer": 28.311647415161133,
+          "parameter_finite_check": 11.076591968536377,
+          "scheduler": 0.01398400031030178
+        },
+        "data_wait_fraction": 0.10650727781503058,
+        "host_phase_median_seconds": {
+          "backward": 0.04779072052042466,
+          "clipping": 0.0013685909943887964,
+          "data_wait": 0.01725087249360513,
+          "forward": 0.028152304017567076,
+          "gradient_finite_check": 0.012871550003183074,
+          "gradient_norm_and_scalar_read": 0.002141940494766459,
+          "gradient_scale": 0.001874493493232876,
+          "host_device_prepare": 0.0004677899996750057,
+          "loss": 0.0006085879867896438,
+          "loss_scalar_read": 1.9201019313186407e-05,
+          "optimizer": 0.003687843505758792,
+          "parameter_finite_check": 0.039173676501377486,
+          "scheduler": 2.1265004761517048e-05,
+          "step_metrics": 0.0002381790109211579
+        },
+        "reserved": {
+          "first_20_median": 1606418432.0,
+          "last_20_median": 1606418432.0,
+          "maximum": 1606418432
+        },
+        "step_max_seconds": 0.1769263710011728,
+        "step_median_seconds": 0.16206469900498632,
+        "step_p95_seconds": 0.17416880300152116,
+        "steps": 234,
+        "target_tokens": 119808,
+        "target_tokens_per_second": 3128.738696469063,
+        "wall_seconds": 38.292747213185066
+      },
+      "position": 2,
+      "repetition": 1,
+      "resources": {
+        "container": {
+          "coverage": 0.9655172413793104,
+          "end_gap_seconds": 0.446005047,
+          "expected": 29,
+          "max_gap_seconds": 2.012884701,
+          "max_memory_bytes": 2977486077,
+          "samples": 28,
+          "start_delay_seconds": 1.915439671,
+          "temporal_coverage": true
+        },
+        "gpu": {
+          "coverage": 0.9964664310954063,
+          "end_gap_seconds": 0.077043773,
+          "expected": 283,
+          "max_gap_seconds": 0.201000192,
+          "power_w": {
+            "max": 21.11,
+            "median": 20.259999999999998,
+            "min": 5.05
+          },
+          "samples": 282,
+          "sm_clock_mhz": {
+            "max": 2411.0,
+            "median": 2411.0,
+            "min": 208.0
+          },
+          "start_delay_seconds": 0.112239156,
+          "temperature_c": {
+            "max": 44.0,
+            "median": 42.0,
+            "min": 38.0
+          },
+          "temporal_coverage": true,
+          "utilization_percent": {
+            "max": 78.0,
+            "median": 63.0,
+            "min": 0.0
+          }
+        },
+        "host": {
+          "coverage": 0.9824561403508771,
+          "end_gap_seconds": 1.066043965,
+          "expected": 57,
+          "longest_swap_io_run": 0,
+          "max_gap_seconds": 1.0,
+          "minimum_free_buffer_cache_bytes": 121518329856,
+          "samples": 56,
+          "start_delay_seconds": 0.462239028,
+          "temporal_coverage": true
+        }
+      },
+      "run_id": "r1-p2-offline-off",
+      "scheduled_log_seconds": {
+        "max": 0.002228069002740085,
+        "median": 0.0012457615230232477,
+        "total": 0.03332819990464486
+      },
+      "trajectory": "dd20989eccb4af66eb46ad12c9c0c12078b98edfa9d7e4db1c004f718285d318",
+      "wandb": {
+        "lifecycle": [
+          [
+            "init",
+            "succeeded"
+          ],
+          [
+            "watch",
+            "disabled"
+          ],
+          [
+            "finish",
+            "succeeded"
+          ]
+        ],
+        "records": {
+          "file_count": 1,
+          "files": [
+            {
+              "history_records": 26,
+              "path": "/evidence/wandb/wandb/offline-run-20260713_183029-901qdm4c/run-901qdm4c.wandb",
+              "record_types": {
+                "environment": 2,
+                "exit": 1,
+                "files": 1,
+                "header": 1,
+                "history": 26,
+                "output_raw": 1,
+                "run": 1,
+                "stats": 6,
+                "summary": 55,
+                "telemetry": 3
+              },
+              "sha256": "38ef1df57d939a95b649f39ef481b62fe2f402fbbc118909c9b7b718b9ab7ca0",
+              "size_bytes": 50963,
+              "watch_histogram_records": 0,
+              "watch_histogram_series": [],
+              "watch_histograms": 0,
+              "watch_history_steps": []
+            }
+          ],
+          "schema_version": 1,
+          "wandb_version": "0.25.1",
+          "watch_histogram_records": 0,
+          "watch_histogram_series": [],
+          "watch_histograms": 0,
+          "watch_history_steps": []
+        },
+        "storage": {
+          "bytes": 64333,
+          "file_count": 5,
+          "forbidden": [],
+          "run_file_count": 4
+        }
+      }
+    },
+    {
+      "arm": "offline-on",
+      "checkpoint": {
+        "counters": {
+          "optimizer_step": 260,
+          "target_tokens": 133120
+        },
+        "cursor_digest": "124d231c37969ae2c8e2c68495b517c50b464239154198b713fc220d2147ec56",
+        "model_digest": "37a6d109aefae5aa34439920e5d84d4a877a1bb0e2c53b7e442ab625a160f56c",
+        "resume_digest": "d0d470e8e7df74369df8d3b14c6c76109fa1f32371499e47a2866aae21cf56d9",
+        "sha256": "88dcf98b3d6b2cc30fc319d9c6db8043cc595a086817082e247f96b6474036c9",
+        "size_bytes": 850365344
+      },
+      "container_wall_seconds": 59.250329814,
+      "disk": {
+        "checkpoint_bytes": 2551113924,
+        "checkpoint_files": 3,
+        "free_after_bytes": 446929055744,
+        "free_before_bytes": 449481965568
+      },
+      "hashes": {
+        "config": "56f21e201b405a1cbe7d57cac69fbf972b09762996128df2c0db99d5485b1126",
+        "container": "7e54c7f05bc3e7dfeba966f8d720c97733a30c79aa26198eade4bee07f30cc54",
+        "gpu": "26e086f233dd2edae978b0da8802562585b0c39fdb378629b7db727eeb5dcb45",
+        "manifest": "b3e5d9de4ece00d2b1a48e39ec21c9c7a2999baf1002da823bead139fbc1a96e",
+        "measurement": "7696a0f56fe3e1f9750d64be93d0ae0e0ce949b8e20fc9f7559d802091c4fa36",
+        "metrics": "1be6a5e43b2fa92498bba757a19a2d0a36d5fbedcec3bb482572b7735e922e5a",
+        "vmstat": "f2b49d0d0d87912143545ecae393f8274297d855736a1a892e6f3fb8b5811a83",
+        "wandb_events": "8de320f662c68581a8c0141b6a7bbb5ccf8e2a7c29f1904c8a3efdff77282efa",
+        "wandb_records": "1a70505a30bd80f919ae135002165772c248e12a4b3fd0c9d0836dd399f89e7c"
+      },
+      "manifest": {
+        "data": [
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19",
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19"
+        ],
+        "experiment_id": "exp-f05ea598b9eaea5a77bb",
+        "git_sha": "a4117cec2e86e3b0079f3a867ee76059a93dc988",
+        "hardware": "bbba66a7fd419b86064a23e5dca8c40078d1cdb46860754e2b245c41dc317d0c",
+        "tokenizer": "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b"
+      },
+      "normalized_config": "b991de89884991fc43b2d3e80ddeec26d101d960430b6f236f24fb7d65527f85",
+      "performance": {
+        "allocated": {
+          "first_20_median": 1508506368.0,
+          "last_20_median": 1509244928.0,
+          "maximum": 1520719360
+        },
+        "cuda_phase_median_milliseconds": {
+          "backward": 52.35987186431885,
+          "clipping": 4.8010241985321045,
+          "forward": 32.29220795631409,
+          "gradient_finite_check": 11.16979169845581,
+          "gradient_norm_and_scalar_read": 2.085935950279236,
+          "gradient_scale": 2.7020000219345093,
+          "host_device_prepare": 0.373711995780468,
+          "loss": 1.5382719933986664,
+          "loss_scalar_read": 0.013344000093638897,
+          "optimizer": 28.237232208251953,
+          "parameter_finite_check": 11.132927894592285,
+          "scheduler": 0.014783999882638454
+        },
+        "data_wait_fraction": 0.09683183666650129,
+        "host_phase_median_seconds": {
+          "backward": 0.05036973701498937,
+          "clipping": 0.0014085135044297203,
+          "data_wait": 0.015771320497151464,
+          "forward": 0.02837297950463835,
+          "gradient_finite_check": 0.011891016489244066,
+          "gradient_norm_and_scalar_read": 0.0020942120027029887,
+          "gradient_scale": 0.002242954506073147,
+          "host_device_prepare": 0.0006212174776010215,
+          "loss": 0.000664771010633558,
+          "loss_scalar_read": 1.947249984368682e-05,
+          "optimizer": 0.003809944508248009,
+          "parameter_finite_check": 0.038951420996454544,
+          "scheduler": 2.2176987840794027e-05,
+          "step_metrics": 0.0002516825043130666
+        },
+        "reserved": {
+          "first_20_median": 1606418432.0,
+          "last_20_median": 1606418432.0,
+          "maximum": 1606418432
+        },
+        "step_max_seconds": 1.4606006429821718,
+        "step_median_seconds": 0.16663100401638076,
+        "step_p95_seconds": 0.17517725701327436,
+        "steps": 234,
+        "target_tokens": 119808,
+        "target_tokens_per_second": 2939.3067929364493,
+        "wall_seconds": 40.76063114198041
+      },
+      "position": 3,
+      "repetition": 1,
+      "resources": {
+        "container": {
+          "coverage": 0.9666666666666667,
+          "end_gap_seconds": 1.166767187,
+          "expected": 30,
+          "max_gap_seconds": 2.019412088,
+          "max_memory_bytes": 3046205554,
+          "samples": 29,
+          "start_delay_seconds": 1.917202452,
+          "temporal_coverage": true
+        },
+        "gpu": {
+          "coverage": 0.9932659932659933,
+          "end_gap_seconds": 0.190469157,
+          "expected": 297,
+          "max_gap_seconds": 0.203000064,
+          "power_w": {
+            "max": 20.75,
+            "median": 20.14,
+            "min": 5.16
+          },
+          "samples": 295,
+          "sm_clock_mhz": {
+            "max": 2411.0,
+            "median": 2411.0,
+            "min": 208.0
+          },
+          "start_delay_seconds": 0.122860721,
+          "temperature_c": {
+            "max": 45.0,
+            "median": 43.0,
+            "min": 39.0
+          },
+          "temporal_coverage": true,
+          "utilization_percent": {
+            "max": 75.0,
+            "median": 65.0,
+            "min": 0.0
+          }
+        },
+        "host": {
+          "coverage": 0.9833333333333333,
+          "end_gap_seconds": 0.644469029,
+          "expected": 60,
+          "longest_swap_io_run": 0,
+          "max_gap_seconds": 1.0,
+          "minimum_free_buffer_cache_bytes": 121532657664,
+          "samples": 59,
+          "start_delay_seconds": 0.605860785,
+          "temporal_coverage": true
+        }
+      },
+      "run_id": "r1-p3-offline-on",
+      "scheduled_log_seconds": {
+        "max": 0.0026706659991759807,
+        "median": 0.001261916506337002,
+        "total": 0.03207376110367477
+      },
+      "trajectory": "dd20989eccb4af66eb46ad12c9c0c12078b98edfa9d7e4db1c004f718285d318",
+      "wandb": {
+        "lifecycle": [
+          [
+            "init",
+            "succeeded"
+          ],
+          [
+            "watch",
+            "succeeded"
+          ],
+          [
+            "unwatch",
+            "succeeded"
+          ],
+          [
+            "finish",
+            "succeeded"
+          ]
+        ],
+        "records": {
+          "file_count": 1,
+          "files": [
+            {
+              "history_records": 26,
+              "path": "/evidence/wandb/wandb/offline-run-20260713_183159-m2jafweu/run-m2jafweu.wandb",
+              "record_types": {
+                "environment": 2,
+                "exit": 1,
+                "files": 1,
+                "header": 1,
+                "history": 26,
+                "output_raw": 1,
+                "run": 1,
+                "stats": 6,
+                "summary": 55,
+                "telemetry": 4
+              },
+              "sha256": "1115a252790c8fa609772ef6f1c1574493d6dbe950be3d45ea1695a94333b151",
+              "size_bytes": 760195,
+              "watch_histogram_records": 1,
+              "watch_histogram_series": [
+                "gradients/embedding.token.embedding.weight",
+                "gradients/layers.0.attention_norm.bias",
+                "gradients/layers.0.attention_norm.weight",
+                "gradients/layers.0.feedforward.0.bias",
+                "gradients/layers.0.feedforward.0.weight",
+                "gradients/layers.0.feedforward.3.bias",
+                "gradients/layers.0.feedforward.3.weight",
+                "gradients/layers.0.feedforward_norm.bias",
+                "gradients/layers.0.feedforward_norm.weight",
+                "gradients/layers.0.self_attention.in_proj_bias",
+                "gradients/layers.0.self_attention.in_proj_weight",
+                "gradients/layers.0.self_attention.out_proj.bias",
+                "gradients/layers.0.self_attention.out_proj.weight",
+                "gradients/layers.1.attention_norm.bias",
+                "gradients/layers.1.attention_norm.weight",
+                "gradients/layers.1.feedforward.0.bias",
+                "gradients/layers.1.feedforward.0.weight",
+                "gradients/layers.1.feedforward.3.bias",
+                "gradients/layers.1.feedforward.3.weight",
+                "gradients/layers.1.feedforward_norm.bias",
+                "gradients/layers.1.feedforward_norm.weight",
+                "gradients/layers.1.self_attention.in_proj_bias",
+                "gradients/layers.1.self_attention.in_proj_weight",
+                "gradients/layers.1.self_attention.out_proj.bias",
+                "gradients/layers.1.self_attention.out_proj.weight",
+                "gradients/layers.10.attention_norm.bias",
+                "gradients/layers.10.attention_norm.weight",
+                "gradients/layers.10.feedforward.0.bias",
+                "gradients/layers.10.feedforward.0.weight",
+                "gradients/layers.10.feedforward.3.bias",
+                "gradients/layers.10.feedforward.3.weight",
+                "gradients/layers.10.feedforward_norm.bias",
+                "gradients/layers.10.feedforward_norm.weight",
+                "gradients/layers.10.self_attention.in_proj_bias",
+                "gradients/layers.10.self_attention.in_proj_weight",
+                "gradients/layers.10.self_attention.out_proj.bias",
+                "gradients/layers.10.self_attention.out_proj.weight",
+                "gradients/layers.11.attention_norm.bias",
+                "gradients/layers.11.attention_norm.weight",
+                "gradients/layers.11.feedforward.0.bias",
+                "gradients/layers.11.feedforward.0.weight",
+                "gradients/layers.11.feedforward.3.bias",
+                "gradients/layers.11.feedforward.3.weight",
+                "gradients/layers.11.feedforward_norm.bias",
+                "gradients/layers.11.feedforward_norm.weight",
+                "gradients/layers.11.self_attention.in_proj_bias",
+                "gradients/layers.11.self_attention.in_proj_weight",
+                "gradients/layers.11.self_attention.out_proj.bias",
+                "gradients/layers.11.self_attention.out_proj.weight",
+                "gradients/layers.12.attention_norm.bias",
+                "gradients/layers.12.attention_norm.weight",
+                "gradients/layers.12.feedforward.0.bias",
+                "gradients/layers.12.feedforward.0.weight",
+                "gradients/layers.12.feedforward.3.bias",
+                "gradients/layers.12.feedforward.3.weight",
+                "gradients/layers.12.feedforward_norm.bias",
+                "gradients/layers.12.feedforward_norm.weight",
+                "gradients/layers.12.self_attention.in_proj_bias",
+                "gradients/layers.12.self_attention.in_proj_weight",
+                "gradients/layers.12.self_attention.out_proj.bias",
+                "gradients/layers.12.self_attention.out_proj.weight",
+                "gradients/layers.13.attention_norm.bias",
+                "gradients/layers.13.attention_norm.weight",
+                "gradients/layers.13.feedforward.0.bias",
+                "gradients/layers.13.feedforward.0.weight",
+                "gradients/layers.13.feedforward.3.bias",
+                "gradients/layers.13.feedforward.3.weight",
+                "gradients/layers.13.feedforward_norm.bias",
+                "gradients/layers.13.feedforward_norm.weight",
+                "gradients/layers.13.self_attention.in_proj_bias",
+                "gradients/layers.13.self_attention.in_proj_weight",
+                "gradients/layers.13.self_attention.out_proj.bias",
+                "gradients/layers.13.self_attention.out_proj.weight",
+                "gradients/layers.14.attention_norm.bias",
+                "gradients/layers.14.attention_norm.weight",
+                "gradients/layers.14.feedforward.0.bias",
+                "gradients/layers.14.feedforward.0.weight",
+                "gradients/layers.14.feedforward.3.bias",
+                "gradients/layers.14.feedforward.3.weight",
+                "gradients/layers.14.feedforward_norm.bias",
+                "gradients/layers.14.feedforward_norm.weight",
+                "gradients/layers.14.self_attention.in_proj_bias",
+                "gradients/layers.14.self_attention.in_proj_weight",
+                "gradients/layers.14.self_attention.out_proj.bias",
+                "gradients/layers.14.self_attention.out_proj.weight",
+                "gradients/layers.15.attention_norm.bias",
+                "gradients/layers.15.attention_norm.weight",
+                "gradients/layers.15.feedforward.0.bias",
+                "gradients/layers.15.feedforward.0.weight",
+                "gradients/layers.15.feedforward.3.bias",
+                "gradients/layers.15.feedforward.3.weight",
+                "gradients/layers.15.feedforward_norm.bias",
+                "gradients/layers.15.feedforward_norm.weight",
+                "gradients/layers.15.self_attention.in_proj_bias",
+                "gradients/layers.15.self_attention.in_proj_weight",
+                "gradients/layers.15.self_attention.out_proj.bias",
+                "gradients/layers.15.self_attention.out_proj.weight",
+                "gradients/layers.16.attention_norm.bias",
+                "gradients/layers.16.attention_norm.weight",
+                "gradients/layers.16.feedforward.0.bias",
+                "gradients/layers.16.feedforward.0.weight",
+                "gradients/layers.16.feedforward.3.bias",
+                "gradients/layers.16.feedforward.3.weight",
+                "gradients/layers.16.feedforward_norm.bias",
+                "gradients/layers.16.feedforward_norm.weight",
+                "gradients/layers.16.self_attention.in_proj_bias",
+                "gradients/layers.16.self_attention.in_proj_weight",
+                "gradients/layers.16.self_attention.out_proj.bias",
+                "gradients/layers.16.self_attention.out_proj.weight",
+                "gradients/layers.17.attention_norm.bias",
+                "gradients/layers.17.attention_norm.weight",
+                "gradients/layers.17.feedforward.0.bias",
+                "gradients/layers.17.feedforward.0.weight",
+                "gradients/layers.17.feedforward.3.bias",
+                "gradients/layers.17.feedforward.3.weight",
+                "gradients/layers.17.feedforward_norm.bias",
+                "gradients/layers.17.feedforward_norm.weight",
+                "gradients/layers.17.self_attention.in_proj_bias",
+                "gradients/layers.17.self_attention.in_proj_weight",
+                "gradients/layers.17.self_attention.out_proj.bias",
+                "gradients/layers.17.self_attention.out_proj.weight",
+                "gradients/layers.2.attention_norm.bias",
+                "gradients/layers.2.attention_norm.weight",
+                "gradients/layers.2.feedforward.0.bias",
+                "gradients/layers.2.feedforward.0.weight",
+                "gradients/layers.2.feedforward.3.bias",
+                "gradients/layers.2.feedforward.3.weight",
+                "gradients/layers.2.feedforward_norm.bias",
+                "gradients/layers.2.feedforward_norm.weight",
+                "gradients/layers.2.self_attention.in_proj_bias",
+                "gradients/layers.2.self_attention.in_proj_weight",
+                "gradients/layers.2.self_attention.out_proj.bias",
+                "gradients/layers.2.self_attention.out_proj.weight",
+                "gradients/layers.3.attention_norm.bias",
+                "gradients/layers.3.attention_norm.weight",
+                "gradients/layers.3.feedforward.0.bias",
+                "gradients/layers.3.feedforward.0.weight",
+                "gradients/layers.3.feedforward.3.bias",
+                "gradients/layers.3.feedforward.3.weight",
+                "gradients/layers.3.feedforward_norm.bias",
+                "gradients/layers.3.feedforward_norm.weight",
+                "gradients/layers.3.self_attention.in_proj_bias",
+                "gradients/layers.3.self_attention.in_proj_weight",
+                "gradients/layers.3.self_attention.out_proj.bias",
+                "gradients/layers.3.self_attention.out_proj.weight",
+                "gradients/layers.4.attention_norm.bias",
+                "gradients/layers.4.attention_norm.weight",
+                "gradients/layers.4.feedforward.0.bias",
+                "gradients/layers.4.feedforward.0.weight",
+                "gradients/layers.4.feedforward.3.bias",
+                "gradients/layers.4.feedforward.3.weight",
+                "gradients/layers.4.feedforward_norm.bias",
+                "gradients/layers.4.feedforward_norm.weight",
+                "gradients/layers.4.self_attention.in_proj_bias",
+                "gradients/layers.4.self_attention.in_proj_weight",
+                "gradients/layers.4.self_attention.out_proj.bias",
+                "gradients/layers.4.self_attention.out_proj.weight",
+                "gradients/layers.5.attention_norm.bias",
+                "gradients/layers.5.attention_norm.weight",
+                "gradients/layers.5.feedforward.0.bias",
+                "gradients/layers.5.feedforward.0.weight",
+                "gradients/layers.5.feedforward.3.bias",
+                "gradients/layers.5.feedforward.3.weight",
+                "gradients/layers.5.feedforward_norm.bias",
+                "gradients/layers.5.feedforward_norm.weight",
+                "gradients/layers.5.self_attention.in_proj_bias",
+                "gradients/layers.5.self_attention.in_proj_weight",
+                "gradients/layers.5.self_attention.out_proj.bias",
+                "gradients/layers.5.self_attention.out_proj.weight",
+                "gradients/layers.6.attention_norm.bias",
+                "gradients/layers.6.attention_norm.weight",
+                "gradients/layers.6.feedforward.0.bias",
+                "gradients/layers.6.feedforward.0.weight",
+                "gradients/layers.6.feedforward.3.bias",
+                "gradients/layers.6.feedforward.3.weight",
+                "gradients/layers.6.feedforward_norm.bias",
+                "gradients/layers.6.feedforward_norm.weight",
+                "gradients/layers.6.self_attention.in_proj_bias",
+                "gradients/layers.6.self_attention.in_proj_weight",
+                "gradients/layers.6.self_attention.out_proj.bias",
+                "gradients/layers.6.self_attention.out_proj.weight",
+                "gradients/layers.7.attention_norm.bias",
+                "gradients/layers.7.attention_norm.weight",
+                "gradients/layers.7.feedforward.0.bias",
+                "gradients/layers.7.feedforward.0.weight",
+                "gradients/layers.7.feedforward.3.bias",
+                "gradients/layers.7.feedforward.3.weight",
+                "gradients/layers.7.feedforward_norm.bias",
+                "gradients/layers.7.feedforward_norm.weight",
+                "gradients/layers.7.self_attention.in_proj_bias",
+                "gradients/layers.7.self_attention.in_proj_weight",
+                "gradients/layers.7.self_attention.out_proj.bias",
+                "gradients/layers.7.self_attention.out_proj.weight",
+                "gradients/layers.8.attention_norm.bias",
+                "gradients/layers.8.attention_norm.weight",
+                "gradients/layers.8.feedforward.0.bias",
+                "gradients/layers.8.feedforward.0.weight",
+                "gradients/layers.8.feedforward.3.bias",
+                "gradients/layers.8.feedforward.3.weight",
+                "gradients/layers.8.feedforward_norm.bias",
+                "gradients/layers.8.feedforward_norm.weight",
+                "gradients/layers.8.self_attention.in_proj_bias",
+                "gradients/layers.8.self_attention.in_proj_weight",
+                "gradients/layers.8.self_attention.out_proj.bias",
+                "gradients/layers.8.self_attention.out_proj.weight",
+                "gradients/layers.9.attention_norm.bias",
+                "gradients/layers.9.attention_norm.weight",
+                "gradients/layers.9.feedforward.0.bias",
+                "gradients/layers.9.feedforward.0.weight",
+                "gradients/layers.9.feedforward.3.bias",
+                "gradients/layers.9.feedforward.3.weight",
+                "gradients/layers.9.feedforward_norm.bias",
+                "gradients/layers.9.feedforward_norm.weight",
+                "gradients/layers.9.self_attention.in_proj_bias",
+                "gradients/layers.9.self_attention.in_proj_weight",
+                "gradients/layers.9.self_attention.out_proj.bias",
+                "gradients/layers.9.self_attention.out_proj.weight",
+                "gradients/lm_head.bias",
+                "gradients/lm_head.weight"
+              ],
+              "watch_histograms": 219,
+              "watch_history_steps": [
+                24
+              ]
+            }
+          ],
+          "schema_version": 1,
+          "wandb_version": "0.25.1",
+          "watch_histogram_records": 1,
+          "watch_histogram_series": [
+            "gradients/embedding.token.embedding.weight",
+            "gradients/layers.0.attention_norm.bias",
+            "gradients/layers.0.attention_norm.weight",
+            "gradients/layers.0.feedforward.0.bias",
+            "gradients/layers.0.feedforward.0.weight",
+            "gradients/layers.0.feedforward.3.bias",
+            "gradients/layers.0.feedforward.3.weight",
+            "gradients/layers.0.feedforward_norm.bias",
+            "gradients/layers.0.feedforward_norm.weight",
+            "gradients/layers.0.self_attention.in_proj_bias",
+            "gradients/layers.0.self_attention.in_proj_weight",
+            "gradients/layers.0.self_attention.out_proj.bias",
+            "gradients/layers.0.self_attention.out_proj.weight",
+            "gradients/layers.1.attention_norm.bias",
+            "gradients/layers.1.attention_norm.weight",
+            "gradients/layers.1.feedforward.0.bias",
+            "gradients/layers.1.feedforward.0.weight",
+            "gradients/layers.1.feedforward.3.bias",
+            "gradients/layers.1.feedforward.3.weight",
+            "gradients/layers.1.feedforward_norm.bias",
+            "gradients/layers.1.feedforward_norm.weight",
+            "gradients/layers.1.self_attention.in_proj_bias",
+            "gradients/layers.1.self_attention.in_proj_weight",
+            "gradients/layers.1.self_attention.out_proj.bias",
+            "gradients/layers.1.self_attention.out_proj.weight",
+            "gradients/layers.10.attention_norm.bias",
+            "gradients/layers.10.attention_norm.weight",
+            "gradients/layers.10.feedforward.0.bias",
+            "gradients/layers.10.feedforward.0.weight",
+            "gradients/layers.10.feedforward.3.bias",
+            "gradients/layers.10.feedforward.3.weight",
+            "gradients/layers.10.feedforward_norm.bias",
+            "gradients/layers.10.feedforward_norm.weight",
+            "gradients/layers.10.self_attention.in_proj_bias",
+            "gradients/layers.10.self_attention.in_proj_weight",
+            "gradients/layers.10.self_attention.out_proj.bias",
+            "gradients/layers.10.self_attention.out_proj.weight",
+            "gradients/layers.11.attention_norm.bias",
+            "gradients/layers.11.attention_norm.weight",
+            "gradients/layers.11.feedforward.0.bias",
+            "gradients/layers.11.feedforward.0.weight",
+            "gradients/layers.11.feedforward.3.bias",
+            "gradients/layers.11.feedforward.3.weight",
+            "gradients/layers.11.feedforward_norm.bias",
+            "gradients/layers.11.feedforward_norm.weight",
+            "gradients/layers.11.self_attention.in_proj_bias",
+            "gradients/layers.11.self_attention.in_proj_weight",
+            "gradients/layers.11.self_attention.out_proj.bias",
+            "gradients/layers.11.self_attention.out_proj.weight",
+            "gradients/layers.12.attention_norm.bias",
+            "gradients/layers.12.attention_norm.weight",
+            "gradients/layers.12.feedforward.0.bias",
+            "gradients/layers.12.feedforward.0.weight",
+            "gradients/layers.12.feedforward.3.bias",
+            "gradients/layers.12.feedforward.3.weight",
+            "gradients/layers.12.feedforward_norm.bias",
+            "gradients/layers.12.feedforward_norm.weight",
+            "gradients/layers.12.self_attention.in_proj_bias",
+            "gradients/layers.12.self_attention.in_proj_weight",
+            "gradients/layers.12.self_attention.out_proj.bias",
+            "gradients/layers.12.self_attention.out_proj.weight",
+            "gradients/layers.13.attention_norm.bias",
+            "gradients/layers.13.attention_norm.weight",
+            "gradients/layers.13.feedforward.0.bias",
+            "gradients/layers.13.feedforward.0.weight",
+            "gradients/layers.13.feedforward.3.bias",
+            "gradients/layers.13.feedforward.3.weight",
+            "gradients/layers.13.feedforward_norm.bias",
+            "gradients/layers.13.feedforward_norm.weight",
+            "gradients/layers.13.self_attention.in_proj_bias",
+            "gradients/layers.13.self_attention.in_proj_weight",
+            "gradients/layers.13.self_attention.out_proj.bias",
+            "gradients/layers.13.self_attention.out_proj.weight",
+            "gradients/layers.14.attention_norm.bias",
+            "gradients/layers.14.attention_norm.weight",
+            "gradients/layers.14.feedforward.0.bias",
+            "gradients/layers.14.feedforward.0.weight",
+            "gradients/layers.14.feedforward.3.bias",
+            "gradients/layers.14.feedforward.3.weight",
+            "gradients/layers.14.feedforward_norm.bias",
+            "gradients/layers.14.feedforward_norm.weight",
+            "gradients/layers.14.self_attention.in_proj_bias",
+            "gradients/layers.14.self_attention.in_proj_weight",
+            "gradients/layers.14.self_attention.out_proj.bias",
+            "gradients/layers.14.self_attention.out_proj.weight",
+            "gradients/layers.15.attention_norm.bias",
+            "gradients/layers.15.attention_norm.weight",
+            "gradients/layers.15.feedforward.0.bias",
+            "gradients/layers.15.feedforward.0.weight",
+            "gradients/layers.15.feedforward.3.bias",
+            "gradients/layers.15.feedforward.3.weight",
+            "gradients/layers.15.feedforward_norm.bias",
+            "gradients/layers.15.feedforward_norm.weight",
+            "gradients/layers.15.self_attention.in_proj_bias",
+            "gradients/layers.15.self_attention.in_proj_weight",
+            "gradients/layers.15.self_attention.out_proj.bias",
+            "gradients/layers.15.self_attention.out_proj.weight",
+            "gradients/layers.16.attention_norm.bias",
+            "gradients/layers.16.attention_norm.weight",
+            "gradients/layers.16.feedforward.0.bias",
+            "gradients/layers.16.feedforward.0.weight",
+            "gradients/layers.16.feedforward.3.bias",
+            "gradients/layers.16.feedforward.3.weight",
+            "gradients/layers.16.feedforward_norm.bias",
+            "gradients/layers.16.feedforward_norm.weight",
+            "gradients/layers.16.self_attention.in_proj_bias",
+            "gradients/layers.16.self_attention.in_proj_weight",
+            "gradients/layers.16.self_attention.out_proj.bias",
+            "gradients/layers.16.self_attention.out_proj.weight",
+            "gradients/layers.17.attention_norm.bias",
+            "gradients/layers.17.attention_norm.weight",
+            "gradients/layers.17.feedforward.0.bias",
+            "gradients/layers.17.feedforward.0.weight",
+            "gradients/layers.17.feedforward.3.bias",
+            "gradients/layers.17.feedforward.3.weight",
+            "gradients/layers.17.feedforward_norm.bias",
+            "gradients/layers.17.feedforward_norm.weight",
+            "gradients/layers.17.self_attention.in_proj_bias",
+            "gradients/layers.17.self_attention.in_proj_weight",
+            "gradients/layers.17.self_attention.out_proj.bias",
+            "gradients/layers.17.self_attention.out_proj.weight",
+            "gradients/layers.2.attention_norm.bias",
+            "gradients/layers.2.attention_norm.weight",
+            "gradients/layers.2.feedforward.0.bias",
+            "gradients/layers.2.feedforward.0.weight",
+            "gradients/layers.2.feedforward.3.bias",
+            "gradients/layers.2.feedforward.3.weight",
+            "gradients/layers.2.feedforward_norm.bias",
+            "gradients/layers.2.feedforward_norm.weight",
+            "gradients/layers.2.self_attention.in_proj_bias",
+            "gradients/layers.2.self_attention.in_proj_weight",
+            "gradients/layers.2.self_attention.out_proj.bias",
+            "gradients/layers.2.self_attention.out_proj.weight",
+            "gradients/layers.3.attention_norm.bias",
+            "gradients/layers.3.attention_norm.weight",
+            "gradients/layers.3.feedforward.0.bias",
+            "gradients/layers.3.feedforward.0.weight",
+            "gradients/layers.3.feedforward.3.bias",
+            "gradients/layers.3.feedforward.3.weight",
+            "gradients/layers.3.feedforward_norm.bias",
+            "gradients/layers.3.feedforward_norm.weight",
+            "gradients/layers.3.self_attention.in_proj_bias",
+            "gradients/layers.3.self_attention.in_proj_weight",
+            "gradients/layers.3.self_attention.out_proj.bias",
+            "gradients/layers.3.self_attention.out_proj.weight",
+            "gradients/layers.4.attention_norm.bias",
+            "gradients/layers.4.attention_norm.weight",
+            "gradients/layers.4.feedforward.0.bias",
+            "gradients/layers.4.feedforward.0.weight",
+            "gradients/layers.4.feedforward.3.bias",
+            "gradients/layers.4.feedforward.3.weight",
+            "gradients/layers.4.feedforward_norm.bias",
+            "gradients/layers.4.feedforward_norm.weight",
+            "gradients/layers.4.self_attention.in_proj_bias",
+            "gradients/layers.4.self_attention.in_proj_weight",
+            "gradients/layers.4.self_attention.out_proj.bias",
+            "gradients/layers.4.self_attention.out_proj.weight",
+            "gradients/layers.5.attention_norm.bias",
+            "gradients/layers.5.attention_norm.weight",
+            "gradients/layers.5.feedforward.0.bias",
+            "gradients/layers.5.feedforward.0.weight",
+            "gradients/layers.5.feedforward.3.bias",
+            "gradients/layers.5.feedforward.3.weight",
+            "gradients/layers.5.feedforward_norm.bias",
+            "gradients/layers.5.feedforward_norm.weight",
+            "gradients/layers.5.self_attention.in_proj_bias",
+            "gradients/layers.5.self_attention.in_proj_weight",
+            "gradients/layers.5.self_attention.out_proj.bias",
+            "gradients/layers.5.self_attention.out_proj.weight",
+            "gradients/layers.6.attention_norm.bias",
+            "gradients/layers.6.attention_norm.weight",
+            "gradients/layers.6.feedforward.0.bias",
+            "gradients/layers.6.feedforward.0.weight",
+            "gradients/layers.6.feedforward.3.bias",
+            "gradients/layers.6.feedforward.3.weight",
+            "gradients/layers.6.feedforward_norm.bias",
+            "gradients/layers.6.feedforward_norm.weight",
+            "gradients/layers.6.self_attention.in_proj_bias",
+            "gradients/layers.6.self_attention.in_proj_weight",
+            "gradients/layers.6.self_attention.out_proj.bias",
+            "gradients/layers.6.self_attention.out_proj.weight",
+            "gradients/layers.7.attention_norm.bias",
+            "gradients/layers.7.attention_norm.weight",
+            "gradients/layers.7.feedforward.0.bias",
+            "gradients/layers.7.feedforward.0.weight",
+            "gradients/layers.7.feedforward.3.bias",
+            "gradients/layers.7.feedforward.3.weight",
+            "gradients/layers.7.feedforward_norm.bias",
+            "gradients/layers.7.feedforward_norm.weight",
+            "gradients/layers.7.self_attention.in_proj_bias",
+            "gradients/layers.7.self_attention.in_proj_weight",
+            "gradients/layers.7.self_attention.out_proj.bias",
+            "gradients/layers.7.self_attention.out_proj.weight",
+            "gradients/layers.8.attention_norm.bias",
+            "gradients/layers.8.attention_norm.weight",
+            "gradients/layers.8.feedforward.0.bias",
+            "gradients/layers.8.feedforward.0.weight",
+            "gradients/layers.8.feedforward.3.bias",
+            "gradients/layers.8.feedforward.3.weight",
+            "gradients/layers.8.feedforward_norm.bias",
+            "gradients/layers.8.feedforward_norm.weight",
+            "gradients/layers.8.self_attention.in_proj_bias",
+            "gradients/layers.8.self_attention.in_proj_weight",
+            "gradients/layers.8.self_attention.out_proj.bias",
+            "gradients/layers.8.self_attention.out_proj.weight",
+            "gradients/layers.9.attention_norm.bias",
+            "gradients/layers.9.attention_norm.weight",
+            "gradients/layers.9.feedforward.0.bias",
+            "gradients/layers.9.feedforward.0.weight",
+            "gradients/layers.9.feedforward.3.bias",
+            "gradients/layers.9.feedforward.3.weight",
+            "gradients/layers.9.feedforward_norm.bias",
+            "gradients/layers.9.feedforward_norm.weight",
+            "gradients/layers.9.self_attention.in_proj_bias",
+            "gradients/layers.9.self_attention.in_proj_weight",
+            "gradients/layers.9.self_attention.out_proj.bias",
+            "gradients/layers.9.self_attention.out_proj.weight",
+            "gradients/lm_head.bias",
+            "gradients/lm_head.weight"
+          ],
+          "watch_histograms": 219,
+          "watch_history_steps": [
+            24
+          ]
+        },
+        "storage": {
+          "bytes": 773781,
+          "file_count": 5,
+          "forbidden": [],
+          "run_file_count": 4
+        }
+      }
+    },
+    {
+      "arm": "offline-on",
+      "checkpoint": {
+        "counters": {
+          "optimizer_step": 260,
+          "target_tokens": 133120
+        },
+        "cursor_digest": "124d231c37969ae2c8e2c68495b517c50b464239154198b713fc220d2147ec56",
+        "model_digest": "37a6d109aefae5aa34439920e5d84d4a877a1bb0e2c53b7e442ab625a160f56c",
+        "resume_digest": "d0d470e8e7df74369df8d3b14c6c76109fa1f32371499e47a2866aae21cf56d9",
+        "sha256": "0387c3afc5d56c56e6ce0a26de8b51c4f879ba7cb1dbdf9623520c8ea9773db5",
+        "size_bytes": 850365344
+      },
+      "container_wall_seconds": 56.798122169,
+      "disk": {
+        "checkpoint_bytes": 2551113924,
+        "checkpoint_files": 3,
+        "free_after_bytes": 444376109056,
+        "free_before_bytes": 446929018880
+      },
+      "hashes": {
+        "config": "261cd0ba1bb22022d88298d76599ec6e337eccc0f0913443f0a5564bb77a33f3",
+        "container": "19411adb42d11e62f5646fa18b61e15c1f84041dbc972c7f296bbfcaec91c378",
+        "gpu": "e20f65e9e653ae646e9a970387aa0784c4d80958de3d21484753e37ca8336e95",
+        "manifest": "c5737bf036cbb33e7d6060b94d75aa91044f2a6b4d5b0db70b4b9c9c94e7e1d3",
+        "measurement": "c83ee8b650b567cc5be113bbec00160fb0313feaf9506ff306eff2680ad406ee",
+        "metrics": "7ac9540b13bc07cefdbbbf2a4eb806cec444304709b84f9bacadd05326484904",
+        "vmstat": "a9c706b72a759204044e8e82ef8c2c4fa6f56676a7c132c51374578b79fd21ba",
+        "wandb_events": "2bfca0661cdf741f3fe9c6168ba2c572970552787d54704d2e49b40514a5b96a",
+        "wandb_records": "0744eb7d845b3f6bfc5863d673adec5ec39becfefd1a58e5de63b141ad27d6c4"
+      },
+      "manifest": {
+        "data": [
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19",
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19"
+        ],
+        "experiment_id": "exp-f05ea598b9eaea5a77bb",
+        "git_sha": "a4117cec2e86e3b0079f3a867ee76059a93dc988",
+        "hardware": "bbba66a7fd419b86064a23e5dca8c40078d1cdb46860754e2b245c41dc317d0c",
+        "tokenizer": "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b"
+      },
+      "normalized_config": "b991de89884991fc43b2d3e80ddeec26d101d960430b6f236f24fb7d65527f85",
+      "performance": {
+        "allocated": {
+          "first_20_median": 1508506368.0,
+          "last_20_median": 1509244928.0,
+          "maximum": 1520719360
+        },
+        "cuda_phase_median_milliseconds": {
+          "backward": 49.49332809448242,
+          "clipping": 4.762256145477295,
+          "forward": 30.60580825805664,
+          "gradient_finite_check": 11.055248260498047,
+          "gradient_norm_and_scalar_read": 2.1732640266418457,
+          "gradient_scale": 2.6935839653015137,
+          "host_device_prepare": 0.30555199831724167,
+          "loss": 1.5412000119686127,
+          "loss_scalar_read": 0.013311999849975109,
+          "optimizer": 28.1953125,
+          "parameter_finite_check": 11.129535675048828,
+          "scheduler": 0.014271999709308147
+        },
+        "data_wait_fraction": 0.09235251268711864,
+        "host_phase_median_seconds": {
+          "backward": 0.04537281450757291,
+          "clipping": 0.0013893940049456432,
+          "data_wait": 0.014743976527824998,
+          "forward": 0.026632070017512888,
+          "gradient_finite_check": 0.013450977989123203,
+          "gradient_norm_and_scalar_read": 0.0021809030004078522,
+          "gradient_scale": 0.0015859209961490706,
+          "host_device_prepare": 0.0004937939811497927,
+          "loss": 0.0006396790267899632,
+          "loss_scalar_read": 1.9384504412300885e-05,
+          "optimizer": 0.0036710665153805166,
+          "parameter_finite_check": 0.03905412249150686,
+          "scheduler": 2.1312502212822437e-05,
+          "step_metrics": 0.0002462324919179082
+        },
+        "reserved": {
+          "first_20_median": 1606418432.0,
+          "last_20_median": 1606418432.0,
+          "maximum": 1606418432
+        },
+        "step_max_seconds": 1.437914759007981,
+        "step_median_seconds": 0.15853942350076977,
+        "step_p95_seconds": 0.17011227697366849,
+        "steps": 234,
+        "target_tokens": 119808,
+        "target_tokens_per_second": 3064.2702815193907,
+        "wall_seconds": 39.098378730675904
+      },
+      "position": 1,
+      "repetition": 2,
+      "resources": {
+        "container": {
+          "coverage": 0.9655172413793104,
+          "end_gap_seconds": 0.714085576,
+          "expected": 29,
+          "max_gap_seconds": 2.014852012,
+          "max_memory_bytes": 2960306208,
+          "samples": 28,
+          "start_delay_seconds": 1.915675416,
+          "temporal_coverage": true
+        },
+        "gpu": {
+          "coverage": 0.9964788732394366,
+          "end_gap_seconds": 0.128429547,
+          "expected": 284,
+          "max_gap_seconds": 0.202000128,
+          "power_w": {
+            "max": 21.35,
+            "median": 20.42,
+            "min": 5.28
+          },
+          "samples": 283,
+          "sm_clock_mhz": {
+            "max": 2411.0,
+            "median": 2405.0,
+            "min": 208.0
+          },
+          "start_delay_seconds": 0.119692494,
+          "temperature_c": {
+            "max": 45.0,
+            "median": 44.0,
+            "min": 40.0
+          },
+          "temporal_coverage": true,
+          "utilization_percent": {
+            "max": 79.0,
+            "median": 66.0,
+            "min": 0.0
+          }
+        },
+        "host": {
+          "coverage": 1.0,
+          "end_gap_seconds": 0.616429547,
+          "expected": 57,
+          "longest_swap_io_run": 0,
+          "max_gap_seconds": 1.0,
+          "minimum_free_buffer_cache_bytes": 121530793984,
+          "samples": 57,
+          "start_delay_seconds": 0.181692622,
+          "temporal_coverage": true
+        }
+      },
+      "run_id": "r2-p1-offline-on",
+      "scheduled_log_seconds": {
+        "max": 0.0025864420167636126,
+        "median": 0.0015255100006470457,
+        "total": 0.0411645490094088
+      },
+      "trajectory": "dd20989eccb4af66eb46ad12c9c0c12078b98edfa9d7e4db1c004f718285d318",
+      "wandb": {
+        "lifecycle": [
+          [
+            "init",
+            "succeeded"
+          ],
+          [
+            "watch",
+            "succeeded"
+          ],
+          [
+            "unwatch",
+            "succeeded"
+          ],
+          [
+            "finish",
+            "succeeded"
+          ]
+        ],
+        "records": {
+          "file_count": 1,
+          "files": [
+            {
+              "history_records": 26,
+              "path": "/evidence/wandb/wandb/offline-run-20260713_183333-uwy609ao/run-uwy609ao.wandb",
+              "record_types": {
+                "environment": 2,
+                "exit": 1,
+                "files": 1,
+                "header": 1,
+                "history": 26,
+                "output_raw": 1,
+                "run": 1,
+                "stats": 6,
+                "summary": 55,
+                "telemetry": 4
+              },
+              "sha256": "5b10e99746510be6419a911560999be7e1c09e92d1a724b88b528017ceb95cb3",
+              "size_bytes": 760224,
+              "watch_histogram_records": 1,
+              "watch_histogram_series": [
+                "gradients/embedding.token.embedding.weight",
+                "gradients/layers.0.attention_norm.bias",
+                "gradients/layers.0.attention_norm.weight",
+                "gradients/layers.0.feedforward.0.bias",
+                "gradients/layers.0.feedforward.0.weight",
+                "gradients/layers.0.feedforward.3.bias",
+                "gradients/layers.0.feedforward.3.weight",
+                "gradients/layers.0.feedforward_norm.bias",
+                "gradients/layers.0.feedforward_norm.weight",
+                "gradients/layers.0.self_attention.in_proj_bias",
+                "gradients/layers.0.self_attention.in_proj_weight",
+                "gradients/layers.0.self_attention.out_proj.bias",
+                "gradients/layers.0.self_attention.out_proj.weight",
+                "gradients/layers.1.attention_norm.bias",
+                "gradients/layers.1.attention_norm.weight",
+                "gradients/layers.1.feedforward.0.bias",
+                "gradients/layers.1.feedforward.0.weight",
+                "gradients/layers.1.feedforward.3.bias",
+                "gradients/layers.1.feedforward.3.weight",
+                "gradients/layers.1.feedforward_norm.bias",
+                "gradients/layers.1.feedforward_norm.weight",
+                "gradients/layers.1.self_attention.in_proj_bias",
+                "gradients/layers.1.self_attention.in_proj_weight",
+                "gradients/layers.1.self_attention.out_proj.bias",
+                "gradients/layers.1.self_attention.out_proj.weight",
+                "gradients/layers.10.attention_norm.bias",
+                "gradients/layers.10.attention_norm.weight",
+                "gradients/layers.10.feedforward.0.bias",
+                "gradients/layers.10.feedforward.0.weight",
+                "gradients/layers.10.feedforward.3.bias",
+                "gradients/layers.10.feedforward.3.weight",
+                "gradients/layers.10.feedforward_norm.bias",
+                "gradients/layers.10.feedforward_norm.weight",
+                "gradients/layers.10.self_attention.in_proj_bias",
+                "gradients/layers.10.self_attention.in_proj_weight",
+                "gradients/layers.10.self_attention.out_proj.bias",
+                "gradients/layers.10.self_attention.out_proj.weight",
+                "gradients/layers.11.attention_norm.bias",
+                "gradients/layers.11.attention_norm.weight",
+                "gradients/layers.11.feedforward.0.bias",
+                "gradients/layers.11.feedforward.0.weight",
+                "gradients/layers.11.feedforward.3.bias",
+                "gradients/layers.11.feedforward.3.weight",
+                "gradients/layers.11.feedforward_norm.bias",
+                "gradients/layers.11.feedforward_norm.weight",
+                "gradients/layers.11.self_attention.in_proj_bias",
+                "gradients/layers.11.self_attention.in_proj_weight",
+                "gradients/layers.11.self_attention.out_proj.bias",
+                "gradients/layers.11.self_attention.out_proj.weight",
+                "gradients/layers.12.attention_norm.bias",
+                "gradients/layers.12.attention_norm.weight",
+                "gradients/layers.12.feedforward.0.bias",
+                "gradients/layers.12.feedforward.0.weight",
+                "gradients/layers.12.feedforward.3.bias",
+                "gradients/layers.12.feedforward.3.weight",
+                "gradients/layers.12.feedforward_norm.bias",
+                "gradients/layers.12.feedforward_norm.weight",
+                "gradients/layers.12.self_attention.in_proj_bias",
+                "gradients/layers.12.self_attention.in_proj_weight",
+                "gradients/layers.12.self_attention.out_proj.bias",
+                "gradients/layers.12.self_attention.out_proj.weight",
+                "gradients/layers.13.attention_norm.bias",
+                "gradients/layers.13.attention_norm.weight",
+                "gradients/layers.13.feedforward.0.bias",
+                "gradients/layers.13.feedforward.0.weight",
+                "gradients/layers.13.feedforward.3.bias",
+                "gradients/layers.13.feedforward.3.weight",
+                "gradients/layers.13.feedforward_norm.bias",
+                "gradients/layers.13.feedforward_norm.weight",
+                "gradients/layers.13.self_attention.in_proj_bias",
+                "gradients/layers.13.self_attention.in_proj_weight",
+                "gradients/layers.13.self_attention.out_proj.bias",
+                "gradients/layers.13.self_attention.out_proj.weight",
+                "gradients/layers.14.attention_norm.bias",
+                "gradients/layers.14.attention_norm.weight",
+                "gradients/layers.14.feedforward.0.bias",
+                "gradients/layers.14.feedforward.0.weight",
+                "gradients/layers.14.feedforward.3.bias",
+                "gradients/layers.14.feedforward.3.weight",
+                "gradients/layers.14.feedforward_norm.bias",
+                "gradients/layers.14.feedforward_norm.weight",
+                "gradients/layers.14.self_attention.in_proj_bias",
+                "gradients/layers.14.self_attention.in_proj_weight",
+                "gradients/layers.14.self_attention.out_proj.bias",
+                "gradients/layers.14.self_attention.out_proj.weight",
+                "gradients/layers.15.attention_norm.bias",
+                "gradients/layers.15.attention_norm.weight",
+                "gradients/layers.15.feedforward.0.bias",
+                "gradients/layers.15.feedforward.0.weight",
+                "gradients/layers.15.feedforward.3.bias",
+                "gradients/layers.15.feedforward.3.weight",
+                "gradients/layers.15.feedforward_norm.bias",
+                "gradients/layers.15.feedforward_norm.weight",
+                "gradients/layers.15.self_attention.in_proj_bias",
+                "gradients/layers.15.self_attention.in_proj_weight",
+                "gradients/layers.15.self_attention.out_proj.bias",
+                "gradients/layers.15.self_attention.out_proj.weight",
+                "gradients/layers.16.attention_norm.bias",
+                "gradients/layers.16.attention_norm.weight",
+                "gradients/layers.16.feedforward.0.bias",
+                "gradients/layers.16.feedforward.0.weight",
+                "gradients/layers.16.feedforward.3.bias",
+                "gradients/layers.16.feedforward.3.weight",
+                "gradients/layers.16.feedforward_norm.bias",
+                "gradients/layers.16.feedforward_norm.weight",
+                "gradients/layers.16.self_attention.in_proj_bias",
+                "gradients/layers.16.self_attention.in_proj_weight",
+                "gradients/layers.16.self_attention.out_proj.bias",
+                "gradients/layers.16.self_attention.out_proj.weight",
+                "gradients/layers.17.attention_norm.bias",
+                "gradients/layers.17.attention_norm.weight",
+                "gradients/layers.17.feedforward.0.bias",
+                "gradients/layers.17.feedforward.0.weight",
+                "gradients/layers.17.feedforward.3.bias",
+                "gradients/layers.17.feedforward.3.weight",
+                "gradients/layers.17.feedforward_norm.bias",
+                "gradients/layers.17.feedforward_norm.weight",
+                "gradients/layers.17.self_attention.in_proj_bias",
+                "gradients/layers.17.self_attention.in_proj_weight",
+                "gradients/layers.17.self_attention.out_proj.bias",
+                "gradients/layers.17.self_attention.out_proj.weight",
+                "gradients/layers.2.attention_norm.bias",
+                "gradients/layers.2.attention_norm.weight",
+                "gradients/layers.2.feedforward.0.bias",
+                "gradients/layers.2.feedforward.0.weight",
+                "gradients/layers.2.feedforward.3.bias",
+                "gradients/layers.2.feedforward.3.weight",
+                "gradients/layers.2.feedforward_norm.bias",
+                "gradients/layers.2.feedforward_norm.weight",
+                "gradients/layers.2.self_attention.in_proj_bias",
+                "gradients/layers.2.self_attention.in_proj_weight",
+                "gradients/layers.2.self_attention.out_proj.bias",
+                "gradients/layers.2.self_attention.out_proj.weight",
+                "gradients/layers.3.attention_norm.bias",
+                "gradients/layers.3.attention_norm.weight",
+                "gradients/layers.3.feedforward.0.bias",
+                "gradients/layers.3.feedforward.0.weight",
+                "gradients/layers.3.feedforward.3.bias",
+                "gradients/layers.3.feedforward.3.weight",
+                "gradients/layers.3.feedforward_norm.bias",
+                "gradients/layers.3.feedforward_norm.weight",
+                "gradients/layers.3.self_attention.in_proj_bias",
+                "gradients/layers.3.self_attention.in_proj_weight",
+                "gradients/layers.3.self_attention.out_proj.bias",
+                "gradients/layers.3.self_attention.out_proj.weight",
+                "gradients/layers.4.attention_norm.bias",
+                "gradients/layers.4.attention_norm.weight",
+                "gradients/layers.4.feedforward.0.bias",
+                "gradients/layers.4.feedforward.0.weight",
+                "gradients/layers.4.feedforward.3.bias",
+                "gradients/layers.4.feedforward.3.weight",
+                "gradients/layers.4.feedforward_norm.bias",
+                "gradients/layers.4.feedforward_norm.weight",
+                "gradients/layers.4.self_attention.in_proj_bias",
+                "gradients/layers.4.self_attention.in_proj_weight",
+                "gradients/layers.4.self_attention.out_proj.bias",
+                "gradients/layers.4.self_attention.out_proj.weight",
+                "gradients/layers.5.attention_norm.bias",
+                "gradients/layers.5.attention_norm.weight",
+                "gradients/layers.5.feedforward.0.bias",
+                "gradients/layers.5.feedforward.0.weight",
+                "gradients/layers.5.feedforward.3.bias",
+                "gradients/layers.5.feedforward.3.weight",
+                "gradients/layers.5.feedforward_norm.bias",
+                "gradients/layers.5.feedforward_norm.weight",
+                "gradients/layers.5.self_attention.in_proj_bias",
+                "gradients/layers.5.self_attention.in_proj_weight",
+                "gradients/layers.5.self_attention.out_proj.bias",
+                "gradients/layers.5.self_attention.out_proj.weight",
+                "gradients/layers.6.attention_norm.bias",
+                "gradients/layers.6.attention_norm.weight",
+                "gradients/layers.6.feedforward.0.bias",
+                "gradients/layers.6.feedforward.0.weight",
+                "gradients/layers.6.feedforward.3.bias",
+                "gradients/layers.6.feedforward.3.weight",
+                "gradients/layers.6.feedforward_norm.bias",
+                "gradients/layers.6.feedforward_norm.weight",
+                "gradients/layers.6.self_attention.in_proj_bias",
+                "gradients/layers.6.self_attention.in_proj_weight",
+                "gradients/layers.6.self_attention.out_proj.bias",
+                "gradients/layers.6.self_attention.out_proj.weight",
+                "gradients/layers.7.attention_norm.bias",
+                "gradients/layers.7.attention_norm.weight",
+                "gradients/layers.7.feedforward.0.bias",
+                "gradients/layers.7.feedforward.0.weight",
+                "gradients/layers.7.feedforward.3.bias",
+                "gradients/layers.7.feedforward.3.weight",
+                "gradients/layers.7.feedforward_norm.bias",
+                "gradients/layers.7.feedforward_norm.weight",
+                "gradients/layers.7.self_attention.in_proj_bias",
+                "gradients/layers.7.self_attention.in_proj_weight",
+                "gradients/layers.7.self_attention.out_proj.bias",
+                "gradients/layers.7.self_attention.out_proj.weight",
+                "gradients/layers.8.attention_norm.bias",
+                "gradients/layers.8.attention_norm.weight",
+                "gradients/layers.8.feedforward.0.bias",
+                "gradients/layers.8.feedforward.0.weight",
+                "gradients/layers.8.feedforward.3.bias",
+                "gradients/layers.8.feedforward.3.weight",
+                "gradients/layers.8.feedforward_norm.bias",
+                "gradients/layers.8.feedforward_norm.weight",
+                "gradients/layers.8.self_attention.in_proj_bias",
+                "gradients/layers.8.self_attention.in_proj_weight",
+                "gradients/layers.8.self_attention.out_proj.bias",
+                "gradients/layers.8.self_attention.out_proj.weight",
+                "gradients/layers.9.attention_norm.bias",
+                "gradients/layers.9.attention_norm.weight",
+                "gradients/layers.9.feedforward.0.bias",
+                "gradients/layers.9.feedforward.0.weight",
+                "gradients/layers.9.feedforward.3.bias",
+                "gradients/layers.9.feedforward.3.weight",
+                "gradients/layers.9.feedforward_norm.bias",
+                "gradients/layers.9.feedforward_norm.weight",
+                "gradients/layers.9.self_attention.in_proj_bias",
+                "gradients/layers.9.self_attention.in_proj_weight",
+                "gradients/layers.9.self_attention.out_proj.bias",
+                "gradients/layers.9.self_attention.out_proj.weight",
+                "gradients/lm_head.bias",
+                "gradients/lm_head.weight"
+              ],
+              "watch_histograms": 219,
+              "watch_history_steps": [
+                24
+              ]
+            }
+          ],
+          "schema_version": 1,
+          "wandb_version": "0.25.1",
+          "watch_histogram_records": 1,
+          "watch_histogram_series": [
+            "gradients/embedding.token.embedding.weight",
+            "gradients/layers.0.attention_norm.bias",
+            "gradients/layers.0.attention_norm.weight",
+            "gradients/layers.0.feedforward.0.bias",
+            "gradients/layers.0.feedforward.0.weight",
+            "gradients/layers.0.feedforward.3.bias",
+            "gradients/layers.0.feedforward.3.weight",
+            "gradients/layers.0.feedforward_norm.bias",
+            "gradients/layers.0.feedforward_norm.weight",
+            "gradients/layers.0.self_attention.in_proj_bias",
+            "gradients/layers.0.self_attention.in_proj_weight",
+            "gradients/layers.0.self_attention.out_proj.bias",
+            "gradients/layers.0.self_attention.out_proj.weight",
+            "gradients/layers.1.attention_norm.bias",
+            "gradients/layers.1.attention_norm.weight",
+            "gradients/layers.1.feedforward.0.bias",
+            "gradients/layers.1.feedforward.0.weight",
+            "gradients/layers.1.feedforward.3.bias",
+            "gradients/layers.1.feedforward.3.weight",
+            "gradients/layers.1.feedforward_norm.bias",
+            "gradients/layers.1.feedforward_norm.weight",
+            "gradients/layers.1.self_attention.in_proj_bias",
+            "gradients/layers.1.self_attention.in_proj_weight",
+            "gradients/layers.1.self_attention.out_proj.bias",
+            "gradients/layers.1.self_attention.out_proj.weight",
+            "gradients/layers.10.attention_norm.bias",
+            "gradients/layers.10.attention_norm.weight",
+            "gradients/layers.10.feedforward.0.bias",
+            "gradients/layers.10.feedforward.0.weight",
+            "gradients/layers.10.feedforward.3.bias",
+            "gradients/layers.10.feedforward.3.weight",
+            "gradients/layers.10.feedforward_norm.bias",
+            "gradients/layers.10.feedforward_norm.weight",
+            "gradients/layers.10.self_attention.in_proj_bias",
+            "gradients/layers.10.self_attention.in_proj_weight",
+            "gradients/layers.10.self_attention.out_proj.bias",
+            "gradients/layers.10.self_attention.out_proj.weight",
+            "gradients/layers.11.attention_norm.bias",
+            "gradients/layers.11.attention_norm.weight",
+            "gradients/layers.11.feedforward.0.bias",
+            "gradients/layers.11.feedforward.0.weight",
+            "gradients/layers.11.feedforward.3.bias",
+            "gradients/layers.11.feedforward.3.weight",
+            "gradients/layers.11.feedforward_norm.bias",
+            "gradients/layers.11.feedforward_norm.weight",
+            "gradients/layers.11.self_attention.in_proj_bias",
+            "gradients/layers.11.self_attention.in_proj_weight",
+            "gradients/layers.11.self_attention.out_proj.bias",
+            "gradients/layers.11.self_attention.out_proj.weight",
+            "gradients/layers.12.attention_norm.bias",
+            "gradients/layers.12.attention_norm.weight",
+            "gradients/layers.12.feedforward.0.bias",
+            "gradients/layers.12.feedforward.0.weight",
+            "gradients/layers.12.feedforward.3.bias",
+            "gradients/layers.12.feedforward.3.weight",
+            "gradients/layers.12.feedforward_norm.bias",
+            "gradients/layers.12.feedforward_norm.weight",
+            "gradients/layers.12.self_attention.in_proj_bias",
+            "gradients/layers.12.self_attention.in_proj_weight",
+            "gradients/layers.12.self_attention.out_proj.bias",
+            "gradients/layers.12.self_attention.out_proj.weight",
+            "gradients/layers.13.attention_norm.bias",
+            "gradients/layers.13.attention_norm.weight",
+            "gradients/layers.13.feedforward.0.bias",
+            "gradients/layers.13.feedforward.0.weight",
+            "gradients/layers.13.feedforward.3.bias",
+            "gradients/layers.13.feedforward.3.weight",
+            "gradients/layers.13.feedforward_norm.bias",
+            "gradients/layers.13.feedforward_norm.weight",
+            "gradients/layers.13.self_attention.in_proj_bias",
+            "gradients/layers.13.self_attention.in_proj_weight",
+            "gradients/layers.13.self_attention.out_proj.bias",
+            "gradients/layers.13.self_attention.out_proj.weight",
+            "gradients/layers.14.attention_norm.bias",
+            "gradients/layers.14.attention_norm.weight",
+            "gradients/layers.14.feedforward.0.bias",
+            "gradients/layers.14.feedforward.0.weight",
+            "gradients/layers.14.feedforward.3.bias",
+            "gradients/layers.14.feedforward.3.weight",
+            "gradients/layers.14.feedforward_norm.bias",
+            "gradients/layers.14.feedforward_norm.weight",
+            "gradients/layers.14.self_attention.in_proj_bias",
+            "gradients/layers.14.self_attention.in_proj_weight",
+            "gradients/layers.14.self_attention.out_proj.bias",
+            "gradients/layers.14.self_attention.out_proj.weight",
+            "gradients/layers.15.attention_norm.bias",
+            "gradients/layers.15.attention_norm.weight",
+            "gradients/layers.15.feedforward.0.bias",
+            "gradients/layers.15.feedforward.0.weight",
+            "gradients/layers.15.feedforward.3.bias",
+            "gradients/layers.15.feedforward.3.weight",
+            "gradients/layers.15.feedforward_norm.bias",
+            "gradients/layers.15.feedforward_norm.weight",
+            "gradients/layers.15.self_attention.in_proj_bias",
+            "gradients/layers.15.self_attention.in_proj_weight",
+            "gradients/layers.15.self_attention.out_proj.bias",
+            "gradients/layers.15.self_attention.out_proj.weight",
+            "gradients/layers.16.attention_norm.bias",
+            "gradients/layers.16.attention_norm.weight",
+            "gradients/layers.16.feedforward.0.bias",
+            "gradients/layers.16.feedforward.0.weight",
+            "gradients/layers.16.feedforward.3.bias",
+            "gradients/layers.16.feedforward.3.weight",
+            "gradients/layers.16.feedforward_norm.bias",
+            "gradients/layers.16.feedforward_norm.weight",
+            "gradients/layers.16.self_attention.in_proj_bias",
+            "gradients/layers.16.self_attention.in_proj_weight",
+            "gradients/layers.16.self_attention.out_proj.bias",
+            "gradients/layers.16.self_attention.out_proj.weight",
+            "gradients/layers.17.attention_norm.bias",
+            "gradients/layers.17.attention_norm.weight",
+            "gradients/layers.17.feedforward.0.bias",
+            "gradients/layers.17.feedforward.0.weight",
+            "gradients/layers.17.feedforward.3.bias",
+            "gradients/layers.17.feedforward.3.weight",
+            "gradients/layers.17.feedforward_norm.bias",
+            "gradients/layers.17.feedforward_norm.weight",
+            "gradients/layers.17.self_attention.in_proj_bias",
+            "gradients/layers.17.self_attention.in_proj_weight",
+            "gradients/layers.17.self_attention.out_proj.bias",
+            "gradients/layers.17.self_attention.out_proj.weight",
+            "gradients/layers.2.attention_norm.bias",
+            "gradients/layers.2.attention_norm.weight",
+            "gradients/layers.2.feedforward.0.bias",
+            "gradients/layers.2.feedforward.0.weight",
+            "gradients/layers.2.feedforward.3.bias",
+            "gradients/layers.2.feedforward.3.weight",
+            "gradients/layers.2.feedforward_norm.bias",
+            "gradients/layers.2.feedforward_norm.weight",
+            "gradients/layers.2.self_attention.in_proj_bias",
+            "gradients/layers.2.self_attention.in_proj_weight",
+            "gradients/layers.2.self_attention.out_proj.bias",
+            "gradients/layers.2.self_attention.out_proj.weight",
+            "gradients/layers.3.attention_norm.bias",
+            "gradients/layers.3.attention_norm.weight",
+            "gradients/layers.3.feedforward.0.bias",
+            "gradients/layers.3.feedforward.0.weight",
+            "gradients/layers.3.feedforward.3.bias",
+            "gradients/layers.3.feedforward.3.weight",
+            "gradients/layers.3.feedforward_norm.bias",
+            "gradients/layers.3.feedforward_norm.weight",
+            "gradients/layers.3.self_attention.in_proj_bias",
+            "gradients/layers.3.self_attention.in_proj_weight",
+            "gradients/layers.3.self_attention.out_proj.bias",
+            "gradients/layers.3.self_attention.out_proj.weight",
+            "gradients/layers.4.attention_norm.bias",
+            "gradients/layers.4.attention_norm.weight",
+            "gradients/layers.4.feedforward.0.bias",
+            "gradients/layers.4.feedforward.0.weight",
+            "gradients/layers.4.feedforward.3.bias",
+            "gradients/layers.4.feedforward.3.weight",
+            "gradients/layers.4.feedforward_norm.bias",
+            "gradients/layers.4.feedforward_norm.weight",
+            "gradients/layers.4.self_attention.in_proj_bias",
+            "gradients/layers.4.self_attention.in_proj_weight",
+            "gradients/layers.4.self_attention.out_proj.bias",
+            "gradients/layers.4.self_attention.out_proj.weight",
+            "gradients/layers.5.attention_norm.bias",
+            "gradients/layers.5.attention_norm.weight",
+            "gradients/layers.5.feedforward.0.bias",
+            "gradients/layers.5.feedforward.0.weight",
+            "gradients/layers.5.feedforward.3.bias",
+            "gradients/layers.5.feedforward.3.weight",
+            "gradients/layers.5.feedforward_norm.bias",
+            "gradients/layers.5.feedforward_norm.weight",
+            "gradients/layers.5.self_attention.in_proj_bias",
+            "gradients/layers.5.self_attention.in_proj_weight",
+            "gradients/layers.5.self_attention.out_proj.bias",
+            "gradients/layers.5.self_attention.out_proj.weight",
+            "gradients/layers.6.attention_norm.bias",
+            "gradients/layers.6.attention_norm.weight",
+            "gradients/layers.6.feedforward.0.bias",
+            "gradients/layers.6.feedforward.0.weight",
+            "gradients/layers.6.feedforward.3.bias",
+            "gradients/layers.6.feedforward.3.weight",
+            "gradients/layers.6.feedforward_norm.bias",
+            "gradients/layers.6.feedforward_norm.weight",
+            "gradients/layers.6.self_attention.in_proj_bias",
+            "gradients/layers.6.self_attention.in_proj_weight",
+            "gradients/layers.6.self_attention.out_proj.bias",
+            "gradients/layers.6.self_attention.out_proj.weight",
+            "gradients/layers.7.attention_norm.bias",
+            "gradients/layers.7.attention_norm.weight",
+            "gradients/layers.7.feedforward.0.bias",
+            "gradients/layers.7.feedforward.0.weight",
+            "gradients/layers.7.feedforward.3.bias",
+            "gradients/layers.7.feedforward.3.weight",
+            "gradients/layers.7.feedforward_norm.bias",
+            "gradients/layers.7.feedforward_norm.weight",
+            "gradients/layers.7.self_attention.in_proj_bias",
+            "gradients/layers.7.self_attention.in_proj_weight",
+            "gradients/layers.7.self_attention.out_proj.bias",
+            "gradients/layers.7.self_attention.out_proj.weight",
+            "gradients/layers.8.attention_norm.bias",
+            "gradients/layers.8.attention_norm.weight",
+            "gradients/layers.8.feedforward.0.bias",
+            "gradients/layers.8.feedforward.0.weight",
+            "gradients/layers.8.feedforward.3.bias",
+            "gradients/layers.8.feedforward.3.weight",
+            "gradients/layers.8.feedforward_norm.bias",
+            "gradients/layers.8.feedforward_norm.weight",
+            "gradients/layers.8.self_attention.in_proj_bias",
+            "gradients/layers.8.self_attention.in_proj_weight",
+            "gradients/layers.8.self_attention.out_proj.bias",
+            "gradients/layers.8.self_attention.out_proj.weight",
+            "gradients/layers.9.attention_norm.bias",
+            "gradients/layers.9.attention_norm.weight",
+            "gradients/layers.9.feedforward.0.bias",
+            "gradients/layers.9.feedforward.0.weight",
+            "gradients/layers.9.feedforward.3.bias",
+            "gradients/layers.9.feedforward.3.weight",
+            "gradients/layers.9.feedforward_norm.bias",
+            "gradients/layers.9.feedforward_norm.weight",
+            "gradients/layers.9.self_attention.in_proj_bias",
+            "gradients/layers.9.self_attention.in_proj_weight",
+            "gradients/layers.9.self_attention.out_proj.bias",
+            "gradients/layers.9.self_attention.out_proj.weight",
+            "gradients/lm_head.bias",
+            "gradients/lm_head.weight"
+          ],
+          "watch_histograms": 219,
+          "watch_history_steps": [
+            24
+          ]
+        },
+        "storage": {
+          "bytes": 773674,
+          "file_count": 5,
+          "forbidden": [],
+          "run_file_count": 4
+        }
+      }
+    },
+    {
+      "arm": "disabled",
+      "checkpoint": {
+        "counters": {
+          "optimizer_step": 260,
+          "target_tokens": 133120
+        },
+        "cursor_digest": "124d231c37969ae2c8e2c68495b517c50b464239154198b713fc220d2147ec56",
+        "model_digest": "37a6d109aefae5aa34439920e5d84d4a877a1bb0e2c53b7e442ab625a160f56c",
+        "resume_digest": "d0d470e8e7df74369df8d3b14c6c76109fa1f32371499e47a2866aae21cf56d9",
+        "sha256": "e1b124a694f81d6323149a19da81deef1a71b4e7beed0e5f71446635b86da450",
+        "size_bytes": 850365344
+      },
+      "container_wall_seconds": 54.506536881,
+      "disk": {
+        "checkpoint_bytes": 2551113924,
+        "checkpoint_files": 3,
+        "free_after_bytes": 441826664448,
+        "free_before_bytes": 444376084480
+      },
+      "hashes": {
+        "config": "1c2e1e89eac3ed346418d1dce6e507e6de7e0e674bbef0b46596edcc229b5006",
+        "container": "2e21dc3ed47286f675b2c51fd0ebf9eaeada160ef2e16923d18328b87bb2baa9",
+        "gpu": "137a3da69938f9480a9b642c83288d48085f0b00a1a8ea4c42c07194e8fbe974",
+        "manifest": "9b72f24e571450e7e02b2adb70b50844e4b828d8dd22d702fde440ade972db69",
+        "measurement": "1f5e8bbe892a3e6403b032f22920062fa595d58177e6aee707ad3c898e2ef436",
+        "metrics": "fd67efaff16d438351aa1b628e36898dd3acef2ce6fb0c8bd28ce3a2491b7c6c",
+        "vmstat": "73547b4b193dc9413a42e931480a9de808731b04a8bd00fb2bbb8ba40374a977",
+        "wandb_events": "3483959687757f5981e4deeda9aee9279aa79add39d8bf5713d61e6e442511f3",
+        "wandb_records": "807f07b030e9968c3251e7cb84095c3108f107ea9f1d469983ee5bb59ee4f5db"
+      },
+      "manifest": {
+        "data": [
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19",
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19"
+        ],
+        "experiment_id": "exp-f05ea598b9eaea5a77bb",
+        "git_sha": "a4117cec2e86e3b0079f3a867ee76059a93dc988",
+        "hardware": "bbba66a7fd419b86064a23e5dca8c40078d1cdb46860754e2b245c41dc317d0c",
+        "tokenizer": "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b"
+      },
+      "normalized_config": "b991de89884991fc43b2d3e80ddeec26d101d960430b6f236f24fb7d65527f85",
+      "performance": {
+        "allocated": {
+          "first_20_median": 1508506368.0,
+          "last_20_median": 1509244928.0,
+          "maximum": 1520719360
+        },
+        "cuda_phase_median_milliseconds": {
+          "backward": 51.35195207595825,
+          "clipping": 4.718575954437256,
+          "forward": 30.520975828170776,
+          "gradient_finite_check": 11.129551887512207,
+          "gradient_norm_and_scalar_read": 2.2291359901428223,
+          "gradient_scale": 2.703968048095703,
+          "host_device_prepare": 0.2806560005992651,
+          "loss": 1.5415520071983337,
+          "loss_scalar_read": 0.012992000207304955,
+          "optimizer": 28.235807418823242,
+          "parameter_finite_check": 11.06388807296753,
+          "scheduler": 0.013856000266969204
+        },
+        "data_wait_fraction": 0.08704618394491424,
+        "host_phase_median_seconds": {
+          "backward": 0.049497130486997776,
+          "clipping": 0.0013508830015780404,
+          "data_wait": 0.014317177992779762,
+          "forward": 0.026459997505298816,
+          "gradient_finite_check": 0.011809022485977039,
+          "gradient_norm_and_scalar_read": 0.00223672749416437,
+          "gradient_scale": 0.0023152329958975315,
+          "host_device_prepare": 0.000426222468377091,
+          "loss": 0.0005184250039746985,
+          "loss_scalar_read": 1.8911989172920585e-05,
+          "optimizer": 0.003534879520884715,
+          "parameter_finite_check": 0.03914139299013186,
+          "scheduler": 2.0864506950601935e-05,
+          "step_metrics": 0.0002371360023971647
+        },
+        "reserved": {
+          "first_20_median": 1606418432.0,
+          "last_20_median": 1606418432.0,
+          "maximum": 1606418432
+        },
+        "step_max_seconds": 0.16471799797727726,
+        "step_median_seconds": 0.16150155798823107,
+        "step_p95_seconds": 0.16314811300253496,
+        "steps": 234,
+        "target_tokens": 119808,
+        "target_tokens_per_second": 3171.187216879895,
+        "wall_seconds": 37.7801724736637
+      },
+      "position": 2,
+      "repetition": 2,
+      "resources": {
+        "container": {
+          "coverage": 0.9642857142857143,
+          "end_gap_seconds": 0.430261854,
+          "expected": 28,
+          "max_gap_seconds": 2.017295496,
+          "max_memory_bytes": 2269890215,
+          "samples": 27,
+          "start_delay_seconds": 1.911014183,
+          "temporal_coverage": true
+        },
+        "gpu": {
+          "coverage": 0.9963369963369964,
+          "end_gap_seconds": 0.042165702,
+          "expected": 273,
+          "max_gap_seconds": 0.202000128,
+          "power_w": {
+            "max": 21.2,
+            "median": 21.02,
+            "min": 5.22
+          },
+          "samples": 272,
+          "sm_clock_mhz": {
+            "max": 2411.0,
+            "median": 2398.0,
+            "min": 208.0
+          },
+          "start_delay_seconds": 0.123371499,
+          "temperature_c": {
+            "max": 46.0,
+            "median": 44.0,
+            "min": 40.0
+          },
+          "temporal_coverage": true,
+          "utilization_percent": {
+            "max": 77.0,
+            "median": 65.0,
+            "min": 0.0
+          }
+        },
+        "host": {
+          "coverage": 0.9636363636363636,
+          "end_gap_seconds": 1.536165574,
+          "expected": 55,
+          "longest_swap_io_run": 0,
+          "max_gap_seconds": 1.0,
+          "minimum_free_buffer_cache_bytes": 121633316864,
+          "samples": 53,
+          "start_delay_seconds": 0.970371307,
+          "temporal_coverage": true
+        }
+      },
+      "run_id": "r2-p2-disabled",
+      "scheduled_log_seconds": {
+        "max": 5.611300002783537e-05,
+        "median": 4.218549293000251e-05,
+        "total": 0.001172499032691121
+      },
+      "trajectory": "dd20989eccb4af66eb46ad12c9c0c12078b98edfa9d7e4db1c004f718285d318",
+      "wandb": {
+        "lifecycle": [
+          [
+            "init",
+            "disabled"
+          ]
+        ],
+        "records": {
+          "file_count": 0,
+          "files": [],
+          "schema_version": 1,
+          "wandb_version": "0.25.1",
+          "watch_histogram_records": 0,
+          "watch_histogram_series": [],
+          "watch_histograms": 0,
+          "watch_history_steps": []
+        },
+        "storage": {
+          "bytes": 0,
+          "file_count": 0,
+          "forbidden": [],
+          "run_file_count": 0
+        }
+      }
+    },
+    {
+      "arm": "offline-off",
+      "checkpoint": {
+        "counters": {
+          "optimizer_step": 260,
+          "target_tokens": 133120
+        },
+        "cursor_digest": "124d231c37969ae2c8e2c68495b517c50b464239154198b713fc220d2147ec56",
+        "model_digest": "37a6d109aefae5aa34439920e5d84d4a877a1bb0e2c53b7e442ab625a160f56c",
+        "resume_digest": "d0d470e8e7df74369df8d3b14c6c76109fa1f32371499e47a2866aae21cf56d9",
+        "sha256": "3d4cd7322c1457509e14378862bed5e15145343f758f787bdef00badfafeed05",
+        "size_bytes": 850365344
+      },
+      "container_wall_seconds": 57.125768843,
+      "disk": {
+        "checkpoint_bytes": 2551113924,
+        "checkpoint_files": 3,
+        "free_after_bytes": 439272017920,
+        "free_before_bytes": 441826635776
+      },
+      "hashes": {
+        "config": "60a5f9548f06f1e48260d4737472d7d890b3140a93f9780239b202ff43dcffda",
+        "container": "dee7bf3eb9a8108297bbb2426d6b6b405f85d9e9bb629e9dc469bf9e5288de7f",
+        "gpu": "9c25389d4c789fa27598d98d159fb3272e3ac2c04f0172b387a8e273149f2d7d",
+        "manifest": "f7bb952de6d2b0834d547e2ada44c7cd03d3eff81bb6de7ae3bf7651ebda145c",
+        "measurement": "dbb6101519eb13622c16f3678429db60c0b10a0dc603e0df4cb7f7e42c779a55",
+        "metrics": "3511b5b6e94e676e3cc371118e2f5196f1afbf5fc33867f079bf19a05665b149",
+        "vmstat": "4d46897fb50a080111fb56f3119dcee31512ffeb98d042afbf7937303e0e7d3b",
+        "wandb_events": "eb9efe5b23c8d6c1fd14a5ff0846877da853e5715421bb4355e3972fcda6621b",
+        "wandb_records": "ed4de31a5c0f5159a172832d9c8dd6fd7501a8481e3c3ffc3b5526a0e0f83ce6"
+      },
+      "manifest": {
+        "data": [
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19",
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19"
+        ],
+        "experiment_id": "exp-f05ea598b9eaea5a77bb",
+        "git_sha": "a4117cec2e86e3b0079f3a867ee76059a93dc988",
+        "hardware": "bbba66a7fd419b86064a23e5dca8c40078d1cdb46860754e2b245c41dc317d0c",
+        "tokenizer": "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b"
+      },
+      "normalized_config": "b991de89884991fc43b2d3e80ddeec26d101d960430b6f236f24fb7d65527f85",
+      "performance": {
+        "allocated": {
+          "first_20_median": 1508506368.0,
+          "last_20_median": 1509244928.0,
+          "maximum": 1520719360
+        },
+        "cuda_phase_median_milliseconds": {
+          "backward": 51.92304039001465,
+          "clipping": 4.726095914840698,
+          "forward": 33.24726390838623,
+          "gradient_finite_check": 11.097376346588135,
+          "gradient_norm_and_scalar_read": 2.246575951576233,
+          "gradient_scale": 2.6883039474487305,
+          "host_device_prepare": 0.32095999270677567,
+          "loss": 1.5393119752407074,
+          "loss_scalar_read": 0.012799999676644802,
+          "optimizer": 28.362720489501953,
+          "parameter_finite_check": 11.096496105194092,
+          "scheduler": 0.013712000101804733
+        },
+        "data_wait_fraction": 0.09587167150184403,
+        "host_phase_median_seconds": {
+          "backward": 0.049801183500676416,
+          "clipping": 0.0013546464906539768,
+          "data_wait": 0.015588029506034218,
+          "forward": 0.029289137994055636,
+          "gradient_finite_check": 0.011934074995224364,
+          "gradient_norm_and_scalar_read": 0.0022506070090457797,
+          "gradient_scale": 0.002227495511760935,
+          "host_device_prepare": 0.0005189904768485576,
+          "loss": 0.000568816001759842,
+          "loss_scalar_read": 1.8656995962373912e-05,
+          "optimizer": 0.003555923016392626,
+          "parameter_finite_check": 0.039318026494584046,
+          "scheduler": 2.0632491214200854e-05,
+          "step_metrics": 0.00023674250405747443
+        },
+        "reserved": {
+          "first_20_median": 1606418432.0,
+          "last_20_median": 1606418432.0,
+          "maximum": 1606418432
+        },
+        "step_max_seconds": 0.17636662800214253,
+        "step_median_seconds": 0.16545519149804022,
+        "step_p95_seconds": 0.1741678169928491,
+        "steps": 234,
+        "target_tokens": 119808,
+        "target_tokens_per_second": 3057.495123501761,
+        "wall_seconds": 39.18501752597513
+      },
+      "position": 3,
+      "repetition": 2,
+      "resources": {
+        "container": {
+          "coverage": 0.9655172413793104,
+          "end_gap_seconds": 1.043247182,
+          "expected": 29,
+          "max_gap_seconds": 2.017890426,
+          "max_memory_bytes": 3050500521,
+          "samples": 28,
+          "start_delay_seconds": 1.913294507,
+          "temporal_coverage": true
+        },
+        "gpu": {
+          "coverage": 0.9965034965034965,
+          "end_gap_seconds": 0.08053483,
+          "expected": 286,
+          "max_gap_seconds": 0.202000128,
+          "power_w": {
+            "max": 20.86,
+            "median": 20.48,
+            "min": 5.18
+          },
+          "samples": 285,
+          "sm_clock_mhz": {
+            "max": 2411.0,
+            "median": 2398.0,
+            "min": 208.0
+          },
+          "start_delay_seconds": 0.079233885,
+          "temperature_c": {
+            "max": 46.0,
+            "median": 44.0,
+            "min": 41.0
+          },
+          "temporal_coverage": true,
+          "utilization_percent": {
+            "max": 77.0,
+            "median": 61.0,
+            "min": 0.0
+          }
+        },
+        "host": {
+          "coverage": 0.9827586206896551,
+          "end_gap_seconds": 1.033535022,
+          "expected": 58,
+          "longest_swap_io_run": 0,
+          "max_gap_seconds": 1.0,
+          "minimum_free_buffer_cache_bytes": 121484251136,
+          "samples": 57,
+          "start_delay_seconds": 0.092233821,
+          "temporal_coverage": true
+        }
+      },
+      "run_id": "r2-p3-offline-off",
+      "scheduled_log_seconds": {
+        "max": 0.0021133550035301596,
+        "median": 0.0015349644963862374,
+        "total": 0.040716908930335194
+      },
+      "trajectory": "dd20989eccb4af66eb46ad12c9c0c12078b98edfa9d7e4db1c004f718285d318",
+      "wandb": {
+        "lifecycle": [
+          [
+            "init",
+            "succeeded"
+          ],
+          [
+            "watch",
+            "disabled"
+          ],
+          [
+            "finish",
+            "succeeded"
+          ]
+        ],
+        "records": {
+          "file_count": 1,
+          "files": [
+            {
+              "history_records": 26,
+              "path": "/evidence/wandb/wandb/offline-run-20260713_183635-1wt7e3qb/run-1wt7e3qb.wandb",
+              "record_types": {
+                "environment": 2,
+                "exit": 1,
+                "files": 1,
+                "header": 1,
+                "history": 26,
+                "output_raw": 1,
+                "run": 1,
+                "stats": 6,
+                "summary": 55,
+                "telemetry": 3
+              },
+              "sha256": "244c3e270c850da58ec1bd76bb4ff840a24a9bcbacbf394e2ac976bd447a93bd",
+              "size_bytes": 50973,
+              "watch_histogram_records": 0,
+              "watch_histogram_series": [],
+              "watch_histograms": 0,
+              "watch_history_steps": []
+            }
+          ],
+          "schema_version": 1,
+          "wandb_version": "0.25.1",
+          "watch_histogram_records": 0,
+          "watch_histogram_series": [],
+          "watch_histograms": 0,
+          "watch_history_steps": []
+        },
+        "storage": {
+          "bytes": 64480,
+          "file_count": 5,
+          "forbidden": [],
+          "run_file_count": 4
+        }
+      }
+    },
+    {
+      "arm": "offline-off",
+      "checkpoint": {
+        "counters": {
+          "optimizer_step": 260,
+          "target_tokens": 133120
+        },
+        "cursor_digest": "124d231c37969ae2c8e2c68495b517c50b464239154198b713fc220d2147ec56",
+        "model_digest": "37a6d109aefae5aa34439920e5d84d4a877a1bb0e2c53b7e442ab625a160f56c",
+        "resume_digest": "d0d470e8e7df74369df8d3b14c6c76109fa1f32371499e47a2866aae21cf56d9",
+        "sha256": "821869c8ff9d76926c24a82383e7067ac9dbc80d5a049e16aa5a2fc62513d5f7",
+        "size_bytes": 850365344
+      },
+      "container_wall_seconds": 57.22246355,
+      "disk": {
+        "checkpoint_bytes": 2551113924,
+        "checkpoint_files": 3,
+        "free_after_bytes": 436719624192,
+        "free_before_bytes": 439271989248
+      },
+      "hashes": {
+        "config": "618049846eceebb79e62deea0fbbb8aff47422de917ec607ad507fe5c9363847",
+        "container": "679175d73ad5ad4383856b49c7a65a6082c5bc9bdf6d07a91e97c2006f5937fe",
+        "gpu": "c0be1c95bfc11890c8687415fb7ae38d8fda0539dba5c72d10bd5e01feed7c4b",
+        "manifest": "9582fc992e234d208f6ede6d9c5ce0a14ff614142b24dd29cf62b8ea7c8b350e",
+        "measurement": "c87786b84cfeadcfe6d4c47a517729b04d053e0523fe21b8a55194775dab2784",
+        "metrics": "c414413c5ef1747c8dee6ba5b581d0c74a1d0ccf78e494ca6520432352fd43ff",
+        "vmstat": "b3a95e38cf15ff025b5492bd5bc00a9425eba8fdb441b0a2e574beee97db48d6",
+        "wandb_events": "12544d9639fe745bd9bb621ce36680a5922b8cf6a3471d93a1f16cb82f50ff21",
+        "wandb_records": "1761ac43bbeee38a7a809d15f5147161bcf7eed1bcbf4262093aabec16a6d911"
+      },
+      "manifest": {
+        "data": [
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19",
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19"
+        ],
+        "experiment_id": "exp-f05ea598b9eaea5a77bb",
+        "git_sha": "a4117cec2e86e3b0079f3a867ee76059a93dc988",
+        "hardware": "bbba66a7fd419b86064a23e5dca8c40078d1cdb46860754e2b245c41dc317d0c",
+        "tokenizer": "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b"
+      },
+      "normalized_config": "b991de89884991fc43b2d3e80ddeec26d101d960430b6f236f24fb7d65527f85",
+      "performance": {
+        "allocated": {
+          "first_20_median": 1508506368.0,
+          "last_20_median": 1509244928.0,
+          "maximum": 1520719360
+        },
+        "cuda_phase_median_milliseconds": {
+          "backward": 51.35577583312988,
+          "clipping": 4.733551979064941,
+          "forward": 34.035839796066284,
+          "gradient_finite_check": 11.105696201324463,
+          "gradient_norm_and_scalar_read": 2.381135940551758,
+          "gradient_scale": 2.700111985206604,
+          "host_device_prepare": 0.2633280027657747,
+          "loss": 1.5260319858789444,
+          "loss_scalar_read": 0.012864000163972378,
+          "optimizer": 28.41808032989502,
+          "parameter_finite_check": 11.090240001678467,
+          "scheduler": 0.014175999909639359
+        },
+        "data_wait_fraction": 0.10486548536982959,
+        "host_phase_median_seconds": {
+          "backward": 0.049326520500471815,
+          "clipping": 0.0013564420078182593,
+          "data_wait": 0.018385662013315596,
+          "forward": 0.029966936534037814,
+          "gradient_finite_check": 0.011879554003826343,
+          "gradient_norm_and_scalar_read": 0.002388228997006081,
+          "gradient_scale": 0.002185085992095992,
+          "host_device_prepare": 0.00039224899956025183,
+          "loss": 0.0005561905272770673,
+          "loss_scalar_read": 1.8737002392299473e-05,
+          "optimizer": 0.003524825006024912,
+          "parameter_finite_check": 0.03939384651312139,
+          "scheduler": 2.1008498151786625e-05,
+          "step_metrics": 0.00023700599558651447
+        },
+        "reserved": {
+          "first_20_median": 1606418432.0,
+          "last_20_median": 1606418432.0,
+          "maximum": 1606418432
+        },
+        "step_max_seconds": 0.17195833299774677,
+        "step_median_seconds": 0.16839803449693136,
+        "step_p95_seconds": 0.17046742601087317,
+        "steps": 234,
+        "target_tokens": 119808,
+        "target_tokens_per_second": 3041.4393028931713,
+        "wall_seconds": 39.39187603909522
+      },
+      "position": 1,
+      "repetition": 3,
+      "resources": {
+        "container": {
+          "coverage": 0.9655172413793104,
+          "end_gap_seconds": 1.145141761,
+          "expected": 29,
+          "max_gap_seconds": 2.01751948,
+          "max_memory_bytes": 3023656976,
+          "samples": 28,
+          "start_delay_seconds": 1.907886079,
+          "temporal_coverage": true
+        },
+        "gpu": {
+          "coverage": 0.9930313588850174,
+          "end_gap_seconds": 0.141577098,
+          "expected": 287,
+          "max_gap_seconds": 0.208999936,
+          "power_w": {
+            "max": 20.82,
+            "median": 20.55,
+            "min": 5.15
+          },
+          "samples": 285,
+          "sm_clock_mhz": {
+            "max": 2411.0,
+            "median": 2398.0,
+            "min": 208.0
+          },
+          "start_delay_seconds": 0.114886324,
+          "temperature_c": {
+            "max": 46.0,
+            "median": 45.0,
+            "min": 41.0
+          },
+          "temporal_coverage": true,
+          "utilization_percent": {
+            "max": 77.0,
+            "median": 60.0,
+            "min": 0.0
+          }
+        },
+        "host": {
+          "coverage": 0.9827586206896551,
+          "end_gap_seconds": 0.568577162,
+          "expected": 58,
+          "longest_swap_io_run": 0,
+          "max_gap_seconds": 1.0,
+          "minimum_free_buffer_cache_bytes": 121562570752,
+          "samples": 57,
+          "start_delay_seconds": 0.653886388,
+          "temporal_coverage": true
+        }
+      },
+      "run_id": "r3-p1-offline-off",
+      "scheduled_log_seconds": {
+        "max": 0.002489022008376196,
+        "median": 0.0015311515016946942,
+        "total": 0.04160318404319696
+      },
+      "trajectory": "dd20989eccb4af66eb46ad12c9c0c12078b98edfa9d7e4db1c004f718285d318",
+      "wandb": {
+        "lifecycle": [
+          [
+            "init",
+            "succeeded"
+          ],
+          [
+            "watch",
+            "disabled"
+          ],
+          [
+            "finish",
+            "succeeded"
+          ]
+        ],
+        "records": {
+          "file_count": 1,
+          "files": [
+            {
+              "history_records": 26,
+              "path": "/evidence/wandb/wandb/offline-run-20260713_183806-r7a9akek/run-r7a9akek.wandb",
+              "record_types": {
+                "environment": 2,
+                "exit": 1,
+                "files": 1,
+                "header": 1,
+                "history": 26,
+                "output_raw": 1,
+                "run": 1,
+                "stats": 6,
+                "summary": 55,
+                "telemetry": 3
+              },
+              "sha256": "cd7087479e475bfbedf26cc0c7d7ebf3aa5a83eaaf8b9e0cc22edc7dae08649d",
+              "size_bytes": 50975,
+              "watch_histogram_records": 0,
+              "watch_histogram_series": [],
+              "watch_histograms": 0,
+              "watch_history_steps": []
+            }
+          ],
+          "schema_version": 1,
+          "wandb_version": "0.25.1",
+          "watch_histogram_records": 0,
+          "watch_histogram_series": [],
+          "watch_histograms": 0,
+          "watch_history_steps": []
+        },
+        "storage": {
+          "bytes": 64480,
+          "file_count": 5,
+          "forbidden": [],
+          "run_file_count": 4
+        }
+      }
+    },
+    {
+      "arm": "offline-on",
+      "checkpoint": {
+        "counters": {
+          "optimizer_step": 260,
+          "target_tokens": 133120
+        },
+        "cursor_digest": "124d231c37969ae2c8e2c68495b517c50b464239154198b713fc220d2147ec56",
+        "model_digest": "37a6d109aefae5aa34439920e5d84d4a877a1bb0e2c53b7e442ab625a160f56c",
+        "resume_digest": "d0d470e8e7df74369df8d3b14c6c76109fa1f32371499e47a2866aae21cf56d9",
+        "sha256": "2ae1aeb1804f98febe5c913ad1c30f096428515fb50667be8cd4e6774cfaef79",
+        "size_bytes": 850365344
+      },
+      "container_wall_seconds": 58.053056184,
+      "disk": {
+        "checkpoint_bytes": 2551113924,
+        "checkpoint_files": 3,
+        "free_after_bytes": 434166669312,
+        "free_before_bytes": 436719595520
+      },
+      "hashes": {
+        "config": "c97fcdcf7ea2fcf918d0dd329d576781b91b417c926ee613a08194ed40995ff9",
+        "container": "10b515c8cdaeead30e42bc499e851259d7c648eabf4dc663f566102e9f2e29b2",
+        "gpu": "82af6fe855f98a99ef31682be7a07059d21134d6bba0faa9ae9b33864e5e43d5",
+        "manifest": "109c5e0f4b8f80676fd6f35e4180bdb6ae65ef723332fc41f221feea0798eb2e",
+        "measurement": "61a0a66f2c23cacaf29b5dabeff3d66c1b3b04a2c6ecc593b3c8f309275fe04b",
+        "metrics": "e6d46160664b2aab6a23626ab5b4c26483006d17d5ce287327492b26ff001884",
+        "vmstat": "87f2e909c013a939a5fde76d571a0b0e6ac3f15d6d1908b77c299f4e4a42cc58",
+        "wandb_events": "69751e4945fd2957f14cd6f91391834db0708f0c52d68eb2fbd1decb0e65f694",
+        "wandb_records": "eedb33e2efb4de9dc26af5b98e0766e898c45b7721c15e56663c86ee86f6a765"
+      },
+      "manifest": {
+        "data": [
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19",
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19"
+        ],
+        "experiment_id": "exp-f05ea598b9eaea5a77bb",
+        "git_sha": "a4117cec2e86e3b0079f3a867ee76059a93dc988",
+        "hardware": "bbba66a7fd419b86064a23e5dca8c40078d1cdb46860754e2b245c41dc317d0c",
+        "tokenizer": "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b"
+      },
+      "normalized_config": "b991de89884991fc43b2d3e80ddeec26d101d960430b6f236f24fb7d65527f85",
+      "performance": {
+        "allocated": {
+          "first_20_median": 1508506368.0,
+          "last_20_median": 1509244928.0,
+          "maximum": 1520719360
+        },
+        "cuda_phase_median_milliseconds": {
+          "backward": 49.59859228134155,
+          "clipping": 4.758687973022461,
+          "forward": 32.40508770942688,
+          "gradient_finite_check": 11.107248306274414,
+          "gradient_norm_and_scalar_read": 2.169103980064392,
+          "gradient_scale": 2.6960480213165283,
+          "host_device_prepare": 0.29184000194072723,
+          "loss": 1.530255988240242,
+          "loss_scalar_read": 0.013344000093638897,
+          "optimizer": 28.198464393615723,
+          "parameter_finite_check": 11.177343845367432,
+          "scheduler": 0.014816000126302242
+        },
+        "data_wait_fraction": 0.09998601052348473,
+        "host_phase_median_seconds": {
+          "backward": 0.0456255779863568,
+          "clipping": 0.0014143769949441776,
+          "data_wait": 0.016587632504524663,
+          "forward": 0.028421351002180018,
+          "gradient_finite_check": 0.013415546010946855,
+          "gradient_norm_and_scalar_read": 0.00217656149470713,
+          "gradient_scale": 0.0016696220118319616,
+          "host_device_prepare": 0.00045009900350123644,
+          "loss": 0.0007031760032987222,
+          "loss_scalar_read": 1.958450593519956e-05,
+          "optimizer": 0.00380371100618504,
+          "parameter_finite_check": 0.03893454701756127,
+          "scheduler": 2.206451608799398e-05,
+          "step_metrics": 0.0002546379982959479
+        },
+        "reserved": {
+          "first_20_median": 1606418432.0,
+          "last_20_median": 1606418432.0,
+          "maximum": 1606418432
+        },
+        "step_max_seconds": 1.4570554259989876,
+        "step_median_seconds": 0.16534287000831682,
+        "step_p95_seconds": 0.17074648500420153,
+        "steps": 234,
+        "target_tokens": 119808,
+        "target_tokens_per_second": 2979.3724409001256,
+        "wall_seconds": 40.212495207146276
+      },
+      "position": 2,
+      "repetition": 3,
+      "resources": {
+        "container": {
+          "coverage": 0.9333333333333333,
+          "end_gap_seconds": 1.96634182,
+          "expected": 30,
+          "max_gap_seconds": 2.017885693,
+          "max_memory_bytes": 2962453692,
+          "samples": 28,
+          "start_delay_seconds": 1.91533466,
+          "temporal_coverage": true
+        },
+        "gpu": {
+          "coverage": 0.993127147766323,
+          "end_gap_seconds": 0.181502422,
+          "expected": 291,
+          "max_gap_seconds": 0.201000192,
+          "power_w": {
+            "max": 21.06,
+            "median": 20.7,
+            "min": 5.17
+          },
+          "samples": 289,
+          "sm_clock_mhz": {
+            "max": 2411.0,
+            "median": 2398.0,
+            "min": 208.0
+          },
+          "start_delay_seconds": 0.15455357,
+          "temperature_c": {
+            "max": 46.0,
+            "median": 45.0,
+            "min": 41.0
+          },
+          "temporal_coverage": true,
+          "utilization_percent": {
+            "max": 77.0,
+            "median": 68.0,
+            "min": 0.0
+          }
+        },
+        "host": {
+          "coverage": 0.9830508474576272,
+          "end_gap_seconds": 0.892502486,
+          "expected": 59,
+          "longest_swap_io_run": 0,
+          "max_gap_seconds": 1.0,
+          "minimum_free_buffer_cache_bytes": 121543622656,
+          "samples": 58,
+          "start_delay_seconds": 0.160553698,
+          "temporal_coverage": true
+        }
+      },
+      "run_id": "r3-p2-offline-on",
+      "scheduled_log_seconds": {
+        "max": 0.0020255970011930913,
+        "median": 0.0011737309978343546,
+        "total": 0.031918793014483526
+      },
+      "trajectory": "dd20989eccb4af66eb46ad12c9c0c12078b98edfa9d7e4db1c004f718285d318",
+      "wandb": {
+        "lifecycle": [
+          [
+            "init",
+            "succeeded"
+          ],
+          [
+            "watch",
+            "succeeded"
+          ],
+          [
+            "unwatch",
+            "succeeded"
+          ],
+          [
+            "finish",
+            "succeeded"
+          ]
+        ],
+        "records": {
+          "file_count": 1,
+          "files": [
+            {
+              "history_records": 26,
+              "path": "/evidence/wandb/wandb/offline-run-20260713_183939-44i7nsz6/run-44i7nsz6.wandb",
+              "record_types": {
+                "environment": 2,
+                "exit": 1,
+                "files": 1,
+                "header": 1,
+                "history": 26,
+                "output_raw": 1,
+                "run": 1,
+                "stats": 6,
+                "summary": 55,
+                "telemetry": 4
+              },
+              "sha256": "a580fe969d7c73c32a53948017a0a2b904e0c05e54df91228bda8e7f5974679b",
+              "size_bytes": 760272,
+              "watch_histogram_records": 1,
+              "watch_histogram_series": [
+                "gradients/embedding.token.embedding.weight",
+                "gradients/layers.0.attention_norm.bias",
+                "gradients/layers.0.attention_norm.weight",
+                "gradients/layers.0.feedforward.0.bias",
+                "gradients/layers.0.feedforward.0.weight",
+                "gradients/layers.0.feedforward.3.bias",
+                "gradients/layers.0.feedforward.3.weight",
+                "gradients/layers.0.feedforward_norm.bias",
+                "gradients/layers.0.feedforward_norm.weight",
+                "gradients/layers.0.self_attention.in_proj_bias",
+                "gradients/layers.0.self_attention.in_proj_weight",
+                "gradients/layers.0.self_attention.out_proj.bias",
+                "gradients/layers.0.self_attention.out_proj.weight",
+                "gradients/layers.1.attention_norm.bias",
+                "gradients/layers.1.attention_norm.weight",
+                "gradients/layers.1.feedforward.0.bias",
+                "gradients/layers.1.feedforward.0.weight",
+                "gradients/layers.1.feedforward.3.bias",
+                "gradients/layers.1.feedforward.3.weight",
+                "gradients/layers.1.feedforward_norm.bias",
+                "gradients/layers.1.feedforward_norm.weight",
+                "gradients/layers.1.self_attention.in_proj_bias",
+                "gradients/layers.1.self_attention.in_proj_weight",
+                "gradients/layers.1.self_attention.out_proj.bias",
+                "gradients/layers.1.self_attention.out_proj.weight",
+                "gradients/layers.10.attention_norm.bias",
+                "gradients/layers.10.attention_norm.weight",
+                "gradients/layers.10.feedforward.0.bias",
+                "gradients/layers.10.feedforward.0.weight",
+                "gradients/layers.10.feedforward.3.bias",
+                "gradients/layers.10.feedforward.3.weight",
+                "gradients/layers.10.feedforward_norm.bias",
+                "gradients/layers.10.feedforward_norm.weight",
+                "gradients/layers.10.self_attention.in_proj_bias",
+                "gradients/layers.10.self_attention.in_proj_weight",
+                "gradients/layers.10.self_attention.out_proj.bias",
+                "gradients/layers.10.self_attention.out_proj.weight",
+                "gradients/layers.11.attention_norm.bias",
+                "gradients/layers.11.attention_norm.weight",
+                "gradients/layers.11.feedforward.0.bias",
+                "gradients/layers.11.feedforward.0.weight",
+                "gradients/layers.11.feedforward.3.bias",
+                "gradients/layers.11.feedforward.3.weight",
+                "gradients/layers.11.feedforward_norm.bias",
+                "gradients/layers.11.feedforward_norm.weight",
+                "gradients/layers.11.self_attention.in_proj_bias",
+                "gradients/layers.11.self_attention.in_proj_weight",
+                "gradients/layers.11.self_attention.out_proj.bias",
+                "gradients/layers.11.self_attention.out_proj.weight",
+                "gradients/layers.12.attention_norm.bias",
+                "gradients/layers.12.attention_norm.weight",
+                "gradients/layers.12.feedforward.0.bias",
+                "gradients/layers.12.feedforward.0.weight",
+                "gradients/layers.12.feedforward.3.bias",
+                "gradients/layers.12.feedforward.3.weight",
+                "gradients/layers.12.feedforward_norm.bias",
+                "gradients/layers.12.feedforward_norm.weight",
+                "gradients/layers.12.self_attention.in_proj_bias",
+                "gradients/layers.12.self_attention.in_proj_weight",
+                "gradients/layers.12.self_attention.out_proj.bias",
+                "gradients/layers.12.self_attention.out_proj.weight",
+                "gradients/layers.13.attention_norm.bias",
+                "gradients/layers.13.attention_norm.weight",
+                "gradients/layers.13.feedforward.0.bias",
+                "gradients/layers.13.feedforward.0.weight",
+                "gradients/layers.13.feedforward.3.bias",
+                "gradients/layers.13.feedforward.3.weight",
+                "gradients/layers.13.feedforward_norm.bias",
+                "gradients/layers.13.feedforward_norm.weight",
+                "gradients/layers.13.self_attention.in_proj_bias",
+                "gradients/layers.13.self_attention.in_proj_weight",
+                "gradients/layers.13.self_attention.out_proj.bias",
+                "gradients/layers.13.self_attention.out_proj.weight",
+                "gradients/layers.14.attention_norm.bias",
+                "gradients/layers.14.attention_norm.weight",
+                "gradients/layers.14.feedforward.0.bias",
+                "gradients/layers.14.feedforward.0.weight",
+                "gradients/layers.14.feedforward.3.bias",
+                "gradients/layers.14.feedforward.3.weight",
+                "gradients/layers.14.feedforward_norm.bias",
+                "gradients/layers.14.feedforward_norm.weight",
+                "gradients/layers.14.self_attention.in_proj_bias",
+                "gradients/layers.14.self_attention.in_proj_weight",
+                "gradients/layers.14.self_attention.out_proj.bias",
+                "gradients/layers.14.self_attention.out_proj.weight",
+                "gradients/layers.15.attention_norm.bias",
+                "gradients/layers.15.attention_norm.weight",
+                "gradients/layers.15.feedforward.0.bias",
+                "gradients/layers.15.feedforward.0.weight",
+                "gradients/layers.15.feedforward.3.bias",
+                "gradients/layers.15.feedforward.3.weight",
+                "gradients/layers.15.feedforward_norm.bias",
+                "gradients/layers.15.feedforward_norm.weight",
+                "gradients/layers.15.self_attention.in_proj_bias",
+                "gradients/layers.15.self_attention.in_proj_weight",
+                "gradients/layers.15.self_attention.out_proj.bias",
+                "gradients/layers.15.self_attention.out_proj.weight",
+                "gradients/layers.16.attention_norm.bias",
+                "gradients/layers.16.attention_norm.weight",
+                "gradients/layers.16.feedforward.0.bias",
+                "gradients/layers.16.feedforward.0.weight",
+                "gradients/layers.16.feedforward.3.bias",
+                "gradients/layers.16.feedforward.3.weight",
+                "gradients/layers.16.feedforward_norm.bias",
+                "gradients/layers.16.feedforward_norm.weight",
+                "gradients/layers.16.self_attention.in_proj_bias",
+                "gradients/layers.16.self_attention.in_proj_weight",
+                "gradients/layers.16.self_attention.out_proj.bias",
+                "gradients/layers.16.self_attention.out_proj.weight",
+                "gradients/layers.17.attention_norm.bias",
+                "gradients/layers.17.attention_norm.weight",
+                "gradients/layers.17.feedforward.0.bias",
+                "gradients/layers.17.feedforward.0.weight",
+                "gradients/layers.17.feedforward.3.bias",
+                "gradients/layers.17.feedforward.3.weight",
+                "gradients/layers.17.feedforward_norm.bias",
+                "gradients/layers.17.feedforward_norm.weight",
+                "gradients/layers.17.self_attention.in_proj_bias",
+                "gradients/layers.17.self_attention.in_proj_weight",
+                "gradients/layers.17.self_attention.out_proj.bias",
+                "gradients/layers.17.self_attention.out_proj.weight",
+                "gradients/layers.2.attention_norm.bias",
+                "gradients/layers.2.attention_norm.weight",
+                "gradients/layers.2.feedforward.0.bias",
+                "gradients/layers.2.feedforward.0.weight",
+                "gradients/layers.2.feedforward.3.bias",
+                "gradients/layers.2.feedforward.3.weight",
+                "gradients/layers.2.feedforward_norm.bias",
+                "gradients/layers.2.feedforward_norm.weight",
+                "gradients/layers.2.self_attention.in_proj_bias",
+                "gradients/layers.2.self_attention.in_proj_weight",
+                "gradients/layers.2.self_attention.out_proj.bias",
+                "gradients/layers.2.self_attention.out_proj.weight",
+                "gradients/layers.3.attention_norm.bias",
+                "gradients/layers.3.attention_norm.weight",
+                "gradients/layers.3.feedforward.0.bias",
+                "gradients/layers.3.feedforward.0.weight",
+                "gradients/layers.3.feedforward.3.bias",
+                "gradients/layers.3.feedforward.3.weight",
+                "gradients/layers.3.feedforward_norm.bias",
+                "gradients/layers.3.feedforward_norm.weight",
+                "gradients/layers.3.self_attention.in_proj_bias",
+                "gradients/layers.3.self_attention.in_proj_weight",
+                "gradients/layers.3.self_attention.out_proj.bias",
+                "gradients/layers.3.self_attention.out_proj.weight",
+                "gradients/layers.4.attention_norm.bias",
+                "gradients/layers.4.attention_norm.weight",
+                "gradients/layers.4.feedforward.0.bias",
+                "gradients/layers.4.feedforward.0.weight",
+                "gradients/layers.4.feedforward.3.bias",
+                "gradients/layers.4.feedforward.3.weight",
+                "gradients/layers.4.feedforward_norm.bias",
+                "gradients/layers.4.feedforward_norm.weight",
+                "gradients/layers.4.self_attention.in_proj_bias",
+                "gradients/layers.4.self_attention.in_proj_weight",
+                "gradients/layers.4.self_attention.out_proj.bias",
+                "gradients/layers.4.self_attention.out_proj.weight",
+                "gradients/layers.5.attention_norm.bias",
+                "gradients/layers.5.attention_norm.weight",
+                "gradients/layers.5.feedforward.0.bias",
+                "gradients/layers.5.feedforward.0.weight",
+                "gradients/layers.5.feedforward.3.bias",
+                "gradients/layers.5.feedforward.3.weight",
+                "gradients/layers.5.feedforward_norm.bias",
+                "gradients/layers.5.feedforward_norm.weight",
+                "gradients/layers.5.self_attention.in_proj_bias",
+                "gradients/layers.5.self_attention.in_proj_weight",
+                "gradients/layers.5.self_attention.out_proj.bias",
+                "gradients/layers.5.self_attention.out_proj.weight",
+                "gradients/layers.6.attention_norm.bias",
+                "gradients/layers.6.attention_norm.weight",
+                "gradients/layers.6.feedforward.0.bias",
+                "gradients/layers.6.feedforward.0.weight",
+                "gradients/layers.6.feedforward.3.bias",
+                "gradients/layers.6.feedforward.3.weight",
+                "gradients/layers.6.feedforward_norm.bias",
+                "gradients/layers.6.feedforward_norm.weight",
+                "gradients/layers.6.self_attention.in_proj_bias",
+                "gradients/layers.6.self_attention.in_proj_weight",
+                "gradients/layers.6.self_attention.out_proj.bias",
+                "gradients/layers.6.self_attention.out_proj.weight",
+                "gradients/layers.7.attention_norm.bias",
+                "gradients/layers.7.attention_norm.weight",
+                "gradients/layers.7.feedforward.0.bias",
+                "gradients/layers.7.feedforward.0.weight",
+                "gradients/layers.7.feedforward.3.bias",
+                "gradients/layers.7.feedforward.3.weight",
+                "gradients/layers.7.feedforward_norm.bias",
+                "gradients/layers.7.feedforward_norm.weight",
+                "gradients/layers.7.self_attention.in_proj_bias",
+                "gradients/layers.7.self_attention.in_proj_weight",
+                "gradients/layers.7.self_attention.out_proj.bias",
+                "gradients/layers.7.self_attention.out_proj.weight",
+                "gradients/layers.8.attention_norm.bias",
+                "gradients/layers.8.attention_norm.weight",
+                "gradients/layers.8.feedforward.0.bias",
+                "gradients/layers.8.feedforward.0.weight",
+                "gradients/layers.8.feedforward.3.bias",
+                "gradients/layers.8.feedforward.3.weight",
+                "gradients/layers.8.feedforward_norm.bias",
+                "gradients/layers.8.feedforward_norm.weight",
+                "gradients/layers.8.self_attention.in_proj_bias",
+                "gradients/layers.8.self_attention.in_proj_weight",
+                "gradients/layers.8.self_attention.out_proj.bias",
+                "gradients/layers.8.self_attention.out_proj.weight",
+                "gradients/layers.9.attention_norm.bias",
+                "gradients/layers.9.attention_norm.weight",
+                "gradients/layers.9.feedforward.0.bias",
+                "gradients/layers.9.feedforward.0.weight",
+                "gradients/layers.9.feedforward.3.bias",
+                "gradients/layers.9.feedforward.3.weight",
+                "gradients/layers.9.feedforward_norm.bias",
+                "gradients/layers.9.feedforward_norm.weight",
+                "gradients/layers.9.self_attention.in_proj_bias",
+                "gradients/layers.9.self_attention.in_proj_weight",
+                "gradients/layers.9.self_attention.out_proj.bias",
+                "gradients/layers.9.self_attention.out_proj.weight",
+                "gradients/lm_head.bias",
+                "gradients/lm_head.weight"
+              ],
+              "watch_histograms": 219,
+              "watch_history_steps": [
+                24
+              ]
+            }
+          ],
+          "schema_version": 1,
+          "wandb_version": "0.25.1",
+          "watch_histogram_records": 1,
+          "watch_histogram_series": [
+            "gradients/embedding.token.embedding.weight",
+            "gradients/layers.0.attention_norm.bias",
+            "gradients/layers.0.attention_norm.weight",
+            "gradients/layers.0.feedforward.0.bias",
+            "gradients/layers.0.feedforward.0.weight",
+            "gradients/layers.0.feedforward.3.bias",
+            "gradients/layers.0.feedforward.3.weight",
+            "gradients/layers.0.feedforward_norm.bias",
+            "gradients/layers.0.feedforward_norm.weight",
+            "gradients/layers.0.self_attention.in_proj_bias",
+            "gradients/layers.0.self_attention.in_proj_weight",
+            "gradients/layers.0.self_attention.out_proj.bias",
+            "gradients/layers.0.self_attention.out_proj.weight",
+            "gradients/layers.1.attention_norm.bias",
+            "gradients/layers.1.attention_norm.weight",
+            "gradients/layers.1.feedforward.0.bias",
+            "gradients/layers.1.feedforward.0.weight",
+            "gradients/layers.1.feedforward.3.bias",
+            "gradients/layers.1.feedforward.3.weight",
+            "gradients/layers.1.feedforward_norm.bias",
+            "gradients/layers.1.feedforward_norm.weight",
+            "gradients/layers.1.self_attention.in_proj_bias",
+            "gradients/layers.1.self_attention.in_proj_weight",
+            "gradients/layers.1.self_attention.out_proj.bias",
+            "gradients/layers.1.self_attention.out_proj.weight",
+            "gradients/layers.10.attention_norm.bias",
+            "gradients/layers.10.attention_norm.weight",
+            "gradients/layers.10.feedforward.0.bias",
+            "gradients/layers.10.feedforward.0.weight",
+            "gradients/layers.10.feedforward.3.bias",
+            "gradients/layers.10.feedforward.3.weight",
+            "gradients/layers.10.feedforward_norm.bias",
+            "gradients/layers.10.feedforward_norm.weight",
+            "gradients/layers.10.self_attention.in_proj_bias",
+            "gradients/layers.10.self_attention.in_proj_weight",
+            "gradients/layers.10.self_attention.out_proj.bias",
+            "gradients/layers.10.self_attention.out_proj.weight",
+            "gradients/layers.11.attention_norm.bias",
+            "gradients/layers.11.attention_norm.weight",
+            "gradients/layers.11.feedforward.0.bias",
+            "gradients/layers.11.feedforward.0.weight",
+            "gradients/layers.11.feedforward.3.bias",
+            "gradients/layers.11.feedforward.3.weight",
+            "gradients/layers.11.feedforward_norm.bias",
+            "gradients/layers.11.feedforward_norm.weight",
+            "gradients/layers.11.self_attention.in_proj_bias",
+            "gradients/layers.11.self_attention.in_proj_weight",
+            "gradients/layers.11.self_attention.out_proj.bias",
+            "gradients/layers.11.self_attention.out_proj.weight",
+            "gradients/layers.12.attention_norm.bias",
+            "gradients/layers.12.attention_norm.weight",
+            "gradients/layers.12.feedforward.0.bias",
+            "gradients/layers.12.feedforward.0.weight",
+            "gradients/layers.12.feedforward.3.bias",
+            "gradients/layers.12.feedforward.3.weight",
+            "gradients/layers.12.feedforward_norm.bias",
+            "gradients/layers.12.feedforward_norm.weight",
+            "gradients/layers.12.self_attention.in_proj_bias",
+            "gradients/layers.12.self_attention.in_proj_weight",
+            "gradients/layers.12.self_attention.out_proj.bias",
+            "gradients/layers.12.self_attention.out_proj.weight",
+            "gradients/layers.13.attention_norm.bias",
+            "gradients/layers.13.attention_norm.weight",
+            "gradients/layers.13.feedforward.0.bias",
+            "gradients/layers.13.feedforward.0.weight",
+            "gradients/layers.13.feedforward.3.bias",
+            "gradients/layers.13.feedforward.3.weight",
+            "gradients/layers.13.feedforward_norm.bias",
+            "gradients/layers.13.feedforward_norm.weight",
+            "gradients/layers.13.self_attention.in_proj_bias",
+            "gradients/layers.13.self_attention.in_proj_weight",
+            "gradients/layers.13.self_attention.out_proj.bias",
+            "gradients/layers.13.self_attention.out_proj.weight",
+            "gradients/layers.14.attention_norm.bias",
+            "gradients/layers.14.attention_norm.weight",
+            "gradients/layers.14.feedforward.0.bias",
+            "gradients/layers.14.feedforward.0.weight",
+            "gradients/layers.14.feedforward.3.bias",
+            "gradients/layers.14.feedforward.3.weight",
+            "gradients/layers.14.feedforward_norm.bias",
+            "gradients/layers.14.feedforward_norm.weight",
+            "gradients/layers.14.self_attention.in_proj_bias",
+            "gradients/layers.14.self_attention.in_proj_weight",
+            "gradients/layers.14.self_attention.out_proj.bias",
+            "gradients/layers.14.self_attention.out_proj.weight",
+            "gradients/layers.15.attention_norm.bias",
+            "gradients/layers.15.attention_norm.weight",
+            "gradients/layers.15.feedforward.0.bias",
+            "gradients/layers.15.feedforward.0.weight",
+            "gradients/layers.15.feedforward.3.bias",
+            "gradients/layers.15.feedforward.3.weight",
+            "gradients/layers.15.feedforward_norm.bias",
+            "gradients/layers.15.feedforward_norm.weight",
+            "gradients/layers.15.self_attention.in_proj_bias",
+            "gradients/layers.15.self_attention.in_proj_weight",
+            "gradients/layers.15.self_attention.out_proj.bias",
+            "gradients/layers.15.self_attention.out_proj.weight",
+            "gradients/layers.16.attention_norm.bias",
+            "gradients/layers.16.attention_norm.weight",
+            "gradients/layers.16.feedforward.0.bias",
+            "gradients/layers.16.feedforward.0.weight",
+            "gradients/layers.16.feedforward.3.bias",
+            "gradients/layers.16.feedforward.3.weight",
+            "gradients/layers.16.feedforward_norm.bias",
+            "gradients/layers.16.feedforward_norm.weight",
+            "gradients/layers.16.self_attention.in_proj_bias",
+            "gradients/layers.16.self_attention.in_proj_weight",
+            "gradients/layers.16.self_attention.out_proj.bias",
+            "gradients/layers.16.self_attention.out_proj.weight",
+            "gradients/layers.17.attention_norm.bias",
+            "gradients/layers.17.attention_norm.weight",
+            "gradients/layers.17.feedforward.0.bias",
+            "gradients/layers.17.feedforward.0.weight",
+            "gradients/layers.17.feedforward.3.bias",
+            "gradients/layers.17.feedforward.3.weight",
+            "gradients/layers.17.feedforward_norm.bias",
+            "gradients/layers.17.feedforward_norm.weight",
+            "gradients/layers.17.self_attention.in_proj_bias",
+            "gradients/layers.17.self_attention.in_proj_weight",
+            "gradients/layers.17.self_attention.out_proj.bias",
+            "gradients/layers.17.self_attention.out_proj.weight",
+            "gradients/layers.2.attention_norm.bias",
+            "gradients/layers.2.attention_norm.weight",
+            "gradients/layers.2.feedforward.0.bias",
+            "gradients/layers.2.feedforward.0.weight",
+            "gradients/layers.2.feedforward.3.bias",
+            "gradients/layers.2.feedforward.3.weight",
+            "gradients/layers.2.feedforward_norm.bias",
+            "gradients/layers.2.feedforward_norm.weight",
+            "gradients/layers.2.self_attention.in_proj_bias",
+            "gradients/layers.2.self_attention.in_proj_weight",
+            "gradients/layers.2.self_attention.out_proj.bias",
+            "gradients/layers.2.self_attention.out_proj.weight",
+            "gradients/layers.3.attention_norm.bias",
+            "gradients/layers.3.attention_norm.weight",
+            "gradients/layers.3.feedforward.0.bias",
+            "gradients/layers.3.feedforward.0.weight",
+            "gradients/layers.3.feedforward.3.bias",
+            "gradients/layers.3.feedforward.3.weight",
+            "gradients/layers.3.feedforward_norm.bias",
+            "gradients/layers.3.feedforward_norm.weight",
+            "gradients/layers.3.self_attention.in_proj_bias",
+            "gradients/layers.3.self_attention.in_proj_weight",
+            "gradients/layers.3.self_attention.out_proj.bias",
+            "gradients/layers.3.self_attention.out_proj.weight",
+            "gradients/layers.4.attention_norm.bias",
+            "gradients/layers.4.attention_norm.weight",
+            "gradients/layers.4.feedforward.0.bias",
+            "gradients/layers.4.feedforward.0.weight",
+            "gradients/layers.4.feedforward.3.bias",
+            "gradients/layers.4.feedforward.3.weight",
+            "gradients/layers.4.feedforward_norm.bias",
+            "gradients/layers.4.feedforward_norm.weight",
+            "gradients/layers.4.self_attention.in_proj_bias",
+            "gradients/layers.4.self_attention.in_proj_weight",
+            "gradients/layers.4.self_attention.out_proj.bias",
+            "gradients/layers.4.self_attention.out_proj.weight",
+            "gradients/layers.5.attention_norm.bias",
+            "gradients/layers.5.attention_norm.weight",
+            "gradients/layers.5.feedforward.0.bias",
+            "gradients/layers.5.feedforward.0.weight",
+            "gradients/layers.5.feedforward.3.bias",
+            "gradients/layers.5.feedforward.3.weight",
+            "gradients/layers.5.feedforward_norm.bias",
+            "gradients/layers.5.feedforward_norm.weight",
+            "gradients/layers.5.self_attention.in_proj_bias",
+            "gradients/layers.5.self_attention.in_proj_weight",
+            "gradients/layers.5.self_attention.out_proj.bias",
+            "gradients/layers.5.self_attention.out_proj.weight",
+            "gradients/layers.6.attention_norm.bias",
+            "gradients/layers.6.attention_norm.weight",
+            "gradients/layers.6.feedforward.0.bias",
+            "gradients/layers.6.feedforward.0.weight",
+            "gradients/layers.6.feedforward.3.bias",
+            "gradients/layers.6.feedforward.3.weight",
+            "gradients/layers.6.feedforward_norm.bias",
+            "gradients/layers.6.feedforward_norm.weight",
+            "gradients/layers.6.self_attention.in_proj_bias",
+            "gradients/layers.6.self_attention.in_proj_weight",
+            "gradients/layers.6.self_attention.out_proj.bias",
+            "gradients/layers.6.self_attention.out_proj.weight",
+            "gradients/layers.7.attention_norm.bias",
+            "gradients/layers.7.attention_norm.weight",
+            "gradients/layers.7.feedforward.0.bias",
+            "gradients/layers.7.feedforward.0.weight",
+            "gradients/layers.7.feedforward.3.bias",
+            "gradients/layers.7.feedforward.3.weight",
+            "gradients/layers.7.feedforward_norm.bias",
+            "gradients/layers.7.feedforward_norm.weight",
+            "gradients/layers.7.self_attention.in_proj_bias",
+            "gradients/layers.7.self_attention.in_proj_weight",
+            "gradients/layers.7.self_attention.out_proj.bias",
+            "gradients/layers.7.self_attention.out_proj.weight",
+            "gradients/layers.8.attention_norm.bias",
+            "gradients/layers.8.attention_norm.weight",
+            "gradients/layers.8.feedforward.0.bias",
+            "gradients/layers.8.feedforward.0.weight",
+            "gradients/layers.8.feedforward.3.bias",
+            "gradients/layers.8.feedforward.3.weight",
+            "gradients/layers.8.feedforward_norm.bias",
+            "gradients/layers.8.feedforward_norm.weight",
+            "gradients/layers.8.self_attention.in_proj_bias",
+            "gradients/layers.8.self_attention.in_proj_weight",
+            "gradients/layers.8.self_attention.out_proj.bias",
+            "gradients/layers.8.self_attention.out_proj.weight",
+            "gradients/layers.9.attention_norm.bias",
+            "gradients/layers.9.attention_norm.weight",
+            "gradients/layers.9.feedforward.0.bias",
+            "gradients/layers.9.feedforward.0.weight",
+            "gradients/layers.9.feedforward.3.bias",
+            "gradients/layers.9.feedforward.3.weight",
+            "gradients/layers.9.feedforward_norm.bias",
+            "gradients/layers.9.feedforward_norm.weight",
+            "gradients/layers.9.self_attention.in_proj_bias",
+            "gradients/layers.9.self_attention.in_proj_weight",
+            "gradients/layers.9.self_attention.out_proj.bias",
+            "gradients/layers.9.self_attention.out_proj.weight",
+            "gradients/lm_head.bias",
+            "gradients/lm_head.weight"
+          ],
+          "watch_histograms": 219,
+          "watch_history_steps": [
+            24
+          ]
+        },
+        "storage": {
+          "bytes": 773856,
+          "file_count": 5,
+          "forbidden": [],
+          "run_file_count": 4
+        }
+      }
+    },
+    {
+      "arm": "disabled",
+      "checkpoint": {
+        "counters": {
+          "optimizer_step": 260,
+          "target_tokens": 133120
+        },
+        "cursor_digest": "124d231c37969ae2c8e2c68495b517c50b464239154198b713fc220d2147ec56",
+        "model_digest": "37a6d109aefae5aa34439920e5d84d4a877a1bb0e2c53b7e442ab625a160f56c",
+        "resume_digest": "d0d470e8e7df74369df8d3b14c6c76109fa1f32371499e47a2866aae21cf56d9",
+        "sha256": "bc5b7261a72ff7e7c9386105fdbc1c287650003b879dee6579d69b8446a8c6f6",
+        "size_bytes": 850365344
+      },
+      "container_wall_seconds": 56.214806464,
+      "disk": {
+        "checkpoint_bytes": 2551113924,
+        "checkpoint_files": 3,
+        "free_after_bytes": 431614615552,
+        "free_before_bytes": 434166644736
+      },
+      "hashes": {
+        "config": "de63b50f58c0e6f45ce2c2cd319c83455a8aa87683a4660ca266eb931fbf73c9",
+        "container": "8dcd25baac148f2672e3bd09bc4d8c074ce277fe5e535892dadaaa642c4108de",
+        "gpu": "2d0720da56dacb66910c790bb9583dc84d08dea7282f7f9b07e400daf0f96895",
+        "manifest": "8d99c6ba0b64a7e6a9aca396a5e46d86edeaa06715ab685ab216d0f91ca8a95f",
+        "measurement": "8483acb2096f5b98692a213f27efb3fcdbae5bd9bbf5000f336cd177df9727f6",
+        "metrics": "c2077f04b9cdd71c57010a833238af156e4863e86e3496ed2a0362771c0fc9fa",
+        "vmstat": "c47b9b475322ac01db68aed9e4aee9dcee3384ecaa9005a3926c4668ee6a5d86",
+        "wandb_events": "d8b0c27d9fba9c91425203d19a0e2d845ba1a750f927f0dd4dd338ec58babbe4",
+        "wandb_records": "807f07b030e9968c3251e7cb84095c3108f107ea9f1d469983ee5bb59ee4f5db"
+      },
+      "manifest": {
+        "data": [
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19",
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19"
+        ],
+        "experiment_id": "exp-f05ea598b9eaea5a77bb",
+        "git_sha": "a4117cec2e86e3b0079f3a867ee76059a93dc988",
+        "hardware": "bbba66a7fd419b86064a23e5dca8c40078d1cdb46860754e2b245c41dc317d0c",
+        "tokenizer": "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b"
+      },
+      "normalized_config": "b991de89884991fc43b2d3e80ddeec26d101d960430b6f236f24fb7d65527f85",
+      "performance": {
+        "allocated": {
+          "first_20_median": 1508506368.0,
+          "last_20_median": 1509244928.0,
+          "maximum": 1520719360
+        },
+        "cuda_phase_median_milliseconds": {
+          "backward": 47.3973445892334,
+          "clipping": 4.742192029953003,
+          "forward": 32.79732799530029,
+          "gradient_finite_check": 11.109871864318848,
+          "gradient_norm_and_scalar_read": 2.4407039880752563,
+          "gradient_scale": 2.7022080421447754,
+          "host_device_prepare": 0.31052800081670284,
+          "loss": 1.5308800041675568,
+          "loss_scalar_read": 0.013439999893307686,
+          "optimizer": 28.22657585144043,
+          "parameter_finite_check": 11.177279949188232,
+          "scheduler": 0.014944000169634819
+        },
+        "data_wait_fraction": 0.11897010887560934,
+        "host_phase_median_seconds": {
+          "backward": 0.043217173020821065,
+          "clipping": 0.0014209895161911845,
+          "data_wait": 0.019965138999396004,
+          "forward": 0.02888628948130645,
+          "gradient_finite_check": 0.013485609510098584,
+          "gradient_norm_and_scalar_read": 0.0024491149961249903,
+          "gradient_scale": 0.0015865364985074848,
+          "host_device_prepare": 0.0004962179955327883,
+          "loss": 0.000703950019669719,
+          "loss_scalar_read": 1.973650068975985e-05,
+          "optimizer": 0.003811006507021375,
+          "parameter_finite_check": 0.038926192006329075,
+          "scheduler": 2.2336505935527384e-05,
+          "step_metrics": 0.0002532934886403382
+        },
+        "reserved": {
+          "first_20_median": 1606418432.0,
+          "last_20_median": 1606418432.0,
+          "maximum": 1606418432
+        },
+        "step_max_seconds": 0.17948681602138095,
+        "step_median_seconds": 0.1660757064964855,
+        "step_p95_seconds": 0.1690169390058145,
+        "steps": 234,
+        "target_tokens": 119808,
+        "target_tokens_per_second": 3104.2038299742712,
+        "wall_seconds": 38.59540370485047
+      },
+      "position": 3,
+      "repetition": 3,
+      "resources": {
+        "container": {
+          "coverage": 0.9655172413793104,
+          "end_gap_seconds": 0.155816495,
+          "expected": 29,
+          "max_gap_seconds": 2.016402396,
+          "max_memory_bytes": 2940978855,
+          "samples": 28,
+          "start_delay_seconds": 1.911450569,
+          "temporal_coverage": true
+        },
+        "gpu": {
+          "coverage": 0.9929078014184397,
+          "end_gap_seconds": 0.13888376,
+          "expected": 282,
+          "max_gap_seconds": 0.201000192,
+          "power_w": {
+            "max": 21.56,
+            "median": 20.73,
+            "min": 5.36
+          },
+          "samples": 280,
+          "sm_clock_mhz": {
+            "max": 2411.0,
+            "median": 2398.0,
+            "min": 208.0
+          },
+          "start_delay_seconds": 0.110922512,
+          "temperature_c": {
+            "max": 46.0,
+            "median": 45.0,
+            "min": 41.0
+          },
+          "temporal_coverage": true,
+          "utilization_percent": {
+            "max": 77.0,
+            "median": 61.0,
+            "min": 0.0
+          }
+        },
+        "host": {
+          "coverage": 0.9649122807017544,
+          "end_gap_seconds": 1.496883888,
+          "expected": 57,
+          "longest_swap_io_run": 0,
+          "max_gap_seconds": 1.0,
+          "minimum_free_buffer_cache_bytes": 121730682880,
+          "samples": 55,
+          "start_delay_seconds": 0.717922576,
+          "temporal_coverage": true
+        }
+      },
+      "run_id": "r3-p3-disabled",
+      "scheduled_log_seconds": {
+        "max": 6.416099495254457e-05,
+        "median": 5.0264992751181126e-05,
+        "total": 0.0013661720731761307
+      },
+      "trajectory": "dd20989eccb4af66eb46ad12c9c0c12078b98edfa9d7e4db1c004f718285d318",
+      "wandb": {
+        "lifecycle": [
+          [
+            "init",
+            "disabled"
+          ]
+        ],
+        "records": {
+          "file_count": 0,
+          "files": [],
+          "schema_version": 1,
+          "wandb_version": "0.25.1",
+          "watch_histogram_records": 0,
+          "watch_histogram_series": [],
+          "watch_histograms": 0,
+          "watch_history_steps": []
+        },
+        "storage": {
+          "bytes": 0,
+          "file_count": 0,
+          "forbidden": [],
+          "run_file_count": 0
+        }
+      }
+    }
+  ],
+  "schema_version": 1,
+  "ticket": "WB-001",
+  "verdict": "FAIL",
+  "warnings": [
+    "r1-p1-disabled:data_wait_investigate",
+    "r1-p1-disabled:step_tail_investigate",
+    "r1-p3-offline-on:data_wait_investigate",
+    "r2-p1-offline-on:data_wait_investigate",
+    "r2-p2-disabled:data_wait_investigate",
+    "r2-p3-offline-off:data_wait_investigate",
+    "r3-p2-offline-on:data_wait_investigate"
+  ]
+}

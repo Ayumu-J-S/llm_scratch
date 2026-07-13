@@ -45,6 +45,14 @@ if [[ ! $RUN_TIMEOUT_SECONDS =~ ^[1-9][0-9]*$ ]]; then
   echo "WB001_RUN_TIMEOUT_SECONDS must be a positive integer" >&2
   exit 2
 fi
+[[ ! -e $OUTPUT_ROOT ]] || {
+  echo "refusing to reuse output root: $OUTPUT_ROOT" >&2
+  exit 4
+}
+[[ ! -e $CACHE_ROOT ]] || {
+  echo "refusing to reuse cache root: $CACHE_ROOT" >&2
+  exit 4
+}
 mkdir -p "$OUTPUT_ROOT" "$CACHE_ROOT"
 OUTPUT_ROOT=$(realpath "$OUTPUT_ROOT")
 CACHE_ROOT=$(realpath "$CACHE_ROOT")
@@ -182,7 +190,7 @@ prime_cache() {
       python src/train.py profile=stability_smoke runtime.device=cuda \
         data.streaming.cache.dir=/cache reproducibility.seed=42 \
         data.streaming.train.max_tokens=133248 \
-        training.sequence_length=64 model.num_layers=18 \
+        training.sequence_length=64 model.num_layers=26 \
         training.max_steps=1 training.max_tokens=null training.max_time=null \
         artifacts.checkpoints_dir=/evidence/checkpoints measurement.enabled=false \
         wandb.mode=disabled wandb.watch.enabled=false wandb.artifact.policy=none \
@@ -234,7 +242,7 @@ run_one() {
     python src/train.py profile=stability_smoke runtime.device=cuda
     data.streaming.cache.dir=/cache reproducibility.seed=42
     data.streaming.train.max_tokens=133248
-    training.sequence_length=64 model.num_layers=18
+    training.sequence_length=64 model.num_layers=26
     training.max_steps=260 training.max_tokens=null training.max_time=null
     artifacts.checkpoints_dir=/evidence/checkpoints
     measurement.enabled=true measurement.warmup_optimizer_steps=26

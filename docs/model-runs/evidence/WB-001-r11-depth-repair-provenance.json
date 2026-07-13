@@ -1,0 +1,114 @@
+{
+  "schema_version": "1.0",
+  "captured_at": "2026-07-13T18:50:23Z",
+  "phase": "diagnosis-and-repair",
+  "role": "dgx-data-wait-depth-repair",
+  "task_path": "/root",
+  "requested": {
+    "model": "GPT-5.6 appropriate model",
+    "reasoning_mode": "high experimental diagnosis"
+  },
+  "actual": {
+    "exact_model_identifier": "not exposed by runtime",
+    "reasoning_mode": "not exposed by runtime"
+  },
+  "attempt_7": {
+    "commit": "a4117cec2e86e3b0079f3a867ee76059a93dc988",
+    "raw_root": "/tmp/wb001-r7-a4117cec2e86e3b0079f3a867ee76059a93dc988",
+    "durable_summary": "docs/experiments/evidence/WB-001-dgx-r7-failed.json",
+    "verdict": "FAIL",
+    "passed_gates": 163,
+    "total_gates": 166,
+    "data_wait_fail_percent": [10.6507, 10.4865, 11.8970],
+    "paired_median_percent": {
+      "offline_off_vs_disabled": 2.0219,
+      "offline_on_vs_disabled": 3.3715,
+      "watch_vs_offline_off": 2.0407
+    },
+    "all_non_data_wait_gates_passed": true
+  },
+  "diagnosis": {
+    "worst_wait_seconds": 4.591699,
+    "worst_wall_seconds": 38.595404,
+    "measured_steps": 234,
+    "required_additional_non_wait_milliseconds_per_step": 31.289,
+    "observed_non_wait_slope_milliseconds_per_layer": {
+      "conservative_cuda": 4.793,
+      "host_aggregate": 5.275
+    },
+    "depth_24_projected_wait_percent_range": [9.97, 10.15],
+    "depth_26_projected_wait_percent_range": [9.47, 9.65],
+    "cross_attempt_comparison_use": "repair sizing only; not a performance conclusion"
+  },
+  "repair": {
+    "model_num_layers": 26,
+    "sequence_length": 64,
+    "optimizer_steps": 260,
+    "warmup_optimizer_steps": 26,
+    "stream_max_tokens": 133248,
+    "microbatches": 1040,
+    "target_tokens": 133120,
+    "watch_log_frequency_batches": 1000,
+    "decision_thresholds_changed": false,
+    "fresh_matrix_required": true
+  },
+  "fresh_root_guards": {
+    "preexisting_output_root_rejected": true,
+    "preexisting_cache_root_rejected": true,
+    "guard_smokes": "PASS"
+  },
+  "precommit_cuda_smoke": {
+    "network": "none",
+    "dirty_rejection_disabled_for_diagnostic_only": true,
+    "model_parameters": 85024394,
+    "training_steps": 1,
+    "validation_target_tokens": 64,
+    "train_validation_checkpoint_path": "PASS",
+    "checkpoint_sizes_bytes": [1020842290, 1020843559, 1020870400],
+    "final_clean_runner_rejects_dirty_worktree": true
+  },
+  "independent_loader_composition": {
+    "network": "none",
+    "sequence_length": 64,
+    "model_num_layers": 26,
+    "stream_max_tokens": 133248,
+    "train_microbatches": 1040,
+    "optimizer_groups": 260,
+    "remainder": 0,
+    "train_targets": 133120,
+    "validation_batches": 1,
+    "validation_targets": 64
+  },
+  "independent_reviews": [
+    {
+      "task_path": "/root/wb_dgx_protocol_harness",
+      "verdict": "recommend depth 26",
+      "exact_model_identifier": "not exposed by runtime",
+      "reasoning_mode": "not exposed by runtime"
+    },
+    {
+      "task_path": "/root/wb001_implementation",
+      "verdict": "depth 25 mathematical minimum; depth 26 safer",
+      "exact_model_identifier": "not exposed by runtime",
+      "reasoning_mode": "not exposed by runtime"
+    },
+    {
+      "task_path": "/root/wb001_implementation",
+      "verdict": "PASS prelaunch audit",
+      "exact_model_identifier": "not exposed by runtime",
+      "reasoning_mode": "not exposed by runtime"
+    },
+    {
+      "task_path": "/root/wb_dgx_protocol_harness",
+      "verdict": "PASS after fresh-root and record-parity repair",
+      "exact_model_identifier": "not exposed by runtime",
+      "reasoning_mode": "not exposed by runtime"
+    }
+  ],
+  "privacy": {
+    "prompts_recorded": false,
+    "hidden_chain_of_thought_recorded": false,
+    "token_counts_recorded": false,
+    "secrets_recorded": false
+  }
+}

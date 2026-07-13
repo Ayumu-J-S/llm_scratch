@@ -6,8 +6,9 @@
   no GitHub publication command; complete body prepared at
   `/tmp/WB-001-pr-body.md`
 - Experiment owner: implementation agent
-- Status: R1 repair validation passed; DGX Attempts 2 and 5 failed, Attempts 3,
-  4, and 6 were aborted, and depth-based compute-bound Attempt 7 is predeclared
+- Status: R1 repair validation passed; DGX Attempts 2, 5, and 7 failed,
+  Attempts 3, 4, and 6 were aborted, and depth-26 Attempt 8 passed prelaunch
+  audit and is predeclared
 - Started (UTC): 2026-07-13
 - Last updated (UTC): 2026-07-13
 - Model-run provenance: `docs/model-runs/WB-001-evidence-complete-wandb.md`
@@ -41,9 +42,9 @@
 | Resource | Limit | Derivation / measurement source |
 | --- | --- | --- |
 | CPU correctness | Focused tests plus one disabled and one offline canonical smoke | Ticket validation asks for test doubles, matrix, missing login, schema, offline smoke |
-| Elapsed time on target hardware | Retained Attempt 2: 3×3×100; retained Attempt 5: 3×3×300; predeclared Attempt 7: 3×3×260 steps | CHECK §§6.3 and 9.2 repeated disabled/offline/watch comparison; 260 steps execute 1,040 backward batches and one default-frequency watch event |
-| Training tokens | Attempt 7: 133,120 targets/arm from a 133,248-token streaming cap; identical in every arm | 260 steps × batch 2 × sequence 64 × accumulation 4; the extra 128 stream tokens provide full windows |
-| Optimizer steps | 2 CPU smoke invocations; retained Attempt 2: 900; retained Attempt 5: 2,700; Attempt 7: 2,340 | Attempt 7 uses 260 steps × 3 arms × 3 repetitions |
+| Elapsed time on target hardware | Retained Attempt 2: 3×3×100; retained Attempt 5: 3×3×300; retained Attempt 7 and predeclared Attempt 8: 3×3×260 steps each | CHECK §§6.3 and 9.2 repeated disabled/offline/watch comparison; 260 steps execute 1,040 backward batches and one default-frequency watch event |
+| Training tokens | Attempts 7 and 8: 133,120 targets/arm from a 133,248-token streaming cap; identical in every arm within an attempt | 260 steps × batch 2 × sequence 64 × accumulation 4; the extra 128 stream tokens provide full windows |
+| Optimizer steps | 2 CPU smoke invocations; retained Attempt 2: 900; retained Attempt 5: 2,700; retained Attempt 7 and planned Attempt 8: 2,340 each | Each current matrix uses 260 steps × 3 arms × 3 repetitions |
 | Evaluation work and cadence | Identical across all R2 arms; no extra W&B cadence | Isolates W&B/watch overhead |
 | Checkpoint count and bytes | Existing local checkpoint policy per arm, inventoried with exact bytes; no W&B artifact in required R2 | Artifact behavior is proven with test doubles, not service quota |
 | Local / external / W&B storage | Temp directories for CPU smoke; future R2 records W&B directory bytes; zero cloud bytes required | W&B is not backup or bulk storage |
@@ -90,7 +91,8 @@
 ### Counters, evidence, and integrity
 
 - Automated result after integration repairs: focused integration `115 passed
-  in 11.26s` plus `10 passed` for the R2 verifier; full repository suite `361
+  in 11.26s` plus `16 passed` for the R2 verifier and `2 passed` for the offline
+  inspector; full repository suite `361
   passed, 1 skipped in 68.20s`.
 - Offline smoke: both disabled and offline invocations completed while
   credentials were removed; name resolution, non-Unix `connect`, `connect_ex`,
@@ -354,17 +356,62 @@ All exactness, data-wait, 5% investigation, 10% failure, storage, memory, swap,
 and temporal gates remain unchanged. The full matrix uses a fresh cache/root
 and clean exact commit; no prior arm is reused.
 
+### Attempt 7 result — failed only the per-arm data-wait gate
+
+Attempt 7 ran all nine arms at exact commit
+`a4117cec2e86e3b0079f3a867ee76059a93dc988` in the pinned image. Raw evidence
+is retained at
+`/tmp/wb001-r7-a4117cec2e86e3b0079f3a867ee76059a93dc988`; the byte-identical
+structured summary is
+`docs/experiments/evidence/WB-001-dgx-r7-failed.json`.
+
+The verifier passed 163 of 166 gates. Every arm completed 260 steps and
+133,120 targets; exact trajectories/checkpoints, validation, W&B lifecycle and
+decoded watch histograms, storage, temporal sampler coverage, memory, and swap
+passed. Paired median changes also passed: offline/watch-off versus disabled
+was 2.02%, offline/watch-on versus disabled was 3.37%, and watch-on versus
+offline/watch-off was 2.04%.
+
+The result remains `FAIL` because data wait was 10.65% in
+`r1-p2-offline-off`, 10.49% in `r3-p1-offline-off`, and 11.90% in
+`r3-p3-disabled`, above the unchanged 10% per-arm limit. The failures span
+offline-off and disabled modes and therefore do not indicate a W&B-specific
+regression. No Attempt 7 arm is eligible for reuse.
+
+### Predeclared Attempt 8 — depth-26 compute-bound retry
+
+Attempt 8 changes only `model.num_layers` from 18 to 26. It retains sequence
+64, 260 steps, 26 warm-up steps, batch 2, accumulation 4, the 133,248-token
+stream cap, 1,040 backward batches, nonempty epoch-end validation, and the
+default 1,000-batch watch event. Every decision threshold, Latin-square order,
+cooldown, sampler, fresh-root/cache requirement, and fail-closed verifier gate
+is unchanged.
+
+The worst Attempt 7 arm averaged 19.62 ms data wait and 145.31 ms non-wait
+work per measured step. Passing requires more than 176.6 ms non-wait work.
+Retained sequence-64 depth 6→18 evidence estimates 4.79–5.28 ms additional
+non-wait work per layer: depth 24 projects 9.97–10.15% and is too marginal,
+while depth 26 projects approximately 9.47–9.65%. This cross-attempt evidence
+is used only to size the repair, never as an Attempt 8 performance result.
+
+A network-isolated CUDA one-step train/validation/checkpoint feasibility run
+passed with 85,024,394 parameters and three approximately 1.02 GB checkpoints.
+Measured Attempt 7 headroom was ample: 1.61 GB maximum allocator reservation,
+at least 121.48 GB host free/buffer/cache, zero swap I/O, and more than 431 GB
+disk free. Attempt 8 must run as a wholly fresh matrix from its own clean exact
+commit before any conclusion.
+
 ## Conclusion
 
-- Hypothesis result: supported at R1; DGX Attempt 2 failed its measurement and
-  watch-cost gates, Attempts 3 and 4 made no comparison claim, and Attempt 5
-  failed data-wait/performance gates. Attempt 6 stopped before measurement, so
-  the overhead conclusion remains pending Attempt 7.
+- Hypothesis result: supported at R1; DGX Attempts 2 and 5 failed measurement
+  gates, Attempts 3, 4, and 6 made no comparison claim, and Attempt 7 passed
+  every paired overhead gate but failed three per-arm data-wait gates. The
+  final target-workload conclusion remains pending Attempt 8.
 - Evidence-backed conclusion: the implementation can preserve local metrics and
   checkpoints across disabled/offline W&B and tested external failure paths,
   while fail-closing every artifact safety gate.
 - Uncertainty and limitations: no online service call, real quota consumption,
   or artifact upload was performed; the failed DGX evidence is retained rather
   than used for a positive performance claim.
-- Exactly one next step: run and verify the predeclared adaptive Attempt 7 on a
-  clean repair commit before the mandatory independent review.
+- Exactly one next step: run and verify the predeclared fresh Attempt 8 on a
+  clean repair commit before the mandatory independent heavy review.
