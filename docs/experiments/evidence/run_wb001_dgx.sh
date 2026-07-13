@@ -19,6 +19,7 @@ RUN_TIMEOUT_SECONDS=${WB001_RUN_TIMEOUT_SECONDS:-1800}
 ROOT=$(git rev-parse --show-toplevel)
 SCRIPT=$(realpath "$0")
 VERIFIER="$ROOT/docs/experiments/evidence/verify_wb001_dgx.py"
+WANDB_INSPECTOR="$ROOT/docs/experiments/evidence/inspect_wandb_offline.py"
 MATRIX=(
   "1 1 disabled"
   "1 2 offline-off"
@@ -81,6 +82,7 @@ docker run --rm --pull=never --gpus all --network none \
   printf 'cache_root=%s\n' "$CACHE_ROOT"
   printf 'runner_sha256=%s\n' "$(sha256sum "$SCRIPT" | cut -d' ' -f1)"
   printf 'verifier_sha256=%s\n' "$(sha256sum "$VERIFIER" | cut -d' ' -f1)"
+  printf 'wandb_inspector_sha256=%s\n' "$(sha256sum "$WANDB_INSPECTOR" | cut -d' ' -f1)"
 } > "$OUTPUT_ROOT/matrix.env"
 
 GPU_PID=
@@ -157,6 +159,7 @@ prime_cache() {
       -w /workspace "$IMAGE" \
       python src/train.py profile=stability_smoke runtime.device=cuda \
         data.streaming.cache.dir=/cache reproducibility.seed=42 \
+        data.streaming.train.max_tokens=153728 \
         training.sequence_length=64 \
         training.max_steps=1 training.max_tokens=null training.max_time=null \
         artifacts.checkpoints_dir=/evidence/checkpoints measurement.enabled=false \
@@ -208,10 +211,11 @@ run_one() {
     sh -c 'while [ ! -f /evidence/START ]; do sleep 0.05; done; exec "$@"' sh
     python src/train.py profile=stability_smoke runtime.device=cuda
     data.streaming.cache.dir=/cache reproducibility.seed=42
+    data.streaming.train.max_tokens=153728
     training.sequence_length=64
-    training.max_steps=100 training.max_tokens=null training.max_time=null
+    training.max_steps=300 training.max_tokens=null training.max_time=null
     artifacts.checkpoints_dir=/evidence/checkpoints
-    measurement.enabled=true measurement.warmup_optimizer_steps=10
+    measurement.enabled=true measurement.warmup_optimizer_steps=30
     measurement.cuda_events=true measurement.output_path=/evidence/measurement.json
     "wandb.mode=$mode" "wandb.watch.enabled=$watch" "wandb.name=$run_id"
     wandb.artifact.policy=none hydra.run.dir=/evidence/hydra
@@ -243,8 +247,14 @@ run_one() {
     sleep 0.1
   done
   [[ -s $out/container-inspect.json ]] || { echo "container was not inspectable" >&2; return 5; }
-  docker stats --format '{{.Container}}|{{.CPUPerc}}|{{.MemUsage}}|{{.MemPerc}}|{{.NetIO}}|{{.BlockIO}}|{{.PIDs}}' \
-    "$RUN_NAME" > "$out/container-stats.txt" 2> "$out/container-stats.stderr" &
+  (
+    while docker inspect "$RUN_NAME" >/dev/null 2>&1; do
+      sample=$(docker stats --no-stream \
+        --format '{{.Container}}|{{.CPUPerc}}|{{.MemUsage}}|{{.MemPerc}}|{{.NetIO}}|{{.BlockIO}}|{{.PIDs}}' \
+        "$RUN_NAME") || break
+      printf '%s|%s\n' "$(date +%s%N)" "$sample"
+    done
+  ) > "$out/container-stats.txt" 2> "$out/container-stats.stderr" &
   STATS_PID=$!
   for attempt in $(seq 1 150); do [[ -s $out/container-stats.txt ]] && break; sleep 0.1; done
   [[ -s $out/container-stats.txt ]] || { echo "container sampler did not start" >&2; return 5; }
@@ -263,6 +273,10 @@ run_one() {
   GPU_PID= HOST_PID= STATS_PID=
   docker rm -f "$RUN_NAME" >/dev/null 2>&1 || true
   RUN_NAME=
+  docker run --rm --pull=never --network none --entrypoint python \
+    -v "$ROOT:/workspace:ro" -v "$out:/evidence:ro" -w /workspace "$IMAGE" \
+    docs/experiments/evidence/inspect_wandb_offline.py /evidence \
+    > "$out/wandb-records.json"
   assert_idle_inputs
   cache_after=$(cache_digest)
   free_after=$(df -B1 --output=avail "$out" | tail -n1 | tr -d ' ')
@@ -276,7 +290,8 @@ run_one() {
   (( status == 0 )) || { echo "$run_id failed with exit $status; evidence retained" >&2; return "$status"; }
   local required
   for required in measurement.json hydra/resolved_config.yaml hydra/run_manifest.json \
-    checkpoints/metrics.jsonl checkpoints/wandb_events.jsonl checkpoints/final.pt; do
+    checkpoints/metrics.jsonl checkpoints/wandb_events.jsonl checkpoints/final.pt \
+    wandb-records.json; do
     [[ -f $out/$required ]] || { echo "$run_id missing $required" >&2; return 6; }
   done
 }

@@ -1,4 +1,5 @@
 import importlib.util
+import json
 from pathlib import Path
 
 import pytest
@@ -49,20 +50,79 @@ def test_parse_vmstat_discards_since_boot_row_and_retains_swap_fields():
     assert len(rows) == 2
     assert rows[0]["free"] == 900000
     assert rows[0]["si"] == 0
+    assert rows[0]["_timestamp_ns"] == 1783900801000000000
     assert rows[1]["swpd"] == 4
     assert rows[1]["si"] == 1
+
+
+def test_temporal_coverage_ignores_prestart_samples_and_fails_early_end():
+    summary = VERIFY._coverage(
+        [0, 100_000_000, 1_000_000_000],
+        start_ns=1_000_000_000,
+        end_ns=6_000_000_000,
+        interval_seconds=1.0,
+        endpoint_limit_seconds=2.0,
+        gap_limit_seconds=2.5,
+    )
+    assert summary["samples"] == 1
+    assert summary["coverage"] == 0.2
+    assert summary["temporal_coverage"] is False
+
+
+def test_attempt_four_target_horizon_covers_every_microbatch():
+    targets_per_step = 2 * 64 * 4
+    assert VERIFY.TARGET_TOKENS == VERIFY.MAX_STEPS * targets_per_step
+    assert VERIFY.STREAM_MAX_TOKENS == VERIFY.TARGET_TOKENS + 2 * 64
+
+
+def test_main_persists_structured_fail_when_evidence_is_incomplete(tmp_path, monkeypatch):
+    def fail(*args, **kwargs):
+        raise ValueError("no post-warmup optimizer rows")
+
+    output = tmp_path / "summary.json"
+    monkeypatch.setattr(VERIFY, "build_summary", fail)
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "verify_wb001_dgx.py",
+            str(tmp_path),
+            "--expected-commit",
+            "a" * 40,
+            "--expected-image-id",
+            "sha256:test",
+            "--output",
+            str(output),
+        ],
+    )
+    assert VERIFY.main() == 1
+    summary = json.loads(output.read_text(encoding="utf-8"))
+    assert summary["verdict"] == "FAIL"
+    assert summary["failures"] == ["verification_exception"]
+    assert summary["verification_error"]["type"] == "ValueError"
 
 
 def test_container_stats_accepts_streaming_docker_row(tmp_path):
     path = tmp_path / "container-stats.txt"
     path.write_text(
-        "wb001-r1-p1-disabled|101.2%|1.25GiB / 120GiB|1.04%|0B / 0B|1MB / 2MB|8\n",
+        "1000000000|wb001-r1-p1-disabled|101.2%|1.25GiB / 120GiB|1.04%|0B / 0B|1MB / 2MB|8\n"
+        "2000000000|wb001-r1-p1-disabled|99.0%|1.20GiB / 120GiB|1.00%|0B / 0B|1MB / 2MB|8\n",
         encoding="utf-8",
     )
-    summary = VERIFY._container(path, wall=1.0)
-    assert summary["samples"] == 1
+    summary = VERIFY._container(path, start_ns=500_000_000, end_ns=4_500_000_000)
+    assert summary["samples"] == 2
     assert summary["coverage"] == 1.0
+    assert summary["temporal_coverage"] is True
+    assert summary["max_gap_seconds"] == 1.0
     assert summary["max_memory_bytes"] == int(1.25 * 1024**3)
+
+
+def test_container_stats_rejects_temporal_gap(tmp_path):
+    path = tmp_path / "container-stats.txt"
+    row = "|container|10%|1GiB / 120GiB|1%|0B / 0B|0B / 0B|8\n"
+    path.write_text("1000000000" + row + "6000000000" + row, encoding="utf-8")
+    summary = VERIFY._container(path, start_ns=500_000_000, end_ns=6_500_000_000)
+    assert summary["max_gap_seconds"] == 5.0
+    assert summary["temporal_coverage"] is False
 
 
 def test_hardware_projection_excludes_random_container_hostname():

@@ -11,6 +11,7 @@ import math
 import re
 import statistics
 from collections.abc import Mapping, Sequence
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -35,6 +36,10 @@ ARM_CONFIG = {
     "offline-on": ("offline", True),
 }
 ROOT = Path(__file__).resolve().parents[3]
+MAX_STEPS = 300
+WARMUP_STEPS = 30
+TARGET_TOKENS = 153_600
+STREAM_MAX_TOKENS = 153_728
 
 
 class Gates:
@@ -88,11 +93,16 @@ def parse_vmstat(text: str) -> list[dict[str, int]]:
     if header_index is None:
         return []
     header = lines[header_index]
-    header = header[: header.index("UTC")] if "UTC" in header else header
+    has_timestamp = "UTC" in header
+    header = header[: header.index("UTC")] if has_timestamp else header
     rows = []
     for fields in lines[header_index + 1 :]:
         try:
-            rows.append({name: int(fields[index]) for index, name in enumerate(header)})
+            row = {name: int(fields[index]) for index, name in enumerate(header)}
+            if has_timestamp:
+                timestamp = datetime.strptime(" ".join(fields[-2:]), "%Y-%m-%d %H:%M:%S")
+                row["_timestamp_ns"] = int(timestamp.replace(tzinfo=timezone.utc).timestamp() * 1e9)
+            rows.append(row)
         except (IndexError, ValueError):
             continue
     return rows[1:] if rows else []  # vmstat's first row is the since-boot average.
@@ -255,10 +265,62 @@ def summarize_steps(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     return result
 
 
-def _gpu(path: Path, wall: float) -> dict[str, Any]:
-    rows = [line.split(",") for line in path.read_text(encoding="utf-8").splitlines()]
-    rows = [row for row in rows if len(row) == 11]
-    expected = max(1, math.ceil(wall / 0.2))
+def _coverage(
+    timestamps: Sequence[int],
+    start_ns: int,
+    end_ns: int,
+    *,
+    interval_seconds: float,
+    endpoint_limit_seconds: float,
+    gap_limit_seconds: float,
+) -> dict[str, Any]:
+    timestamps = sorted(timestamp for timestamp in timestamps if start_ns <= timestamp <= end_ns)
+    wall = (end_ns - start_ns) / 1e9
+    expected = max(1, math.ceil(wall / interval_seconds))
+    gaps = [(right - left) / 1e9 for left, right in zip(timestamps, timestamps[1:])]
+    start_delay = (timestamps[0] - start_ns) / 1e9 if timestamps else None
+    end_gap = (end_ns - timestamps[-1]) / 1e9 if timestamps else None
+    max_gap = max(gaps, default=0.0) if timestamps else None
+    temporal = bool(timestamps) and all(
+        value is not None and value <= limit
+        for value, limit in (
+            (start_delay, endpoint_limit_seconds),
+            (end_gap, endpoint_limit_seconds),
+            (max_gap, gap_limit_seconds),
+        )
+    )
+    return {
+        "samples": len(timestamps),
+        "expected": expected,
+        "coverage": len(timestamps) / expected,
+        "start_delay_seconds": start_delay,
+        "end_gap_seconds": end_gap,
+        "max_gap_seconds": max_gap,
+        "temporal_coverage": temporal,
+    }
+
+
+def _gpu(path: Path, start_ns: int, end_ns: int) -> dict[str, Any]:
+    parsed = []
+    for row in (line.split(",") for line in path.read_text(encoding="utf-8").splitlines()):
+        if len(row) != 11:
+            continue
+        try:
+            timestamp = datetime.strptime(row[0].strip(), "%Y/%m/%d %H:%M:%S.%f")
+        except ValueError:
+            continue
+        timestamp_ns = int(timestamp.replace(tzinfo=timezone.utc).timestamp() * 1e9)
+        if start_ns <= timestamp_ns <= end_ns:
+            parsed.append((timestamp_ns, row))
+    rows = [row for _, row in parsed]
+    result = _coverage(
+        [timestamp for timestamp, _ in parsed],
+        start_ns,
+        end_ns,
+        interval_seconds=0.2,
+        endpoint_limit_seconds=0.75,
+        gap_limit_seconds=0.75,
+    )
 
     def stats(index: int) -> dict[str, float] | None:
         values = []
@@ -273,50 +335,73 @@ def _gpu(path: Path, wall: float) -> dict[str, Any]:
             else None
         )
 
-    return {
-        "samples": len(rows),
-        "expected": expected,
-        "coverage": len(rows) / expected,
-        "utilization_percent": stats(2),
-        "sm_clock_mhz": stats(6),
-        "power_w": stats(9),
-        "temperature_c": stats(10),
-    }
+    result.update(
+        {
+            "utilization_percent": stats(2),
+            "sm_clock_mhz": stats(6),
+            "power_w": stats(9),
+            "temperature_c": stats(10),
+        }
+    )
+    return result
 
 
-def _host(path: Path, wall: float) -> dict[str, Any]:
-    rows = parse_vmstat(path.read_text(encoding="utf-8"))
-    expected = max(1, math.ceil(wall))
+def _host(path: Path, start_ns: int, end_ns: int) -> dict[str, Any]:
+    rows = [
+        row
+        for row in parse_vmstat(path.read_text(encoding="utf-8"))
+        if start_ns <= row.get("_timestamp_ns", -1) <= end_ns
+    ]
     longest = current = 0
     for row in rows:
         current = current + 1 if row.get("si", 0) > 0 or row.get("so", 0) > 0 else 0
         longest = max(longest, current)
     available = [row.get("free", 0) + row.get("buff", 0) + row.get("cache", 0) for row in rows]
-    return {
-        "samples": len(rows),
-        "expected": expected,
-        "coverage": len(rows) / expected,
-        "minimum_free_buffer_cache_bytes": min(available) * 1024 if available else None,
-        "longest_swap_io_run": longest,
-    }
+    result = _coverage(
+        [row["_timestamp_ns"] for row in rows],
+        start_ns,
+        end_ns,
+        interval_seconds=1.0,
+        endpoint_limit_seconds=2.0,
+        gap_limit_seconds=2.5,
+    )
+    result.update(
+        {
+            "minimum_free_buffer_cache_bytes": min(available) * 1024 if available else None,
+            "longest_swap_io_run": longest,
+        }
+    )
+    return result
 
 
-def _container(path: Path, wall: float) -> dict[str, Any]:
+def _container(path: Path, start_ns: int, end_ns: int) -> dict[str, Any]:
     rows = [line.split("|") for line in path.read_text(encoding="utf-8").splitlines()]
-    rows = [row for row in rows if len(row) == 7]
-    memory = []
+    parsed = []
     for row in rows:
+        if len(row) != 8:
+            continue
         try:
-            memory.append(parse_size_bytes(row[2].split("/", 1)[0].strip()))
+            timestamp_ns = int(row[0])
+        except ValueError:
+            continue
+        if start_ns <= timestamp_ns <= end_ns:
+            parsed.append((timestamp_ns, row))
+    memory = []
+    for _, row in parsed:
+        try:
+            memory.append(parse_size_bytes(row[3].split("/", 1)[0].strip()))
         except ValueError:
             pass
-    expected = max(1, math.ceil(wall))
-    return {
-        "samples": len(rows),
-        "expected": expected,
-        "coverage": len(rows) / expected,
-        "max_memory_bytes": max(memory) if memory else None,
-    }
+    result = _coverage(
+        [timestamp for timestamp, _ in parsed],
+        start_ns,
+        end_ns,
+        interval_seconds=2.0,
+        endpoint_limit_seconds=3.5,
+        gap_limit_seconds=4.5,
+    )
+    result["max_memory_bytes"] = max(memory) if memory else None
+    return result
 
 
 def _inventory(root: Path) -> bool:
@@ -470,37 +555,40 @@ def _run(
         and wandb["artifact"]["policy"] == "none",
     )
     training = config["training"]
+    streaming_train = config["data"]["streaming"]["train"]
     targets_per_step = (
         int(training["batch_size"])
         * int(training["sequence_length"])
         * int(training["gradient_accumulation_steps"])
     )
-    expected_targets = targets_per_step * 100
+    expected_targets = targets_per_step * MAX_STEPS
     measured = [row for row in measurement["rows"] if row.get("event") == "optimizer_step"]
     steps = [row for row in metrics if row.get("event") == "step"]
     logs = [row for row in metrics if row.get("event") == "log"]
     scheduled = [row for row in measurement["rows"] if row.get("event") == "scheduled_log"]
     validations = [row for row in metrics if row.get("event") == "validation"]
     final = [row for row in metrics if row.get("event") == "final_checkpoint"]
-    log_steps = list(range(10, 101, 10))
+    log_steps = list(range(10, MAX_STEPS + 1, 10))
     gates.require(
         prefix + "fixed_work",
         config["profile"]["name"] == "stability_smoke"
+        and streaming_train["max_tokens"] == STREAM_MAX_TOKENS
         and training["sequence_length"] == 64
-        and training["max_steps"] == 100
+        and training["max_steps"] == MAX_STEPS
         and training["precision"] == "bf16"
         and measurement["complete"] is True
-        and measurement["warmup_optimizer_steps"] == 10
+        and measurement["warmup_optimizer_steps"] == WARMUP_STEPS
         and measurement["cuda_events"] is True
-        and len(measured) == len(steps) == 100
-        and [row["optimizer_step"] for row in measured] == list(range(1, 101))
-        and [row["optimizer_step"] for row in steps] == list(range(1, 101))
-        and all(row["warmup"] is (index <= 10) for index, row in enumerate(measured, 1))
+        and len(measured) == len(steps) == MAX_STEPS
+        and [row["optimizer_step"] for row in measured] == list(range(1, MAX_STEPS + 1))
+        and [row["optimizer_step"] for row in steps] == list(range(1, MAX_STEPS + 1))
+        and all(row["warmup"] is (index <= WARMUP_STEPS) for index, row in enumerate(measured, 1))
         and all(row["target_tokens_step"] == targets_per_step for row in measured)
+        and expected_targets == TARGET_TOKENS
         and sum(row["train/target_tokens_step"] for row in steps) == expected_targets
         and len(final) == 1
         and final[0]["target_tokens"] == expected_targets
-        and checkpoint["counters"]["optimizer_step"] == 100
+        and checkpoint["counters"]["optimizer_step"] == MAX_STEPS
         and checkpoint["counters"]["target_tokens"] == expected_targets
         and _finite(metrics),
     )
@@ -508,22 +596,50 @@ def _run(
         prefix + "cadence_validation",
         [row["optimizer_step"] for row in logs] == log_steps
         and [row["optimizer_step"] for row in scheduled] == log_steps
-        and [row["optimizer_step"] for row in validations] == [100]
+        and [row["optimizer_step"] for row in validations] == [MAX_STEPS]
         and (root / "checkpoints/best.pt").is_file(),
     )
     lifecycle_ok, lifecycle = _lifecycle(arm, events)
     storage_ok, storage = _wandb_storage(root, arm)
     gates.require(prefix + "wandb_lifecycle", lifecycle_ok, lifecycle)
     gates.require(prefix + "wandb_storage", storage_ok, storage)
+    wandb_records = _json(root / "wandb-records.json")
+    expected_wandb_files = 0 if arm == "disabled" else 1
+    expected_watch_records = (
+        wandb_records["watch_histogram_records"] >= 1
+        if arm == "offline-on"
+        else wandb_records["watch_histogram_records"] == 0
+    )
+    gates.require(
+        prefix + "wandb_record_content",
+        wandb_records["wandb_version"] == "0.25.1"
+        and wandb_records["file_count"] == expected_wandb_files
+        and expected_watch_records,
+        {
+            "wandb_version": wandb_records["wandb_version"],
+            "file_count": wandb_records["file_count"],
+            "watch_histogram_records": wandb_records["watch_histogram_records"],
+            "watch_histograms": wandb_records["watch_histograms"],
+            "watch_histogram_series": len(wandb_records["watch_histogram_series"]),
+            "watch_history_steps": wandb_records["watch_history_steps"],
+        },
+    )
 
     performance = summarize_steps(measured)
+    start_ns = int(conditions["start_unix_ns"])
+    end_ns = int(conditions["end_unix_ns"])
     resources = {
-        "gpu": _gpu(root / "gpu.csv", wall),
-        "host": _host(root / "host-vmstat.txt", wall),
-        "container": _container(root / "container-stats.txt", wall),
+        "gpu": _gpu(root / "gpu.csv", start_ns, end_ns),
+        "host": _host(root / "host-vmstat.txt", start_ns, end_ns),
+        "container": _container(
+            root / "container-stats.txt",
+            start_ns,
+            end_ns,
+        ),
     }
     for name, resource in resources.items():
-        gates.require(prefix + name + "_coverage", resource["coverage"] >= 0.9, resource)
+        coverage = resource["coverage"] >= 0.9 and resource["temporal_coverage"] is True
+        gates.require(prefix + name + "_coverage", coverage, resource)
     gates.require(prefix + "swap", resources["host"]["longest_swap_io_run"] < 3, resources["host"])
     for name in ("allocated", "reserved"):
         memory = performance[name]
@@ -564,7 +680,7 @@ def _run(
         },
         "resources": resources,
         "container_wall_seconds": wall,
-        "wandb": {"lifecycle": lifecycle, "storage": storage},
+        "wandb": {"lifecycle": lifecycle, "storage": storage, "records": wandb_records},
         "disk": {
             "free_before_bytes": int(conditions["free_before_bytes"]),
             "free_after_bytes": int(conditions["free_after_bytes"]),
@@ -584,6 +700,7 @@ def _run(
                 "gpu": "gpu.csv",
                 "vmstat": "host-vmstat.txt",
                 "container": "container-stats.txt",
+                "wandb_records": "wandb-records.json",
             }.items()
         },
     }
@@ -604,7 +721,9 @@ def build_summary(
         and diagnose["cuda"]["available"] is True
         and diagnose["cuda"]["bf16_supported"] is True
         and matrix["runner_sha256"] == _sha(ROOT / "docs/experiments/evidence/run_wb001_dgx.sh")
-        and matrix["verifier_sha256"] == _sha(Path(__file__).resolve()),
+        and matrix["verifier_sha256"] == _sha(Path(__file__).resolve())
+        and matrix["wandb_inspector_sha256"]
+        == _sha(ROOT / "docs/experiments/evidence/inspect_wandb_offline.py"),
     )
     gates.require(
         "cache_prime",
@@ -694,7 +813,7 @@ def build_summary(
         "limitations": [
             "network=none and artifact policy none make no online auth, quota, retention, or upload claim",
             "DGX Spark unified-memory headroom is interpreted from host, container, and allocator evidence rather than nvidia-smi memory alone",
-            "W&B binary run files are inventoried and hashed but not decoded by this verifier",
+            "W&B binary run files are decoded only to prove local history/watch content; no cloud behavior is inferred",
         ],
     }
 
@@ -708,9 +827,24 @@ def main() -> int:
     args = parser.parse_args()
     evidence = args.evidence_root.resolve()
     output = args.output.resolve() if args.output else evidence / "wb001-r2-summary.json"
-    summary = build_summary(
-        evidence, expected_commit=args.expected_commit, expected_image_id=args.expected_image_id
-    )
+    try:
+        summary = build_summary(
+            evidence, expected_commit=args.expected_commit, expected_image_id=args.expected_image_id
+        )
+    except Exception as error:
+        summary = {
+            "schema_version": 1,
+            "ticket": "WB-001",
+            "review_size": "R2",
+            "measured_commit": args.expected_commit,
+            "image_id": args.expected_image_id,
+            "verdict": "FAIL",
+            "failures": ["verification_exception"],
+            "verification_error": {
+                "type": type(error).__name__,
+                "message": str(error),
+            },
+        }
     temporary = output.with_name("." + output.name + ".tmp")
     temporary.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     temporary.replace(output)

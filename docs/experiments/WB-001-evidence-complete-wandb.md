@@ -6,8 +6,8 @@
   no GitHub publication command; complete body prepared at
   `/tmp/WB-001-pr-body.md`
 - Experiment owner: implementation agent
-- Status: R1 repair validation passed; DGX Attempt 2 failed and adaptive Attempt
-  3 is predeclared
+- Status: R1 repair validation passed; DGX Attempt 2 failed, Attempt 3 was
+  aborted before measured arms after protocol audit, and Attempt 4 is predeclared
 - Started (UTC): 2026-07-13
 - Last updated (UTC): 2026-07-13
 - Model-run provenance: `docs/model-runs/WB-001-evidence-complete-wandb.md`
@@ -41,11 +41,11 @@
 | Resource | Limit | Derivation / measurement source |
 | --- | --- | --- |
 | CPU correctness | Focused tests plus one disabled and one offline canonical smoke | Ticket validation asks for test doubles, matrix, missing login, schema, offline smoke |
-| Elapsed time on target hardware | 3 repetitions of 3 arms, 100 steps/arm; not run in implementation pass | CHECK §§6.3 and 9.2 repeated disabled/offline/watch comparison |
-| Training tokens | Fixed by the selected `stability_smoke` resolved config and identical in every arm | No target-token or objective difference permitted |
-| Optimizer steps | 2 CPU smoke invocations; future R2 900 total steps | 100 steps × 3 arms × 3 repetitions |
+| Elapsed time on target hardware | Retained Attempt 2: 3×3×100 steps; predeclared Attempt 4: 3×3×300 steps | CHECK §§6.3 and 9.2 repeated disabled/offline/watch comparison; longer retry reaches the 1,000-batch watch event |
+| Training tokens | 153,600 targets/arm from a 153,728-token streaming cap; identical in every Attempt 4 arm | 300 steps × batch 2 × sequence 64 × accumulation 4; the extra 128 stream tokens provide full windows |
+| Optimizer steps | 2 CPU smoke invocations; retained Attempt 2: 900; Attempt 4: 2,700 | Attempt 4 uses 300 steps × 3 arms × 3 repetitions |
 | Evaluation work and cadence | Identical across all R2 arms; no extra W&B cadence | Isolates W&B/watch overhead |
-| Checkpoint count and bytes | Existing local final checkpoint per arm; no W&B artifact in required R2 | Artifact behavior is proven with test doubles, not service quota |
+| Checkpoint count and bytes | Existing local checkpoint policy per arm, inventoried with exact bytes; no W&B artifact in required R2 | Artifact behavior is proven with test doubles, not service quota |
 | Local / external / W&B storage | Temp directories for CPU smoke; future R2 records W&B directory bytes; zero cloud bytes required | W&B is not backup or bulk storage |
 
 ## Attempt 1 — network-free correctness and offline smoke
@@ -146,7 +146,7 @@ evidence, and incomplete socket interception. The repair now:
 The repaired focused suite, full suite, Ruff, and offline smoke pass. This QA
 audit is not substituted for the required independent heavy review.
 
-## Predeclared Attempt 2 — DGX disabled/offline/watch comparison (not run)
+## Attempt 2 protocol — DGX disabled/offline/watch comparison (completed FAIL)
 
 Use one exact clean commit and the same pinned CUDA container, GPU, cache,
 resolved `profile=stability_smoke` config, seed, data order, BF16 recipe,
@@ -216,36 +216,59 @@ uv run python docs/experiments/evidence/verify_wb001_dgx.py \
 - One initial command used an unobserved full-SHA expansion. The runner rejected
   it before container launch; the corrected command used `git rev-parse HEAD`.
 
-### Predeclared Attempt 3 — adaptive compute-bound retry
+### Attempt 3 — aborted before measured arms
 
-The retry keeps the same commit-controlled code path, image, GPU, seed, model,
-data order, three-arm Latin square, 100-step horizon, steps 1–10 warm-up,
-artifact policy, and all original decision thresholds. It changes only the
-failed measurement controls:
+Attempt 3 started at exact commit `ee4d41d0afe403f50031ffa53d907ff13cf5ba91`
+but was interrupted after cache prime, before any comparison arm, when an
+independent protocol audit returned `FAIL`. Its partial root is retained at
+`/tmp/wb001-r3-ee4d41d0afe403f50031ffa53d907ff13cf5ba91` and is not treated as
+measurement evidence. The audit found that 100 optimizer steps at accumulation
+4 would execute only 400 backward batches, so a 1,000-batch watch interval
+would register hooks but never emit a histogram. It also found that raw
+streaming Docker stats lacked timestamps and that the predeclaration
+incorrectly described sequence length 64 as the same model/work as Attempt 2.
 
-- override `training.sequence_length=64` in every cache-prime and measured arm
-  so data wait is a smaller share of steady-state work;
-- use the official/default `wandb.watch.log_freq=1000`, retaining watch hooks
-  while avoiding the demonstrated 100-batch histogram volume;
-- use streaming `docker stats` for the declared approximately 1 Hz sampler; and
-- compare stable OS/Torch/CUDA/device/image identity while excluding Docker's
-  randomized container hostname (the exact container/image/mount/network
-  identity remains separately verified).
+### Predeclared Attempt 4 — audited adaptive retry
 
-Attempt 3 stops and remains failed if data wait still exceeds 10%, any sampler
-coverage is below 90%, exact trajectory/checkpoint identity diverges, or any
-paired median regression is at least 10%. The 5% investigation threshold and
-all memory/swap/storage/lifecycle gates remain unchanged.
+Attempt 4 keeps one identical configuration across all arms: exact image/GPU,
+seed, sequence-64 model, data order, three-arm Latin square, artifact policy,
+and decision gates. Relative to Attempt 2, sequence length 64 changes the input
+shape, positional-encoding buffer, and total work. No cross-attempt performance
+comparison will be made; only matched arms within Attempt 4 support its result.
+
+The corrected protocol sets `data.streaming.train.max_tokens=153728`, which the
+real loader resolves to 1,200 complete microbatches and 153,600 targets. It runs
+300 optimizer steps with steps 1–30 as warm-up. At accumulation 4 this executes
+1,200 backward batches, so the official/default
+`wandb.watch.log_freq=1000` must emit at least one gradient-histogram history
+record. A network-isolated inspector decodes a temporary copy of the local
+`.wandb` record, hashes the retained original, and requires histogram content
+only in watch-on arms. GPU, host, and Docker samples are filtered to the exact
+training start/end window and require at least 90% count coverage. GPU remains
+5 Hz with start/end/inter-sample gaps at most 0.75 s; vmstat remains 1 Hz with
+2 s endpoint and 2.5 s inter-sample limits. Docker's measured `--no-stream`
+poll is approximately 0.5 Hz, with 3.5 s endpoint and 4.5 s inter-sample
+limits. A redirected streaming Docker smoke was rejected before launch because
+its ANSI screen-refresh rows and burst duplicates were not independent samples.
+Stable hardware equality excludes only the randomized container hostname;
+exact image/mount/network identity remains separately checked.
+
+Attempt 4 remains failed if data wait exceeds 10%, any sampler coverage gate
+fails, local W&B record content is wrong, exact arm-to-arm trajectory/checkpoint
+identity diverges, or any paired median regression is at least 10%. The 5%
+investigation threshold and all memory/swap/storage/lifecycle gates are
+unchanged.
 
 ## Conclusion
 
 - Hypothesis result: supported at R1; DGX Attempt 2 failed its measurement and
-  watch-cost gates, so the overhead conclusion remains pending Attempt 3.
+  watch-cost gates, and aborted Attempt 3 made no claim, so the overhead
+  conclusion remains pending Attempt 4.
 - Evidence-backed conclusion: the implementation can preserve local metrics and
   checkpoints across disabled/offline W&B and tested external failure paths,
   while fail-closing every artifact safety gate.
 - Uncertainty and limitations: no online service call, real quota consumption,
   or artifact upload was performed; the failed DGX evidence is retained rather
   than used for a positive performance claim.
-- Exactly one next step: run and verify the predeclared adaptive Attempt 3 on a
+- Exactly one next step: run and verify the predeclared adaptive Attempt 4 on a
   clean repair commit before the mandatory independent review.

@@ -39,7 +39,18 @@
 | 1 | repair | not exposed by runtime | not exposed by runtime | failed precommit audit plus official W&B 0.25.1 behavior | Repair every acceptance-blocking audit finding and expand invariant tests | repaired; mandatory review pending | Bound artifacts to verified repository checkpoints, fixed team auth and summaries, bounded finish/evaluation isolation, exact validation cadence, stability/runtime evidence, socket guard, and 31 artifact tests | focused `115 passed`; full `361 passed, 1 skipped`; offline smoke pass |
 | 1 | repair | not exposed by runtime | not exposed by runtime | predeclared R2 protocol and applicable CHECK | Implement transparent exact-head DGX runner and verifier before measurement | implemented; run pending | Added fixed cache-prime plus 9-run Latin-square, network/read-only/image guards, raw samplers/hashes, exact trajectory/checkpoint/lifecycle/resource/storage and paired gates | Bash syntax, Ruff/format, and 10 verifier tests pass |
 | 2 | repair | not exposed by runtime | not exposed by runtime | failed DGX Attempt 2 at `049acf7` | Diagnose retained R2 evidence and repair only demonstrated measurement/default defects | repaired; retry pending | Preserved failed projection; raised compute intensity to sequence 64; restored official 1,000-batch watch interval; made Docker stats truly streaming; excluded random container hostname from stable hardware equality | `docs/experiments/evidence/WB-001-dgx-r2-failed.json`; exact trajectories/checkpoints passed while data wait, sampler coverage, and watch overhead failed |
-| 2 | review | pending | pending | exact integration/evidence head pending | Independent heavy review against philosophy, ticket, and applicable CHECK | pending | pending | pending |
+| 2 | review | not exposed by runtime | not exposed by runtime | clean adaptive head `ee4d41d` | Read-only prelaunch protocol audit; not the mandatory heavy review | FAIL; Attempt 3 aborted before measured arms | Default 1,000-batch watch would never emit in 400 batches; sequence 64 changed model/work despite contrary record; streaming stats lost timestamps | delegated audit plus retained cache-prime-only `/tmp/wb001-r3-ee4d41d0afe403f50031ffa53d907ff13cf5ba91` |
+| 3 | repair | not exposed by runtime | not exposed by runtime | failed prelaunch audit | Repair protocol without weakening performance, exactness, or resource gates | repaired; re-audit failed | Run 300 steps/1,200 backward batches with 30-step warm-up; decode and structurally validate local watch histograms; timestamp container samples and gate temporal gaps; correct cross-attempt claims | inspector/verifier regression tests and retained prior evidence |
+| 3 | review | not exposed by runtime | not exposed by runtime | uncommitted repaired protocol snapshot | Read-only prelaunch protocol re-audit; not the mandatory heavy review | FAIL before launch | Prior three findings closed; verifier incorrectly expected validations at steps 100/200/300 although this profile validates only at epoch end; planned step budget was stale | delegated re-audit; trainer/profile inspection; 15 focused tests |
+| 4 | repair | not exposed by runtime | not exposed by runtime | failed prelaunch re-audit | Bind cadence gate to the actual unchanged profile and correct resource budget | repaired; final prelaunch audit pending | Require the sole epoch-end validation at `MAX_STEPS=300`; record 2,700 measured optimizer steps | focused tests, lint, format, shell syntax, diff check |
+| 4 | review | not exposed by runtime | not exposed by runtime | uncommitted protocol snapshot | Protocol-focused prelaunch audit; not the mandatory heavy review | PASS, later superseded | Shell, verifier, inspector, cadence, budget, and focused tests appeared consistent | delegated protocol audit; real W&B 0.25.1 watch smoke |
+| 4 | review | not exposed by runtime | not exposed by runtime | same uncommitted protocol snapshot | Independent implementation/data-horizon audit | FAIL; supersedes preceding PASS | Profile retained an 8,192-token cap, yielding only 16 updates and no watch emission; GPU/host coverage included pre-start samples; short evidence crashed the verifier | real composed streaming-loader count plus sampler/verifier inspection |
+| 5 | repair | not exposed by runtime | not exposed by runtime | failed data-horizon audit | Make the exact loader reach every declared update and time-bound all resource samplers | repaired; final prelaunch review pending | Set stream cap 153,728 for exactly 1,200 microbatches/153,600 targets; filter GPU/host/Docker to start/end with gap gates; persist structured FAIL on incomplete evidence | exact containerized loader composition; focused tests |
+| 5 | review | not exposed by runtime | not exposed by runtime | uncommitted horizon/sampler repair | Independent final prelaunch audits | PASS, later superseded | Both audits confirmed exact 1,200/300/153,600 loader work, time-windowed samplers, structured verifier failure, and focused checks | `/root/wb001_implementation` and `/root/wb_dgx_protocol_harness` |
+| 5 | validation | not exposed by runtime | not exposed by runtime | exact redirected Docker streaming command | Exercise actual host sampler output before commit | FAIL before launch | Streaming CLI emitted ANSI screen-refresh rows and burst duplicates, so apparent 1 Hz rows were not independent samples | retained console reproduction; no measured arm launched |
+| 6 | repair | not exposed by runtime | not exposed by runtime | failed host sampler validation | Use an honest, parseable container sampler cadence | repaired; final prelaunch review pending | Restored timestamped `docker stats --no-stream` polling at observed ~0.5 Hz; require 90% count, 3.5 s endpoints, and 4.5 s maximum gap | 7-second live Docker smoke produced three clean eight-field samples |
+| 6 | review | not exposed by runtime | not exposed by runtime | uncommitted cycle-6 sampler repair | Final prelaunch audit before measurement | PASS | No blocker in polling lifecycle, clean eight-field rows, parser, or 2 s/90%/3.5 s/4.5 s gates | delegated protocol audit; shell, Ruff, diff, and focused tests pass |
+| 7 | review | pending | pending | exact integration/evidence head pending | Mandatory heavy review against philosophy, ticket, and applicable CHECK after evidence | pending | pending | pending |
 
 Requested values are recorded separately from actual runtime display. The
 delegated runtime did not expose the actual model identifier or reasoning mode;
@@ -56,8 +67,12 @@ they are not inferred from the request.
   `docs/model-runs/evidence/WB-001-implementation-provenance.json`,
   `docs/model-runs/evidence/WB-001-precommit-review-provenance.json`,
   `docs/model-runs/evidence/WB-001-repair-provenance.json`,
-  `docs/model-runs/evidence/WB-001-r2-harness-provenance.json`, and
-  `docs/model-runs/evidence/WB-001-r2-repair-provenance.json`
+  `docs/model-runs/evidence/WB-001-r2-harness-provenance.json`,
+  `docs/model-runs/evidence/WB-001-r2-repair-provenance.json`,
+  `docs/model-runs/evidence/WB-001-r3-protocol-review-provenance.json`,
+  `docs/model-runs/evidence/WB-001-r4-protocol-reviews-provenance.json`,
+  `docs/model-runs/evidence/WB-001-r5-horizon-review-provenance.json`, and
+  `docs/model-runs/evidence/WB-001-r6-container-sampler-provenance.json`
 - Codex CLI version: `codex-cli 0.144.1`
 - Branch/commit: `codex/wb-001-evidence-safe-wandb` / input `74d9e24`
 - Phase/role/task path: implementation / implementation /
@@ -145,14 +160,59 @@ they are not inferred from the request.
 - Changes made: sequence length 8 → 64 for the comparison only; watch interval
   100 → official/default 1,000 batches; streaming Docker stats; stable hardware
   projection no longer includes randomized container hostname.
-- What was deliberately not changed: model, seed, data order, arm order, steps,
-  warm-up, artifact policy, decision thresholds, exactness gates, or failed
-  evidence.
+- What was deliberately not changed: seed, data order, arm order, artifact
+  policy, decision thresholds, exactness gates, or failed evidence. Sequence 64
+  did change the positional-encoding buffer and per-step work relative to
+  Attempt 2; the earlier contrary statement was rejected by review.
 - Local evidence: every Attempt 2 process exited 0 and exact config/trajectory,
   model, resume, and cursor gates passed; the run remained `FAIL` on the declared
   measurement gates.
-- Commit reviewed next: pending adaptive Attempt 3 evidence head.
+- Commit reviewed next: `ee4d41d`, which failed prelaunch protocol audit.
 - Re-review verdict: pending.
+
+### DGX protocol repair after aborted Attempt 3
+
+- Repair cycle: 3, following prelaunch audit `FAIL` at `ee4d41d`.
+- Review/repair model and mode: not exposed by runtime / not exposed by runtime.
+- Attempt disposition: interrupted after cache prime and before all measured
+  arms; its partial root is retained and makes no performance claim.
+- Changes made: 300 optimizer steps and 30 warm-up steps yield 1,200 backward
+  batches; a network-isolated W&B 0.25.1 inspector copies each local record,
+  validates datastore CRC/protobuf structure plus complete finite histogram
+  values/bins, and requires at least one watch-on emission; Docker stats rows
+  carry nanosecond timestamps with start/end/max-gap gates.
+- Comparison scope: all arms within Attempt 4 use the same sequence-64 model and
+  work. No throughput result is compared across Attempt 2 and Attempt 4.
+- What was deliberately not changed: production watch default, seed, data
+  order, Latin-square order, artifact policy, exactness gates, 5% investigation
+  threshold, 10% failure threshold, memory/swap gates, or failed evidence.
+- Prelaunch re-audit: `FAIL`; all three original findings were closed, but the
+  verifier expected validations at 100/200/300 while the unchanged profile has
+  no step cadence and therefore validates once at epoch end. The budget also
+  still said 900 steps.
+- Repair cycle 4: require validation only at `MAX_STEPS=300` and record the
+  actual 2,700-step matrix budget. No runtime configuration or decision gate
+  changed.
+- A protocol-focused re-review returned `PASS`, but an independent
+  implementation/data audit superseded it with `FAIL`: the profile's unchanged
+  8,192-token stream ended after 63 microbatches/16 updates, and GPU/host sample
+  counts included pre-start observations. Short evidence would also raise
+  instead of persisting a structured verifier failure.
+- Repair cycle 5: set `data.streaming.train.max_tokens=153728`. Exact
+  network-isolated composition of the real loader produced 1,200 microbatches,
+  300 full accumulation groups, and 153,600 targets. Filter GPU, vmstat, and
+  Docker samples to the exact training window with sampler-specific endpoint
+  and maximum-gap gates. Catch evidence-verification exceptions only to persist
+  a structured `FAIL` summary.
+- Two delegated re-audits returned `PASS`, but a direct host smoke then showed
+  that redirected streaming `docker stats` emits ANSI screen-refresh rows and
+  burst duplicates. Those rows cannot prove independent 1 Hz samples.
+- Repair cycle 6: use timestamped `docker stats --no-stream` polling at its
+  observed approximately 0.5 Hz cadence. The verifier now expects a 2 s
+  interval, at least 90% count coverage, endpoint gaps at most 3.5 s, and no
+  inter-sample gap above 4.5 s. A 7-second live smoke produced three clean
+  eight-field rows; GPU remains 5 Hz and vmstat 1 Hz.
+- Commit reviewed next: pending clean Attempt 4 head after final prelaunch audit.
 
 ## Final evidence
 
@@ -172,8 +232,9 @@ they are not inferred from the request.
   `049acf7`: all nine processes and exact trajectory/checkpoint gates passed,
   but data wait reached 12.68%, container coverage was about 48%, and watch-on
   regressed 26.26% versus offline/watch-off at the unsafe 100-batch interval.
-  Adaptive Attempt 3 is predeclared before retry; no positive throughput claim
-  is made from Attempt 2.
+  Attempt 3 was aborted before measured arms after its protocol audit failed.
+  Audited Attempt 4 is predeclared before retry; no positive throughput claim
+  is made from Attempts 2 or 3.
 - Failed attempts retained: first offline smoke placed its W&B directory under
   the repository; it was removed and `WANDB_DIR` now points at the smoke temp
   root. No training failure occurred.
@@ -182,7 +243,7 @@ they are not inferred from the request.
   Billing UI/CSV snapshot because the public Python API does not expose current
   storage usage.
 - Unresolved risks: real online auth/service behavior remains unexercised and
-  fail-closed; DGX overhead remains unresolved until adaptive Attempt 3 passes.
+  fail-closed; DGX overhead remains unresolved until adaptive Attempt 4 passes.
 - Human decision requested: human review/merge after a passing independent
   review; no self-merge authorization exists.
 
