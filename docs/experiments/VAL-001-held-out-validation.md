@@ -332,6 +332,76 @@ decision-grade validation-off/on comparison. All original throughput, data-wait,
 pause, identity, standalone-parity, recovery, memory, cache, and trace-coverage
 gates remain unchanged.
 
+### Outcome and stop decision
+
+The compact failed-attempt record is
+[`VAL-001-dgx-r5-failed.json`](evidence/VAL-001-dgx-r5-failed.json).
+
+- All six arms completed at exact head `4264e4a`. Every pair's 60-step non-time
+  trajectory and canonical final-model digest matched exactly. Paired on/off
+  throughput deltas were -1.21%, -0.016%, and -0.022% (median -0.022%); every
+  data-wait fraction was below 1%.
+- All six validation events stayed below 7.47 s, scoring stayed below 4.80 s,
+  attribution reconciled, validation identities/scores matched across replicas,
+  and step-50 training-time/standalone results matched exactly. Cache inventory
+  and shard hashes were unchanged, leases released, memory recovered, following-
+  five-step means passed, and no swap occurred.
+- Strict determinism reduced pair-1 absolute throughput by 44.8% off and 45.7%
+  on relative to otherwise matched warn-only Attempt 4. This is descriptive
+  same-stack cost context, not a valid acceptance A/B because Attempt 4 failed
+  exact trajectory. The eventual baseline determinism/performance choice remains
+  an explicit DGX-001 decision.
+- Attempt 5 remains `FAIL` under its predeclared evidence gates. The container
+  collector emitted at approximately 2.04-second intervals, only 50.1-50.7% of
+  the declared 1 Hz samples. Five of six first post-validation steps also
+  exceeded the preceding five-step nearest-rank p95 (the maximum of five
+  observations) by 0.7-4.7%, even though their following-five means stayed
+  within 3% of pre-validation and 1.9% of paired-off controls.
+- The first standalone command was rejected before evaluation because it tried
+  to override a cache key absent from the operational evaluation profile. The
+  successful retry correctly relied on checkpoint-owned resolved configuration;
+  no score or evidence was reused from the no-work command.
+
+## Attempt 6 — predeclared adaptive evidence-protocol retry
+
+Attempt 6 is a fully fresh six-arm confirmatory matrix; no Attempt 5 arm is
+reused. This protocol revision is explicitly adaptive rather than represented as
+an original rule. Its 5% bound is anchored to CHECK §3's existing performance-
+investigation threshold, not accepted retrospectively from Attempt 5. No further
+threshold relaxation is allowed if Attempt 6 fails.
+
+Every model/data/training condition and every trajectory, identity, score,
+throughput, data-wait, pause, sustained-recovery, memory, cache, and standalone
+gate remains unchanged. Run order remains `1-off`, `1-on`, `2-on`, `2-off`,
+`3-off`, `3-on` at sequence 4,096, batch 1, accumulation 1, 60 steps/245,760
+targets per arm, with strict deterministic algorithms.
+
+For each validation event at optimizer step `k` in `{25, 50}`:
+
+- `q_pre` is the nearest-rank p95 of on-arm steps `k-4` through `k`; with five
+  observations this equals their maximum.
+- The first following step passes only if both
+  `t_on[k+1] <= 1.05 * q_pre` and
+  `t_on[k+1] <= 1.05 * t_off[k+1]` hold on unrounded values.
+- The existing sustained gate remains: the on-arm mean for steps `k+1` through
+  `k+5` may be no more than 5% above both the on-arm pre-event five-step mean and
+  the paired off-arm mean at the same post-event positions.
+- All signed ratios and host/CUDA phase decompositions are reported even when
+  they pass. Passing establishes at most a bounded 5% single-step transient and
+  5% sustained slowdown under these conditions, not zero restart cost.
+
+GPU sampling remains nominal 5 Hz and host sampling nominal 1 Hz. Container
+sampling is prospectively declared as coarse nominal 0.5 Hz because the host's
+sequential `docker stats --no-stream` collector empirically emits approximately
+every two seconds. The extra wrapper sleep is removed, and a start barrier holds
+training until GPU, host, and container collectors have started. A container
+trace is valid only if at least 90% of adjacent intervals are at most 2.5 s, no
+interval exceeds 3.0 s, and at least three samples fall inside every complete
+validation interval. PyTorch per-step allocator measurements and the 5 Hz GPU /
+1 Hz host traces remain authoritative for short-lived behavior. The fixed
+Attempt 6 protocol script SHA-256 is
+`4fc1cfee44f5c44657e6deeb87a3a5d301872d3c456588c381ad3b39f93c7914`.
+
 ## Independent review FAIL and repair
 
 The independent review requested `gpt-5.6-sol` / Max for `41191cb` and returned
@@ -364,8 +434,8 @@ The repair phase, requested as `gpt-5.6-luna` / Extra High, has implemented:
 
 The ordinary path adds no CUDA synchronization. Benchmark mode deliberately
 uses one end-step boundary synchronization so CUDA event timings are valid.
-Attempts 3 and 4 produced stopped current-head evidence; Attempt 5 is the
-predeclared strict-deterministic acceptance retry.
+Attempts 3-5 produced stopped current-head evidence; Attempt 6 is the
+predeclared fresh adaptive evidence-protocol retry.
 Exact displayed repair model and reasoning mode are not exposed by runtime.
 
 Local repair verification: focused validation/checkpoint/trainer/generation
@@ -379,5 +449,5 @@ which were not changed. Independent re-review is still required.
 The prior DGX R2 is insufficient current performance evidence because it is a
 single old-head pair with an observed roughly 10% on/off throughput delta. The
 repair is locally implemented and its focused tests pass, but VAL-001 remains
-`FAIL` until the predeclared repeated strict-deterministic DGX protocol passes
-and an independent heavy re-review accepts the exact documented head.
+`FAIL` until the predeclared fresh Attempt 6 DGX protocol passes and an
+independent heavy re-review accepts the exact documented head.

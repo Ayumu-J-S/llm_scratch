@@ -38,6 +38,8 @@
 | 3b | repair completion | not exposed by runtime / not exposed by runtime | not exposed by runtime / not exposed by runtime | `41191cb` working tree | implemented; DGX evidence and re-review pending | Replaced always-on/stale timing with disabled-by-default atomic measurement mode, separated optimizer/validation intervals, added CUDA-event and memory capture, closed loader selection/missing-metadata gaps, predeclared the repeated DGX protocol, and corrected provenance claims |
 | 4 | CUDA determinism repair | available lightweight implementation model | not exposed by runtime / not exposed by runtime | `74a6d6b` | implemented; Attempt 5 and re-review pending | Attempt 4 failed exact trajectory at step 1 before validation; changed deterministic mode from warn-only to strict, strengthened its regression, and predeclared a fresh full matrix |
 | 4 | repair QA | `gpt-5.6-luna` / Extra High (`xhigh` invocation) | not exposed by runtime / not exposed by runtime | `74a6d6b` working tree | PASS | Read-only focused review found no issue and agreed strict fail-closed determinism is the smallest sound repair; not the required final heavy re-review |
+| 5 | evidence-protocol repair | not exposed by runtime / not exposed by runtime | not exposed by runtime / not exposed by runtime | `4264e4a` | implemented; Attempt 6 pending | Preserved Attempt 5 as FAIL, repaired container sampling/start barrier, prospectively bounded the adaptive first-step recovery gate, and prohibited further relaxation |
+| 5 | protocol review | not exposed by runtime / not exposed by runtime | not exposed by runtime / not exposed by runtime | `4264e4a` working tree | PASS WITH NOTE | Adaptive 5% gate is defensible only with a fully fresh matrix, CHECK-anchored disclosure, phase attribution, coarse container claims, and no further revision |
 
 Requested values are invocation/config values, not claimed actual deployment
 identifiers. The runtime did not expose the exact identifier or reasoning mode to
@@ -61,6 +63,8 @@ the caller for implementation/repair, so those actual fields remain unavailable.
   `docs/model-runs/evidence/VAL-001-repair-cycle-4-provenance.json`.
 - CUDA determinism repair QA capture:
   `docs/model-runs/evidence/VAL-001-repair-cycle-4-luna-review-provenance.json`.
+- Attempt 6 protocol review capture:
+  `docs/model-runs/evidence/VAL-001-attempt6-protocol-review-provenance.json`.
 - Codex CLI: `codex-cli 0.144.1` for recorded implementation/repair captures.
 - Implementation head: `a8520d7fad718574d1fca4293e6f969c7a478b79`.
 - Main invariant repair: `057983c`; measured merged head:
@@ -73,6 +77,7 @@ the caller for implementation/repair, so those actual fields remain unavailable.
 - Attempt 4 protocol head: `74a6d6b`.
 - CUDA determinism repair head: working tree after `74a6d6b`; no uncommitted-tree
   commit SHA is claimed before local verification completes.
+- Attempt 5 measured head: `4264e4a`; compact failed evidence is retained.
 - Privacy: no prompts, hidden chain-of-thought, token counts, secrets, or raw
   thread IDs are recorded.
 
@@ -223,6 +228,33 @@ a median paired regression below 5%.
   documented cross-platform/version caveat, and restarts all six arms as
   predeclared Attempt 5.
 
+### Current-head DGX Attempt 5 — stopped on evidence gates
+
+Durable compact evidence:
+[`docs/experiments/evidence/VAL-001-dgx-r5-failed.json`](../experiments/evidence/VAL-001-dgx-r5-failed.json).
+
+- Exact head `4264e4a`; all six strict-deterministic arms completed. All three
+  60-step trajectories and final-model digests matched exactly. Paired
+  validation-on throughput deltas were -1.21%, -0.016%, and -0.022% (median
+  -0.022%), and every data-wait fraction was below 1%.
+- All six validation events and scorers met their pause budgets. Replicated
+  validation identities/scores and pair-1 step-50 training-time/standalone
+  results matched exactly. Cache and lease checks, memory recovery, sustained
+  five-step recovery, GPU/host coverage, and no-swap checks passed.
+- Strict mode's descriptive pair-1 throughput cost versus otherwise matched
+  warn-only Attempt 4 was -44.8% off and -45.7% on. Attempt 4 is not acceptance
+  replication, so this is cost context rather than a causal performance verdict.
+- Attempt 5 remains `FAIL`: container samples covered only 50.1-50.7% of the
+  declared 1 Hz intervals, and five of six first post-validation steps exceeded
+  the preceding five-step nearest-rank p95 by 0.7-4.7%. Following-five means
+  still stayed within 3% of pre-event and 1.9% of paired-off controls.
+- Attempt 6 is a fully fresh adaptive retry. It prospectively declares coarse
+  0.5 Hz container evidence with explicit interval/per-event coverage, adds a
+  collector start barrier, and applies CHECK §3's existing 5% threshold to both
+  the first-step pre-event and paired-off comparisons. The 5% adaptation is
+  disclosed, every signed phase result remains reportable, and no further gate
+  relaxation is allowed.
+
 The R2 measured `2133248`; `0a13838` only changes exceptional iterator cleanup.
 No successful scoring/training code path or performance control changed. This
 parent-head relationship is disclosed rather than misrepresented as exact-head
@@ -272,8 +304,24 @@ measurement.
   pass. Two pinned-image strict BF16 probes returned the same loss and full
   model-tensor digest. A read-only `gpt-5.6-luna` / Extra High repair QA returned
   `PASS` with no findings; exact runtime model/mode were not exposed.
-- Completion: Attempt 5 must pass the entire fresh three-pair matrix before
-  independent heavy re-review.
+- Completion: Attempt 5 did not pass its evidence gates; cycle 5 preserves that
+  result and defines the fully fresh Attempt 6 required before heavy re-review.
+
+### Repair cycle 5 — adaptive evidence protocol
+
+- Input: Attempt 5's otherwise passing six-arm matrix failed its declared 1 Hz
+  container coverage and zero-tolerance first-post-step gates.
+- Change: preserve Attempt 5 as `FAIL`; remove the collector's extra sleep, hold
+  training behind a collector start barrier, declare coarse container evidence
+  at nominal 0.5 Hz with interval/per-validation-event gates, and use CHECK §3's
+  existing 5% investigation threshold for both first-post pre-event and paired-
+  off comparisons. Sustained five-step gates remain unchanged.
+- Review: a delegated protocol reviewer returned `PASS WITH NOTE`; exact runtime
+  model/mode were not exposed. It required an entirely fresh matrix, explicit
+  adaptive/cherry-picking risk disclosure, phase attribution for the consistent
+  direction, and no further threshold revision.
+- Completion: Attempt 6 must pass all six fresh arms. Even a passing result must
+  retain an adaptive-protocol note and may conclude only a bounded transient.
 
 ## Failed-review handoff
 
@@ -328,7 +376,7 @@ measurement.
 - Local evidence: focused suite `55 passed`; full suite `310 passed, 1 skipped`;
   full Ruff, changed-Python format, lock, and diff checks pass. Full
   repository formatter still reports four pre-existing unrelated files.
-- Commit reviewed next: pending local handoff; no commit was created.
+- Repair commit: `78e0448`; later evidence/protocol commits are recorded above.
 - Re-review model / mode: pending independent heavy review.
 - Re-review verdict: pending; the prior verdict remains `FAIL`.
 
@@ -340,21 +388,32 @@ measurement.
   regression proving warn-only is disabled.
 - What was deliberately not changed: no SDPA backend hard-code, new Hydra knob,
   architecture change, evidence reuse, or cross-platform bitwise promise.
-- Commit reviewed next: the forthcoming commit containing this repair and the
-  predeclared Attempt 5 protocol.
+- Repair/protocol commit: `4264e4a`.
+- Re-review verdict: pending; the prior independent verdict remains `FAIL`.
+
+### Evidence-protocol repair result
+
+- Repair cycle: 5.
+- Repair model / mode: not exposed by runtime / not exposed by runtime.
+- Changes made: failed-evidence preservation, collector start/rate repair, and a
+  prospectively bounded adaptive recovery rule.
+- What was deliberately not changed: no Attempt 5 evidence reclassification or
+  reuse, no training/scoring/model/data change, and no further gate-relaxation
+  option.
+- Commit reviewed next: the forthcoming docs/evidence protocol head.
 - Re-review verdict: pending; the prior independent verdict remains `FAIL`.
 
 ## Risks and handoff
 
 - Known trade-off: the fixed 65,536-target validation pass costs about 19.52 s
   plus about 1.8–2.4 s when an improving best checkpoint is saved.
-- Evidence blocker: Attempt 3 failed data wait and Attempt 4 failed the exact
-  trajectory control at step 1 before validation. The predeclared strict-mode
-  Attempt 5 needs three passing matched pairs and continuous traces.
+- Evidence blocker: Attempt 5 passed mathematical/performance controls but
+  failed container coverage and its zero-tolerance first-post rule. The
+  predeclared fresh Attempt 6 needs three passing matched pairs and valid traces.
 - Dependency: this stacked PR still depends on DATA-004, whose source-rights
   disposition is a human policy gate.
 - Merge path: human review and merge; no self-merge authorization exists.
-- Exactly one next step: run and analyze predeclared DGX Attempt 5; independent
+- Exactly one next step: run and analyze predeclared DGX Attempt 6; independent
   heavy re-review follows only if it passes.
 
 ## Merge authority and final audit
