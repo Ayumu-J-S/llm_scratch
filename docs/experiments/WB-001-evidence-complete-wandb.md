@@ -6,8 +6,8 @@
   no GitHub publication command; complete body prepared at
   `/tmp/WB-001-pr-body.md`
 - Experiment owner: implementation agent
-- Status: R1 repair validation passed; DGX Attempt 2 failed, Attempts 3 and 4
-  were aborted before a complete matrix, and Attempt 5 is predeclared
+- Status: R1 repair validation passed; DGX Attempts 2 and 5 failed, Attempts 3
+  and 4 were aborted, and compute-bound Attempt 6 is predeclared
 - Started (UTC): 2026-07-13
 - Last updated (UTC): 2026-07-13
 - Model-run provenance: `docs/model-runs/WB-001-evidence-complete-wandb.md`
@@ -41,9 +41,9 @@
 | Resource | Limit | Derivation / measurement source |
 | --- | --- | --- |
 | CPU correctness | Focused tests plus one disabled and one offline canonical smoke | Ticket validation asks for test doubles, matrix, missing login, schema, offline smoke |
-| Elapsed time on target hardware | Retained Attempt 2: 3×3×100 steps; predeclared Attempt 4: 3×3×300 steps | CHECK §§6.3 and 9.2 repeated disabled/offline/watch comparison; longer retry reaches the 1,000-batch watch event |
-| Training tokens | 153,600 targets/arm from a 153,728-token streaming cap; identical in every Attempt 4 arm | 300 steps × batch 2 × sequence 64 × accumulation 4; the extra 128 stream tokens provide full windows |
-| Optimizer steps | 2 CPU smoke invocations; retained Attempt 2: 900; Attempt 4: 2,700 | Attempt 4 uses 300 steps × 3 arms × 3 repetitions |
+| Elapsed time on target hardware | Retained Attempt 2: 3×3×100; retained Attempt 5: 3×3×300; predeclared Attempt 6: 3×3×260 steps | CHECK §§6.3 and 9.2 repeated disabled/offline/watch comparison; 260 steps execute 1,040 backward batches and one default-frequency watch event |
+| Training tokens | Attempt 6: 532,480 targets/arm from a 532,992-token streaming cap; identical in every arm | 260 steps × batch 2 × sequence 256 × accumulation 4; the extra 512 stream tokens provide full windows |
+| Optimizer steps | 2 CPU smoke invocations; retained Attempt 2: 900; retained Attempt 5: 2,700; Attempt 6: 2,340 | Attempt 6 uses 260 steps × 3 arms × 3 repetitions |
 | Evaluation work and cadence | Identical across all R2 arms; no extra W&B cadence | Isolates W&B/watch overhead |
 | Checkpoint count and bytes | Existing local checkpoint policy per arm, inventoried with exact bytes; no W&B artifact in required R2 | Artifact behavior is proven with test doubles, not service quota |
 | Local / external / W&B storage | Temp directories for CPU smoke; future R2 records W&B directory bytes; zero cloud bytes required | W&B is not backup or bulk storage |
@@ -284,16 +284,59 @@ threshold while allowing post-arm cooling samples to age out of the decision
 window. The matrix restarts from repetition 1 in a fresh root and cache on a
 new exact clean commit; Attempt 4's single arm is not reused.
 
+### Attempt 5 result — FAIL, full evidence retained
+
+Attempt 5 ran all nine arms at exact commit
+`0dd2fd56cd6695be75ac37e3f563c4ca4916264d` and the pinned image. Raw evidence
+is retained at `/tmp/wb001-r5-0dd2fd56cd6695be75ac37e3f563c4ca4916264d`;
+the durable verifier projection is
+`docs/experiments/evidence/WB-001-dgx-r5-failed.json`.
+
+Every process exited 0. All arms completed exactly 300 updates and 153,600
+targets. Normalized configs, experiment/data/tokenizer/hardware identity,
+scalar trajectories, model tensors, resume state, and stream cursors were
+exact. W&B lifecycle/storage/record-content gates passed: watch-on arms each
+contained one structurally valid gradient-histogram history record, watch-off
+and disabled arms contained none, and no cloud bytes or artifacts were used.
+GPU/host/container temporal coverage, finite values, checkpoint survival,
+memory stability, and swap gates passed.
+
+The result remains `FAIL`. Every arm exceeded the 10% data-wait limit (11.89%
+to 18.02%), so sequence 64 was still not compute-bound enough. Paired
+offline/watch-off versus disabled changes were 10.99%, -6.93%, and 19.86%, for
+a failing 10.99% median. Offline/watch-on versus disabled had a 0.73% median;
+watch-on versus offline/watch-off had a -11.53% median, but neither is used to
+override the data-wait failure or claim performance safety.
+
+### Predeclared Attempt 6 — sequence-256 compute-bound retry
+
+Attempt 6 changes only the within-matrix work horizon needed to resolve the
+failed measurement: sequence length 256, 260 optimizer steps, steps 1–26 as
+warm-up, and a 532,992-token stream cap. The real loader must yield 1,040 full
+microbatches, 260 accumulation groups, and 532,480 targets. This still crosses
+the default 1,000-batch watch interval and leaves 40 backward batches after the
+required histogram event. Sequence 256 changes the model's positional buffer,
+input shape, and work relative to Attempt 5; no cross-attempt throughput
+comparison is allowed.
+
+All arms within Attempt 6 retain the same seed, model, data order, Latin-square
+order, W&B modes, artifact policy, cooldown, samplers, and decision gates.
+Data wait above 10%, any exactness/lifecycle/storage/resource failure, or any
+paired median regression at least 10% remains a failure; at least 5% remains an
+investigation note. The matrix uses a fresh cache/root and exact clean commit;
+no Attempt 5 arm is reused.
+
 ## Conclusion
 
 - Hypothesis result: supported at R1; DGX Attempt 2 failed its measurement and
-  watch-cost gates, and aborted Attempts 3 and 4 made no comparison claim, so
-  the overhead conclusion remains pending Attempt 5.
+  watch-cost gates, Attempts 3 and 4 made no comparison claim, and Attempt 5
+  failed data-wait/performance gates, so the overhead conclusion remains
+  pending Attempt 6.
 - Evidence-backed conclusion: the implementation can preserve local metrics and
   checkpoints across disabled/offline W&B and tested external failure paths,
   while fail-closing every artifact safety gate.
 - Uncertainty and limitations: no online service call, real quota consumption,
   or artifact upload was performed; the failed DGX evidence is retained rather
   than used for a positive performance claim.
-- Exactly one next step: run and verify the predeclared adaptive Attempt 5 on a
+- Exactly one next step: run and verify the predeclared adaptive Attempt 6 on a
   clean repair commit before the mandatory independent review.

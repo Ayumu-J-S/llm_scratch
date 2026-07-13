@@ -1,0 +1,4049 @@
+{
+  "failures": [
+    "r1-p1-disabled:data_wait_fail",
+    "r1-p2-offline-off:data_wait_fail",
+    "r1-p3-offline-on:data_wait_fail",
+    "r2-p1-offline-on:data_wait_fail",
+    "r2-p2-disabled:data_wait_fail",
+    "r2-p3-offline-off:data_wait_fail",
+    "r3-p1-offline-off:data_wait_fail",
+    "r3-p2-offline-on:data_wait_fail",
+    "r3-p3-disabled:data_wait_fail",
+    "offline_off_vs_disabled_under_10_percent"
+  ],
+  "gates": [
+    {
+      "detail": null,
+      "name": "matrix_identity",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "cache_prime",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p1-disabled:inventory",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p1-disabled:identity_isolation",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p1-disabled:cache_unchanged",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p1-disabled:arm_config",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p1-disabled:fixed_work",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p1-disabled:cadence_validation",
+      "passed": true
+    },
+    {
+      "detail": [
+        [
+          "init",
+          "disabled"
+        ]
+      ],
+      "name": "r1-p1-disabled:wandb_lifecycle",
+      "passed": true
+    },
+    {
+      "detail": {
+        "bytes": 0,
+        "file_count": 0,
+        "forbidden": [],
+        "run_file_count": 0
+      },
+      "name": "r1-p1-disabled:wandb_storage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "file_count": 0,
+        "wandb_version": "0.25.1",
+        "watch_histogram_records": 0,
+        "watch_histogram_series": 0,
+        "watch_histograms": 0,
+        "watch_history_steps": []
+      },
+      "name": "r1-p1-disabled:wandb_record_content",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9954954954954955,
+        "end_gap_seconds": 0.154240985,
+        "expected": 222,
+        "max_gap_seconds": 0.204,
+        "power_w": {
+          "max": 20.85,
+          "median": 20.02,
+          "min": 4.95
+        },
+        "samples": 221,
+        "sm_clock_mhz": {
+          "max": 2411.0,
+          "median": 2411.0,
+          "min": 208.0
+        },
+        "start_delay_seconds": 0.119373607,
+        "temperature_c": {
+          "max": 41.0,
+          "median": 39.0,
+          "min": 35.0
+        },
+        "temporal_coverage": true,
+        "utilization_percent": {
+          "max": 73.0,
+          "median": 64.0,
+          "min": 0.0
+        }
+      },
+      "name": "r1-p1-disabled:gpu_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9777777777777777,
+        "end_gap_seconds": 0.952241113,
+        "expected": 45,
+        "longest_swap_io_run": 0,
+        "max_gap_seconds": 1.0,
+        "minimum_free_buffer_cache_bytes": 122172387328,
+        "samples": 44,
+        "start_delay_seconds": 0.442373671,
+        "temporal_coverage": true
+      },
+      "name": "r1-p1-disabled:host_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9565217391304348,
+        "end_gap_seconds": 0.358859344,
+        "expected": 23,
+        "max_gap_seconds": 2.013283902,
+        "max_memory_bytes": 2185064611,
+        "samples": 22,
+        "start_delay_seconds": 1.911364463,
+        "temporal_coverage": true
+      },
+      "name": "r1-p1-disabled:container_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9777777777777777,
+        "end_gap_seconds": 0.952241113,
+        "expected": 45,
+        "longest_swap_io_run": 0,
+        "max_gap_seconds": 1.0,
+        "minimum_free_buffer_cache_bytes": 122172387328,
+        "samples": 44,
+        "start_delay_seconds": 0.442373671,
+        "temporal_coverage": true
+      },
+      "name": "r1-p1-disabled:swap",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1076618240.0,
+        "last_20_median": 1076618240.0,
+        "maximum": 1088682496
+      },
+      "name": "r1-p1-disabled:allocated_stable",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1235222528.0,
+        "last_20_median": 1235222528.0,
+        "maximum": 1235222528
+      },
+      "name": "r1-p1-disabled:reserved_stable",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p1-disabled:data_wait_fail",
+      "passed": false
+    },
+    {
+      "detail": null,
+      "name": "r1-p2-offline-off:inventory",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p2-offline-off:identity_isolation",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p2-offline-off:cache_unchanged",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p2-offline-off:arm_config",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p2-offline-off:fixed_work",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p2-offline-off:cadence_validation",
+      "passed": true
+    },
+    {
+      "detail": [
+        [
+          "init",
+          "succeeded"
+        ],
+        [
+          "watch",
+          "disabled"
+        ],
+        [
+          "finish",
+          "succeeded"
+        ]
+      ],
+      "name": "r1-p2-offline-off:wandb_lifecycle",
+      "passed": true
+    },
+    {
+      "detail": {
+        "bytes": 70025,
+        "file_count": 5,
+        "forbidden": [],
+        "run_file_count": 4
+      },
+      "name": "r1-p2-offline-off:wandb_storage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "file_count": 1,
+        "wandb_version": "0.25.1",
+        "watch_histogram_records": 0,
+        "watch_histogram_series": 0,
+        "watch_histograms": 0,
+        "watch_history_steps": []
+      },
+      "name": "r1-p2-offline-off:wandb_record_content",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9917695473251029,
+        "end_gap_seconds": 0.199144571,
+        "expected": 243,
+        "max_gap_seconds": 0.201000192,
+        "power_w": {
+          "max": 20.76,
+          "median": 19.07,
+          "min": 5.02
+        },
+        "samples": 241,
+        "sm_clock_mhz": {
+          "max": 2411.0,
+          "median": 2411.0,
+          "min": 208.0
+        },
+        "start_delay_seconds": 0.115375989,
+        "temperature_c": {
+          "max": 42.0,
+          "median": 41.0,
+          "min": 37.0
+        },
+        "temporal_coverage": true,
+        "utilization_percent": {
+          "max": 73.0,
+          "median": 57.0,
+          "min": 0.0
+        }
+      },
+      "name": "r1-p2-offline-off:gpu_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9795918367346939,
+        "end_gap_seconds": 1.210144379,
+        "expected": 49,
+        "longest_swap_io_run": 0,
+        "max_gap_seconds": 1.0,
+        "minimum_free_buffer_cache_bytes": 122219806720,
+        "samples": 48,
+        "start_delay_seconds": 0.220375925,
+        "temporal_coverage": true
+      },
+      "name": "r1-p2-offline-off:host_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.96,
+        "end_gap_seconds": 0.370104302,
+        "expected": 25,
+        "max_gap_seconds": 2.017931497,
+        "max_memory_bytes": 2251636604,
+        "samples": 24,
+        "start_delay_seconds": 1.914129646,
+        "temporal_coverage": true
+      },
+      "name": "r1-p2-offline-off:container_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9795918367346939,
+        "end_gap_seconds": 1.210144379,
+        "expected": 49,
+        "longest_swap_io_run": 0,
+        "max_gap_seconds": 1.0,
+        "minimum_free_buffer_cache_bytes": 122219806720,
+        "samples": 48,
+        "start_delay_seconds": 0.220375925,
+        "temporal_coverage": true
+      },
+      "name": "r1-p2-offline-off:swap",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1076618240.0,
+        "last_20_median": 1088682496.0,
+        "maximum": 1103998464
+      },
+      "name": "r1-p2-offline-off:allocated_stable",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1235222528.0,
+        "last_20_median": 1235222528.0,
+        "maximum": 1235222528
+      },
+      "name": "r1-p2-offline-off:reserved_stable",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p2-offline-off:data_wait_fail",
+      "passed": false
+    },
+    {
+      "detail": null,
+      "name": "r1-p3-offline-on:inventory",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p3-offline-on:identity_isolation",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p3-offline-on:cache_unchanged",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p3-offline-on:arm_config",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p3-offline-on:fixed_work",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p3-offline-on:cadence_validation",
+      "passed": true
+    },
+    {
+      "detail": [
+        [
+          "init",
+          "succeeded"
+        ],
+        [
+          "watch",
+          "succeeded"
+        ],
+        [
+          "unwatch",
+          "succeeded"
+        ],
+        [
+          "finish",
+          "succeeded"
+        ]
+      ],
+      "name": "r1-p3-offline-on:wandb_lifecycle",
+      "passed": true
+    },
+    {
+      "detail": {
+        "bytes": 307939,
+        "file_count": 5,
+        "forbidden": [],
+        "run_file_count": 4
+      },
+      "name": "r1-p3-offline-on:wandb_storage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "file_count": 1,
+        "wandb_version": "0.25.1",
+        "watch_histogram_records": 1,
+        "watch_histogram_series": 75,
+        "watch_histograms": 75,
+        "watch_history_steps": [
+          24
+        ]
+      },
+      "name": "r1-p3-offline-on:wandb_record_content",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9955947136563876,
+        "end_gap_seconds": 0.032387299,
+        "expected": 227,
+        "max_gap_seconds": 0.216999936,
+        "power_w": {
+          "max": 21.64,
+          "median": 20.21,
+          "min": 5.05
+        },
+        "samples": 226,
+        "sm_clock_mhz": {
+          "max": 2411.0,
+          "median": 2411.0,
+          "min": 208.0
+        },
+        "start_delay_seconds": 0.130197613,
+        "temperature_c": {
+          "max": 43.0,
+          "median": 42.0,
+          "min": 38.0
+        },
+        "temporal_coverage": true,
+        "utilization_percent": {
+          "max": 77.0,
+          "median": 66.0,
+          "min": 0.0
+        }
+      },
+      "name": "r1-p3-offline-on:gpu_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9565217391304348,
+        "end_gap_seconds": 1.289387235,
+        "expected": 46,
+        "longest_swap_io_run": 0,
+        "max_gap_seconds": 1.0,
+        "minimum_free_buffer_cache_bytes": 122214223872,
+        "samples": 44,
+        "start_delay_seconds": 0.983197549,
+        "temporal_coverage": true
+      },
+      "name": "r1-p3-offline-on:host_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9565217391304348,
+        "end_gap_seconds": 1.232567133,
+        "expected": 23,
+        "max_gap_seconds": 2.01320753,
+        "max_memory_bytes": 2683280818,
+        "samples": 22,
+        "start_delay_seconds": 1.910567405,
+        "temporal_coverage": true
+      },
+      "name": "r1-p3-offline-on:container_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9565217391304348,
+        "end_gap_seconds": 1.289387235,
+        "expected": 46,
+        "longest_swap_io_run": 0,
+        "max_gap_seconds": 1.0,
+        "minimum_free_buffer_cache_bytes": 122214223872,
+        "samples": 44,
+        "start_delay_seconds": 0.983197549,
+        "temporal_coverage": true
+      },
+      "name": "r1-p3-offline-on:swap",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1078095360.0,
+        "last_20_median": 1088682496.0,
+        "maximum": 1103998464
+      },
+      "name": "r1-p3-offline-on:allocated_stable",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1235222528.0,
+        "last_20_median": 1235222528.0,
+        "maximum": 1235222528
+      },
+      "name": "r1-p3-offline-on:reserved_stable",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p3-offline-on:data_wait_fail",
+      "passed": false
+    },
+    {
+      "detail": null,
+      "name": "r2-p1-offline-on:inventory",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p1-offline-on:identity_isolation",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p1-offline-on:cache_unchanged",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p1-offline-on:arm_config",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p1-offline-on:fixed_work",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p1-offline-on:cadence_validation",
+      "passed": true
+    },
+    {
+      "detail": [
+        [
+          "init",
+          "succeeded"
+        ],
+        [
+          "watch",
+          "succeeded"
+        ],
+        [
+          "unwatch",
+          "succeeded"
+        ],
+        [
+          "finish",
+          "succeeded"
+        ]
+      ],
+      "name": "r2-p1-offline-on:wandb_lifecycle",
+      "passed": true
+    },
+    {
+      "detail": {
+        "bytes": 307818,
+        "file_count": 5,
+        "forbidden": [],
+        "run_file_count": 4
+      },
+      "name": "r2-p1-offline-on:wandb_storage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "file_count": 1,
+        "wandb_version": "0.25.1",
+        "watch_histogram_records": 1,
+        "watch_histogram_series": 75,
+        "watch_histograms": 75,
+        "watch_history_steps": [
+          24
+        ]
+      },
+      "name": "r2-p1-offline-on:wandb_record_content",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9907407407407407,
+        "end_gap_seconds": 0.179450234,
+        "expected": 216,
+        "max_gap_seconds": 0.202000128,
+        "power_w": {
+          "max": 21.49,
+          "median": 20.770000000000003,
+          "min": 5.13
+        },
+        "samples": 214,
+        "sm_clock_mhz": {
+          "max": 2411.0,
+          "median": 2411.0,
+          "min": 208.0
+        },
+        "start_delay_seconds": 0.13106452,
+        "temperature_c": {
+          "max": 44.0,
+          "median": 42.0,
+          "min": 38.0
+        },
+        "temporal_coverage": true,
+        "utilization_percent": {
+          "max": 74.0,
+          "median": 69.0,
+          "min": 0.0
+        }
+      },
+      "name": "r2-p1-offline-on:gpu_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9545454545454546,
+        "end_gap_seconds": 1.266450042,
+        "expected": 44,
+        "longest_swap_io_run": 0,
+        "max_gap_seconds": 1.0,
+        "minimum_free_buffer_cache_bytes": 122221830144,
+        "samples": 42,
+        "start_delay_seconds": 0.76706452,
+        "temporal_coverage": true
+      },
+      "name": "r2-p1-offline-on:host_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9545454545454546,
+        "end_gap_seconds": 1.007000937,
+        "expected": 22,
+        "max_gap_seconds": 2.011668761,
+        "max_memory_bytes": 2689723269,
+        "samples": 21,
+        "start_delay_seconds": 1.914344113,
+        "temporal_coverage": true
+      },
+      "name": "r2-p1-offline-on:container_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9545454545454546,
+        "end_gap_seconds": 1.266450042,
+        "expected": 44,
+        "longest_swap_io_run": 0,
+        "max_gap_seconds": 1.0,
+        "minimum_free_buffer_cache_bytes": 122221830144,
+        "samples": 42,
+        "start_delay_seconds": 0.76706452,
+        "temporal_coverage": true
+      },
+      "name": "r2-p1-offline-on:swap",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1078095360.0,
+        "last_20_median": 1076618240.0,
+        "maximum": 1103998464
+      },
+      "name": "r2-p1-offline-on:allocated_stable",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1235222528.0,
+        "last_20_median": 1235222528.0,
+        "maximum": 1235222528
+      },
+      "name": "r2-p1-offline-on:reserved_stable",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p1-offline-on:data_wait_fail",
+      "passed": false
+    },
+    {
+      "detail": null,
+      "name": "r2-p2-disabled:inventory",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p2-disabled:identity_isolation",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p2-disabled:cache_unchanged",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p2-disabled:arm_config",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p2-disabled:fixed_work",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p2-disabled:cadence_validation",
+      "passed": true
+    },
+    {
+      "detail": [
+        [
+          "init",
+          "disabled"
+        ]
+      ],
+      "name": "r2-p2-disabled:wandb_lifecycle",
+      "passed": true
+    },
+    {
+      "detail": {
+        "bytes": 0,
+        "file_count": 0,
+        "forbidden": [],
+        "run_file_count": 0
+      },
+      "name": "r2-p2-disabled:wandb_storage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "file_count": 0,
+        "wandb_version": "0.25.1",
+        "watch_histogram_records": 0,
+        "watch_histogram_series": 0,
+        "watch_histograms": 0,
+        "watch_history_steps": []
+      },
+      "name": "r2-p2-disabled:wandb_record_content",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9911111111111112,
+        "end_gap_seconds": 0.1175571,
+        "expected": 225,
+        "max_gap_seconds": 0.205999872,
+        "power_w": {
+          "max": 21.32,
+          "median": 20.45,
+          "min": 5.16
+        },
+        "samples": 223,
+        "sm_clock_mhz": {
+          "max": 2411.0,
+          "median": 2411.0,
+          "min": 208.0
+        },
+        "start_delay_seconds": 0.128736134,
+        "temperature_c": {
+          "max": 44.0,
+          "median": 43.0,
+          "min": 39.0
+        },
+        "temporal_coverage": true,
+        "utilization_percent": {
+          "max": 72.0,
+          "median": 64.0,
+          "min": 0.0
+        }
+      },
+      "name": "r2-p2-disabled:gpu_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9777777777777777,
+        "end_gap_seconds": 0.916557164,
+        "expected": 45,
+        "longest_swap_io_run": 0,
+        "max_gap_seconds": 1.0,
+        "minimum_free_buffer_cache_bytes": 122229489664,
+        "samples": 44,
+        "start_delay_seconds": 0.887736198,
+        "temporal_coverage": true
+      },
+      "name": "r2-p2-disabled:host_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9565217391304348,
+        "end_gap_seconds": 0.745640059,
+        "expected": 23,
+        "max_gap_seconds": 2.01800819,
+        "max_memory_bytes": 2618856308,
+        "samples": 22,
+        "start_delay_seconds": 1.913404619,
+        "temporal_coverage": true
+      },
+      "name": "r2-p2-disabled:container_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9777777777777777,
+        "end_gap_seconds": 0.916557164,
+        "expected": 45,
+        "longest_swap_io_run": 0,
+        "max_gap_seconds": 1.0,
+        "minimum_free_buffer_cache_bytes": 122229489664,
+        "samples": 44,
+        "start_delay_seconds": 0.887736198,
+        "temporal_coverage": true
+      },
+      "name": "r2-p2-disabled:swap",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1077288704.0,
+        "last_20_median": 1076618240.0,
+        "maximum": 1088682496
+      },
+      "name": "r2-p2-disabled:allocated_stable",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1235222528.0,
+        "last_20_median": 1235222528.0,
+        "maximum": 1235222528
+      },
+      "name": "r2-p2-disabled:reserved_stable",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p2-disabled:data_wait_fail",
+      "passed": false
+    },
+    {
+      "detail": null,
+      "name": "r2-p3-offline-off:inventory",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p3-offline-off:identity_isolation",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p3-offline-off:cache_unchanged",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p3-offline-off:arm_config",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p3-offline-off:fixed_work",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p3-offline-off:cadence_validation",
+      "passed": true
+    },
+    {
+      "detail": [
+        [
+          "init",
+          "succeeded"
+        ],
+        [
+          "watch",
+          "disabled"
+        ],
+        [
+          "finish",
+          "succeeded"
+        ]
+      ],
+      "name": "r2-p3-offline-off:wandb_lifecycle",
+      "passed": true
+    },
+    {
+      "detail": {
+        "bytes": 70183,
+        "file_count": 5,
+        "forbidden": [],
+        "run_file_count": 4
+      },
+      "name": "r2-p3-offline-off:wandb_storage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "file_count": 1,
+        "wandb_version": "0.25.1",
+        "watch_histogram_records": 0,
+        "watch_histogram_series": 0,
+        "watch_histograms": 0,
+        "watch_history_steps": []
+      },
+      "name": "r2-p3-offline-off:wandb_record_content",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9908256880733946,
+        "end_gap_seconds": 0.09403908,
+        "expected": 218,
+        "max_gap_seconds": 0.204,
+        "power_w": {
+          "max": 21.49,
+          "median": 21.23,
+          "min": 5.3
+        },
+        "samples": 216,
+        "sm_clock_mhz": {
+          "max": 2411.0,
+          "median": 2411.0,
+          "min": 208.0
+        },
+        "start_delay_seconds": 0.13236896,
+        "temperature_c": {
+          "max": 45.0,
+          "median": 43.0,
+          "min": 39.0
+        },
+        "temporal_coverage": true,
+        "utilization_percent": {
+          "max": 72.0,
+          "median": 70.0,
+          "min": 0.0
+        }
+      },
+      "name": "r2-p3-offline-off:gpu_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9772727272727273,
+        "end_gap_seconds": 1.164038952,
+        "expected": 44,
+        "longest_swap_io_run": 0,
+        "max_gap_seconds": 1.0,
+        "minimum_free_buffer_cache_bytes": 122142642176,
+        "samples": 43,
+        "start_delay_seconds": 0.245368896,
+        "temporal_coverage": true
+      },
+      "name": "r2-p3-offline-off:host_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9545454545454546,
+        "end_gap_seconds": 1.377637231,
+        "expected": 22,
+        "max_gap_seconds": 2.009753302,
+        "max_memory_bytes": 2684354560,
+        "samples": 21,
+        "start_delay_seconds": 1.915459812,
+        "temporal_coverage": true
+      },
+      "name": "r2-p3-offline-off:container_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9772727272727273,
+        "end_gap_seconds": 1.164038952,
+        "expected": 44,
+        "longest_swap_io_run": 0,
+        "max_gap_seconds": 1.0,
+        "minimum_free_buffer_cache_bytes": 122142642176,
+        "samples": 43,
+        "start_delay_seconds": 0.245368896,
+        "temporal_coverage": true
+      },
+      "name": "r2-p3-offline-off:swap",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1083388928.0,
+        "last_20_median": 1076618240.0,
+        "maximum": 1103998464
+      },
+      "name": "r2-p3-offline-off:allocated_stable",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1235222528.0,
+        "last_20_median": 1235222528.0,
+        "maximum": 1235222528
+      },
+      "name": "r2-p3-offline-off:reserved_stable",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p3-offline-off:data_wait_fail",
+      "passed": false
+    },
+    {
+      "detail": null,
+      "name": "r3-p1-offline-off:inventory",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p1-offline-off:identity_isolation",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p1-offline-off:cache_unchanged",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p1-offline-off:arm_config",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p1-offline-off:fixed_work",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p1-offline-off:cadence_validation",
+      "passed": true
+    },
+    {
+      "detail": [
+        [
+          "init",
+          "succeeded"
+        ],
+        [
+          "watch",
+          "disabled"
+        ],
+        [
+          "finish",
+          "succeeded"
+        ]
+      ],
+      "name": "r3-p1-offline-off:wandb_lifecycle",
+      "passed": true
+    },
+    {
+      "detail": {
+        "bytes": 70880,
+        "file_count": 5,
+        "forbidden": [],
+        "run_file_count": 4
+      },
+      "name": "r3-p1-offline-off:wandb_storage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "file_count": 1,
+        "wandb_version": "0.25.1",
+        "watch_histogram_records": 0,
+        "watch_histogram_series": 0,
+        "watch_histograms": 0,
+        "watch_history_steps": []
+      },
+      "name": "r3-p1-offline-off:wandb_record_content",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9921568627450981,
+        "end_gap_seconds": 0.105842201,
+        "expected": 255,
+        "max_gap_seconds": 0.219000064,
+        "power_w": {
+          "max": 20.82,
+          "median": 19.31,
+          "min": 5.17
+        },
+        "samples": 253,
+        "sm_clock_mhz": {
+          "max": 2411.0,
+          "median": 2411.0,
+          "min": 208.0
+        },
+        "start_delay_seconds": 0.088705872,
+        "temperature_c": {
+          "max": 44.0,
+          "median": 43.0,
+          "min": 39.0
+        },
+        "temporal_coverage": true,
+        "utilization_percent": {
+          "max": 70.0,
+          "median": 54.0,
+          "min": 0.0
+        }
+      },
+      "name": "r3-p1-offline-off:gpu_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9803921568627451,
+        "end_gap_seconds": 1.003842329,
+        "expected": 51,
+        "longest_swap_io_run": 0,
+        "max_gap_seconds": 1.0,
+        "minimum_free_buffer_cache_bytes": 122161094656,
+        "samples": 50,
+        "start_delay_seconds": 0.797706064,
+        "temporal_coverage": true
+      },
+      "name": "r3-p1-offline-off:host_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9615384615384616,
+        "end_gap_seconds": 0.739577451,
+        "expected": 26,
+        "max_gap_seconds": 2.014577296,
+        "max_memory_bytes": 2738041651,
+        "samples": 25,
+        "start_delay_seconds": 1.915319206,
+        "temporal_coverage": true
+      },
+      "name": "r3-p1-offline-off:container_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9803921568627451,
+        "end_gap_seconds": 1.003842329,
+        "expected": 51,
+        "longest_swap_io_run": 0,
+        "max_gap_seconds": 1.0,
+        "minimum_free_buffer_cache_bytes": 122161094656,
+        "samples": 50,
+        "start_delay_seconds": 0.797706064,
+        "temporal_coverage": true
+      },
+      "name": "r3-p1-offline-off:swap",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1088682496.0,
+        "last_20_median": 1076618240.0,
+        "maximum": 1103998464
+      },
+      "name": "r3-p1-offline-off:allocated_stable",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1235222528.0,
+        "last_20_median": 1235222528.0,
+        "maximum": 1235222528
+      },
+      "name": "r3-p1-offline-off:reserved_stable",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p1-offline-off:data_wait_fail",
+      "passed": false
+    },
+    {
+      "detail": null,
+      "name": "r3-p2-offline-on:inventory",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p2-offline-on:identity_isolation",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p2-offline-on:cache_unchanged",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p2-offline-on:arm_config",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p2-offline-on:fixed_work",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p2-offline-on:cadence_validation",
+      "passed": true
+    },
+    {
+      "detail": [
+        [
+          "init",
+          "succeeded"
+        ],
+        [
+          "watch",
+          "succeeded"
+        ],
+        [
+          "unwatch",
+          "succeeded"
+        ],
+        [
+          "finish",
+          "succeeded"
+        ]
+      ],
+      "name": "r3-p2-offline-on:wandb_lifecycle",
+      "passed": true
+    },
+    {
+      "detail": {
+        "bytes": 307965,
+        "file_count": 5,
+        "forbidden": [],
+        "run_file_count": 4
+      },
+      "name": "r3-p2-offline-on:wandb_storage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "file_count": 1,
+        "wandb_version": "0.25.1",
+        "watch_histogram_records": 1,
+        "watch_histogram_series": 75,
+        "watch_histograms": 75,
+        "watch_history_steps": [
+          24
+        ]
+      },
+      "name": "r3-p2-offline-on:wandb_record_content",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9914893617021276,
+        "end_gap_seconds": 0.186811942,
+        "expected": 235,
+        "max_gap_seconds": 0.217000192,
+        "power_w": {
+          "max": 21.53,
+          "median": 19.2,
+          "min": 5.22
+        },
+        "samples": 233,
+        "sm_clock_mhz": {
+          "max": 2411.0,
+          "median": 2411.0,
+          "min": 208.0
+        },
+        "start_delay_seconds": 0.120656162,
+        "temperature_c": {
+          "max": 44.0,
+          "median": 43.0,
+          "min": 40.0
+        },
+        "temporal_coverage": true,
+        "utilization_percent": {
+          "max": 73.0,
+          "median": 60.0,
+          "min": 0.0
+        }
+      },
+      "name": "r3-p2-offline-on:gpu_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 1.0,
+        "end_gap_seconds": 0.716811814,
+        "expected": 47,
+        "longest_swap_io_run": 0,
+        "max_gap_seconds": 1.0,
+        "minimum_free_buffer_cache_bytes": 122171797504,
+        "samples": 47,
+        "start_delay_seconds": 0.139656226,
+        "temporal_coverage": true
+      },
+      "name": "r3-p2-offline-on:host_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9583333333333334,
+        "end_gap_seconds": 0.810756139,
+        "expected": 24,
+        "max_gap_seconds": 2.015253571,
+        "max_memory_bytes": 2725156749,
+        "samples": 23,
+        "start_delay_seconds": 1.909736631,
+        "temporal_coverage": true
+      },
+      "name": "r3-p2-offline-on:container_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 1.0,
+        "end_gap_seconds": 0.716811814,
+        "expected": 47,
+        "longest_swap_io_run": 0,
+        "max_gap_seconds": 1.0,
+        "minimum_free_buffer_cache_bytes": 122171797504,
+        "samples": 47,
+        "start_delay_seconds": 0.139656226,
+        "temporal_coverage": true
+      },
+      "name": "r3-p2-offline-on:swap",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1083388928.0,
+        "last_20_median": 1076618240.0,
+        "maximum": 1103998464
+      },
+      "name": "r3-p2-offline-on:allocated_stable",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1235222528.0,
+        "last_20_median": 1235222528.0,
+        "maximum": 1235222528
+      },
+      "name": "r3-p2-offline-on:reserved_stable",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p2-offline-on:data_wait_fail",
+      "passed": false
+    },
+    {
+      "detail": null,
+      "name": "r3-p3-disabled:inventory",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p3-disabled:identity_isolation",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p3-disabled:cache_unchanged",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p3-disabled:arm_config",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p3-disabled:fixed_work",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p3-disabled:cadence_validation",
+      "passed": true
+    },
+    {
+      "detail": [
+        [
+          "init",
+          "disabled"
+        ]
+      ],
+      "name": "r3-p3-disabled:wandb_lifecycle",
+      "passed": true
+    },
+    {
+      "detail": {
+        "bytes": 0,
+        "file_count": 0,
+        "forbidden": [],
+        "run_file_count": 0
+      },
+      "name": "r3-p3-disabled:wandb_storage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "file_count": 0,
+        "wandb_version": "0.25.1",
+        "watch_histogram_records": 0,
+        "watch_histogram_series": 0,
+        "watch_histograms": 0,
+        "watch_history_steps": []
+      },
+      "name": "r3-p3-disabled:wandb_record_content",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9905660377358491,
+        "end_gap_seconds": 0.189027936,
+        "expected": 212,
+        "max_gap_seconds": 0.202000128,
+        "power_w": {
+          "max": 21.32,
+          "median": 20.880000000000003,
+          "min": 5.13
+        },
+        "samples": 210,
+        "sm_clock_mhz": {
+          "max": 2411.0,
+          "median": 2411.0,
+          "min": 208.0
+        },
+        "start_delay_seconds": 0.120111428,
+        "temperature_c": {
+          "max": 45.0,
+          "median": 43.0,
+          "min": 40.0
+        },
+        "temporal_coverage": true,
+        "utilization_percent": {
+          "max": 71.0,
+          "median": 69.0,
+          "min": 0.0
+        }
+      },
+      "name": "r3-p3-disabled:gpu_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9767441860465116,
+        "end_gap_seconds": 0.768028,
+        "expected": 43,
+        "longest_swap_io_run": 0,
+        "max_gap_seconds": 1.0,
+        "minimum_free_buffer_cache_bytes": 122177318912,
+        "samples": 42,
+        "start_delay_seconds": 0.459111492,
+        "temporal_coverage": true
+      },
+      "name": "r3-p3-disabled:host_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9545454545454546,
+        "end_gap_seconds": 0.200151456,
+        "expected": 22,
+        "max_gap_seconds": 2.016614977,
+        "max_memory_bytes": 2161442291,
+        "samples": 21,
+        "start_delay_seconds": 1.910788022,
+        "temporal_coverage": true
+      },
+      "name": "r3-p3-disabled:container_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9767441860465116,
+        "end_gap_seconds": 0.768028,
+        "expected": 43,
+        "longest_swap_io_run": 0,
+        "max_gap_seconds": 1.0,
+        "minimum_free_buffer_cache_bytes": 122177318912,
+        "samples": 42,
+        "start_delay_seconds": 0.459111492,
+        "temporal_coverage": true
+      },
+      "name": "r3-p3-disabled:swap",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1077288704.0,
+        "last_20_median": 1076618240.0,
+        "maximum": 1088682496
+      },
+      "name": "r3-p3-disabled:allocated_stable",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1235222528.0,
+        "last_20_median": 1235222528.0,
+        "maximum": 1235222528
+      },
+      "name": "r3-p3-disabled:reserved_stable",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p3-disabled:data_wait_fail",
+      "passed": false
+    },
+    {
+      "detail": null,
+      "name": "normalized_config_exact",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "experiment_id_exact",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "manifest_git_exact",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "tokenizer_exact",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "data_exact",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "hardware_exact",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "trajectory_exact",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "model_exact",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "resume_exact",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "cursor_exact",
+      "passed": true
+    },
+    {
+      "detail": {
+        "max": 19.856964035074213,
+        "median": 10.990462689080223,
+        "min": -6.932431255432321,
+        "values": [
+          10.990462689080223,
+          -6.932431255432321,
+          19.856964035074213
+        ]
+      },
+      "name": "offline_off_vs_disabled_under_10_percent",
+      "passed": false
+    },
+    {
+      "detail": {
+        "max": 19.856964035074213,
+        "median": 10.990462689080223,
+        "min": -6.932431255432321,
+        "values": [
+          10.990462689080223,
+          -6.932431255432321,
+          19.856964035074213
+        ]
+      },
+      "name": "offline_off_vs_disabled_investigate_5_percent",
+      "passed": true,
+      "warning": true
+    },
+    {
+      "detail": {
+        "max": 10.115894515394587,
+        "median": 0.7312289008704945,
+        "min": -4.658623340489502,
+        "values": [
+          0.7312289008704945,
+          -4.658623340489502,
+          10.115894515394587
+        ]
+      },
+      "name": "offline_on_vs_disabled_under_10_percent",
+      "passed": true
+    },
+    {
+      "detail": {
+        "max": 2.126396910878528,
+        "median": -11.52599384083206,
+        "min": -12.154605078777845,
+        "values": [
+          -11.52599384083206,
+          2.126396910878528,
+          -12.154605078777845
+        ]
+      },
+      "name": "watch_vs_offline_off_under_10_percent",
+      "passed": true
+    }
+  ],
+  "image_id": "sha256:23a1bee69fe189e77105cdddeee9aeff6ef0763d58a691625fbfcab64efd1887",
+  "limitations": [
+    "network=none and artifact policy none make no online auth, quota, retention, or upload claim",
+    "DGX Spark unified-memory headroom is interpreted from host, container, and allocator evidence rather than nvidia-smi memory alone",
+    "W&B binary run files are decoded only to prove local history/watch content; no cloud behavior is inferred"
+  ],
+  "matrix": [
+    {
+      "arm": "disabled",
+      "position": 1,
+      "repetition": 1,
+      "run_id": "r1-p1-disabled"
+    },
+    {
+      "arm": "offline-off",
+      "position": 2,
+      "repetition": 1,
+      "run_id": "r1-p2-offline-off"
+    },
+    {
+      "arm": "offline-on",
+      "position": 3,
+      "repetition": 1,
+      "run_id": "r1-p3-offline-on"
+    },
+    {
+      "arm": "offline-on",
+      "position": 1,
+      "repetition": 2,
+      "run_id": "r2-p1-offline-on"
+    },
+    {
+      "arm": "disabled",
+      "position": 2,
+      "repetition": 2,
+      "run_id": "r2-p2-disabled"
+    },
+    {
+      "arm": "offline-off",
+      "position": 3,
+      "repetition": 2,
+      "run_id": "r2-p3-offline-off"
+    },
+    {
+      "arm": "offline-off",
+      "position": 1,
+      "repetition": 3,
+      "run_id": "r3-p1-offline-off"
+    },
+    {
+      "arm": "offline-on",
+      "position": 2,
+      "repetition": 3,
+      "run_id": "r3-p2-offline-on"
+    },
+    {
+      "arm": "disabled",
+      "position": 3,
+      "repetition": 3,
+      "run_id": "r3-p3-disabled"
+    }
+  ],
+  "measured_commit": "0dd2fd56cd6695be75ac37e3f563c4ca4916264d",
+  "paired_aggregates": {
+    "offline_off_vs_disabled": {
+      "max": 19.856964035074213,
+      "median": 10.990462689080223,
+      "min": -6.932431255432321,
+      "values": [
+        10.990462689080223,
+        -6.932431255432321,
+        19.856964035074213
+      ]
+    },
+    "offline_on_vs_disabled": {
+      "max": 10.115894515394587,
+      "median": 0.7312289008704945,
+      "min": -4.658623340489502,
+      "values": [
+        0.7312289008704945,
+        -4.658623340489502,
+        10.115894515394587
+      ]
+    },
+    "watch_vs_offline_off": {
+      "max": 2.126396910878528,
+      "median": -11.52599384083206,
+      "min": -12.154605078777845,
+      "values": [
+        -11.52599384083206,
+        2.126396910878528,
+        -12.154605078777845
+      ]
+    }
+  },
+  "pairs": [
+    {
+      "offline_off_vs_disabled": 10.990462689080223,
+      "offline_on_vs_disabled": 0.7312289008704945,
+      "repetition": 1,
+      "watch_vs_offline_off": -11.52599384083206
+    },
+    {
+      "offline_off_vs_disabled": -6.932431255432321,
+      "offline_on_vs_disabled": -4.658623340489502,
+      "repetition": 2,
+      "watch_vs_offline_off": 2.126396910878528
+    },
+    {
+      "offline_off_vs_disabled": 19.856964035074213,
+      "offline_on_vs_disabled": 10.115894515394587,
+      "repetition": 3,
+      "watch_vs_offline_off": -12.154605078777845
+    }
+  ],
+  "review_size": "R2",
+  "runs": [
+    {
+      "arm": "disabled",
+      "checkpoint": {
+        "counters": {
+          "optimizer_step": 300,
+          "target_tokens": 153600
+        },
+        "cursor_digest": "1b8dd80eb6c9740c091033063ff7b108930d577fb024a360054b9bf8f56f53f1",
+        "model_digest": "20cb38f85ba8f5e14b885227e23b768ddb2c014b0a40b8c0b9fcd14e9acba859",
+        "resume_digest": "9f5216e555232b98a145bb6146411eb8f238af0c55f936fde5ebd9d59fb4b3d8",
+        "sha256": "e9d5cff13a76fc97a2476da905420dc1657f305a04d2ad7bfbd5f2bc278b32e3",
+        "size_bytes": 594648864
+      },
+      "container_wall_seconds": 44.394614784,
+      "disk": {
+        "checkpoint_bytes": 1783953028,
+        "checkpoint_files": 3,
+        "free_after_bytes": 473973075968,
+        "free_before_bytes": 475758043136
+      },
+      "hashes": {
+        "config": "a17845feadf9798c90d9a6ac2588712cbc220efba0126e73f494cb3fe967a8e4",
+        "container": "07ac1928634ec9f2cc7a8926abc94ebdbb025ddf8f7ce262b56f6ecfd1bc547d",
+        "gpu": "49d07558a495e899ed5ab624e8d6a5be653c6639ce19581774566166891d6aff",
+        "manifest": "75387520938d91979425566e95156ed112bb158f64ec91480853a3b85032e0d7",
+        "measurement": "35ffb74da1f86dd17de77969e962ae5ba6e3b8307dc0fbc760d9c695d5ad9253",
+        "metrics": "9b1172dea0e04ea640488a436820d4a491994fa27ab4b8c02416c98c319e9a0e",
+        "vmstat": "407db3c5c507f1c4256230ab8bc6dbbc4bf84afd28f8a1138fb6ff128a836d67",
+        "wandb_events": "d083a5e654f5df55e26b4bebd1654cf77a3a5532ca629f1f336ce28a08d94109",
+        "wandb_records": "807f07b030e9968c3251e7cb84095c3108f107ea9f1d469983ee5bb59ee4f5db"
+      },
+      "manifest": {
+        "data": [
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19",
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19"
+        ],
+        "experiment_id": "exp-533fef754660b1b0c740",
+        "git_sha": "0dd2fd56cd6695be75ac37e3f563c4ca4916264d",
+        "hardware": "bbba66a7fd419b86064a23e5dca8c40078d1cdb46860754e2b245c41dc317d0c",
+        "tokenizer": "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b"
+      },
+      "normalized_config": "498b0f056d03ef8ed8cfd8a4f393dc56ca2f075a536e1517a083a4d4cf52eeca",
+      "performance": {
+        "allocated": {
+          "first_20_median": 1076618240.0,
+          "last_20_median": 1076618240.0,
+          "maximum": 1088682496
+        },
+        "cuda_phase_median_milliseconds": {
+          "backward": 28.0348801612854,
+          "clipping": 3.0272639989852905,
+          "forward": 17.370959877967834,
+          "gradient_finite_check": 6.693152189254761,
+          "gradient_norm_and_scalar_read": 1.18859201669693,
+          "gradient_scale": 1.7980480194091797,
+          "host_device_prepare": 0.278031999245286,
+          "loss": 1.531024008989334,
+          "loss_scalar_read": 0.012256000190973282,
+          "optimizer": 19.803791999816895,
+          "parameter_finite_check": 6.6955039501190186,
+          "scheduler": 0.013376000337302685
+        },
+        "data_wait_fraction": 0.17846159186855898,
+        "host_phase_median_seconds": {
+          "backward": 0.022575723502086475,
+          "clipping": 0.0005968010082142428,
+          "data_wait": 0.019375415009562857,
+          "forward": 0.013076453993562609,
+          "gradient_finite_check": 0.009807548500248231,
+          "gradient_norm_and_scalar_read": 0.0011954419896937907,
+          "gradient_scale": 0.0005730410048272461,
+          "host_device_prepare": 0.00045057348324917257,
+          "loss": 0.0004012699791928753,
+          "loss_scalar_read": 1.8416496459394693e-05,
+          "optimizer": 0.001531151487142779,
+          "parameter_finite_check": 0.02743828650272917,
+          "scheduler": 2.0128005417063832e-05,
+          "step_metrics": 0.0002233560080640018
+        },
+        "reserved": {
+          "first_20_median": 1235222528.0,
+          "last_20_median": 1235222528.0,
+          "maximum": 1235222528
+        },
+        "step_max_seconds": 0.11372056702384725,
+        "step_median_seconds": 0.10612489399500191,
+        "step_p95_seconds": 0.11021318499115296,
+        "steps": 270,
+        "target_tokens": 138240,
+        "target_tokens_per_second": 4856.592991331353,
+        "wall_seconds": 28.464398858777713
+      },
+      "position": 1,
+      "repetition": 1,
+      "resources": {
+        "container": {
+          "coverage": 0.9565217391304348,
+          "end_gap_seconds": 0.358859344,
+          "expected": 23,
+          "max_gap_seconds": 2.013283902,
+          "max_memory_bytes": 2185064611,
+          "samples": 22,
+          "start_delay_seconds": 1.911364463,
+          "temporal_coverage": true
+        },
+        "gpu": {
+          "coverage": 0.9954954954954955,
+          "end_gap_seconds": 0.154240985,
+          "expected": 222,
+          "max_gap_seconds": 0.204,
+          "power_w": {
+            "max": 20.85,
+            "median": 20.02,
+            "min": 4.95
+          },
+          "samples": 221,
+          "sm_clock_mhz": {
+            "max": 2411.0,
+            "median": 2411.0,
+            "min": 208.0
+          },
+          "start_delay_seconds": 0.119373607,
+          "temperature_c": {
+            "max": 41.0,
+            "median": 39.0,
+            "min": 35.0
+          },
+          "temporal_coverage": true,
+          "utilization_percent": {
+            "max": 73.0,
+            "median": 64.0,
+            "min": 0.0
+          }
+        },
+        "host": {
+          "coverage": 0.9777777777777777,
+          "end_gap_seconds": 0.952241113,
+          "expected": 45,
+          "longest_swap_io_run": 0,
+          "max_gap_seconds": 1.0,
+          "minimum_free_buffer_cache_bytes": 122172387328,
+          "samples": 44,
+          "start_delay_seconds": 0.442373671,
+          "temporal_coverage": true
+        }
+      },
+      "run_id": "r1-p1-disabled",
+      "scheduled_log_seconds": {
+        "max": 8.059301762841642e-05,
+        "median": 4.6616492909379303e-05,
+        "total": 0.0014525849837809801
+      },
+      "trajectory": "dec4cce97e2ebca61a06d044f03ebd602547b58a49efce066605b045c0e7e0c8",
+      "wandb": {
+        "lifecycle": [
+          [
+            "init",
+            "disabled"
+          ]
+        ],
+        "records": {
+          "file_count": 0,
+          "files": [],
+          "schema_version": 1,
+          "wandb_version": "0.25.1",
+          "watch_histogram_records": 0,
+          "watch_histogram_series": [],
+          "watch_histograms": 0,
+          "watch_history_steps": []
+        },
+        "storage": {
+          "bytes": 0,
+          "file_count": 0,
+          "forbidden": [],
+          "run_file_count": 0
+        }
+      }
+    },
+    {
+      "arm": "offline-off",
+      "checkpoint": {
+        "counters": {
+          "optimizer_step": 300,
+          "target_tokens": 153600
+        },
+        "cursor_digest": "1b8dd80eb6c9740c091033063ff7b108930d577fb024a360054b9bf8f56f53f1",
+        "model_digest": "20cb38f85ba8f5e14b885227e23b768ddb2c014b0a40b8c0b9fcd14e9acba859",
+        "resume_digest": "9f5216e555232b98a145bb6146411eb8f238af0c55f936fde5ebd9d59fb4b3d8",
+        "sha256": "08e49c9297c0c8325638ed9fb0953d890d311f4b7e2423c9fcb72278883e6b7b",
+        "size_bytes": 594648864
+      },
+      "container_wall_seconds": 48.430520304,
+      "disk": {
+        "checkpoint_bytes": 1783953028,
+        "checkpoint_files": 3,
+        "free_after_bytes": 472187953152,
+        "free_before_bytes": 473973055488
+      },
+      "hashes": {
+        "config": "a3d4a870f5c1966dbd357c90da7598e30f9200ef47524fcd70ee94571ac27344",
+        "container": "2f1ba8263f4d6915dd5ca246f095ed72a7adf86f66744a94ce88132df16e5301",
+        "gpu": "7654b0bc298a8147b9b1877600289311ccbb086069caaad4d212ee68f6b4ae69",
+        "manifest": "c3de8d9c72015b8dc983491db24a3b79189f0fcf7cbf215d6ba16f73653e1aba",
+        "measurement": "327d326d86f55fd8c89d5a09d2f54118c7b4e84cdbcccc7535ce5fff36ac4b94",
+        "metrics": "5a1b0cab51de30c980501bdb68bbc20f756b6da1dddc79dc1324a781c8e19c43",
+        "vmstat": "4a70bdcaa61048c8bf1b2b3b796b47416897aac2ef8ec288e8d57fc9540f5762",
+        "wandb_events": "a458f4fb348c29f4ff6e14487b2af22c0c9ff3f68dd1e8dafca4aa70a9a85936",
+        "wandb_records": "4e8c900d0adb95a750b23574f39ec8d17fbaf83da2f9fe652498bc633a29ae5a"
+      },
+      "manifest": {
+        "data": [
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19",
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19"
+        ],
+        "experiment_id": "exp-533fef754660b1b0c740",
+        "git_sha": "0dd2fd56cd6695be75ac37e3f563c4ca4916264d",
+        "hardware": "bbba66a7fd419b86064a23e5dca8c40078d1cdb46860754e2b245c41dc317d0c",
+        "tokenizer": "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b"
+      },
+      "normalized_config": "498b0f056d03ef8ed8cfd8a4f393dc56ca2f075a536e1517a083a4d4cf52eeca",
+      "performance": {
+        "allocated": {
+          "first_20_median": 1076618240.0,
+          "last_20_median": 1088682496.0,
+          "maximum": 1103998464
+        },
+        "cuda_phase_median_milliseconds": {
+          "backward": 53.22158432006836,
+          "clipping": 3.027567982673645,
+          "forward": 15.355216145515442,
+          "gradient_finite_check": 6.6852641105651855,
+          "gradient_norm_and_scalar_read": 1.1935839653015137,
+          "gradient_scale": 1.7898399829864502,
+          "host_device_prepare": 1.655423991382122,
+          "loss": 1.5241280049085617,
+          "loss_scalar_read": 0.012335999868810177,
+          "optimizer": 19.698063850402832,
+          "parameter_finite_check": 6.697824001312256,
+          "scheduler": 0.014159999787807465
+        },
+        "data_wait_fraction": 0.11891730384475906,
+        "host_phase_median_seconds": {
+          "backward": 0.04953844401461538,
+          "clipping": 0.0006192079890752211,
+          "data_wait": 0.01458121498581022,
+          "forward": 0.011197447965969332,
+          "gradient_finite_check": 0.008922437991714105,
+          "gradient_norm_and_scalar_read": 0.0012008154881186783,
+          "gradient_scale": 0.000843130997964181,
+          "host_device_prepare": 0.0021224204974714667,
+          "loss": 0.00040924499626271427,
+          "loss_scalar_read": 1.8624006770551205e-05,
+          "optimizer": 0.0016111245058709756,
+          "parameter_finite_check": 0.027212599001359195,
+          "scheduler": 2.1248008124530315e-05,
+          "step_metrics": 0.00023077049991115928
+        },
+        "reserved": {
+          "first_20_median": 1235222528.0,
+          "last_20_median": 1235222528.0,
+          "maximum": 1235222528
+        },
+        "step_max_seconds": 0.13696122201508842,
+        "step_median_seconds": 0.1255115134990774,
+        "step_p95_seconds": 0.1284873590047937,
+        "steps": 270,
+        "target_tokens": 138240,
+        "target_tokens_per_second": 4322.830950658596,
+        "wall_seconds": 31.979043728031684
+      },
+      "position": 2,
+      "repetition": 1,
+      "resources": {
+        "container": {
+          "coverage": 0.96,
+          "end_gap_seconds": 0.370104302,
+          "expected": 25,
+          "max_gap_seconds": 2.017931497,
+          "max_memory_bytes": 2251636604,
+          "samples": 24,
+          "start_delay_seconds": 1.914129646,
+          "temporal_coverage": true
+        },
+        "gpu": {
+          "coverage": 0.9917695473251029,
+          "end_gap_seconds": 0.199144571,
+          "expected": 243,
+          "max_gap_seconds": 0.201000192,
+          "power_w": {
+            "max": 20.76,
+            "median": 19.07,
+            "min": 5.02
+          },
+          "samples": 241,
+          "sm_clock_mhz": {
+            "max": 2411.0,
+            "median": 2411.0,
+            "min": 208.0
+          },
+          "start_delay_seconds": 0.115375989,
+          "temperature_c": {
+            "max": 42.0,
+            "median": 41.0,
+            "min": 37.0
+          },
+          "temporal_coverage": true,
+          "utilization_percent": {
+            "max": 73.0,
+            "median": 57.0,
+            "min": 0.0
+          }
+        },
+        "host": {
+          "coverage": 0.9795918367346939,
+          "end_gap_seconds": 1.210144379,
+          "expected": 49,
+          "longest_swap_io_run": 0,
+          "max_gap_seconds": 1.0,
+          "minimum_free_buffer_cache_bytes": 122219806720,
+          "samples": 48,
+          "start_delay_seconds": 0.220375925,
+          "temporal_coverage": true
+        }
+      },
+      "run_id": "r1-p2-offline-off",
+      "scheduled_log_seconds": {
+        "max": 0.0020753380085807294,
+        "median": 0.0012968720111530274,
+        "total": 0.03902597495471127
+      },
+      "trajectory": "dec4cce97e2ebca61a06d044f03ebd602547b58a49efce066605b045c0e7e0c8",
+      "wandb": {
+        "lifecycle": [
+          [
+            "init",
+            "succeeded"
+          ],
+          [
+            "watch",
+            "disabled"
+          ],
+          [
+            "finish",
+            "succeeded"
+          ]
+        ],
+        "records": {
+          "file_count": 1,
+          "files": [
+            {
+              "history_records": 30,
+              "path": "/evidence/wandb/wandb/offline-run-20260713_180034-93yegsjd/run-93yegsjd.wandb",
+              "record_types": {
+                "environment": 2,
+                "exit": 1,
+                "files": 1,
+                "header": 1,
+                "history": 30,
+                "output_raw": 1,
+                "run": 1,
+                "stats": 4,
+                "summary": 63,
+                "telemetry": 3
+              },
+              "sha256": "7a7227faa95c6212ba60532059ca8127c66a6aa55a6dc3b9b84e0c572f5e5572",
+              "size_bytes": 56655,
+              "watch_histogram_records": 0,
+              "watch_histogram_series": [],
+              "watch_histograms": 0,
+              "watch_history_steps": []
+            }
+          ],
+          "schema_version": 1,
+          "wandb_version": "0.25.1",
+          "watch_histogram_records": 0,
+          "watch_histogram_series": [],
+          "watch_histograms": 0,
+          "watch_history_steps": []
+        },
+        "storage": {
+          "bytes": 70025,
+          "file_count": 5,
+          "forbidden": [],
+          "run_file_count": 4
+        }
+      }
+    },
+    {
+      "arm": "offline-on",
+      "checkpoint": {
+        "counters": {
+          "optimizer_step": 300,
+          "target_tokens": 153600
+        },
+        "cursor_digest": "1b8dd80eb6c9740c091033063ff7b108930d577fb024a360054b9bf8f56f53f1",
+        "model_digest": "20cb38f85ba8f5e14b885227e23b768ddb2c014b0a40b8c0b9fcd14e9acba859",
+        "resume_digest": "9f5216e555232b98a145bb6146411eb8f238af0c55f936fde5ebd9d59fb4b3d8",
+        "sha256": "ea3081f0f8c891d3602010ffafa16c8f7a8b157ae9dfad7a37732c4d640e92ab",
+        "size_bytes": 594648864
+      },
+      "container_wall_seconds": 45.272584784,
+      "disk": {
+        "checkpoint_bytes": 1783953028,
+        "checkpoint_files": 3,
+        "free_after_bytes": 470402580480,
+        "free_before_bytes": 472187924480
+      },
+      "hashes": {
+        "config": "e2acc27099d4e308d453527a384e2157ec72de8b83510c1f76c95c4867f45ade",
+        "container": "762a18442e2e2438645a93692290016a32ef7843f62fff4dab91704eb684c610",
+        "gpu": "625d9f5900d9e5388f2a724600072add4f54a93f636e7cf6fed52252f49e8b5a",
+        "manifest": "e9acc71742e7f9b9303ee2630a76cee261b77ab67c1e3529be35ce4b809e746f",
+        "measurement": "0402ade4f16d14e94a612b644324f615a5afddfc652f673c2181802d918c22d2",
+        "metrics": "169d31c202769dc2bac1ea2f1151f8621b8d1bd7cce6c246ab20900e70595724",
+        "vmstat": "358e67539a03299a0f9ef214b53649a8ca86a994eeb787e2df592d5e6e73c7d7",
+        "wandb_events": "c97ae92d16eef50ef0ab74a0a7cba0fe13e24322be9ce52acbe5b2e3cbf321eb",
+        "wandb_records": "72548c40fcae5e7d4134cdf997dd1e5861b6af8c108a1f61e42d36b474b04c37"
+      },
+      "manifest": {
+        "data": [
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19",
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19"
+        ],
+        "experiment_id": "exp-533fef754660b1b0c740",
+        "git_sha": "0dd2fd56cd6695be75ac37e3f563c4ca4916264d",
+        "hardware": "bbba66a7fd419b86064a23e5dca8c40078d1cdb46860754e2b245c41dc317d0c",
+        "tokenizer": "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b"
+      },
+      "normalized_config": "498b0f056d03ef8ed8cfd8a4f393dc56ca2f075a536e1517a083a4d4cf52eeca",
+      "performance": {
+        "allocated": {
+          "first_20_median": 1078095360.0,
+          "last_20_median": 1088682496.0,
+          "maximum": 1103998464
+        },
+        "cuda_phase_median_milliseconds": {
+          "backward": 26.52124834060669,
+          "clipping": 3.005008101463318,
+          "forward": 15.514159917831421,
+          "gradient_finite_check": 6.638319969177246,
+          "gradient_norm_and_scalar_read": 1.1902239918708801,
+          "gradient_scale": 1.7888000011444092,
+          "host_device_prepare": 2.211200077086687,
+          "loss": 1.5284159928560257,
+          "loss_scalar_read": 0.011935999616980553,
+          "optimizer": 19.756640434265137,
+          "parameter_finite_check": 6.663103818893433,
+          "scheduler": 0.011455999687314034
+        },
+        "data_wait_fraction": 0.1600568988033326,
+        "host_phase_median_seconds": {
+          "backward": 0.017502637463621795,
+          "clipping": 0.0005488299939315766,
+          "data_wait": 0.01692854196880944,
+          "forward": 0.011258888524025679,
+          "gradient_finite_check": 0.01079585998377297,
+          "gradient_norm_and_scalar_read": 0.0011970285122515634,
+          "gradient_scale": 0.00043242049287073314,
+          "host_device_prepare": 0.0023324900248553604,
+          "loss": 0.00028322752041276544,
+          "loss_scalar_read": 1.7983984434977174e-05,
+          "optimizer": 0.001141916000051424,
+          "parameter_finite_check": 0.027910190488910303,
+          "scheduler": 1.808050728868693e-05,
+          "step_metrics": 0.00019898598839063197
+        },
+        "reserved": {
+          "first_20_median": 1235222528.0,
+          "last_20_median": 1235222528.0,
+          "maximum": 1235222528
+        },
+        "step_max_seconds": 0.5940334830083884,
+        "step_median_seconds": 0.09902863900060765,
+        "step_p95_seconds": 0.13713848000043072,
+        "steps": 270,
+        "target_tokens": 138240,
+        "target_tokens_per_second": 4821.080179781087,
+        "wall_seconds": 28.674071960005676
+      },
+      "position": 3,
+      "repetition": 1,
+      "resources": {
+        "container": {
+          "coverage": 0.9565217391304348,
+          "end_gap_seconds": 1.232567133,
+          "expected": 23,
+          "max_gap_seconds": 2.01320753,
+          "max_memory_bytes": 2683280818,
+          "samples": 22,
+          "start_delay_seconds": 1.910567405,
+          "temporal_coverage": true
+        },
+        "gpu": {
+          "coverage": 0.9955947136563876,
+          "end_gap_seconds": 0.032387299,
+          "expected": 227,
+          "max_gap_seconds": 0.216999936,
+          "power_w": {
+            "max": 21.64,
+            "median": 20.21,
+            "min": 5.05
+          },
+          "samples": 226,
+          "sm_clock_mhz": {
+            "max": 2411.0,
+            "median": 2411.0,
+            "min": 208.0
+          },
+          "start_delay_seconds": 0.130197613,
+          "temperature_c": {
+            "max": 43.0,
+            "median": 42.0,
+            "min": 38.0
+          },
+          "temporal_coverage": true,
+          "utilization_percent": {
+            "max": 77.0,
+            "median": 66.0,
+            "min": 0.0
+          }
+        },
+        "host": {
+          "coverage": 0.9565217391304348,
+          "end_gap_seconds": 1.289387235,
+          "expected": 46,
+          "longest_swap_io_run": 0,
+          "max_gap_seconds": 1.0,
+          "minimum_free_buffer_cache_bytes": 122214223872,
+          "samples": 44,
+          "start_delay_seconds": 0.983197549,
+          "temporal_coverage": true
+        }
+      },
+      "run_id": "r1-p3-offline-on",
+      "scheduled_log_seconds": {
+        "max": 0.0024982820032164454,
+        "median": 0.0014431269955821335,
+        "total": 0.04451481287833303
+      },
+      "trajectory": "dec4cce97e2ebca61a06d044f03ebd602547b58a49efce066605b045c0e7e0c8",
+      "wandb": {
+        "lifecycle": [
+          [
+            "init",
+            "succeeded"
+          ],
+          [
+            "watch",
+            "succeeded"
+          ],
+          [
+            "unwatch",
+            "succeeded"
+          ],
+          [
+            "finish",
+            "succeeded"
+          ]
+        ],
+        "records": {
+          "file_count": 1,
+          "files": [
+            {
+              "history_records": 30,
+              "path": "/evidence/wandb/wandb/offline-run-20260713_180157-ukkoq9rz/run-ukkoq9rz.wandb",
+              "record_types": {
+                "environment": 2,
+                "exit": 1,
+                "files": 1,
+                "header": 1,
+                "history": 30,
+                "output_raw": 1,
+                "run": 1,
+                "stats": 4,
+                "summary": 63,
+                "telemetry": 4
+              },
+              "sha256": "bd969830beadab2dc7ab6287d42797b78b437d6ca46b4fb64a2910d89f03cdb1",
+              "size_bytes": 294358,
+              "watch_histogram_records": 1,
+              "watch_histogram_series": [
+                "gradients/embedding.token.embedding.weight",
+                "gradients/layers.0.attention_norm.bias",
+                "gradients/layers.0.attention_norm.weight",
+                "gradients/layers.0.feedforward.0.bias",
+                "gradients/layers.0.feedforward.0.weight",
+                "gradients/layers.0.feedforward.3.bias",
+                "gradients/layers.0.feedforward.3.weight",
+                "gradients/layers.0.feedforward_norm.bias",
+                "gradients/layers.0.feedforward_norm.weight",
+                "gradients/layers.0.self_attention.in_proj_bias",
+                "gradients/layers.0.self_attention.in_proj_weight",
+                "gradients/layers.0.self_attention.out_proj.bias",
+                "gradients/layers.0.self_attention.out_proj.weight",
+                "gradients/layers.1.attention_norm.bias",
+                "gradients/layers.1.attention_norm.weight",
+                "gradients/layers.1.feedforward.0.bias",
+                "gradients/layers.1.feedforward.0.weight",
+                "gradients/layers.1.feedforward.3.bias",
+                "gradients/layers.1.feedforward.3.weight",
+                "gradients/layers.1.feedforward_norm.bias",
+                "gradients/layers.1.feedforward_norm.weight",
+                "gradients/layers.1.self_attention.in_proj_bias",
+                "gradients/layers.1.self_attention.in_proj_weight",
+                "gradients/layers.1.self_attention.out_proj.bias",
+                "gradients/layers.1.self_attention.out_proj.weight",
+                "gradients/layers.2.attention_norm.bias",
+                "gradients/layers.2.attention_norm.weight",
+                "gradients/layers.2.feedforward.0.bias",
+                "gradients/layers.2.feedforward.0.weight",
+                "gradients/layers.2.feedforward.3.bias",
+                "gradients/layers.2.feedforward.3.weight",
+                "gradients/layers.2.feedforward_norm.bias",
+                "gradients/layers.2.feedforward_norm.weight",
+                "gradients/layers.2.self_attention.in_proj_bias",
+                "gradients/layers.2.self_attention.in_proj_weight",
+                "gradients/layers.2.self_attention.out_proj.bias",
+                "gradients/layers.2.self_attention.out_proj.weight",
+                "gradients/layers.3.attention_norm.bias",
+                "gradients/layers.3.attention_norm.weight",
+                "gradients/layers.3.feedforward.0.bias",
+                "gradients/layers.3.feedforward.0.weight",
+                "gradients/layers.3.feedforward.3.bias",
+                "gradients/layers.3.feedforward.3.weight",
+                "gradients/layers.3.feedforward_norm.bias",
+                "gradients/layers.3.feedforward_norm.weight",
+                "gradients/layers.3.self_attention.in_proj_bias",
+                "gradients/layers.3.self_attention.in_proj_weight",
+                "gradients/layers.3.self_attention.out_proj.bias",
+                "gradients/layers.3.self_attention.out_proj.weight",
+                "gradients/layers.4.attention_norm.bias",
+                "gradients/layers.4.attention_norm.weight",
+                "gradients/layers.4.feedforward.0.bias",
+                "gradients/layers.4.feedforward.0.weight",
+                "gradients/layers.4.feedforward.3.bias",
+                "gradients/layers.4.feedforward.3.weight",
+                "gradients/layers.4.feedforward_norm.bias",
+                "gradients/layers.4.feedforward_norm.weight",
+                "gradients/layers.4.self_attention.in_proj_bias",
+                "gradients/layers.4.self_attention.in_proj_weight",
+                "gradients/layers.4.self_attention.out_proj.bias",
+                "gradients/layers.4.self_attention.out_proj.weight",
+                "gradients/layers.5.attention_norm.bias",
+                "gradients/layers.5.attention_norm.weight",
+                "gradients/layers.5.feedforward.0.bias",
+                "gradients/layers.5.feedforward.0.weight",
+                "gradients/layers.5.feedforward.3.bias",
+                "gradients/layers.5.feedforward.3.weight",
+                "gradients/layers.5.feedforward_norm.bias",
+                "gradients/layers.5.feedforward_norm.weight",
+                "gradients/layers.5.self_attention.in_proj_bias",
+                "gradients/layers.5.self_attention.in_proj_weight",
+                "gradients/layers.5.self_attention.out_proj.bias",
+                "gradients/layers.5.self_attention.out_proj.weight",
+                "gradients/lm_head.bias",
+                "gradients/lm_head.weight"
+              ],
+              "watch_histograms": 75,
+              "watch_history_steps": [
+                24
+              ]
+            }
+          ],
+          "schema_version": 1,
+          "wandb_version": "0.25.1",
+          "watch_histogram_records": 1,
+          "watch_histogram_series": [
+            "gradients/embedding.token.embedding.weight",
+            "gradients/layers.0.attention_norm.bias",
+            "gradients/layers.0.attention_norm.weight",
+            "gradients/layers.0.feedforward.0.bias",
+            "gradients/layers.0.feedforward.0.weight",
+            "gradients/layers.0.feedforward.3.bias",
+            "gradients/layers.0.feedforward.3.weight",
+            "gradients/layers.0.feedforward_norm.bias",
+            "gradients/layers.0.feedforward_norm.weight",
+            "gradients/layers.0.self_attention.in_proj_bias",
+            "gradients/layers.0.self_attention.in_proj_weight",
+            "gradients/layers.0.self_attention.out_proj.bias",
+            "gradients/layers.0.self_attention.out_proj.weight",
+            "gradients/layers.1.attention_norm.bias",
+            "gradients/layers.1.attention_norm.weight",
+            "gradients/layers.1.feedforward.0.bias",
+            "gradients/layers.1.feedforward.0.weight",
+            "gradients/layers.1.feedforward.3.bias",
+            "gradients/layers.1.feedforward.3.weight",
+            "gradients/layers.1.feedforward_norm.bias",
+            "gradients/layers.1.feedforward_norm.weight",
+            "gradients/layers.1.self_attention.in_proj_bias",
+            "gradients/layers.1.self_attention.in_proj_weight",
+            "gradients/layers.1.self_attention.out_proj.bias",
+            "gradients/layers.1.self_attention.out_proj.weight",
+            "gradients/layers.2.attention_norm.bias",
+            "gradients/layers.2.attention_norm.weight",
+            "gradients/layers.2.feedforward.0.bias",
+            "gradients/layers.2.feedforward.0.weight",
+            "gradients/layers.2.feedforward.3.bias",
+            "gradients/layers.2.feedforward.3.weight",
+            "gradients/layers.2.feedforward_norm.bias",
+            "gradients/layers.2.feedforward_norm.weight",
+            "gradients/layers.2.self_attention.in_proj_bias",
+            "gradients/layers.2.self_attention.in_proj_weight",
+            "gradients/layers.2.self_attention.out_proj.bias",
+            "gradients/layers.2.self_attention.out_proj.weight",
+            "gradients/layers.3.attention_norm.bias",
+            "gradients/layers.3.attention_norm.weight",
+            "gradients/layers.3.feedforward.0.bias",
+            "gradients/layers.3.feedforward.0.weight",
+            "gradients/layers.3.feedforward.3.bias",
+            "gradients/layers.3.feedforward.3.weight",
+            "gradients/layers.3.feedforward_norm.bias",
+            "gradients/layers.3.feedforward_norm.weight",
+            "gradients/layers.3.self_attention.in_proj_bias",
+            "gradients/layers.3.self_attention.in_proj_weight",
+            "gradients/layers.3.self_attention.out_proj.bias",
+            "gradients/layers.3.self_attention.out_proj.weight",
+            "gradients/layers.4.attention_norm.bias",
+            "gradients/layers.4.attention_norm.weight",
+            "gradients/layers.4.feedforward.0.bias",
+            "gradients/layers.4.feedforward.0.weight",
+            "gradients/layers.4.feedforward.3.bias",
+            "gradients/layers.4.feedforward.3.weight",
+            "gradients/layers.4.feedforward_norm.bias",
+            "gradients/layers.4.feedforward_norm.weight",
+            "gradients/layers.4.self_attention.in_proj_bias",
+            "gradients/layers.4.self_attention.in_proj_weight",
+            "gradients/layers.4.self_attention.out_proj.bias",
+            "gradients/layers.4.self_attention.out_proj.weight",
+            "gradients/layers.5.attention_norm.bias",
+            "gradients/layers.5.attention_norm.weight",
+            "gradients/layers.5.feedforward.0.bias",
+            "gradients/layers.5.feedforward.0.weight",
+            "gradients/layers.5.feedforward.3.bias",
+            "gradients/layers.5.feedforward.3.weight",
+            "gradients/layers.5.feedforward_norm.bias",
+            "gradients/layers.5.feedforward_norm.weight",
+            "gradients/layers.5.self_attention.in_proj_bias",
+            "gradients/layers.5.self_attention.in_proj_weight",
+            "gradients/layers.5.self_attention.out_proj.bias",
+            "gradients/layers.5.self_attention.out_proj.weight",
+            "gradients/lm_head.bias",
+            "gradients/lm_head.weight"
+          ],
+          "watch_histograms": 75,
+          "watch_history_steps": [
+            24
+          ]
+        },
+        "storage": {
+          "bytes": 307939,
+          "file_count": 5,
+          "forbidden": [],
+          "run_file_count": 4
+        }
+      }
+    },
+    {
+      "arm": "offline-on",
+      "checkpoint": {
+        "counters": {
+          "optimizer_step": 300,
+          "target_tokens": 153600
+        },
+        "cursor_digest": "1b8dd80eb6c9740c091033063ff7b108930d577fb024a360054b9bf8f56f53f1",
+        "model_digest": "20cb38f85ba8f5e14b885227e23b768ddb2c014b0a40b8c0b9fcd14e9acba859",
+        "resume_digest": "9f5216e555232b98a145bb6146411eb8f238af0c55f936fde5ebd9d59fb4b3d8",
+        "sha256": "2929d17cd86a627018339e8ed680f37dc2d96c4efb00af1bab35339caa85f165",
+        "size_bytes": 594648864
+      },
+      "container_wall_seconds": 43.033514562,
+      "disk": {
+        "checkpoint_bytes": 1783953028,
+        "checkpoint_files": 3,
+        "free_after_bytes": 468617224192,
+        "free_before_bytes": 470402555904
+      },
+      "hashes": {
+        "config": "c3501175e10eb1947259ba6cb2b3c270a9b69f4b4a492a22aba543ebc7ad60b5",
+        "container": "b1fd641921b2bff17d54ad4d1afee9b084c207485923174a9fc9d9b053a236f6",
+        "gpu": "156311c752702bf46cdd88bf87d16c793fceb27e02c2397515cac2cd6e4c3704",
+        "manifest": "4287897297ed9d522bc9502f00ac554d9ef1da5914b6b6c9df9d2a42fcdf1e54",
+        "measurement": "786713c853e5d7b6b05b9ed7315e91947f32cfb6e02aee4c94fa2af2a94a08ae",
+        "metrics": "156b116bdf6de887330808ac0552f18d85a755ec193e3773adf07ca32110455b",
+        "vmstat": "27f3c69b1f6374b15292d7f673eb8d1e4db11d752d4bf263f6f6d39789fae2b0",
+        "wandb_events": "f9f6d7c7def0f7f4a1cbf083fc8cf30f1b404666dffdc216fa89b038b1fdf9ec",
+        "wandb_records": "6377fdc6c42afdbbd8e2745eb4abaa95ef3ec33eaa95d4dc91baf8585934d4ee"
+      },
+      "manifest": {
+        "data": [
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19",
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19"
+        ],
+        "experiment_id": "exp-533fef754660b1b0c740",
+        "git_sha": "0dd2fd56cd6695be75ac37e3f563c4ca4916264d",
+        "hardware": "bbba66a7fd419b86064a23e5dca8c40078d1cdb46860754e2b245c41dc317d0c",
+        "tokenizer": "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b"
+      },
+      "normalized_config": "498b0f056d03ef8ed8cfd8a4f393dc56ca2f075a536e1517a083a4d4cf52eeca",
+      "performance": {
+        "allocated": {
+          "first_20_median": 1078095360.0,
+          "last_20_median": 1076618240.0,
+          "maximum": 1103998464
+        },
+        "cuda_phase_median_milliseconds": {
+          "backward": 28.273343801498413,
+          "clipping": 3.0242719650268555,
+          "forward": 15.377408027648926,
+          "gradient_finite_check": 6.660928010940552,
+          "gradient_norm_and_scalar_read": 1.1881599426269531,
+          "gradient_scale": 1.7867519855499268,
+          "host_device_prepare": 2.260271916165948,
+          "loss": 1.522159993648529,
+          "loss_scalar_read": 0.012640000320971012,
+          "optimizer": 19.678336143493652,
+          "parameter_finite_check": 6.673135995864868,
+          "scheduler": 0.013488000258803368
+        },
+        "data_wait_fraction": 0.13418347463082952,
+        "host_phase_median_seconds": {
+          "backward": 0.023676246011746116,
+          "clipping": 0.000605861991061829,
+          "data_wait": 0.014106189992162399,
+          "forward": 0.011233933473704383,
+          "gradient_finite_check": 0.009297789016272873,
+          "gradient_norm_and_scalar_read": 0.0011948339961236343,
+          "gradient_scale": 0.0006470695079769939,
+          "host_device_prepare": 0.0025364719913341105,
+          "loss": 0.0003745314897969365,
+          "loss_scalar_read": 1.8784005078487098e-05,
+          "optimizer": 0.0015839745028642938,
+          "parameter_finite_check": 0.02724461001344025,
+          "scheduler": 2.0391991711221635e-05,
+          "step_metrics": 0.00022429798264056444
+        },
+        "reserved": {
+          "first_20_median": 1235222528.0,
+          "last_20_median": 1235222528.0,
+          "maximum": 1235222528
+        },
+        "step_max_seconds": 0.5144649659923743,
+        "step_median_seconds": 0.09974106401205063,
+        "step_p95_seconds": 0.1039284510188736,
+        "steps": 270,
+        "target_tokens": 138240,
+        "target_tokens_per_second": 5031.404862761193,
+        "wall_seconds": 27.475427593424683
+      },
+      "position": 1,
+      "repetition": 2,
+      "resources": {
+        "container": {
+          "coverage": 0.9545454545454546,
+          "end_gap_seconds": 1.007000937,
+          "expected": 22,
+          "max_gap_seconds": 2.011668761,
+          "max_memory_bytes": 2689723269,
+          "samples": 21,
+          "start_delay_seconds": 1.914344113,
+          "temporal_coverage": true
+        },
+        "gpu": {
+          "coverage": 0.9907407407407407,
+          "end_gap_seconds": 0.179450234,
+          "expected": 216,
+          "max_gap_seconds": 0.202000128,
+          "power_w": {
+            "max": 21.49,
+            "median": 20.770000000000003,
+            "min": 5.13
+          },
+          "samples": 214,
+          "sm_clock_mhz": {
+            "max": 2411.0,
+            "median": 2411.0,
+            "min": 208.0
+          },
+          "start_delay_seconds": 0.13106452,
+          "temperature_c": {
+            "max": 44.0,
+            "median": 42.0,
+            "min": 38.0
+          },
+          "temporal_coverage": true,
+          "utilization_percent": {
+            "max": 74.0,
+            "median": 69.0,
+            "min": 0.0
+          }
+        },
+        "host": {
+          "coverage": 0.9545454545454546,
+          "end_gap_seconds": 1.266450042,
+          "expected": 44,
+          "longest_swap_io_run": 0,
+          "max_gap_seconds": 1.0,
+          "minimum_free_buffer_cache_bytes": 122221830144,
+          "samples": 42,
+          "start_delay_seconds": 0.76706452,
+          "temporal_coverage": true
+        }
+      },
+      "run_id": "r2-p1-offline-on",
+      "scheduled_log_seconds": {
+        "max": 0.021889969997573644,
+        "median": 0.0012085550115443766,
+        "total": 0.059592341975076124
+      },
+      "trajectory": "dec4cce97e2ebca61a06d044f03ebd602547b58a49efce066605b045c0e7e0c8",
+      "wandb": {
+        "lifecycle": [
+          [
+            "init",
+            "succeeded"
+          ],
+          [
+            "watch",
+            "succeeded"
+          ],
+          [
+            "unwatch",
+            "succeeded"
+          ],
+          [
+            "finish",
+            "succeeded"
+          ]
+        ],
+        "records": {
+          "file_count": 1,
+          "files": [
+            {
+              "history_records": 30,
+              "path": "/evidence/wandb/wandb/offline-run-20260713_180316-c6ktwxl6/run-c6ktwxl6.wandb",
+              "record_types": {
+                "environment": 2,
+                "exit": 1,
+                "files": 1,
+                "header": 1,
+                "history": 30,
+                "output_raw": 1,
+                "run": 1,
+                "stats": 4,
+                "summary": 63,
+                "telemetry": 4
+              },
+              "sha256": "0fcd836785ffe3adbce7414508355aff40022420f6c1a87a1c294fdf6ca00019",
+              "size_bytes": 294370,
+              "watch_histogram_records": 1,
+              "watch_histogram_series": [
+                "gradients/embedding.token.embedding.weight",
+                "gradients/layers.0.attention_norm.bias",
+                "gradients/layers.0.attention_norm.weight",
+                "gradients/layers.0.feedforward.0.bias",
+                "gradients/layers.0.feedforward.0.weight",
+                "gradients/layers.0.feedforward.3.bias",
+                "gradients/layers.0.feedforward.3.weight",
+                "gradients/layers.0.feedforward_norm.bias",
+                "gradients/layers.0.feedforward_norm.weight",
+                "gradients/layers.0.self_attention.in_proj_bias",
+                "gradients/layers.0.self_attention.in_proj_weight",
+                "gradients/layers.0.self_attention.out_proj.bias",
+                "gradients/layers.0.self_attention.out_proj.weight",
+                "gradients/layers.1.attention_norm.bias",
+                "gradients/layers.1.attention_norm.weight",
+                "gradients/layers.1.feedforward.0.bias",
+                "gradients/layers.1.feedforward.0.weight",
+                "gradients/layers.1.feedforward.3.bias",
+                "gradients/layers.1.feedforward.3.weight",
+                "gradients/layers.1.feedforward_norm.bias",
+                "gradients/layers.1.feedforward_norm.weight",
+                "gradients/layers.1.self_attention.in_proj_bias",
+                "gradients/layers.1.self_attention.in_proj_weight",
+                "gradients/layers.1.self_attention.out_proj.bias",
+                "gradients/layers.1.self_attention.out_proj.weight",
+                "gradients/layers.2.attention_norm.bias",
+                "gradients/layers.2.attention_norm.weight",
+                "gradients/layers.2.feedforward.0.bias",
+                "gradients/layers.2.feedforward.0.weight",
+                "gradients/layers.2.feedforward.3.bias",
+                "gradients/layers.2.feedforward.3.weight",
+                "gradients/layers.2.feedforward_norm.bias",
+                "gradients/layers.2.feedforward_norm.weight",
+                "gradients/layers.2.self_attention.in_proj_bias",
+                "gradients/layers.2.self_attention.in_proj_weight",
+                "gradients/layers.2.self_attention.out_proj.bias",
+                "gradients/layers.2.self_attention.out_proj.weight",
+                "gradients/layers.3.attention_norm.bias",
+                "gradients/layers.3.attention_norm.weight",
+                "gradients/layers.3.feedforward.0.bias",
+                "gradients/layers.3.feedforward.0.weight",
+                "gradients/layers.3.feedforward.3.bias",
+                "gradients/layers.3.feedforward.3.weight",
+                "gradients/layers.3.feedforward_norm.bias",
+                "gradients/layers.3.feedforward_norm.weight",
+                "gradients/layers.3.self_attention.in_proj_bias",
+                "gradients/layers.3.self_attention.in_proj_weight",
+                "gradients/layers.3.self_attention.out_proj.bias",
+                "gradients/layers.3.self_attention.out_proj.weight",
+                "gradients/layers.4.attention_norm.bias",
+                "gradients/layers.4.attention_norm.weight",
+                "gradients/layers.4.feedforward.0.bias",
+                "gradients/layers.4.feedforward.0.weight",
+                "gradients/layers.4.feedforward.3.bias",
+                "gradients/layers.4.feedforward.3.weight",
+                "gradients/layers.4.feedforward_norm.bias",
+                "gradients/layers.4.feedforward_norm.weight",
+                "gradients/layers.4.self_attention.in_proj_bias",
+                "gradients/layers.4.self_attention.in_proj_weight",
+                "gradients/layers.4.self_attention.out_proj.bias",
+                "gradients/layers.4.self_attention.out_proj.weight",
+                "gradients/layers.5.attention_norm.bias",
+                "gradients/layers.5.attention_norm.weight",
+                "gradients/layers.5.feedforward.0.bias",
+                "gradients/layers.5.feedforward.0.weight",
+                "gradients/layers.5.feedforward.3.bias",
+                "gradients/layers.5.feedforward.3.weight",
+                "gradients/layers.5.feedforward_norm.bias",
+                "gradients/layers.5.feedforward_norm.weight",
+                "gradients/layers.5.self_attention.in_proj_bias",
+                "gradients/layers.5.self_attention.in_proj_weight",
+                "gradients/layers.5.self_attention.out_proj.bias",
+                "gradients/layers.5.self_attention.out_proj.weight",
+                "gradients/lm_head.bias",
+                "gradients/lm_head.weight"
+              ],
+              "watch_histograms": 75,
+              "watch_history_steps": [
+                24
+              ]
+            }
+          ],
+          "schema_version": 1,
+          "wandb_version": "0.25.1",
+          "watch_histogram_records": 1,
+          "watch_histogram_series": [
+            "gradients/embedding.token.embedding.weight",
+            "gradients/layers.0.attention_norm.bias",
+            "gradients/layers.0.attention_norm.weight",
+            "gradients/layers.0.feedforward.0.bias",
+            "gradients/layers.0.feedforward.0.weight",
+            "gradients/layers.0.feedforward.3.bias",
+            "gradients/layers.0.feedforward.3.weight",
+            "gradients/layers.0.feedforward_norm.bias",
+            "gradients/layers.0.feedforward_norm.weight",
+            "gradients/layers.0.self_attention.in_proj_bias",
+            "gradients/layers.0.self_attention.in_proj_weight",
+            "gradients/layers.0.self_attention.out_proj.bias",
+            "gradients/layers.0.self_attention.out_proj.weight",
+            "gradients/layers.1.attention_norm.bias",
+            "gradients/layers.1.attention_norm.weight",
+            "gradients/layers.1.feedforward.0.bias",
+            "gradients/layers.1.feedforward.0.weight",
+            "gradients/layers.1.feedforward.3.bias",
+            "gradients/layers.1.feedforward.3.weight",
+            "gradients/layers.1.feedforward_norm.bias",
+            "gradients/layers.1.feedforward_norm.weight",
+            "gradients/layers.1.self_attention.in_proj_bias",
+            "gradients/layers.1.self_attention.in_proj_weight",
+            "gradients/layers.1.self_attention.out_proj.bias",
+            "gradients/layers.1.self_attention.out_proj.weight",
+            "gradients/layers.2.attention_norm.bias",
+            "gradients/layers.2.attention_norm.weight",
+            "gradients/layers.2.feedforward.0.bias",
+            "gradients/layers.2.feedforward.0.weight",
+            "gradients/layers.2.feedforward.3.bias",
+            "gradients/layers.2.feedforward.3.weight",
+            "gradients/layers.2.feedforward_norm.bias",
+            "gradients/layers.2.feedforward_norm.weight",
+            "gradients/layers.2.self_attention.in_proj_bias",
+            "gradients/layers.2.self_attention.in_proj_weight",
+            "gradients/layers.2.self_attention.out_proj.bias",
+            "gradients/layers.2.self_attention.out_proj.weight",
+            "gradients/layers.3.attention_norm.bias",
+            "gradients/layers.3.attention_norm.weight",
+            "gradients/layers.3.feedforward.0.bias",
+            "gradients/layers.3.feedforward.0.weight",
+            "gradients/layers.3.feedforward.3.bias",
+            "gradients/layers.3.feedforward.3.weight",
+            "gradients/layers.3.feedforward_norm.bias",
+            "gradients/layers.3.feedforward_norm.weight",
+            "gradients/layers.3.self_attention.in_proj_bias",
+            "gradients/layers.3.self_attention.in_proj_weight",
+            "gradients/layers.3.self_attention.out_proj.bias",
+            "gradients/layers.3.self_attention.out_proj.weight",
+            "gradients/layers.4.attention_norm.bias",
+            "gradients/layers.4.attention_norm.weight",
+            "gradients/layers.4.feedforward.0.bias",
+            "gradients/layers.4.feedforward.0.weight",
+            "gradients/layers.4.feedforward.3.bias",
+            "gradients/layers.4.feedforward.3.weight",
+            "gradients/layers.4.feedforward_norm.bias",
+            "gradients/layers.4.feedforward_norm.weight",
+            "gradients/layers.4.self_attention.in_proj_bias",
+            "gradients/layers.4.self_attention.in_proj_weight",
+            "gradients/layers.4.self_attention.out_proj.bias",
+            "gradients/layers.4.self_attention.out_proj.weight",
+            "gradients/layers.5.attention_norm.bias",
+            "gradients/layers.5.attention_norm.weight",
+            "gradients/layers.5.feedforward.0.bias",
+            "gradients/layers.5.feedforward.0.weight",
+            "gradients/layers.5.feedforward.3.bias",
+            "gradients/layers.5.feedforward.3.weight",
+            "gradients/layers.5.feedforward_norm.bias",
+            "gradients/layers.5.feedforward_norm.weight",
+            "gradients/layers.5.self_attention.in_proj_bias",
+            "gradients/layers.5.self_attention.in_proj_weight",
+            "gradients/layers.5.self_attention.out_proj.bias",
+            "gradients/layers.5.self_attention.out_proj.weight",
+            "gradients/lm_head.bias",
+            "gradients/lm_head.weight"
+          ],
+          "watch_histograms": 75,
+          "watch_history_steps": [
+            24
+          ]
+        },
+        "storage": {
+          "bytes": 307818,
+          "file_count": 5,
+          "forbidden": [],
+          "run_file_count": 4
+        }
+      }
+    },
+    {
+      "arm": "disabled",
+      "checkpoint": {
+        "counters": {
+          "optimizer_step": 300,
+          "target_tokens": 153600
+        },
+        "cursor_digest": "1b8dd80eb6c9740c091033063ff7b108930d577fb024a360054b9bf8f56f53f1",
+        "model_digest": "20cb38f85ba8f5e14b885227e23b768ddb2c014b0a40b8c0b9fcd14e9acba859",
+        "resume_digest": "9f5216e555232b98a145bb6146411eb8f238af0c55f936fde5ebd9d59fb4b3d8",
+        "sha256": "829e388e1631417cff7bebb44830d9f08f52ec16f259891ad69ab2594f8de5e2",
+        "size_bytes": 594648864
+      },
+      "container_wall_seconds": 44.804293362,
+      "disk": {
+        "checkpoint_bytes": 1783953028,
+        "checkpoint_files": 3,
+        "free_after_bytes": 466836496384,
+        "free_before_bytes": 468617195520
+      },
+      "hashes": {
+        "config": "a86f7a38f426d0e04a27b018fd4c3e074aa46b32d2e973c3acfbd685b622ce93",
+        "container": "3d4feba774f4c203000f509e29dc012d3ea54f7956f7e1c7a29acfad7be68633",
+        "gpu": "26ad2d99468be00fb99f97bdb3ae97928133b8f28e4d045130b733b39211ab2b",
+        "manifest": "6c876e5ff13a7979638aec6b1501eec28ec13e13d498f8a9e0dcef54f64111b6",
+        "measurement": "a0bbdece234a9c236ada31212493c5aa699c1607bf70d313c2b429f308ddc554",
+        "metrics": "dcbb8e8fe422e15ebfa4fe00d76987951f20634c478d691a4be83ba48dcbf792",
+        "vmstat": "2f911a7482070f444720f877bcbd5f24751917d8931a290665d724f57a64b87a",
+        "wandb_events": "011fe0e8693db339006c0ea19d5735bf4ed1a31bd2041d63d1c11676c046760e",
+        "wandb_records": "807f07b030e9968c3251e7cb84095c3108f107ea9f1d469983ee5bb59ee4f5db"
+      },
+      "manifest": {
+        "data": [
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19",
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19"
+        ],
+        "experiment_id": "exp-533fef754660b1b0c740",
+        "git_sha": "0dd2fd56cd6695be75ac37e3f563c4ca4916264d",
+        "hardware": "bbba66a7fd419b86064a23e5dca8c40078d1cdb46860754e2b245c41dc317d0c",
+        "tokenizer": "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b"
+      },
+      "normalized_config": "498b0f056d03ef8ed8cfd8a4f393dc56ca2f075a536e1517a083a4d4cf52eeca",
+      "performance": {
+        "allocated": {
+          "first_20_median": 1077288704.0,
+          "last_20_median": 1076618240.0,
+          "maximum": 1088682496
+        },
+        "cuda_phase_median_milliseconds": {
+          "backward": 28.48896026611328,
+          "clipping": 3.0343679189682007,
+          "forward": 16.985999822616577,
+          "gradient_finite_check": 6.683120012283325,
+          "gradient_norm_and_scalar_read": 1.1897760033607483,
+          "gradient_scale": 1.7949440479278564,
+          "host_device_prepare": 0.32283199951052666,
+          "loss": 1.531024008989334,
+          "loss_scalar_read": 0.012671999633312225,
+          "optimizer": 19.74793529510498,
+          "parameter_finite_check": 6.693680047988892,
+          "scheduler": 0.013952000066637993
+        },
+        "data_wait_fraction": 0.18021792120486188,
+        "host_phase_median_seconds": {
+          "backward": 0.023137454511015676,
+          "clipping": 0.0006144689978100359,
+          "data_wait": 0.01928077249613125,
+          "forward": 0.012842147989431396,
+          "gradient_finite_check": 0.009619345495593734,
+          "gradient_norm_and_scalar_read": 0.0011970174964517355,
+          "gradient_scale": 0.0005849640001542866,
+          "host_device_prepare": 0.0005308999971020967,
+          "loss": 0.00042840352398343384,
+          "loss_scalar_read": 1.900050847325474e-05,
+          "optimizer": 0.0016003560012904927,
+          "parameter_finite_check": 0.02734495550976135,
+          "scheduler": 2.1160507458262146e-05,
+          "step_metrics": 0.00023090600734576583
+        },
+        "reserved": {
+          "first_20_median": 1235222528.0,
+          "last_20_median": 1235222528.0,
+          "maximum": 1235222528
+        },
+        "step_max_seconds": 0.11222603698843159,
+        "step_median_seconds": 0.10874740651343018,
+        "step_p95_seconds": 0.1111491099873092,
+        "steps": 270,
+        "target_tokens": 138240,
+        "target_tokens_per_second": 4807.444147619208,
+        "wall_seconds": 28.755404276191257
+      },
+      "position": 2,
+      "repetition": 2,
+      "resources": {
+        "container": {
+          "coverage": 0.9565217391304348,
+          "end_gap_seconds": 0.745640059,
+          "expected": 23,
+          "max_gap_seconds": 2.01800819,
+          "max_memory_bytes": 2618856308,
+          "samples": 22,
+          "start_delay_seconds": 1.913404619,
+          "temporal_coverage": true
+        },
+        "gpu": {
+          "coverage": 0.9911111111111112,
+          "end_gap_seconds": 0.1175571,
+          "expected": 225,
+          "max_gap_seconds": 0.205999872,
+          "power_w": {
+            "max": 21.32,
+            "median": 20.45,
+            "min": 5.16
+          },
+          "samples": 223,
+          "sm_clock_mhz": {
+            "max": 2411.0,
+            "median": 2411.0,
+            "min": 208.0
+          },
+          "start_delay_seconds": 0.128736134,
+          "temperature_c": {
+            "max": 44.0,
+            "median": 43.0,
+            "min": 39.0
+          },
+          "temporal_coverage": true,
+          "utilization_percent": {
+            "max": 72.0,
+            "median": 64.0,
+            "min": 0.0
+          }
+        },
+        "host": {
+          "coverage": 0.9777777777777777,
+          "end_gap_seconds": 0.916557164,
+          "expected": 45,
+          "longest_swap_io_run": 0,
+          "max_gap_seconds": 1.0,
+          "minimum_free_buffer_cache_bytes": 122229489664,
+          "samples": 44,
+          "start_delay_seconds": 0.887736198,
+          "temporal_coverage": true
+        }
+      },
+      "run_id": "r2-p2-disabled",
+      "scheduled_log_seconds": {
+        "max": 6.779201794415712e-05,
+        "median": 4.735199036076665e-05,
+        "total": 0.0014964259753469378
+      },
+      "trajectory": "dec4cce97e2ebca61a06d044f03ebd602547b58a49efce066605b045c0e7e0c8",
+      "wandb": {
+        "lifecycle": [
+          [
+            "init",
+            "disabled"
+          ]
+        ],
+        "records": {
+          "file_count": 0,
+          "files": [],
+          "schema_version": 1,
+          "wandb_version": "0.25.1",
+          "watch_histogram_records": 0,
+          "watch_histogram_series": [],
+          "watch_histograms": 0,
+          "watch_history_steps": []
+        },
+        "storage": {
+          "bytes": 0,
+          "file_count": 0,
+          "forbidden": [],
+          "run_file_count": 0
+        }
+      }
+    },
+    {
+      "arm": "offline-off",
+      "checkpoint": {
+        "counters": {
+          "optimizer_step": 300,
+          "target_tokens": 153600
+        },
+        "cursor_digest": "1b8dd80eb6c9740c091033063ff7b108930d577fb024a360054b9bf8f56f53f1",
+        "model_digest": "20cb38f85ba8f5e14b885227e23b768ddb2c014b0a40b8c0b9fcd14e9acba859",
+        "resume_digest": "9f5216e555232b98a145bb6146411eb8f238af0c55f936fde5ebd9d59fb4b3d8",
+        "sha256": "72b27ec433b8c3b46fd485379b963eab7cf4e29178d870d0c80b5d8f8c924828",
+        "size_bytes": 594648864
+      },
+      "container_wall_seconds": 43.409407848,
+      "disk": {
+        "checkpoint_bytes": 1783953028,
+        "checkpoint_files": 3,
+        "free_after_bytes": 465047674880,
+        "free_before_bytes": 466836467712
+      },
+      "hashes": {
+        "config": "75be82dfd31b9dc7883d6b79abab8d65a0b501489b53f488487fed339c383451",
+        "container": "09e724bbe272d01d6ca56e1c52e1ef256c958696b8933227ee72dabe66405276",
+        "gpu": "acb567858b754c74abaa522344b8f30b8ce6483ecaecc3a30366bca061221cbc",
+        "manifest": "ee1cbbff969201260eaecb1eec3244062c390a76d04594f40b035f6b96caa48c",
+        "measurement": "bff7fecd272a7b799a8c7485dc18a3ccb3dc2fd26727ad21ce1a7ddcfe623c13",
+        "metrics": "45f72d084e8164d5a9a9692fb8b586a4410e262a513867ea52e7a36a1901e619",
+        "vmstat": "0a358bf3d6374079b355a51f71fe1b93bbd23034d11d16782dacf6b58a5d4af6",
+        "wandb_events": "8e0a195750feb22180dd0380abb36d439eff71228a142e6e00991e44def944eb",
+        "wandb_records": "2b0c9a98f6ffcf95bdb6e280454a0780c1aa427f3d44f69e687124b22565f14e"
+      },
+      "manifest": {
+        "data": [
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19",
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19"
+        ],
+        "experiment_id": "exp-533fef754660b1b0c740",
+        "git_sha": "0dd2fd56cd6695be75ac37e3f563c4ca4916264d",
+        "hardware": "bbba66a7fd419b86064a23e5dca8c40078d1cdb46860754e2b245c41dc317d0c",
+        "tokenizer": "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b"
+      },
+      "normalized_config": "498b0f056d03ef8ed8cfd8a4f393dc56ca2f075a536e1517a083a4d4cf52eeca",
+      "performance": {
+        "allocated": {
+          "first_20_median": 1083388928.0,
+          "last_20_median": 1076618240.0,
+          "maximum": 1103998464
+        },
+        "cuda_phase_median_milliseconds": {
+          "backward": 28.492719888687134,
+          "clipping": 3.023824095726013,
+          "forward": 15.232416033744812,
+          "gradient_finite_check": 6.692543983459473,
+          "gradient_norm_and_scalar_read": 1.1917439699172974,
+          "gradient_scale": 1.7951520085334778,
+          "host_device_prepare": 1.4989919904619455,
+          "loss": 1.530016005039215,
+          "loss_scalar_read": 0.012799999676644802,
+          "optimizer": 19.708703994750977,
+          "parameter_finite_check": 6.702560186386108,
+          "scheduler": 0.013775999657809734
+        },
+        "data_wait_fraction": 0.1421183925453812,
+        "host_phase_median_seconds": {
+          "backward": 0.02337610549875535,
+          "clipping": 0.0006121399928815663,
+          "data_wait": 0.01445068400062155,
+          "forward": 0.011060199030907825,
+          "gradient_finite_check": 0.009563068990246393,
+          "gradient_norm_and_scalar_read": 0.0011985995079157874,
+          "gradient_scale": 0.0006053800025256351,
+          "host_device_prepare": 0.0017284579807892442,
+          "loss": 0.0004196585068712011,
+          "loss_scalar_read": 1.8912513041868806e-05,
+          "optimizer": 0.0015599300095345825,
+          "parameter_finite_check": 0.02728030999423936,
+          "scheduler": 2.0560488337650895e-05,
+          "step_metrics": 0.00022810499649494886
+        },
+        "reserved": {
+          "first_20_median": 1235222528.0,
+          "last_20_median": 1235222528.0,
+          "maximum": 1235222528
+        },
+        "step_max_seconds": 0.10268042597454041,
+        "step_median_seconds": 0.0996994464949239,
+        "step_p95_seconds": 0.10117227098089643,
+        "steps": 270,
+        "target_tokens": 138240,
+        "target_tokens_per_second": 5140.716908296214,
+        "wall_seconds": 26.891190949827433
+      },
+      "position": 3,
+      "repetition": 2,
+      "resources": {
+        "container": {
+          "coverage": 0.9545454545454546,
+          "end_gap_seconds": 1.377637231,
+          "expected": 22,
+          "max_gap_seconds": 2.009753302,
+          "max_memory_bytes": 2684354560,
+          "samples": 21,
+          "start_delay_seconds": 1.915459812,
+          "temporal_coverage": true
+        },
+        "gpu": {
+          "coverage": 0.9908256880733946,
+          "end_gap_seconds": 0.09403908,
+          "expected": 218,
+          "max_gap_seconds": 0.204,
+          "power_w": {
+            "max": 21.49,
+            "median": 21.23,
+            "min": 5.3
+          },
+          "samples": 216,
+          "sm_clock_mhz": {
+            "max": 2411.0,
+            "median": 2411.0,
+            "min": 208.0
+          },
+          "start_delay_seconds": 0.13236896,
+          "temperature_c": {
+            "max": 45.0,
+            "median": 43.0,
+            "min": 39.0
+          },
+          "temporal_coverage": true,
+          "utilization_percent": {
+            "max": 72.0,
+            "median": 70.0,
+            "min": 0.0
+          }
+        },
+        "host": {
+          "coverage": 0.9772727272727273,
+          "end_gap_seconds": 1.164038952,
+          "expected": 44,
+          "longest_swap_io_run": 0,
+          "max_gap_seconds": 1.0,
+          "minimum_free_buffer_cache_bytes": 122142642176,
+          "samples": 43,
+          "start_delay_seconds": 0.245368896,
+          "temporal_coverage": true
+        }
+      },
+      "run_id": "r2-p3-offline-off",
+      "scheduled_log_seconds": {
+        "max": 0.0022338379931170493,
+        "median": 0.0012554080021800473,
+        "total": 0.03959880996262655
+      },
+      "trajectory": "dec4cce97e2ebca61a06d044f03ebd602547b58a49efce066605b045c0e7e0c8",
+      "wandb": {
+        "lifecycle": [
+          [
+            "init",
+            "succeeded"
+          ],
+          [
+            "watch",
+            "disabled"
+          ],
+          [
+            "finish",
+            "succeeded"
+          ]
+        ],
+        "records": {
+          "file_count": 1,
+          "files": [
+            {
+              "history_records": 30,
+              "path": "/evidence/wandb/wandb/offline-run-20260713_180551-0tnrf8ts/run-0tnrf8ts.wandb",
+              "record_types": {
+                "environment": 2,
+                "exit": 1,
+                "files": 1,
+                "header": 1,
+                "history": 30,
+                "output_raw": 1,
+                "run": 1,
+                "stats": 4,
+                "summary": 63,
+                "telemetry": 3
+              },
+              "sha256": "2f0c47b2bd22c641c01071f17441c92b26a3290564cd3cd531491b1f6f2af194",
+              "size_bytes": 56684,
+              "watch_histogram_records": 0,
+              "watch_histogram_series": [],
+              "watch_histograms": 0,
+              "watch_history_steps": []
+            }
+          ],
+          "schema_version": 1,
+          "wandb_version": "0.25.1",
+          "watch_histogram_records": 0,
+          "watch_histogram_series": [],
+          "watch_histograms": 0,
+          "watch_history_steps": []
+        },
+        "storage": {
+          "bytes": 70183,
+          "file_count": 5,
+          "forbidden": [],
+          "run_file_count": 4
+        }
+      }
+    },
+    {
+      "arm": "offline-off",
+      "checkpoint": {
+        "counters": {
+          "optimizer_step": 300,
+          "target_tokens": 153600
+        },
+        "cursor_digest": "1b8dd80eb6c9740c091033063ff7b108930d577fb024a360054b9bf8f56f53f1",
+        "model_digest": "20cb38f85ba8f5e14b885227e23b768ddb2c014b0a40b8c0b9fcd14e9acba859",
+        "resume_digest": "9f5216e555232b98a145bb6146411eb8f238af0c55f936fde5ebd9d59fb4b3d8",
+        "sha256": "2ba299dac7684299aa15b1c127c6f28a1c21a897945b0ce8d0235ebc57c299b7",
+        "size_bytes": 594648864
+      },
+      "container_wall_seconds": 50.801548393,
+      "disk": {
+        "checkpoint_bytes": 1783953028,
+        "checkpoint_files": 3,
+        "free_after_bytes": 463262072832,
+        "free_before_bytes": 465047638016
+      },
+      "hashes": {
+        "config": "ca1cd5e9f54b0a65b2a30364f5d69ec2703050dfed681796b5c5461a33521060",
+        "container": "0e977317832c147e1dcbe755e3cb2ca8a32568b1cc4bbf4f661661721990d577",
+        "gpu": "ca3c471deda19cade96f7356d45a52b034c60eac15ab154dc661e1f8a720faaf",
+        "manifest": "484b045489c7af640dc67d78f96e7bdbb729a213a422d3c43df344241eb58ba2",
+        "measurement": "bde367a2d5895a397bfbeae92fe4be602711f1096e9c0cc75195839ee1c12324",
+        "metrics": "3b05f5eb28247fd093dd413b504957e73aabdd8d34db33830dc9def16362ac7c",
+        "vmstat": "5a6df60f9dde3b454052a81ddec9cc59e677ed38fdd221122961eeedcb8a5697",
+        "wandb_events": "2db8eccbcd704bb5d02d36e9a43e9eae0e7a8747735633bcc03e80722ecd05d2",
+        "wandb_records": "0f63f1b34758018be2db4cba4b3a65c6a095232c3e8be5e794d34a90dac0be4f"
+      },
+      "manifest": {
+        "data": [
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19",
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19"
+        ],
+        "experiment_id": "exp-533fef754660b1b0c740",
+        "git_sha": "0dd2fd56cd6695be75ac37e3f563c4ca4916264d",
+        "hardware": "bbba66a7fd419b86064a23e5dca8c40078d1cdb46860754e2b245c41dc317d0c",
+        "tokenizer": "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b"
+      },
+      "normalized_config": "498b0f056d03ef8ed8cfd8a4f393dc56ca2f075a536e1517a083a4d4cf52eeca",
+      "performance": {
+        "allocated": {
+          "first_20_median": 1088682496.0,
+          "last_20_median": 1076618240.0,
+          "maximum": 1103998464
+        },
+        "cuda_phase_median_milliseconds": {
+          "backward": 50.48679971694946,
+          "clipping": 3.0209120512008667,
+          "forward": 18.50054371356964,
+          "gradient_finite_check": 6.6603522300720215,
+          "gradient_norm_and_scalar_read": 1.1948479413986206,
+          "gradient_scale": 1.7888000011444092,
+          "host_device_prepare": 0.21737600304186344,
+          "loss": 1.5273440033197403,
+          "loss_scalar_read": 0.012128000147640705,
+          "optimizer": 19.718144416809082,
+          "parameter_finite_check": 6.680975914001465,
+          "scheduler": 0.013504000380635262
+        },
+        "data_wait_fraction": 0.13267344671171985,
+        "host_phase_median_seconds": {
+          "backward": 0.04567305500677321,
+          "clipping": 0.0005891469918424264,
+          "data_wait": 0.01779166048800107,
+          "forward": 0.014359369481098838,
+          "gradient_finite_check": 0.009401905001141131,
+          "gradient_norm_and_scalar_read": 0.0012018139968859032,
+          "gradient_scale": 0.0004948825080646202,
+          "host_device_prepare": 0.00035573699278756976,
+          "loss": 0.0004623704880941659,
+          "loss_scalar_read": 1.832001726143062e-05,
+          "optimizer": 0.0014680155145470053,
+          "parameter_finite_check": 0.027367617483832873,
+          "scheduler": 2.040799881797284e-05,
+          "step_metrics": 0.00022625700512435287
+        },
+        "reserved": {
+          "first_20_median": 1235222528.0,
+          "last_20_median": 1235222528.0,
+          "maximum": 1235222528
+        },
+        "step_max_seconds": 0.14224186100182123,
+        "step_median_seconds": 0.12770950498816092,
+        "step_p95_seconds": 0.12990231398725882,
+        "steps": 270,
+        "target_tokens": 138240,
+        "target_tokens_per_second": 4007.5153280565387,
+        "wall_seconds": 34.495189333945746
+      },
+      "position": 1,
+      "repetition": 3,
+      "resources": {
+        "container": {
+          "coverage": 0.9615384615384616,
+          "end_gap_seconds": 0.739577451,
+          "expected": 26,
+          "max_gap_seconds": 2.014577296,
+          "max_memory_bytes": 2738041651,
+          "samples": 25,
+          "start_delay_seconds": 1.915319206,
+          "temporal_coverage": true
+        },
+        "gpu": {
+          "coverage": 0.9921568627450981,
+          "end_gap_seconds": 0.105842201,
+          "expected": 255,
+          "max_gap_seconds": 0.219000064,
+          "power_w": {
+            "max": 20.82,
+            "median": 19.31,
+            "min": 5.17
+          },
+          "samples": 253,
+          "sm_clock_mhz": {
+            "max": 2411.0,
+            "median": 2411.0,
+            "min": 208.0
+          },
+          "start_delay_seconds": 0.088705872,
+          "temperature_c": {
+            "max": 44.0,
+            "median": 43.0,
+            "min": 39.0
+          },
+          "temporal_coverage": true,
+          "utilization_percent": {
+            "max": 70.0,
+            "median": 54.0,
+            "min": 0.0
+          }
+        },
+        "host": {
+          "coverage": 0.9803921568627451,
+          "end_gap_seconds": 1.003842329,
+          "expected": 51,
+          "longest_swap_io_run": 0,
+          "max_gap_seconds": 1.0,
+          "minimum_free_buffer_cache_bytes": 122161094656,
+          "samples": 50,
+          "start_delay_seconds": 0.797706064,
+          "temporal_coverage": true
+        }
+      },
+      "run_id": "r3-p1-offline-off",
+      "scheduled_log_seconds": {
+        "max": 0.0025052769924513996,
+        "median": 0.0012913420068798587,
+        "total": 0.043704660958610475
+      },
+      "trajectory": "dec4cce97e2ebca61a06d044f03ebd602547b58a49efce066605b045c0e7e0c8",
+      "wandb": {
+        "lifecycle": [
+          [
+            "init",
+            "succeeded"
+          ],
+          [
+            "watch",
+            "disabled"
+          ],
+          [
+            "finish",
+            "succeeded"
+          ]
+        ],
+        "records": {
+          "file_count": 1,
+          "files": [
+            {
+              "history_records": 30,
+              "path": "/evidence/wandb/wandb/offline-run-20260713_180712-3e8xer17/run-3e8xer17.wandb",
+              "record_types": {
+                "environment": 2,
+                "exit": 1,
+                "files": 1,
+                "header": 1,
+                "history": 30,
+                "output_raw": 1,
+                "run": 1,
+                "stats": 6,
+                "summary": 63,
+                "telemetry": 3
+              },
+              "sha256": "0c8a94426f02a2ea8be0cf5819046f17b7183948b76b445cf2e0b1759d479f05",
+              "size_bytes": 57376,
+              "watch_histogram_records": 0,
+              "watch_histogram_series": [],
+              "watch_histograms": 0,
+              "watch_history_steps": []
+            }
+          ],
+          "schema_version": 1,
+          "wandb_version": "0.25.1",
+          "watch_histogram_records": 0,
+          "watch_histogram_series": [],
+          "watch_histograms": 0,
+          "watch_history_steps": []
+        },
+        "storage": {
+          "bytes": 70880,
+          "file_count": 5,
+          "forbidden": [],
+          "run_file_count": 4
+        }
+      }
+    },
+    {
+      "arm": "offline-on",
+      "checkpoint": {
+        "counters": {
+          "optimizer_step": 300,
+          "target_tokens": 153600
+        },
+        "cursor_digest": "1b8dd80eb6c9740c091033063ff7b108930d577fb024a360054b9bf8f56f53f1",
+        "model_digest": "20cb38f85ba8f5e14b885227e23b768ddb2c014b0a40b8c0b9fcd14e9acba859",
+        "resume_digest": "9f5216e555232b98a145bb6146411eb8f238af0c55f936fde5ebd9d59fb4b3d8",
+        "sha256": "8010eb87c97e744d411eb03f68b6c2fb457182e247500499304b23db45eb7d5a",
+        "size_bytes": 594648864
+      },
+      "container_wall_seconds": 46.85646804,
+      "disk": {
+        "checkpoint_bytes": 1783953028,
+        "checkpoint_files": 3,
+        "free_after_bytes": 461476712448,
+        "free_before_bytes": 463262044160
+      },
+      "hashes": {
+        "config": "85dd2f3a99ab757b8da64e5d0d03e9e433e0cc5364249f867d4a9ff38e5cf85e",
+        "container": "3676bf60f1d64d74ec8a157d3272d6582510692bb0bfa3058793f49e942719bf",
+        "gpu": "ed0c8840f4c46598e4bcfa63471f1484bff659acb26c6bd243ba331ff32b6891",
+        "manifest": "72a4df19b1eaf6bfe707b5a78dae8099043a449d9cc986a9ae412f74853e8cff",
+        "measurement": "c81064d284d867300ccab8150dd463f362a0aab7991b93d6b1259cfc78f1e499",
+        "metrics": "4266b52373e0d5ea4b3e8b0bc16cfdc72461bb1a3f2c4b4e27370e6a2fa65202",
+        "vmstat": "b19755889dc9de23a7ed166095775af82630a530bf9ea071d8cce2872d8f9546",
+        "wandb_events": "30cbf9a34620b1e861236d78e474681022ed4c00483417c8704d9b31bf1ed2d4",
+        "wandb_records": "603ee90a966932d697310781fb5abc9451b1497f382119fb89309bee3de69d30"
+      },
+      "manifest": {
+        "data": [
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19",
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19"
+        ],
+        "experiment_id": "exp-533fef754660b1b0c740",
+        "git_sha": "0dd2fd56cd6695be75ac37e3f563c4ca4916264d",
+        "hardware": "bbba66a7fd419b86064a23e5dca8c40078d1cdb46860754e2b245c41dc317d0c",
+        "tokenizer": "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b"
+      },
+      "normalized_config": "498b0f056d03ef8ed8cfd8a4f393dc56ca2f075a536e1517a083a4d4cf52eeca",
+      "performance": {
+        "allocated": {
+          "first_20_median": 1083388928.0,
+          "last_20_median": 1076618240.0,
+          "maximum": 1103998464
+        },
+        "cuda_phase_median_milliseconds": {
+          "backward": 27.39358377456665,
+          "clipping": 3.01363205909729,
+          "forward": 15.070192217826843,
+          "gradient_finite_check": 6.678848028182983,
+          "gradient_norm_and_scalar_read": 1.1990400552749634,
+          "gradient_scale": 1.7908799648284912,
+          "host_device_prepare": 0.32467199489474297,
+          "loss": 1.5251040011644363,
+          "loss_scalar_read": 0.012784000020474195,
+          "optimizer": 19.740880012512207,
+          "parameter_finite_check": 6.686447858810425,
+          "scheduler": 0.01387199992313981
+        },
+        "data_wait_fraction": 0.17371829003750336,
+        "host_phase_median_seconds": {
+          "backward": 0.020023197488626465,
+          "clipping": 0.0005965699820080772,
+          "data_wait": 0.020809975496376865,
+          "forward": 0.010890567980823107,
+          "gradient_finite_check": 0.010195747498073615,
+          "gradient_norm_and_scalar_read": 0.001205748994834721,
+          "gradient_scale": 0.0004852900019614026,
+          "host_device_prepare": 0.0005357144982554018,
+          "loss": 0.00036795251071453094,
+          "loss_scalar_read": 1.8927996279671788e-05,
+          "optimizer": 0.0014570060011465102,
+          "parameter_finite_check": 0.027416989003540948,
+          "scheduler": 2.0848005078732967e-05,
+          "step_metrics": 0.00022473699937108904
+        },
+        "reserved": {
+          "first_20_median": 1235222528.0,
+          "last_20_median": 1235222528.0,
+          "maximum": 1235222528
+        },
+        "step_max_seconds": 0.6095808210084215,
+        "step_median_seconds": 0.1051597560144728,
+        "step_p95_seconds": 0.13872502598678693,
+        "steps": 270,
+        "target_tokens": 138240,
+        "target_tokens_per_second": 4494.612989653299,
+        "wall_seconds": 30.75681940096547
+      },
+      "position": 2,
+      "repetition": 3,
+      "resources": {
+        "container": {
+          "coverage": 0.9583333333333334,
+          "end_gap_seconds": 0.810756139,
+          "expected": 24,
+          "max_gap_seconds": 2.015253571,
+          "max_memory_bytes": 2725156749,
+          "samples": 23,
+          "start_delay_seconds": 1.909736631,
+          "temporal_coverage": true
+        },
+        "gpu": {
+          "coverage": 0.9914893617021276,
+          "end_gap_seconds": 0.186811942,
+          "expected": 235,
+          "max_gap_seconds": 0.217000192,
+          "power_w": {
+            "max": 21.53,
+            "median": 19.2,
+            "min": 5.22
+          },
+          "samples": 233,
+          "sm_clock_mhz": {
+            "max": 2411.0,
+            "median": 2411.0,
+            "min": 208.0
+          },
+          "start_delay_seconds": 0.120656162,
+          "temperature_c": {
+            "max": 44.0,
+            "median": 43.0,
+            "min": 40.0
+          },
+          "temporal_coverage": true,
+          "utilization_percent": {
+            "max": 73.0,
+            "median": 60.0,
+            "min": 0.0
+          }
+        },
+        "host": {
+          "coverage": 1.0,
+          "end_gap_seconds": 0.716811814,
+          "expected": 47,
+          "longest_swap_io_run": 0,
+          "max_gap_seconds": 1.0,
+          "minimum_free_buffer_cache_bytes": 122171797504,
+          "samples": 47,
+          "start_delay_seconds": 0.139656226,
+          "temporal_coverage": true
+        }
+      },
+      "run_id": "r3-p2-offline-on",
+      "scheduled_log_seconds": {
+        "max": 0.0022851289832033217,
+        "median": 0.0014705899957334623,
+        "total": 0.0434052370255813
+      },
+      "trajectory": "dec4cce97e2ebca61a06d044f03ebd602547b58a49efce066605b045c0e7e0c8",
+      "wandb": {
+        "lifecycle": [
+          [
+            "init",
+            "succeeded"
+          ],
+          [
+            "watch",
+            "succeeded"
+          ],
+          [
+            "unwatch",
+            "succeeded"
+          ],
+          [
+            "finish",
+            "succeeded"
+          ]
+        ],
+        "records": {
+          "file_count": 1,
+          "files": [
+            {
+              "history_records": 30,
+              "path": "/evidence/wandb/wandb/offline-run-20260713_180835-ba0wob5h/run-ba0wob5h.wandb",
+              "record_types": {
+                "environment": 2,
+                "exit": 1,
+                "files": 1,
+                "header": 1,
+                "history": 30,
+                "output_raw": 1,
+                "run": 1,
+                "stats": 4,
+                "summary": 63,
+                "telemetry": 4
+              },
+              "sha256": "333d1520362586cc5a94af50e14aaa6935cb41253a1e843405bbf3eb743c64c6",
+              "size_bytes": 294378,
+              "watch_histogram_records": 1,
+              "watch_histogram_series": [
+                "gradients/embedding.token.embedding.weight",
+                "gradients/layers.0.attention_norm.bias",
+                "gradients/layers.0.attention_norm.weight",
+                "gradients/layers.0.feedforward.0.bias",
+                "gradients/layers.0.feedforward.0.weight",
+                "gradients/layers.0.feedforward.3.bias",
+                "gradients/layers.0.feedforward.3.weight",
+                "gradients/layers.0.feedforward_norm.bias",
+                "gradients/layers.0.feedforward_norm.weight",
+                "gradients/layers.0.self_attention.in_proj_bias",
+                "gradients/layers.0.self_attention.in_proj_weight",
+                "gradients/layers.0.self_attention.out_proj.bias",
+                "gradients/layers.0.self_attention.out_proj.weight",
+                "gradients/layers.1.attention_norm.bias",
+                "gradients/layers.1.attention_norm.weight",
+                "gradients/layers.1.feedforward.0.bias",
+                "gradients/layers.1.feedforward.0.weight",
+                "gradients/layers.1.feedforward.3.bias",
+                "gradients/layers.1.feedforward.3.weight",
+                "gradients/layers.1.feedforward_norm.bias",
+                "gradients/layers.1.feedforward_norm.weight",
+                "gradients/layers.1.self_attention.in_proj_bias",
+                "gradients/layers.1.self_attention.in_proj_weight",
+                "gradients/layers.1.self_attention.out_proj.bias",
+                "gradients/layers.1.self_attention.out_proj.weight",
+                "gradients/layers.2.attention_norm.bias",
+                "gradients/layers.2.attention_norm.weight",
+                "gradients/layers.2.feedforward.0.bias",
+                "gradients/layers.2.feedforward.0.weight",
+                "gradients/layers.2.feedforward.3.bias",
+                "gradients/layers.2.feedforward.3.weight",
+                "gradients/layers.2.feedforward_norm.bias",
+                "gradients/layers.2.feedforward_norm.weight",
+                "gradients/layers.2.self_attention.in_proj_bias",
+                "gradients/layers.2.self_attention.in_proj_weight",
+                "gradients/layers.2.self_attention.out_proj.bias",
+                "gradients/layers.2.self_attention.out_proj.weight",
+                "gradients/layers.3.attention_norm.bias",
+                "gradients/layers.3.attention_norm.weight",
+                "gradients/layers.3.feedforward.0.bias",
+                "gradients/layers.3.feedforward.0.weight",
+                "gradients/layers.3.feedforward.3.bias",
+                "gradients/layers.3.feedforward.3.weight",
+                "gradients/layers.3.feedforward_norm.bias",
+                "gradients/layers.3.feedforward_norm.weight",
+                "gradients/layers.3.self_attention.in_proj_bias",
+                "gradients/layers.3.self_attention.in_proj_weight",
+                "gradients/layers.3.self_attention.out_proj.bias",
+                "gradients/layers.3.self_attention.out_proj.weight",
+                "gradients/layers.4.attention_norm.bias",
+                "gradients/layers.4.attention_norm.weight",
+                "gradients/layers.4.feedforward.0.bias",
+                "gradients/layers.4.feedforward.0.weight",
+                "gradients/layers.4.feedforward.3.bias",
+                "gradients/layers.4.feedforward.3.weight",
+                "gradients/layers.4.feedforward_norm.bias",
+                "gradients/layers.4.feedforward_norm.weight",
+                "gradients/layers.4.self_attention.in_proj_bias",
+                "gradients/layers.4.self_attention.in_proj_weight",
+                "gradients/layers.4.self_attention.out_proj.bias",
+                "gradients/layers.4.self_attention.out_proj.weight",
+                "gradients/layers.5.attention_norm.bias",
+                "gradients/layers.5.attention_norm.weight",
+                "gradients/layers.5.feedforward.0.bias",
+                "gradients/layers.5.feedforward.0.weight",
+                "gradients/layers.5.feedforward.3.bias",
+                "gradients/layers.5.feedforward.3.weight",
+                "gradients/layers.5.feedforward_norm.bias",
+                "gradients/layers.5.feedforward_norm.weight",
+                "gradients/layers.5.self_attention.in_proj_bias",
+                "gradients/layers.5.self_attention.in_proj_weight",
+                "gradients/layers.5.self_attention.out_proj.bias",
+                "gradients/layers.5.self_attention.out_proj.weight",
+                "gradients/lm_head.bias",
+                "gradients/lm_head.weight"
+              ],
+              "watch_histograms": 75,
+              "watch_history_steps": [
+                24
+              ]
+            }
+          ],
+          "schema_version": 1,
+          "wandb_version": "0.25.1",
+          "watch_histogram_records": 1,
+          "watch_histogram_series": [
+            "gradients/embedding.token.embedding.weight",
+            "gradients/layers.0.attention_norm.bias",
+            "gradients/layers.0.attention_norm.weight",
+            "gradients/layers.0.feedforward.0.bias",
+            "gradients/layers.0.feedforward.0.weight",
+            "gradients/layers.0.feedforward.3.bias",
+            "gradients/layers.0.feedforward.3.weight",
+            "gradients/layers.0.feedforward_norm.bias",
+            "gradients/layers.0.feedforward_norm.weight",
+            "gradients/layers.0.self_attention.in_proj_bias",
+            "gradients/layers.0.self_attention.in_proj_weight",
+            "gradients/layers.0.self_attention.out_proj.bias",
+            "gradients/layers.0.self_attention.out_proj.weight",
+            "gradients/layers.1.attention_norm.bias",
+            "gradients/layers.1.attention_norm.weight",
+            "gradients/layers.1.feedforward.0.bias",
+            "gradients/layers.1.feedforward.0.weight",
+            "gradients/layers.1.feedforward.3.bias",
+            "gradients/layers.1.feedforward.3.weight",
+            "gradients/layers.1.feedforward_norm.bias",
+            "gradients/layers.1.feedforward_norm.weight",
+            "gradients/layers.1.self_attention.in_proj_bias",
+            "gradients/layers.1.self_attention.in_proj_weight",
+            "gradients/layers.1.self_attention.out_proj.bias",
+            "gradients/layers.1.self_attention.out_proj.weight",
+            "gradients/layers.2.attention_norm.bias",
+            "gradients/layers.2.attention_norm.weight",
+            "gradients/layers.2.feedforward.0.bias",
+            "gradients/layers.2.feedforward.0.weight",
+            "gradients/layers.2.feedforward.3.bias",
+            "gradients/layers.2.feedforward.3.weight",
+            "gradients/layers.2.feedforward_norm.bias",
+            "gradients/layers.2.feedforward_norm.weight",
+            "gradients/layers.2.self_attention.in_proj_bias",
+            "gradients/layers.2.self_attention.in_proj_weight",
+            "gradients/layers.2.self_attention.out_proj.bias",
+            "gradients/layers.2.self_attention.out_proj.weight",
+            "gradients/layers.3.attention_norm.bias",
+            "gradients/layers.3.attention_norm.weight",
+            "gradients/layers.3.feedforward.0.bias",
+            "gradients/layers.3.feedforward.0.weight",
+            "gradients/layers.3.feedforward.3.bias",
+            "gradients/layers.3.feedforward.3.weight",
+            "gradients/layers.3.feedforward_norm.bias",
+            "gradients/layers.3.feedforward_norm.weight",
+            "gradients/layers.3.self_attention.in_proj_bias",
+            "gradients/layers.3.self_attention.in_proj_weight",
+            "gradients/layers.3.self_attention.out_proj.bias",
+            "gradients/layers.3.self_attention.out_proj.weight",
+            "gradients/layers.4.attention_norm.bias",
+            "gradients/layers.4.attention_norm.weight",
+            "gradients/layers.4.feedforward.0.bias",
+            "gradients/layers.4.feedforward.0.weight",
+            "gradients/layers.4.feedforward.3.bias",
+            "gradients/layers.4.feedforward.3.weight",
+            "gradients/layers.4.feedforward_norm.bias",
+            "gradients/layers.4.feedforward_norm.weight",
+            "gradients/layers.4.self_attention.in_proj_bias",
+            "gradients/layers.4.self_attention.in_proj_weight",
+            "gradients/layers.4.self_attention.out_proj.bias",
+            "gradients/layers.4.self_attention.out_proj.weight",
+            "gradients/layers.5.attention_norm.bias",
+            "gradients/layers.5.attention_norm.weight",
+            "gradients/layers.5.feedforward.0.bias",
+            "gradients/layers.5.feedforward.0.weight",
+            "gradients/layers.5.feedforward.3.bias",
+            "gradients/layers.5.feedforward.3.weight",
+            "gradients/layers.5.feedforward_norm.bias",
+            "gradients/layers.5.feedforward_norm.weight",
+            "gradients/layers.5.self_attention.in_proj_bias",
+            "gradients/layers.5.self_attention.in_proj_weight",
+            "gradients/layers.5.self_attention.out_proj.bias",
+            "gradients/layers.5.self_attention.out_proj.weight",
+            "gradients/lm_head.bias",
+            "gradients/lm_head.weight"
+          ],
+          "watch_histograms": 75,
+          "watch_history_steps": [
+            24
+          ]
+        },
+        "storage": {
+          "bytes": 307965,
+          "file_count": 5,
+          "forbidden": [],
+          "run_file_count": 4
+        }
+      }
+    },
+    {
+      "arm": "disabled",
+      "checkpoint": {
+        "counters": {
+          "optimizer_step": 300,
+          "target_tokens": 153600
+        },
+        "cursor_digest": "1b8dd80eb6c9740c091033063ff7b108930d577fb024a360054b9bf8f56f53f1",
+        "model_digest": "20cb38f85ba8f5e14b885227e23b768ddb2c014b0a40b8c0b9fcd14e9acba859",
+        "resume_digest": "9f5216e555232b98a145bb6146411eb8f238af0c55f936fde5ebd9d59fb4b3d8",
+        "sha256": "57c33a30bf292900cb36cdf248e956ba78eb2fd17d7efe2dcd4b06dd522dc244",
+        "size_bytes": 594648864
+      },
+      "container_wall_seconds": 42.227139492,
+      "disk": {
+        "checkpoint_bytes": 1783953028,
+        "checkpoint_files": 3,
+        "free_after_bytes": 459691724800,
+        "free_before_bytes": 461476683776
+      },
+      "hashes": {
+        "config": "80dbf30b60508ae6b2be4c668c3a4a1cba99be0d6bd288f24aec9fefdf0941a0",
+        "container": "7d085d0fc08a1294ee60d0c9d98743e1cb51cd39fe8ec7200a7c8529c88e9b74",
+        "gpu": "6c795119c73f87c7fa7dd16df57400d1208fffbd75be0e3ce8e6ae9e8273f15a",
+        "manifest": "a23e47d2b2bdbaf91ad7963aa5532ee48d7c78126fe3e054b312bc2313ffe2d3",
+        "measurement": "fa8b59abece9859a73a2f7ff54eb9741a01cd5914f7ddfc0f2b384f9a87f1653",
+        "metrics": "439a858c6265eba1f8a311f593b44dd9453f09277d0beba7b4464370e2a12a43",
+        "vmstat": "18d658cf54d5d276127d5facf03006bc24716de527e2d12cc41ea2a11090ad04",
+        "wandb_events": "fa800c899ade9d70ba20e24162bdf87a6595c3ecc0962f8bf6c53a00b540e426",
+        "wandb_records": "807f07b030e9968c3251e7cb84095c3108f107ea9f1d469983ee5bb59ee4f5db"
+      },
+      "manifest": {
+        "data": [
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19",
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19"
+        ],
+        "experiment_id": "exp-533fef754660b1b0c740",
+        "git_sha": "0dd2fd56cd6695be75ac37e3f563c4ca4916264d",
+        "hardware": "bbba66a7fd419b86064a23e5dca8c40078d1cdb46860754e2b245c41dc317d0c",
+        "tokenizer": "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b"
+      },
+      "normalized_config": "498b0f056d03ef8ed8cfd8a4f393dc56ca2f075a536e1517a083a4d4cf52eeca",
+      "performance": {
+        "allocated": {
+          "first_20_median": 1077288704.0,
+          "last_20_median": 1076618240.0,
+          "maximum": 1088682496
+        },
+        "cuda_phase_median_milliseconds": {
+          "backward": 28.548128128051758,
+          "clipping": 3.0267999172210693,
+          "forward": 16.020303964614868,
+          "gradient_finite_check": 6.6940319538116455,
+          "gradient_norm_and_scalar_read": 1.1996319890022278,
+          "gradient_scale": 1.8021440505981445,
+          "host_device_prepare": 0.36430399492383003,
+          "loss": 1.524048000574112,
+          "loss_scalar_read": 0.012384000234305859,
+          "optimizer": 19.67614459991455,
+          "parameter_finite_check": 6.706847906112671,
+          "scheduler": 0.01414399966597557
+        },
+        "data_wait_fraction": 0.14948255287875017,
+        "host_phase_median_seconds": {
+          "backward": 0.02342782649793662,
+          "clipping": 0.0006218905036803335,
+          "data_wait": 0.014928853008314036,
+          "forward": 0.011836792531539686,
+          "gradient_finite_check": 0.009583377002854832,
+          "gradient_norm_and_scalar_read": 0.0012070200027665123,
+          "gradient_scale": 0.0006013299862388521,
+          "host_device_prepare": 0.0006478749710367993,
+          "loss": 0.0004235214873915538,
+          "loss_scalar_read": 1.8695995095185935e-05,
+          "optimizer": 0.001571773987961933,
+          "parameter_finite_check": 0.02726090350188315,
+          "scheduler": 2.140800643246621e-05,
+          "step_metrics": 0.000231649013585411
+        },
+        "reserved": {
+          "first_20_median": 1235222528.0,
+          "last_20_median": 1235222528.0,
+          "maximum": 1235222528
+        },
+        "step_max_seconds": 0.118839218019275,
+        "step_median_seconds": 0.10139994049677625,
+        "step_p95_seconds": 0.10810330702224746,
+        "steps": 270,
+        "target_tokens": 138240,
+        "target_tokens_per_second": 5000.4536012466615,
+        "wall_seconds": 27.64549199407338
+      },
+      "position": 3,
+      "repetition": 3,
+      "resources": {
+        "container": {
+          "coverage": 0.9545454545454546,
+          "end_gap_seconds": 0.200151456,
+          "expected": 22,
+          "max_gap_seconds": 2.016614977,
+          "max_memory_bytes": 2161442291,
+          "samples": 21,
+          "start_delay_seconds": 1.910788022,
+          "temporal_coverage": true
+        },
+        "gpu": {
+          "coverage": 0.9905660377358491,
+          "end_gap_seconds": 0.189027936,
+          "expected": 212,
+          "max_gap_seconds": 0.202000128,
+          "power_w": {
+            "max": 21.32,
+            "median": 20.880000000000003,
+            "min": 5.13
+          },
+          "samples": 210,
+          "sm_clock_mhz": {
+            "max": 2411.0,
+            "median": 2411.0,
+            "min": 208.0
+          },
+          "start_delay_seconds": 0.120111428,
+          "temperature_c": {
+            "max": 45.0,
+            "median": 43.0,
+            "min": 40.0
+          },
+          "temporal_coverage": true,
+          "utilization_percent": {
+            "max": 71.0,
+            "median": 69.0,
+            "min": 0.0
+          }
+        },
+        "host": {
+          "coverage": 0.9767441860465116,
+          "end_gap_seconds": 0.768028,
+          "expected": 43,
+          "longest_swap_io_run": 0,
+          "max_gap_seconds": 1.0,
+          "minimum_free_buffer_cache_bytes": 122177318912,
+          "samples": 42,
+          "start_delay_seconds": 0.459111492,
+          "temporal_coverage": true
+        }
+      },
+      "run_id": "r3-p3-disabled",
+      "scheduled_log_seconds": {
+        "max": 0.019576502993004397,
+        "median": 4.6624511014670134e-05,
+        "total": 0.02100405903183855
+      },
+      "trajectory": "dec4cce97e2ebca61a06d044f03ebd602547b58a49efce066605b045c0e7e0c8",
+      "wandb": {
+        "lifecycle": [
+          [
+            "init",
+            "disabled"
+          ]
+        ],
+        "records": {
+          "file_count": 0,
+          "files": [],
+          "schema_version": 1,
+          "wandb_version": "0.25.1",
+          "watch_histogram_records": 0,
+          "watch_histogram_series": [],
+          "watch_histograms": 0,
+          "watch_history_steps": []
+        },
+        "storage": {
+          "bytes": 0,
+          "file_count": 0,
+          "forbidden": [],
+          "run_file_count": 0
+        }
+      }
+    }
+  ],
+  "schema_version": 1,
+  "ticket": "WB-001",
+  "verdict": "FAIL",
+  "warnings": [
+    "offline_off_vs_disabled_investigate_5_percent"
+  ]
+}

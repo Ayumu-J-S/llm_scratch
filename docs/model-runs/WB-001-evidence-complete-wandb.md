@@ -55,7 +55,10 @@
 | 7 | review | not exposed by runtime | not exposed by runtime | uncommitted thermal repair | Prelaunch shell audit | FAIL before retry | Sample count did not prove 30–90 elapsed seconds; awk could coerce `N/A` readings to a passing zero spread | delegated shell audit |
 | 8 | repair | not exposed by runtime | not exposed by runtime | failed cycle-7 shell audit | Make duration and temperature validity explicit | repaired; final prelaunch review pending | Use elapsed nanoseconds; require >=27 numeric readings in the trailing 30 seconds and spread <=2 °C; reject `N/A`; restart every arm | Bash/unit/static checks pending commit |
 | 8 | review | not exposed by runtime | not exposed by runtime | uncommitted elapsed-time thermal repair | Final prelaunch audit before Attempt 5 | PASS | Elapsed bound, trailing timestamp window, >=27 numeric readings, invalid rejection, <=2 °C threshold, and fail-closed shell behavior are consistent | delegated audit plus live 31-second/31-reading/34 °C idle validation |
-| 9 | review | pending | pending | exact integration/evidence head pending | Mandatory heavy review against philosophy, ticket, and applicable CHECK after evidence | pending | pending | pending |
+| 8 | validation | not exposed by runtime | not exposed by runtime | exact clean `0dd2fd5` Attempt 5 | Run and verify the full fresh matrix | FAIL | All nine arms/exactness/W&B/resource gates passed, but every arm had 11.89–18.02% data wait and offline-off median regression was 10.99% | raw root plus `WB-001-dgx-r5-failed.json` |
+| 9 | repair | not exposed by runtime | not exposed by runtime | retained Attempt 5 FAIL | Increase compute intensity without changing decision thresholds | repaired; prelaunch review pending | Sequence 256, 260 steps, 26 warm-up, 532,992 stream cap for 1,040 microbatches/532,480 targets and one watch event | exact-loader/static evidence pending |
+| 9 | review | not exposed by runtime | not exposed by runtime | uncommitted sequence-256 repair | Final prelaunch audit before Attempt 6 | PASS | Exact loader 1,040/260/532,480, watch event, epoch-end cadence, unchanged gates, and no-cross-attempt scope are consistent | delegated audit plus independent loader composition |
+| 10 | review | pending | pending | exact integration/evidence head pending | Mandatory heavy review against philosophy, ticket, and applicable CHECK after evidence | pending | pending | pending |
 
 Requested values are recorded separately from actual runtime display. The
 delegated runtime did not expose the actual model identifier or reasoning mode;
@@ -77,8 +80,9 @@ they are not inferred from the request.
   `docs/model-runs/evidence/WB-001-r3-protocol-review-provenance.json`,
   `docs/model-runs/evidence/WB-001-r4-protocol-reviews-provenance.json`,
   `docs/model-runs/evidence/WB-001-r5-horizon-review-provenance.json`,
-  `docs/model-runs/evidence/WB-001-r6-container-sampler-provenance.json`, and
-  `docs/model-runs/evidence/WB-001-r7-thermal-repair-provenance.json`
+  `docs/model-runs/evidence/WB-001-r6-container-sampler-provenance.json`,
+  `docs/model-runs/evidence/WB-001-r7-thermal-repair-provenance.json`, and
+  `docs/model-runs/evidence/WB-001-r9-compute-repair-provenance.json`
 - Codex CLI version: `codex-cli 0.144.1`
 - Branch/commit: `codex/wb-001-evidence-safe-wandb` / input `74d9e24`
 - Phase/role/task path: implementation / implementation /
@@ -230,7 +234,16 @@ they are not inferred from the request.
   readings in the trailing 30 seconds, reject invalid temperatures, and stop
   after 90 seconds if the window never stabilizes. Attempt 5 restarts the full
   matrix; no prior arm is reused.
-- Commit reviewed next: pending clean Attempt 5 head after final prelaunch audit.
+- Attempt 5 at exact `0dd2fd5`: all nine arms, exact trajectory/checkpoint,
+  W&B record/lifecycle/storage, resource coverage, memory, and swap gates
+  passed. It remained `FAIL` because every arm had 11.89–18.02% data wait and
+  offline-off versus disabled had a 10.99% median regression.
+- Repair cycle 9: use sequence 256, 260 steps, 26 warm-up steps, and a 532,992
+  stream cap. The declared work is 1,040 microbatches, 260 full accumulation
+  groups, and 532,480 targets, retaining one default-frequency watch emission.
+  All decision thresholds remain unchanged and no cross-attempt performance
+  comparison is allowed.
+- Commit reviewed next: pending clean Attempt 6 head after final prelaunch audit.
 
 ## Final evidence
 
@@ -252,8 +265,9 @@ they are not inferred from the request.
   regressed 26.26% versus offline/watch-off at the unsafe 100-batch interval.
   Attempt 3 was aborted before measured arms after its protocol audit failed.
   Attempt 4 stopped on its idle thermal precondition after one complete arm.
-  Audited Attempt 5 is predeclared before retry; no positive throughput claim
-  is made from Attempts 2–4.
+  Attempt 5 completed all arms but failed 11.89–18.02% data wait and a 10.99%
+  offline-off median regression. Compute-bound Attempt 6 is predeclared; no
+  positive throughput claim is made from Attempts 2–5.
 - Failed attempts retained: first offline smoke placed its W&B directory under
   the repository; it was removed and `WANDB_DIR` now points at the smoke temp
   root. No training failure occurred.
@@ -262,7 +276,7 @@ they are not inferred from the request.
   Billing UI/CSV snapshot because the public Python API does not expose current
   storage usage.
 - Unresolved risks: real online auth/service behavior remains unexercised and
-  fail-closed; DGX overhead remains unresolved until adaptive Attempt 5 passes.
+  fail-closed; DGX overhead remains unresolved until adaptive Attempt 6 passes.
 - Human decision requested: human review/merge after a passing independent
   review; no self-merge authorization exists.
 

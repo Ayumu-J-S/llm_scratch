@@ -181,8 +181,8 @@ prime_cache() {
       -w /workspace "$IMAGE" \
       python src/train.py profile=stability_smoke runtime.device=cuda \
         data.streaming.cache.dir=/cache reproducibility.seed=42 \
-        data.streaming.train.max_tokens=153728 \
-        training.sequence_length=64 \
+        data.streaming.train.max_tokens=532992 \
+        training.sequence_length=256 \
         training.max_steps=1 training.max_tokens=null training.max_time=null \
         artifacts.checkpoints_dir=/evidence/checkpoints measurement.enabled=false \
         wandb.mode=disabled wandb.watch.enabled=false wandb.artifact.policy=none \
@@ -233,11 +233,11 @@ run_one() {
     sh -c 'while [ ! -f /evidence/START ]; do sleep 0.05; done; exec "$@"' sh
     python src/train.py profile=stability_smoke runtime.device=cuda
     data.streaming.cache.dir=/cache reproducibility.seed=42
-    data.streaming.train.max_tokens=153728
-    training.sequence_length=64
-    training.max_steps=300 training.max_tokens=null training.max_time=null
+    data.streaming.train.max_tokens=532992
+    training.sequence_length=256
+    training.max_steps=260 training.max_tokens=null training.max_time=null
     artifacts.checkpoints_dir=/evidence/checkpoints
-    measurement.enabled=true measurement.warmup_optimizer_steps=30
+    measurement.enabled=true measurement.warmup_optimizer_steps=26
     measurement.cuda_events=true measurement.output_path=/evidence/measurement.json
     "wandb.mode=$mode" "wandb.watch.enabled=$watch" "wandb.name=$run_id"
     wandb.artifact.policy=none hydra.run.dir=/evidence/hydra
