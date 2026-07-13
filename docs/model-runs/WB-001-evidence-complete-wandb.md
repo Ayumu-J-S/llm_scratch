@@ -50,7 +50,12 @@
 | 5 | validation | not exposed by runtime | not exposed by runtime | exact redirected Docker streaming command | Exercise actual host sampler output before commit | FAIL before launch | Streaming CLI emitted ANSI screen-refresh rows and burst duplicates, so apparent 1 Hz rows were not independent samples | retained console reproduction; no measured arm launched |
 | 6 | repair | not exposed by runtime | not exposed by runtime | failed host sampler validation | Use an honest, parseable container sampler cadence | repaired; final prelaunch review pending | Restored timestamped `docker stats --no-stream` polling at observed ~0.5 Hz; require 90% count, 3.5 s endpoints, and 4.5 s maximum gap | 7-second live Docker smoke produced three clean eight-field samples |
 | 6 | review | not exposed by runtime | not exposed by runtime | uncommitted cycle-6 sampler repair | Final prelaunch audit before measurement | PASS | No blocker in polling lifecycle, clean eight-field rows, parser, or 2 s/90%/3.5 s/4.5 s gates | delegated protocol audit; shell, Ruff, diff, and focused tests pass |
-| 7 | review | pending | pending | exact integration/evidence head pending | Mandatory heavy review against philosophy, ticket, and applicable CHECK after evidence | pending | pending | pending |
+| 6 | validation | not exposed by runtime | not exposed by runtime | exact clean `e9dd9e3` Attempt 4 | Run the full fresh matrix | FAIL before arm 2 | Disabled arm completed all 300 steps; fixed 30-second post-arm idle window cooled across 3 °C and triggered the 2 °C stop gate | retained raw root plus `WB-001-dgx-r4-aborted.json` structured FAIL |
+| 7 | repair | not exposed by runtime | not exposed by runtime | failed thermal precondition | Preserve the 2 °C gate while allowing bounded post-load cooldown | repaired; re-audit failed | Evaluate the trailing 30 samples after 30–90 samples and restart every arm in a fresh matrix | Bash/static checks |
+| 7 | review | not exposed by runtime | not exposed by runtime | uncommitted thermal repair | Prelaunch shell audit | FAIL before retry | Sample count did not prove 30–90 elapsed seconds; awk could coerce `N/A` readings to a passing zero spread | delegated shell audit |
+| 8 | repair | not exposed by runtime | not exposed by runtime | failed cycle-7 shell audit | Make duration and temperature validity explicit | repaired; final prelaunch review pending | Use elapsed nanoseconds; require >=27 numeric readings in the trailing 30 seconds and spread <=2 °C; reject `N/A`; restart every arm | Bash/unit/static checks pending commit |
+| 8 | review | not exposed by runtime | not exposed by runtime | uncommitted elapsed-time thermal repair | Final prelaunch audit before Attempt 5 | PASS | Elapsed bound, trailing timestamp window, >=27 numeric readings, invalid rejection, <=2 °C threshold, and fail-closed shell behavior are consistent | delegated audit plus live 31-second/31-reading/34 °C idle validation |
+| 9 | review | pending | pending | exact integration/evidence head pending | Mandatory heavy review against philosophy, ticket, and applicable CHECK after evidence | pending | pending | pending |
 
 Requested values are recorded separately from actual runtime display. The
 delegated runtime did not expose the actual model identifier or reasoning mode;
@@ -71,8 +76,9 @@ they are not inferred from the request.
   `docs/model-runs/evidence/WB-001-r2-repair-provenance.json`,
   `docs/model-runs/evidence/WB-001-r3-protocol-review-provenance.json`,
   `docs/model-runs/evidence/WB-001-r4-protocol-reviews-provenance.json`,
-  `docs/model-runs/evidence/WB-001-r5-horizon-review-provenance.json`, and
-  `docs/model-runs/evidence/WB-001-r6-container-sampler-provenance.json`
+  `docs/model-runs/evidence/WB-001-r5-horizon-review-provenance.json`,
+  `docs/model-runs/evidence/WB-001-r6-container-sampler-provenance.json`, and
+  `docs/model-runs/evidence/WB-001-r7-thermal-repair-provenance.json`
 - Codex CLI version: `codex-cli 0.144.1`
 - Branch/commit: `codex/wb-001-evidence-safe-wandb` / input `74d9e24`
 - Phase/role/task path: implementation / implementation /
@@ -212,7 +218,19 @@ they are not inferred from the request.
   interval, at least 90% count coverage, endpoint gaps at most 3.5 s, and no
   inter-sample gap above 4.5 s. A 7-second live smoke produced three clean
   eight-field rows; GPU remains 5 Hz and vmstat 1 Hz.
-- Commit reviewed next: pending clean Attempt 4 head after final prelaunch audit.
+- Attempt 4 at exact `e9dd9e3`: disabled `r1-p1` completed all 300 steps and
+  retained clean evidence. The fixed 30-second idle check before `r1-p2`
+  observed a 3 °C spread while cooling and stopped on its declared 2 °C gate.
+  The partial matrix is a structured `FAIL` and makes no comparison claim.
+- Repair cycle 7: retain the 2 °C threshold but evaluate the trailing 30 samples
+  after a bounded 30–90 sample cooldown. A prelaunch audit returned `FAIL`
+  because sample count did not prove elapsed seconds and awk could coerce `N/A`
+  to zero.
+- Repair cycle 8: use elapsed nanoseconds, require at least 27 valid numeric
+  readings in the trailing 30 seconds, reject invalid temperatures, and stop
+  after 90 seconds if the window never stabilizes. Attempt 5 restarts the full
+  matrix; no prior arm is reused.
+- Commit reviewed next: pending clean Attempt 5 head after final prelaunch audit.
 
 ## Final evidence
 
@@ -233,8 +251,9 @@ they are not inferred from the request.
   but data wait reached 12.68%, container coverage was about 48%, and watch-on
   regressed 26.26% versus offline/watch-off at the unsafe 100-batch interval.
   Attempt 3 was aborted before measured arms after its protocol audit failed.
-  Audited Attempt 4 is predeclared before retry; no positive throughput claim
-  is made from Attempts 2 or 3.
+  Attempt 4 stopped on its idle thermal precondition after one complete arm.
+  Audited Attempt 5 is predeclared before retry; no positive throughput claim
+  is made from Attempts 2–4.
 - Failed attempts retained: first offline smoke placed its W&B directory under
   the repository; it was removed and `WANDB_DIR` now points at the smoke temp
   root. No training failure occurred.
@@ -243,7 +262,7 @@ they are not inferred from the request.
   Billing UI/CSV snapshot because the public Python API does not expose current
   storage usage.
 - Unresolved risks: real online auth/service behavior remains unexercised and
-  fail-closed; DGX overhead remains unresolved until adaptive Attempt 4 passes.
+  fail-closed; DGX overhead remains unresolved until adaptive Attempt 5 passes.
 - Human decision requested: human review/merge after a passing independent
   review; no self-merge authorization exists.
 

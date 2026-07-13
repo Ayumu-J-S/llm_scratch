@@ -121,16 +121,38 @@ assert_idle_inputs() {
 idle_temperature_check() {
   local out=$1
   : > "$out"
-  local sample
-  for sample in $(seq 1 30); do
-    nvidia-smi \
+  local start_ns now_ns elapsed_ns cutoff_ns sample spread
+  start_ns=$(date +%s%N)
+  while true; do
+    sample=$(nvidia-smi \
       --query-gpu=timestamp,index,temperature.gpu,power.draw,clocks.sm,pstate \
-      --format=csv,noheader,nounits >> "$out"
-    (( sample == 30 )) || sleep 1
+      --format=csv,noheader,nounits)
+    now_ns=$(date +%s%N)
+    printf '%s,%s\n' "$now_ns" "$sample" >> "$out"
+    elapsed_ns=$(( now_ns - start_ns ))
+    if (( elapsed_ns >= 30000000000 )); then
+      cutoff_ns=$(( now_ns - 30000000000 ))
+      spread=$(awk -F',' -v cutoff="$cutoff_ns" '
+        $1 >= cutoff {
+          temperature=$4
+          gsub(/[[:space:]]/, "", temperature)
+          if (temperature ~ /^[0-9]+$/) {
+            if (count == 0 || temperature < min) min=temperature
+            if (count == 0 || temperature > max) max=temperature
+            count++
+          }
+        }
+        END { if (count >= 27) print max-min; else print "invalid:" count }
+      ' "$out")
+      if [[ $spread =~ ^[0-9]+$ ]] && (( spread <= 2 )); then
+        return 0
+      fi
+    fi
+    (( elapsed_ns >= 90000000000 )) && break
+    sleep 1
   done
-  local spread
-  spread=$(awk -F',' '{gsub(/ /,"",$3); if(NR==1||$3<min)min=$3; if(NR==1||$3>max)max=$3} END{print max-min}' "$out")
-  (( spread <= 2 )) || { echo "idle GPU temperature spread was ${spread}C" >&2; return 1; }
+  echo "idle GPU trailing 30-second temperature evidence was '$spread' after 90 seconds" >&2
+  return 1
 }
 
 selected() {

@@ -1,0 +1,63 @@
+{
+  "schema_version": "1.0",
+  "captured_at": "2026-07-13T17:51:50.293690Z",
+  "phase": "validation-and-repair",
+  "role": "dgx-idle-thermal-precondition",
+  "task_path": "/root",
+  "requested": {
+    "model": "GPT-5.6 appropriate model",
+    "reasoning_mode": "high experimental diagnosis"
+  },
+  "actual": {
+    "exact_model_identifier": "not exposed by runtime",
+    "reasoning_mode": "not exposed by runtime"
+  },
+  "attempt": {
+    "number": 4,
+    "commit": "e9dd9e37319a8b6ba631e038c189d82d6483e187",
+    "image_id": "sha256:23a1bee69fe189e77105cdddeee9aeff6ef0763d58a691625fbfcab64efd1887",
+    "raw_root": "/tmp/wb001-r4-e9dd9e37319a8b6ba631e038c189d82d6483e187",
+    "outcome": "FAIL before arm 2",
+    "completed_arm": "r1-p1-disabled",
+    "completed_optimizer_steps": 300,
+    "completed_target_tokens": 153600,
+    "stop_reason": "fixed 30-second idle temperature spread was 3C against a 2C limit"
+  },
+  "repair": {
+    "temperature_spread_limit_c": 2,
+    "minimum_elapsed_seconds": 30,
+    "maximum_elapsed_seconds": 90,
+    "decision_window_seconds": 30,
+    "minimum_valid_numeric_readings": 27,
+    "policy": "pass only when the trailing window has enough valid numeric readings and is within the unchanged 2C limit; invalid temperatures cannot pass; otherwise stop after 90 seconds",
+    "reuse_prior_arm": false
+  },
+  "prelaunch_review": {
+    "task_path": "/root/wb_dgx_protocol_harness",
+    "exact_model_identifier": "not exposed by runtime",
+    "reasoning_mode": "not exposed by runtime",
+    "verdict": "FAIL before repair",
+    "findings": [
+      "Sample count did not guarantee the documented 30-90 second elapsed duration.",
+      "awk could coerce invalid N/A temperatures to zero spread."
+    ]
+  },
+  "cycle_8_review": {
+    "task_path": "/root/wb_dgx_protocol_harness",
+    "exact_model_identifier": "not exposed by runtime",
+    "reasoning_mode": "not exposed by runtime",
+    "verdict": "PASS",
+    "live_idle_validation": {
+      "elapsed_seconds": 31,
+      "valid_rows": 31,
+      "temperature_c": 34
+    },
+    "finding": "Elapsed duration, trailing timestamp window, numeric-reading count, invalid-value rejection, unchanged 2C threshold, and fail-closed shell behavior are consistent."
+  },
+  "privacy": {
+    "prompts_recorded": false,
+    "hidden_chain_of_thought_recorded": false,
+    "token_counts_recorded": false,
+    "secrets_recorded": false
+  }
+}

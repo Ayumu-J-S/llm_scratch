@@ -6,8 +6,8 @@
   no GitHub publication command; complete body prepared at
   `/tmp/WB-001-pr-body.md`
 - Experiment owner: implementation agent
-- Status: R1 repair validation passed; DGX Attempt 2 failed, Attempt 3 was
-  aborted before measured arms after protocol audit, and Attempt 4 is predeclared
+- Status: R1 repair validation passed; DGX Attempt 2 failed, Attempts 3 and 4
+  were aborted before a complete matrix, and Attempt 5 is predeclared
 - Started (UTC): 2026-07-13
 - Last updated (UTC): 2026-07-13
 - Model-run provenance: `docs/model-runs/WB-001-evidence-complete-wandb.md`
@@ -259,16 +259,41 @@ identity diverges, or any paired median regression is at least 10%. The 5%
 investigation threshold and all memory/swap/storage/lifecycle gates are
 unchanged.
 
+### Attempt 4 result — stopped on thermal precondition
+
+Attempt 4 ran at exact commit `e9dd9e37319a8b6ba631e038c189d82d6483e187`
+and the same pinned image. Disabled arm `r1-p1` completed 300 steps, 153,600
+targets, checkpoint/W&B evidence, and clean GPU/host/container samples in about
+43 s. Before `r1-p2` launched, the fixed 30-second idle check observed a 3 °C
+temperature spread against its 2 °C stop limit. The runner stopped with no
+second measured arm. No throughput comparison is made. Raw evidence is retained
+at `/tmp/wb001-r4-e9dd9e37319a8b6ba631e038c189d82d6483e187`; the structured
+failure projection is
+`docs/experiments/evidence/WB-001-dgx-r4-aborted.json`.
+
+### Predeclared Attempt 5 — bounded adaptive cooldown
+
+Attempt 5 keeps every Attempt 4 model, data, work, W&B, order, exactness,
+performance, storage, and resource decision gate. Only the failed precondition
+changes: before every arm, sample idle GPU state for at least 30 and at most 90
+seconds using elapsed nanoseconds, not sample count; pass only when the trailing
+30-second window contains at least 27 valid numeric temperature readings and
+its spread is at most 2 °C, otherwise stop. Invalid/`N/A` temperatures cannot
+coerce to a passing zero spread. This preserves the original 2 °C stability
+threshold while allowing post-arm cooling samples to age out of the decision
+window. The matrix restarts from repetition 1 in a fresh root and cache on a
+new exact clean commit; Attempt 4's single arm is not reused.
+
 ## Conclusion
 
 - Hypothesis result: supported at R1; DGX Attempt 2 failed its measurement and
-  watch-cost gates, and aborted Attempt 3 made no claim, so the overhead
-  conclusion remains pending Attempt 4.
+  watch-cost gates, and aborted Attempts 3 and 4 made no comparison claim, so
+  the overhead conclusion remains pending Attempt 5.
 - Evidence-backed conclusion: the implementation can preserve local metrics and
   checkpoints across disabled/offline W&B and tested external failure paths,
   while fail-closing every artifact safety gate.
 - Uncertainty and limitations: no online service call, real quota consumption,
   or artifact upload was performed; the failed DGX evidence is retained rather
   than used for a positive performance claim.
-- Exactly one next step: run and verify the predeclared adaptive Attempt 4 on a
+- Exactly one next step: run and verify the predeclared adaptive Attempt 5 on a
   clean repair commit before the mandatory independent review.
