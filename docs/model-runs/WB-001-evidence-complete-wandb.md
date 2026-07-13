@@ -38,6 +38,7 @@
 | 1 | review | not exposed by runtime | not exposed by runtime | uncommitted implementation snapshot | Read-only precommit acceptance audit; not the mandatory heavy review | FAIL | Undefined upload summary caused contradictory evidence; SDK string-team auth failed; artifact kind/identity/step, runtime/run/artifact IDs, non-finite events, socket coverage, and DGX evidence were incomplete | Reproductions and ordered findings from `/root/wb001_precommit_audit` |
 | 1 | repair | not exposed by runtime | not exposed by runtime | failed precommit audit plus official W&B 0.25.1 behavior | Repair every acceptance-blocking audit finding and expand invariant tests | repaired; mandatory review pending | Bound artifacts to verified repository checkpoints, fixed team auth and summaries, bounded finish/evaluation isolation, exact validation cadence, stability/runtime evidence, socket guard, and 31 artifact tests | focused `115 passed`; full `361 passed, 1 skipped`; offline smoke pass |
 | 1 | repair | not exposed by runtime | not exposed by runtime | predeclared R2 protocol and applicable CHECK | Implement transparent exact-head DGX runner and verifier before measurement | implemented; run pending | Added fixed cache-prime plus 9-run Latin-square, network/read-only/image guards, raw samplers/hashes, exact trajectory/checkpoint/lifecycle/resource/storage and paired gates | Bash syntax, Ruff/format, and 10 verifier tests pass |
+| 2 | repair | not exposed by runtime | not exposed by runtime | failed DGX Attempt 2 at `049acf7` | Diagnose retained R2 evidence and repair only demonstrated measurement/default defects | repaired; retry pending | Preserved failed projection; raised compute intensity to sequence 64; restored official 1,000-batch watch interval; made Docker stats truly streaming; excluded random container hostname from stable hardware equality | `docs/experiments/evidence/WB-001-dgx-r2-failed.json`; exact trajectories/checkpoints passed while data wait, sampler coverage, and watch overhead failed |
 | 2 | review | pending | pending | exact integration/evidence head pending | Independent heavy review against philosophy, ticket, and applicable CHECK | pending | pending | pending |
 
 Requested values are recorded separately from actual runtime display. The
@@ -54,8 +55,9 @@ they are not inferred from the request.
 - Capture files:
   `docs/model-runs/evidence/WB-001-implementation-provenance.json`,
   `docs/model-runs/evidence/WB-001-precommit-review-provenance.json`,
-  `docs/model-runs/evidence/WB-001-repair-provenance.json`, and
-  `docs/model-runs/evidence/WB-001-r2-harness-provenance.json`
+  `docs/model-runs/evidence/WB-001-repair-provenance.json`,
+  `docs/model-runs/evidence/WB-001-r2-harness-provenance.json`, and
+  `docs/model-runs/evidence/WB-001-r2-repair-provenance.json`
 - Codex CLI version: `codex-cli 0.144.1`
 - Branch/commit: `codex/wb-001-evidence-safe-wandb` / input `74d9e24`
 - Phase/role/task path: implementation / implementation /
@@ -134,6 +136,24 @@ they are not inferred from the request.
 - Re-review model / mode: requested `gpt-5.6-sol` / Max.
 - Re-review verdict: pending.
 
+### DGX evidence repair
+
+- Repair cycle: 2, following measured Attempt 2 `FAIL` at `049acf7`.
+- Repair model / mode: not exposed by runtime / not exposed by runtime.
+- Input handoff: durable failed projection plus raw `/tmp` evidence for all nine
+  arms.
+- Changes made: sequence length 8 → 64 for the comparison only; watch interval
+  100 → official/default 1,000 batches; streaming Docker stats; stable hardware
+  projection no longer includes randomized container hostname.
+- What was deliberately not changed: model, seed, data order, arm order, steps,
+  warm-up, artifact policy, decision thresholds, exactness gates, or failed
+  evidence.
+- Local evidence: every Attempt 2 process exited 0 and exact config/trajectory,
+  model, resume, and cursor gates passed; the run remained `FAIL` on the declared
+  measurement gates.
+- Commit reviewed next: pending adaptive Attempt 3 evidence head.
+- Re-review verdict: pending.
+
 ## Final evidence
 
 - Resolved Hydra controls: `wandb.mode=disabled|offline|online`, watch nested
@@ -148,8 +168,12 @@ they are not inferred from the request.
   plus offline smoke passed with credentials removed and name resolution,
   `connect`, `connect_ex`, and `sendto` blocked. Ruff, changed-file format,
   lock, and diff checks pass.
-- Performance/resource result: R1 only. No throughput or DGX claim. Three-arm,
-  three-repetition, 100-step DGX protocol is predeclared before measurement.
+- Performance/resource result: DGX Attempt 2 retained a `FAIL` at exact commit
+  `049acf7`: all nine processes and exact trajectory/checkpoint gates passed,
+  but data wait reached 12.68%, container coverage was about 48%, and watch-on
+  regressed 26.26% versus offline/watch-off at the unsafe 100-batch interval.
+  Adaptive Attempt 3 is predeclared before retry; no positive throughput claim
+  is made from Attempt 2.
 - Failed attempts retained: first offline smoke placed its W&B directory under
   the repository; it was removed and `WANDB_DIR` now points at the smoke temp
   root. No training failure occurred.
@@ -157,8 +181,8 @@ they are not inferred from the request.
   explicit retention boundaries; fresh quota visibility requires an operator
   Billing UI/CSV snapshot because the public Python API does not expose current
   storage usage.
-- Unresolved risks: real online auth/service behavior and DGX overhead are not
-  exercised; both fail closed or remain predeclared rather than claimed.
+- Unresolved risks: real online auth/service behavior remains unexercised and
+  fail-closed; DGX overhead remains unresolved until adaptive Attempt 3 passes.
 - Human decision requested: human review/merge after a passing independent
   review; no self-merge authorization exists.
 

@@ -292,7 +292,7 @@ class WandbTracker:
                 self.run.watch(
                     model,
                     log=str(watch.get("log", "gradients")),
-                    log_freq=int(watch.get("log_freq", 100)),
+                    log_freq=int(watch.get("log_freq", 1000)),
                 )
                 self._watched_model = model
                 self._record("watch", "succeeded")

@@ -104,6 +104,7 @@ def test_wandb_defaults_and_nested_schema_are_strict():
     assert config.wandb.mode == "disabled"
     assert config.wandb.finish_timeout_seconds == 30
     assert config.wandb.watch.enabled is False
+    assert config.wandb.watch.log_freq == 1000
     assert config.wandb.artifact.policy == "none"
     assert config.wandb.artifact.usage_snapshot_path is None
 

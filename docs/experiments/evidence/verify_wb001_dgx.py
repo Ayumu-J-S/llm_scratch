@@ -402,7 +402,6 @@ def _wandb_storage(root: Path, arm: str) -> tuple[bool, dict[str, Any]]:
 def _hardware(manifest: Mapping[str, Any]) -> dict[str, Any]:
     environment = manifest["hardware_software"]
     return {
-        "host": environment["host"],
         "os": environment["os"],
         "architecture": environment["architecture"],
         "python": environment["python"],
@@ -487,6 +486,7 @@ def _run(
     gates.require(
         prefix + "fixed_work",
         config["profile"]["name"] == "stability_smoke"
+        and training["sequence_length"] == 64
         and training["max_steps"] == 100
         and training["precision"] == "bf16"
         and measurement["complete"] is True

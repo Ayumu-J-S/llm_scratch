@@ -1,0 +1,3023 @@
+{
+  "failures": [
+    "r1-p1-disabled:container_coverage",
+    "r1-p2-offline-off:container_coverage",
+    "r1-p2-offline-off:data_wait_fail",
+    "r1-p3-offline-on:container_coverage",
+    "r2-p1-offline-on:container_coverage",
+    "r2-p1-offline-on:data_wait_fail",
+    "r2-p2-disabled:container_coverage",
+    "r2-p2-disabled:data_wait_fail",
+    "r2-p3-offline-off:container_coverage",
+    "r2-p3-offline-off:data_wait_fail",
+    "r3-p1-offline-off:container_coverage",
+    "r3-p1-offline-off:data_wait_fail",
+    "r3-p2-offline-on:container_coverage",
+    "r3-p3-disabled:container_coverage",
+    "r3-p3-disabled:data_wait_fail",
+    "hardware_exact",
+    "offline_on_vs_disabled_under_10_percent",
+    "watch_vs_offline_off_under_10_percent"
+  ],
+  "gates": [
+    {
+      "detail": null,
+      "name": "matrix_identity",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "cache_prime",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p1-disabled:inventory",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p1-disabled:identity_isolation",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p1-disabled:cache_unchanged",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p1-disabled:arm_config",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p1-disabled:fixed_work",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p1-disabled:cadence_validation",
+      "passed": true
+    },
+    {
+      "detail": [
+        [
+          "init",
+          "disabled"
+        ]
+      ],
+      "name": "r1-p1-disabled:wandb_lifecycle",
+      "passed": true
+    },
+    {
+      "detail": {
+        "bytes": 0,
+        "file_count": 0,
+        "forbidden": [],
+        "run_file_count": 0
+      },
+      "name": "r1-p1-disabled:wandb_storage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 1.008130081300813,
+        "expected": 123,
+        "power_w": {
+          "max": 18.19,
+          "median": 12.99,
+          "min": 4.58
+        },
+        "samples": 124,
+        "sm_clock_mhz": {
+          "max": 2411.0,
+          "median": 2411.0,
+          "min": 208.0
+        },
+        "temperature_c": {
+          "max": 38.0,
+          "median": 37.0,
+          "min": 35.0
+        },
+        "utilization_percent": {
+          "max": 65.0,
+          "median": 4.0,
+          "min": 0.0
+        }
+      },
+      "name": "r1-p1-disabled:gpu_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.96,
+        "expected": 25,
+        "longest_swap_io_run": 0,
+        "minimum_free_buffer_cache_bytes": 122381692928,
+        "samples": 24
+      },
+      "name": "r1-p1-disabled:host_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.48,
+        "expected": 25,
+        "max_memory_bytes": 2585570312,
+        "samples": 12
+      },
+      "name": "r1-p1-disabled:container_coverage",
+      "passed": false
+    },
+    {
+      "detail": {
+        "coverage": 0.96,
+        "expected": 25,
+        "longest_swap_io_run": 0,
+        "minimum_free_buffer_cache_bytes": 122381692928,
+        "samples": 24
+      },
+      "name": "r1-p1-disabled:swap",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1067136000.0,
+        "last_20_median": 1066972160.0,
+        "maximum": 1070213120
+      },
+      "name": "r1-p1-disabled:allocated_stable",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1094713344.0,
+        "last_20_median": 1094713344.0,
+        "maximum": 1094713344
+      },
+      "name": "r1-p1-disabled:reserved_stable",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p1-disabled:data_wait_fail",
+      "passed": true
+    },
+    {
+      "detail": 0.09415874194179326,
+      "name": "r1-p1-disabled:data_wait_investigate",
+      "passed": true,
+      "warning": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p2-offline-off:inventory",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p2-offline-off:identity_isolation",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p2-offline-off:cache_unchanged",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p2-offline-off:arm_config",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p2-offline-off:fixed_work",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p2-offline-off:cadence_validation",
+      "passed": true
+    },
+    {
+      "detail": [
+        [
+          "init",
+          "succeeded"
+        ],
+        [
+          "watch",
+          "disabled"
+        ],
+        [
+          "finish",
+          "succeeded"
+        ]
+      ],
+      "name": "r1-p2-offline-off:wandb_lifecycle",
+      "passed": true
+    },
+    {
+      "detail": {
+        "bytes": 37218,
+        "file_count": 5,
+        "forbidden": [],
+        "run_file_count": 4
+      },
+      "name": "r1-p2-offline-off:wandb_storage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 1.0089285714285714,
+        "expected": 112,
+        "power_w": {
+          "max": 19.67,
+          "median": 11.96,
+          "min": 4.46
+        },
+        "samples": 113,
+        "sm_clock_mhz": {
+          "max": 2411.0,
+          "median": 2411.0,
+          "min": 208.0
+        },
+        "temperature_c": {
+          "max": 39.0,
+          "median": 38.0,
+          "min": 36.0
+        },
+        "utilization_percent": {
+          "max": 74.0,
+          "median": 3.0,
+          "min": 0.0
+        }
+      },
+      "name": "r1-p2-offline-off:gpu_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9565217391304348,
+        "expected": 23,
+        "longest_swap_io_run": 0,
+        "minimum_free_buffer_cache_bytes": 122382888960,
+        "samples": 22
+      },
+      "name": "r1-p2-offline-off:host_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.4782608695652174,
+        "expected": 23,
+        "max_memory_bytes": 2683280818,
+        "samples": 11
+      },
+      "name": "r1-p2-offline-off:container_coverage",
+      "passed": false
+    },
+    {
+      "detail": {
+        "coverage": 0.9565217391304348,
+        "expected": 23,
+        "longest_swap_io_run": 0,
+        "minimum_free_buffer_cache_bytes": 122382888960,
+        "samples": 22
+      },
+      "name": "r1-p2-offline-off:swap",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1066972160.0,
+        "last_20_median": 1066972160.0,
+        "maximum": 1070213120
+      },
+      "name": "r1-p2-offline-off:allocated_stable",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1094713344.0,
+        "last_20_median": 1094713344.0,
+        "maximum": 1094713344
+      },
+      "name": "r1-p2-offline-off:reserved_stable",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p2-offline-off:data_wait_fail",
+      "passed": false
+    },
+    {
+      "detail": null,
+      "name": "r1-p3-offline-on:inventory",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p3-offline-on:identity_isolation",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p3-offline-on:cache_unchanged",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p3-offline-on:arm_config",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p3-offline-on:fixed_work",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p3-offline-on:cadence_validation",
+      "passed": true
+    },
+    {
+      "detail": [
+        [
+          "init",
+          "succeeded"
+        ],
+        [
+          "watch",
+          "succeeded"
+        ],
+        [
+          "unwatch",
+          "succeeded"
+        ],
+        [
+          "finish",
+          "succeeded"
+        ]
+      ],
+      "name": "r1-p3-offline-on:wandb_lifecycle",
+      "passed": true
+    },
+    {
+      "detail": {
+        "bytes": 1003878,
+        "file_count": 5,
+        "forbidden": [],
+        "run_file_count": 4
+      },
+      "name": "r1-p3-offline-on:wandb_storage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 1.0077519379844961,
+        "expected": 129,
+        "power_w": {
+          "max": 19.42,
+          "median": 11.985,
+          "min": 4.28
+        },
+        "samples": 130,
+        "sm_clock_mhz": {
+          "max": 2411.0,
+          "median": 2411.0,
+          "min": 208.0
+        },
+        "temperature_c": {
+          "max": 40.0,
+          "median": 39.0,
+          "min": 36.0
+        },
+        "utilization_percent": {
+          "max": 72.0,
+          "median": 3.0,
+          "min": 0.0
+        }
+      },
+      "name": "r1-p3-offline-on:gpu_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 1.0,
+        "expected": 26,
+        "longest_swap_io_run": 0,
+        "minimum_free_buffer_cache_bytes": 122329747456,
+        "samples": 26
+      },
+      "name": "r1-p3-offline-on:host_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.5,
+        "expected": 26,
+        "max_memory_bytes": 2586644054,
+        "samples": 13
+      },
+      "name": "r1-p3-offline-on:container_coverage",
+      "passed": false
+    },
+    {
+      "detail": {
+        "coverage": 1.0,
+        "expected": 26,
+        "longest_swap_io_run": 0,
+        "minimum_free_buffer_cache_bytes": 122329747456,
+        "samples": 26
+      },
+      "name": "r1-p3-offline-on:swap",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1067637504.0,
+        "last_20_median": 1066972160.0,
+        "maximum": 1070213120
+      },
+      "name": "r1-p3-offline-on:allocated_stable",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1094713344.0,
+        "last_20_median": 1094713344.0,
+        "maximum": 1094713344
+      },
+      "name": "r1-p3-offline-on:reserved_stable",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r1-p3-offline-on:data_wait_fail",
+      "passed": true
+    },
+    {
+      "detail": 0.08554411167923386,
+      "name": "r1-p3-offline-on:data_wait_investigate",
+      "passed": true,
+      "warning": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p1-offline-on:inventory",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p1-offline-on:identity_isolation",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p1-offline-on:cache_unchanged",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p1-offline-on:arm_config",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p1-offline-on:fixed_work",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p1-offline-on:cadence_validation",
+      "passed": true
+    },
+    {
+      "detail": [
+        [
+          "init",
+          "succeeded"
+        ],
+        [
+          "watch",
+          "succeeded"
+        ],
+        [
+          "unwatch",
+          "succeeded"
+        ],
+        [
+          "finish",
+          "succeeded"
+        ]
+      ],
+      "name": "r2-p1-offline-on:wandb_lifecycle",
+      "passed": true
+    },
+    {
+      "detail": {
+        "bytes": 1003857,
+        "file_count": 5,
+        "forbidden": [],
+        "run_file_count": 4
+      },
+      "name": "r2-p1-offline-on:wandb_storage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 1.0077519379844961,
+        "expected": 129,
+        "power_w": {
+          "max": 19.49,
+          "median": 12.07,
+          "min": 4.3
+        },
+        "samples": 130,
+        "sm_clock_mhz": {
+          "max": 2411.0,
+          "median": 2411.0,
+          "min": 208.0
+        },
+        "temperature_c": {
+          "max": 40.0,
+          "median": 39.0,
+          "min": 37.0
+        },
+        "utilization_percent": {
+          "max": 73.0,
+          "median": 3.0,
+          "min": 0.0
+        }
+      },
+      "name": "r2-p1-offline-on:gpu_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9615384615384616,
+        "expected": 26,
+        "longest_swap_io_run": 0,
+        "minimum_free_buffer_cache_bytes": 122326765568,
+        "samples": 25
+      },
+      "name": "r2-p1-offline-on:host_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.5,
+        "expected": 26,
+        "max_memory_bytes": 2587717795,
+        "samples": 13
+      },
+      "name": "r2-p1-offline-on:container_coverage",
+      "passed": false
+    },
+    {
+      "detail": {
+        "coverage": 0.9615384615384616,
+        "expected": 26,
+        "longest_swap_io_run": 0,
+        "minimum_free_buffer_cache_bytes": 122326765568,
+        "samples": 25
+      },
+      "name": "r2-p1-offline-on:swap",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1066972160.0,
+        "last_20_median": 1069804032.0,
+        "maximum": 1070213120
+      },
+      "name": "r2-p1-offline-on:allocated_stable",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1094713344.0,
+        "last_20_median": 1094713344.0,
+        "maximum": 1094713344
+      },
+      "name": "r2-p1-offline-on:reserved_stable",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p1-offline-on:data_wait_fail",
+      "passed": false
+    },
+    {
+      "detail": null,
+      "name": "r2-p2-disabled:inventory",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p2-disabled:identity_isolation",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p2-disabled:cache_unchanged",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p2-disabled:arm_config",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p2-disabled:fixed_work",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p2-disabled:cadence_validation",
+      "passed": true
+    },
+    {
+      "detail": [
+        [
+          "init",
+          "disabled"
+        ]
+      ],
+      "name": "r2-p2-disabled:wandb_lifecycle",
+      "passed": true
+    },
+    {
+      "detail": {
+        "bytes": 0,
+        "file_count": 0,
+        "forbidden": [],
+        "run_file_count": 0
+      },
+      "name": "r2-p2-disabled:wandb_storage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 1.009009009009009,
+        "expected": 111,
+        "power_w": {
+          "max": 19.49,
+          "median": 11.95,
+          "min": 4.31
+        },
+        "samples": 112,
+        "sm_clock_mhz": {
+          "max": 2411.0,
+          "median": 2411.0,
+          "min": 208.0
+        },
+        "temperature_c": {
+          "max": 40.0,
+          "median": 39.0,
+          "min": 37.0
+        },
+        "utilization_percent": {
+          "max": 73.0,
+          "median": 3.0,
+          "min": 0.0
+        }
+      },
+      "name": "r2-p2-disabled:gpu_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9565217391304348,
+        "expected": 23,
+        "longest_swap_io_run": 0,
+        "minimum_free_buffer_cache_bytes": 122437767168,
+        "samples": 22
+      },
+      "name": "r2-p2-disabled:host_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.4782608695652174,
+        "expected": 23,
+        "max_memory_bytes": 2592012763,
+        "samples": 11
+      },
+      "name": "r2-p2-disabled:container_coverage",
+      "passed": false
+    },
+    {
+      "detail": {
+        "coverage": 0.9565217391304348,
+        "expected": 23,
+        "longest_swap_io_run": 0,
+        "minimum_free_buffer_cache_bytes": 122437767168,
+        "samples": 22
+      },
+      "name": "r2-p2-disabled:swap",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1067299840.0,
+        "last_20_median": 1066972160.0,
+        "maximum": 1070213120
+      },
+      "name": "r2-p2-disabled:allocated_stable",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1094713344.0,
+        "last_20_median": 1094713344.0,
+        "maximum": 1094713344
+      },
+      "name": "r2-p2-disabled:reserved_stable",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p2-disabled:data_wait_fail",
+      "passed": false
+    },
+    {
+      "detail": null,
+      "name": "r2-p3-offline-off:inventory",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p3-offline-off:identity_isolation",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p3-offline-off:cache_unchanged",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p3-offline-off:arm_config",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p3-offline-off:fixed_work",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p3-offline-off:cadence_validation",
+      "passed": true
+    },
+    {
+      "detail": [
+        [
+          "init",
+          "succeeded"
+        ],
+        [
+          "watch",
+          "disabled"
+        ],
+        [
+          "finish",
+          "succeeded"
+        ]
+      ],
+      "name": "r2-p3-offline-off:wandb_lifecycle",
+      "passed": true
+    },
+    {
+      "detail": {
+        "bytes": 37048,
+        "file_count": 5,
+        "forbidden": [],
+        "run_file_count": 4
+      },
+      "name": "r2-p3-offline-off:wandb_storage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 1.008849557522124,
+        "expected": 113,
+        "power_w": {
+          "max": 20.16,
+          "median": 12.0,
+          "min": 4.33
+        },
+        "samples": 114,
+        "sm_clock_mhz": {
+          "max": 2411.0,
+          "median": 2411.0,
+          "min": 208.0
+        },
+        "temperature_c": {
+          "max": 41.0,
+          "median": 39.0,
+          "min": 37.0
+        },
+        "utilization_percent": {
+          "max": 76.0,
+          "median": 3.0,
+          "min": 0.0
+        }
+      },
+      "name": "r2-p3-offline-off:gpu_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9565217391304348,
+        "expected": 23,
+        "longest_swap_io_run": 0,
+        "minimum_free_buffer_cache_bytes": 122304061440,
+        "samples": 22
+      },
+      "name": "r2-p3-offline-off:host_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.4782608695652174,
+        "expected": 23,
+        "max_memory_bytes": 2682207076,
+        "samples": 11
+      },
+      "name": "r2-p3-offline-off:container_coverage",
+      "passed": false
+    },
+    {
+      "detail": {
+        "coverage": 0.9565217391304348,
+        "expected": 23,
+        "longest_swap_io_run": 0,
+        "minimum_free_buffer_cache_bytes": 122304061440,
+        "samples": 22
+      },
+      "name": "r2-p3-offline-off:swap",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1067801344.0,
+        "last_20_median": 1066972160.0,
+        "maximum": 1070213120
+      },
+      "name": "r2-p3-offline-off:allocated_stable",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1094713344.0,
+        "last_20_median": 1094713344.0,
+        "maximum": 1094713344
+      },
+      "name": "r2-p3-offline-off:reserved_stable",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r2-p3-offline-off:data_wait_fail",
+      "passed": false
+    },
+    {
+      "detail": null,
+      "name": "r3-p1-offline-off:inventory",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p1-offline-off:identity_isolation",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p1-offline-off:cache_unchanged",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p1-offline-off:arm_config",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p1-offline-off:fixed_work",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p1-offline-off:cadence_validation",
+      "passed": true
+    },
+    {
+      "detail": [
+        [
+          "init",
+          "succeeded"
+        ],
+        [
+          "watch",
+          "disabled"
+        ],
+        [
+          "finish",
+          "succeeded"
+        ]
+      ],
+      "name": "r3-p1-offline-off:wandb_lifecycle",
+      "passed": true
+    },
+    {
+      "detail": {
+        "bytes": 37064,
+        "file_count": 5,
+        "forbidden": [],
+        "run_file_count": 4
+      },
+      "name": "r3-p1-offline-off:wandb_storage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 1.009009009009009,
+        "expected": 111,
+        "power_w": {
+          "max": 19.88,
+          "median": 12.02,
+          "min": 4.48
+        },
+        "samples": 112,
+        "sm_clock_mhz": {
+          "max": 2411.0,
+          "median": 2411.0,
+          "min": 208.0
+        },
+        "temperature_c": {
+          "max": 41.0,
+          "median": 40.0,
+          "min": 37.0
+        },
+        "utilization_percent": {
+          "max": 76.0,
+          "median": 3.0,
+          "min": 0.0
+        }
+      },
+      "name": "r3-p1-offline-off:gpu_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9565217391304348,
+        "expected": 23,
+        "longest_swap_io_run": 0,
+        "minimum_free_buffer_cache_bytes": 122400370688,
+        "samples": 22
+      },
+      "name": "r3-p1-offline-off:host_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.4782608695652174,
+        "expected": 23,
+        "max_memory_bytes": 2662879723,
+        "samples": 11
+      },
+      "name": "r3-p1-offline-off:container_coverage",
+      "passed": false
+    },
+    {
+      "detail": {
+        "coverage": 0.9565217391304348,
+        "expected": 23,
+        "longest_swap_io_run": 0,
+        "minimum_free_buffer_cache_bytes": 122400370688,
+        "samples": 22
+      },
+      "name": "r3-p1-offline-off:swap",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1067637504.0,
+        "last_20_median": 1066972160.0,
+        "maximum": 1070213120
+      },
+      "name": "r3-p1-offline-off:allocated_stable",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1094713344.0,
+        "last_20_median": 1094713344.0,
+        "maximum": 1094713344
+      },
+      "name": "r3-p1-offline-off:reserved_stable",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p1-offline-off:data_wait_fail",
+      "passed": false
+    },
+    {
+      "detail": null,
+      "name": "r3-p2-offline-on:inventory",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p2-offline-on:identity_isolation",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p2-offline-on:cache_unchanged",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p2-offline-on:arm_config",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p2-offline-on:fixed_work",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p2-offline-on:cadence_validation",
+      "passed": true
+    },
+    {
+      "detail": [
+        [
+          "init",
+          "succeeded"
+        ],
+        [
+          "watch",
+          "succeeded"
+        ],
+        [
+          "unwatch",
+          "succeeded"
+        ],
+        [
+          "finish",
+          "succeeded"
+        ]
+      ],
+      "name": "r3-p2-offline-on:wandb_lifecycle",
+      "passed": true
+    },
+    {
+      "detail": {
+        "bytes": 1003762,
+        "file_count": 5,
+        "forbidden": [],
+        "run_file_count": 4
+      },
+      "name": "r3-p2-offline-on:wandb_storage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 1.0078125,
+        "expected": 128,
+        "power_w": {
+          "max": 19.94,
+          "median": 12.03,
+          "min": 4.24
+        },
+        "samples": 129,
+        "sm_clock_mhz": {
+          "max": 2418.0,
+          "median": 2411.0,
+          "min": 208.0
+        },
+        "temperature_c": {
+          "max": 41.0,
+          "median": 40.0,
+          "min": 38.0
+        },
+        "utilization_percent": {
+          "max": 72.0,
+          "median": 10.0,
+          "min": 0.0
+        }
+      },
+      "name": "r3-p2-offline-on:gpu_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9615384615384616,
+        "expected": 26,
+        "longest_swap_io_run": 0,
+        "minimum_free_buffer_cache_bytes": 122398863360,
+        "samples": 25
+      },
+      "name": "r3-p2-offline-on:host_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.5,
+        "expected": 26,
+        "max_memory_bytes": 2292438794,
+        "samples": 13
+      },
+      "name": "r3-p2-offline-on:container_coverage",
+      "passed": false
+    },
+    {
+      "detail": {
+        "coverage": 0.9615384615384616,
+        "expected": 26,
+        "longest_swap_io_run": 0,
+        "minimum_free_buffer_cache_bytes": 122398863360,
+        "samples": 25
+      },
+      "name": "r3-p2-offline-on:swap",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1067637504.0,
+        "last_20_median": 1069804032.0,
+        "maximum": 1070213120
+      },
+      "name": "r3-p2-offline-on:allocated_stable",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1094713344.0,
+        "last_20_median": 1094713344.0,
+        "maximum": 1094713344
+      },
+      "name": "r3-p2-offline-on:reserved_stable",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p2-offline-on:data_wait_fail",
+      "passed": true
+    },
+    {
+      "detail": 0.08155413073654244,
+      "name": "r3-p2-offline-on:data_wait_investigate",
+      "passed": true,
+      "warning": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p3-disabled:inventory",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p3-disabled:identity_isolation",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p3-disabled:cache_unchanged",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p3-disabled:arm_config",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p3-disabled:fixed_work",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p3-disabled:cadence_validation",
+      "passed": true
+    },
+    {
+      "detail": [
+        [
+          "init",
+          "disabled"
+        ]
+      ],
+      "name": "r3-p3-disabled:wandb_lifecycle",
+      "passed": true
+    },
+    {
+      "detail": {
+        "bytes": 0,
+        "file_count": 0,
+        "forbidden": [],
+        "run_file_count": 0
+      },
+      "name": "r3-p3-disabled:wandb_storage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 1.008849557522124,
+        "expected": 113,
+        "power_w": {
+          "max": 19.65,
+          "median": 11.975,
+          "min": 4.22
+        },
+        "samples": 114,
+        "sm_clock_mhz": {
+          "max": 2411.0,
+          "median": 2411.0,
+          "min": 208.0
+        },
+        "temperature_c": {
+          "max": 41.0,
+          "median": 40.0,
+          "min": 38.0
+        },
+        "utilization_percent": {
+          "max": 73.0,
+          "median": 3.0,
+          "min": 0.0
+        }
+      },
+      "name": "r3-p3-disabled:gpu_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.9565217391304348,
+        "expected": 23,
+        "longest_swap_io_run": 0,
+        "minimum_free_buffer_cache_bytes": 122346721280,
+        "samples": 22
+      },
+      "name": "r3-p3-disabled:host_coverage",
+      "passed": true
+    },
+    {
+      "detail": {
+        "coverage": 0.4782608695652174,
+        "expected": 23,
+        "max_memory_bytes": 2623151276,
+        "samples": 11
+      },
+      "name": "r3-p3-disabled:container_coverage",
+      "passed": false
+    },
+    {
+      "detail": {
+        "coverage": 0.9565217391304348,
+        "expected": 23,
+        "longest_swap_io_run": 0,
+        "minimum_free_buffer_cache_bytes": 122346721280,
+        "samples": 22
+      },
+      "name": "r3-p3-disabled:swap",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1067136000.0,
+        "last_20_median": 1066972160.0,
+        "maximum": 1070213120
+      },
+      "name": "r3-p3-disabled:allocated_stable",
+      "passed": true
+    },
+    {
+      "detail": {
+        "first_20_median": 1094713344.0,
+        "last_20_median": 1094713344.0,
+        "maximum": 1094713344
+      },
+      "name": "r3-p3-disabled:reserved_stable",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "r3-p3-disabled:data_wait_fail",
+      "passed": false
+    },
+    {
+      "detail": null,
+      "name": "normalized_config_exact",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "experiment_id_exact",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "manifest_git_exact",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "tokenizer_exact",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "data_exact",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "hardware_exact",
+      "passed": false
+    },
+    {
+      "detail": null,
+      "name": "trajectory_exact",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "model_exact",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "resume_exact",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "cursor_exact",
+      "passed": true
+    },
+    {
+      "detail": {
+        "max": -3.905265415553388,
+        "median": -5.413302031766085,
+        "min": -31.256511249791334,
+        "values": [
+          -31.256511249791334,
+          -3.905265415553388,
+          -5.413302031766085
+        ]
+      },
+      "name": "offline_off_vs_disabled_under_10_percent",
+      "passed": true
+    },
+    {
+      "detail": {
+        "max": 25.409116420438167,
+        "median": 22.266119440188664,
+        "min": 1.8651784330396048,
+        "values": [
+          1.8651784330396048,
+          25.409116420438167,
+          22.266119440188664
+        ]
+      },
+      "name": "offline_on_vs_disabled_under_10_percent",
+      "passed": false
+    },
+    {
+      "detail": {
+        "max": 25.409116420438167,
+        "median": 22.266119440188664,
+        "min": 1.8651784330396048,
+        "values": [
+          1.8651784330396048,
+          25.409116420438167,
+          22.266119440188664
+        ]
+      },
+      "name": "offline_on_vs_disabled_investigate_5_percent",
+      "passed": true,
+      "warning": true
+    },
+    {
+      "detail": {
+        "max": 28.212604740244032,
+        "median": 26.257996797798455,
+        "min": 25.234321229061006,
+        "values": [
+          25.234321229061006,
+          28.212604740244032,
+          26.257996797798455
+        ]
+      },
+      "name": "watch_vs_offline_off_under_10_percent",
+      "passed": false
+    },
+    {
+      "detail": {
+        "max": 28.212604740244032,
+        "median": 26.257996797798455,
+        "min": 25.234321229061006,
+        "values": [
+          25.234321229061006,
+          28.212604740244032,
+          26.257996797798455
+        ]
+      },
+      "name": "watch_vs_offline_off_investigate_5_percent",
+      "passed": true,
+      "warning": true
+    }
+  ],
+  "image_id": "sha256:23a1bee69fe189e77105cdddeee9aeff6ef0763d58a691625fbfcab64efd1887",
+  "limitations": [
+    "network=none and artifact policy none make no online auth, quota, retention, or upload claim",
+    "DGX Spark unified-memory headroom is interpreted from host, container, and allocator evidence rather than nvidia-smi memory alone",
+    "W&B binary run files are inventoried and hashed but not decoded by this verifier"
+  ],
+  "matrix": [
+    {
+      "arm": "disabled",
+      "position": 1,
+      "repetition": 1,
+      "run_id": "r1-p1-disabled"
+    },
+    {
+      "arm": "offline-off",
+      "position": 2,
+      "repetition": 1,
+      "run_id": "r1-p2-offline-off"
+    },
+    {
+      "arm": "offline-on",
+      "position": 3,
+      "repetition": 1,
+      "run_id": "r1-p3-offline-on"
+    },
+    {
+      "arm": "offline-on",
+      "position": 1,
+      "repetition": 2,
+      "run_id": "r2-p1-offline-on"
+    },
+    {
+      "arm": "disabled",
+      "position": 2,
+      "repetition": 2,
+      "run_id": "r2-p2-disabled"
+    },
+    {
+      "arm": "offline-off",
+      "position": 3,
+      "repetition": 2,
+      "run_id": "r2-p3-offline-off"
+    },
+    {
+      "arm": "offline-off",
+      "position": 1,
+      "repetition": 3,
+      "run_id": "r3-p1-offline-off"
+    },
+    {
+      "arm": "offline-on",
+      "position": 2,
+      "repetition": 3,
+      "run_id": "r3-p2-offline-on"
+    },
+    {
+      "arm": "disabled",
+      "position": 3,
+      "repetition": 3,
+      "run_id": "r3-p3-disabled"
+    }
+  ],
+  "measured_commit": "049acf7fdfc37272a9c55c41d79aef5086e36e03",
+  "paired_aggregates": {
+    "offline_off_vs_disabled": {
+      "max": -3.905265415553388,
+      "median": -5.413302031766085,
+      "min": -31.256511249791334,
+      "values": [
+        -31.256511249791334,
+        -3.905265415553388,
+        -5.413302031766085
+      ]
+    },
+    "offline_on_vs_disabled": {
+      "max": 25.409116420438167,
+      "median": 22.266119440188664,
+      "min": 1.8651784330396048,
+      "values": [
+        1.8651784330396048,
+        25.409116420438167,
+        22.266119440188664
+      ]
+    },
+    "watch_vs_offline_off": {
+      "max": 28.212604740244032,
+      "median": 26.257996797798455,
+      "min": 25.234321229061006,
+      "values": [
+        25.234321229061006,
+        28.212604740244032,
+        26.257996797798455
+      ]
+    }
+  },
+  "pairs": [
+    {
+      "offline_off_vs_disabled": -31.256511249791334,
+      "offline_on_vs_disabled": 1.8651784330396048,
+      "repetition": 1,
+      "watch_vs_offline_off": 25.234321229061006
+    },
+    {
+      "offline_off_vs_disabled": -3.905265415553388,
+      "offline_on_vs_disabled": 25.409116420438167,
+      "repetition": 2,
+      "watch_vs_offline_off": 28.212604740244032
+    },
+    {
+      "offline_off_vs_disabled": -5.413302031766085,
+      "offline_on_vs_disabled": 22.266119440188664,
+      "repetition": 3,
+      "watch_vs_offline_off": 26.257996797798455
+    }
+  ],
+  "review_size": "R2",
+  "runs": [
+    {
+      "arm": "disabled",
+      "checkpoint": {
+        "counters": {
+          "optimizer_step": 100,
+          "target_tokens": 6400
+        },
+        "cursor_digest": "ef36679a70d3999eb818636165a25a34b4a5095540c30b2130b36ed20bd5611c",
+        "model_digest": "f61debd5fa91bbe070f0aadd6016a59d4451d7f30fffdc48aa8ce026c6a91d1b",
+        "resume_digest": "f5b6a3ea4b811e696acd7ae7d9050e22c68e80a42640dd7dca213aa962804a75",
+        "sha256": "f1fee67b4047cbd5517af3a53c48527aa1e9f21c217b7f5da0283d3f3e6ba1a7",
+        "size_bytes": 594562784
+      },
+      "container_wall_seconds": 24.443399559,
+      "disk": {
+        "checkpoint_bytes": 1783694788,
+        "checkpoint_files": 3,
+        "free_after_bytes": 496940720128,
+        "free_before_bytes": 498705416192
+      },
+      "hashes": {
+        "config": "b8f2dda18a54bc8552a1b961de1529bea695bec4dd14d9794b8bbae0d09fe6d5",
+        "container": "bd601baed084e88f407649aed67890942618006ab98334d204e6900e4f3fa270",
+        "gpu": "a6f21606bca802cf07b2dd27938618c88f57e1c4695335d362f5b9f4af56d4b3",
+        "manifest": "b02d66ce635c69085038c9f420d9fb4cb2817b1b01105c9931c5258103f9ef9a",
+        "measurement": "4623ce3d2ab5bb443daefe4b452069cdf105a167c5f5fef342cd94a91b94eca1",
+        "metrics": "11407db0c4d1abe8ea666c331950ecd8e0b0f87de54c6b3769300099b98c8a2a",
+        "vmstat": "3f617e00417fed9345eb868fb679b5eddb1963715faad5e59dce3fa1a853a354",
+        "wandb_events": "350c982ba5c41882e0aad8608aaeed717ad5752596507235966f66fb2d5cfb67"
+      },
+      "manifest": {
+        "data": [
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19",
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19"
+        ],
+        "experiment_id": "exp-3a1e87083d4652922543",
+        "git_sha": "049acf7fdfc37272a9c55c41d79aef5086e36e03",
+        "hardware": "0419aa9103cd934c6727a4817528bf292339c9c63aba241db03d430c4308faca",
+        "tokenizer": "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b"
+      },
+      "normalized_config": "74c24d9fc6ec6feffa235c0320fee1a27240e1425b790a4bec135817eb714344",
+      "performance": {
+        "allocated": {
+          "first_20_median": 1067136000.0,
+          "last_20_median": 1066972160.0,
+          "maximum": 1070213120
+        },
+        "cuda_phase_median_milliseconds": {
+          "backward": 52.46780824661255,
+          "clipping": 3.0167040824890137,
+          "forward": 15.129183888435364,
+          "gradient_finite_check": 6.662287950515747,
+          "gradient_norm_and_scalar_read": 1.1822720170021057,
+          "gradient_scale": 1.7867519855499268,
+          "host_device_prepare": 0.25087999925017357,
+          "loss": 0.10502400062978268,
+          "loss_scalar_read": 0.012095999903976917,
+          "optimizer": 19.680848121643066,
+          "parameter_finite_check": 6.666224002838135,
+          "scheduler": 0.013008000329136848
+        },
+        "data_wait_fraction": 0.09415874194179326,
+        "host_phase_median_seconds": {
+          "backward": 0.048997030971804634,
+          "clipping": 0.0005928954924456775,
+          "data_wait": 0.010993062489433214,
+          "forward": 0.01192543598881457,
+          "gradient_finite_check": 0.008674317999975756,
+          "gradient_norm_and_scalar_read": 0.0011895750067196786,
+          "gradient_scale": 0.0008880075038177893,
+          "host_device_prepare": 0.0003943860065191984,
+          "loss": 0.0003926185017917305,
+          "loss_scalar_read": 1.8207007087767124e-05,
+          "optimizer": 0.0015677940100431442,
+          "parameter_finite_check": 0.027221160489716567,
+          "scheduler": 1.9975006580352783e-05,
+          "step_metrics": 0.00022069198894314468
+        },
+        "reserved": {
+          "first_20_median": 1094713344.0,
+          "last_20_median": 1094713344.0,
+          "maximum": 1094713344
+        },
+        "step_max_seconds": 0.12173942499794066,
+        "step_median_seconds": 0.11779542050499003,
+        "step_p95_seconds": 0.12012064500595443,
+        "steps": 90,
+        "target_tokens": 5760,
+        "target_tokens_per_second": 547.2496435773176,
+        "wall_seconds": 10.525360898085637
+      },
+      "position": 1,
+      "repetition": 1,
+      "resources": {
+        "container": {
+          "coverage": 0.48,
+          "expected": 25,
+          "max_memory_bytes": 2585570312,
+          "samples": 12
+        },
+        "gpu": {
+          "coverage": 1.008130081300813,
+          "expected": 123,
+          "power_w": {
+            "max": 18.19,
+            "median": 12.99,
+            "min": 4.58
+          },
+          "samples": 124,
+          "sm_clock_mhz": {
+            "max": 2411.0,
+            "median": 2411.0,
+            "min": 208.0
+          },
+          "temperature_c": {
+            "max": 38.0,
+            "median": 37.0,
+            "min": 35.0
+          },
+          "utilization_percent": {
+            "max": 65.0,
+            "median": 4.0,
+            "min": 0.0
+          }
+        },
+        "host": {
+          "coverage": 0.96,
+          "expected": 25,
+          "longest_swap_io_run": 0,
+          "minimum_free_buffer_cache_bytes": 122381692928,
+          "samples": 24
+        }
+      },
+      "run_id": "r1-p1-disabled",
+      "scheduled_log_seconds": {
+        "max": 5.2732997573912144e-05,
+        "median": 4.810150130651891e-05,
+        "total": 0.00047119002556428313
+      },
+      "trajectory": "419cf821f6f29d6ad01c68d31fa8ee66c9427190d55ed7f9603a053750e11c8a",
+      "wandb": {
+        "lifecycle": [
+          [
+            "init",
+            "disabled"
+          ]
+        ],
+        "storage": {
+          "bytes": 0,
+          "file_count": 0,
+          "forbidden": [],
+          "run_file_count": 0
+        }
+      }
+    },
+    {
+      "arm": "offline-off",
+      "checkpoint": {
+        "counters": {
+          "optimizer_step": 100,
+          "target_tokens": 6400
+        },
+        "cursor_digest": "ef36679a70d3999eb818636165a25a34b4a5095540c30b2130b36ed20bd5611c",
+        "model_digest": "f61debd5fa91bbe070f0aadd6016a59d4451d7f30fffdc48aa8ce026c6a91d1b",
+        "resume_digest": "f5b6a3ea4b811e696acd7ae7d9050e22c68e80a42640dd7dca213aa962804a75",
+        "sha256": "a5c792a9fe7f97dba24cfaefe262ca1aa625295b48e887aa02cf751804618aac",
+        "size_bytes": 594562848
+      },
+      "container_wall_seconds": 22.393824549,
+      "disk": {
+        "checkpoint_bytes": 1783694852,
+        "checkpoint_files": 3,
+        "free_after_bytes": 495154315264,
+        "free_before_bytes": 496940691456
+      },
+      "hashes": {
+        "config": "382e7bcde2b78b69806086c5118e1a93f1ca257920e71a8618aa3454d5447dad",
+        "container": "600cb211a2cdc02542c1d8113ffcda7775b6d3b01c9e53ba73043ae5ba788276",
+        "gpu": "70c7602c7bff53555319a477c2bd1dc2f5b3e9608bad005d64633ccec0dcef23",
+        "manifest": "2712aab63099668553a7ce3966eca271827cbbb67e11af1d1213dde13459bd69",
+        "measurement": "2bf88e0ae5975dbf61b90449f819d2445757cfbb575535baac146951af698cfa",
+        "metrics": "6a49d9d36f0af59ace1d74eebadc222030bf117db53455a40f006ed26a9c8769",
+        "vmstat": "d2eeeab69929c0eff2ba832a47a4d509503e6f143d84c2e84de47f071cfd4f60",
+        "wandb_events": "4abf6d601da4f7dde4f49d2b2f353f41b185c3e55bc5b66529fd78fedc72f8e4"
+      },
+      "manifest": {
+        "data": [
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19",
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19"
+        ],
+        "experiment_id": "exp-3a1e87083d4652922543",
+        "git_sha": "049acf7fdfc37272a9c55c41d79aef5086e36e03",
+        "hardware": "15dac82e1baf5e1c747bf63cb48bae0b8d6b8fcc4873dfc59b2257fe362510b0",
+        "tokenizer": "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b"
+      },
+      "normalized_config": "74c24d9fc6ec6feffa235c0320fee1a27240e1425b790a4bec135817eb714344",
+      "performance": {
+        "allocated": {
+          "first_20_median": 1066972160.0,
+          "last_20_median": 1066972160.0,
+          "maximum": 1070213120
+        },
+        "cuda_phase_median_milliseconds": {
+          "backward": 25.993327856063843,
+          "clipping": 3.0315200090408325,
+          "forward": 13.792256236076355,
+          "gradient_finite_check": 6.652815818786621,
+          "gradient_norm_and_scalar_read": 1.1922079920768738,
+          "gradient_scale": 1.780735969543457,
+          "host_device_prepare": 0.339008005335927,
+          "loss": 0.10527999978512526,
+          "loss_scalar_read": 0.012064000125974417,
+          "optimizer": 19.715167999267578,
+          "parameter_finite_check": 6.654623985290527,
+          "scheduler": 0.013151999562978745
+        },
+        "data_wait_fraction": 0.10940143895045135,
+        "host_phase_median_seconds": {
+          "backward": 0.02274482550274115,
+          "clipping": 0.0006023379974067211,
+          "data_wait": 0.009893694499623962,
+          "forward": 0.010558869980741292,
+          "gradient_finite_check": 0.008228410995798185,
+          "gradient_norm_and_scalar_read": 0.001199171514599584,
+          "gradient_scale": 0.001009500992950052,
+          "host_device_prepare": 0.0006098489975556731,
+          "loss": 0.0003477830032352358,
+          "loss_scalar_read": 1.8239501514472067e-05,
+          "optimizer": 0.0015347704902524129,
+          "parameter_finite_check": 0.027269907979643904,
+          "scheduler": 2.007100556511432e-05,
+          "step_metrics": 0.0002187490026699379
+        },
+        "reserved": {
+          "first_20_median": 1094713344.0,
+          "last_20_median": 1094713344.0,
+          "maximum": 1094713344
+        },
+        "step_max_seconds": 0.09247911101556383,
+        "step_median_seconds": 0.08935329149244353,
+        "step_p95_seconds": 0.09067228197818622,
+        "steps": 90,
+        "target_tokens": 5760,
+        "target_tokens_per_second": 718.3007899865048,
+        "wall_seconds": 8.018924773990875
+      },
+      "position": 2,
+      "repetition": 1,
+      "resources": {
+        "container": {
+          "coverage": 0.4782608695652174,
+          "expected": 23,
+          "max_memory_bytes": 2683280818,
+          "samples": 11
+        },
+        "gpu": {
+          "coverage": 1.0089285714285714,
+          "expected": 112,
+          "power_w": {
+            "max": 19.67,
+            "median": 11.96,
+            "min": 4.46
+          },
+          "samples": 113,
+          "sm_clock_mhz": {
+            "max": 2411.0,
+            "median": 2411.0,
+            "min": 208.0
+          },
+          "temperature_c": {
+            "max": 39.0,
+            "median": 38.0,
+            "min": 36.0
+          },
+          "utilization_percent": {
+            "max": 74.0,
+            "median": 3.0,
+            "min": 0.0
+          }
+        },
+        "host": {
+          "coverage": 0.9565217391304348,
+          "expected": 23,
+          "longest_swap_io_run": 0,
+          "minimum_free_buffer_cache_bytes": 122382888960,
+          "samples": 22
+        }
+      },
+      "run_id": "r1-p2-offline-off",
+      "scheduled_log_seconds": {
+        "max": 0.0022478860046248883,
+        "median": 0.0017664305050857365,
+        "total": 0.016851455002324656
+      },
+      "trajectory": "419cf821f6f29d6ad01c68d31fa8ee66c9427190d55ed7f9603a053750e11c8a",
+      "wandb": {
+        "lifecycle": [
+          [
+            "init",
+            "succeeded"
+          ],
+          [
+            "watch",
+            "disabled"
+          ],
+          [
+            "finish",
+            "succeeded"
+          ]
+        ],
+        "storage": {
+          "bytes": 37218,
+          "file_count": 5,
+          "forbidden": [],
+          "run_file_count": 4
+        }
+      }
+    },
+    {
+      "arm": "offline-on",
+      "checkpoint": {
+        "counters": {
+          "optimizer_step": 100,
+          "target_tokens": 6400
+        },
+        "cursor_digest": "ef36679a70d3999eb818636165a25a34b4a5095540c30b2130b36ed20bd5611c",
+        "model_digest": "f61debd5fa91bbe070f0aadd6016a59d4451d7f30fffdc48aa8ce026c6a91d1b",
+        "resume_digest": "f5b6a3ea4b811e696acd7ae7d9050e22c68e80a42640dd7dca213aa962804a75",
+        "sha256": "d36c56a24cf39ac1f49e2b723e39c9dcdb1772064830ec10766756b38297fc04",
+        "size_bytes": 594562848
+      },
+      "container_wall_seconds": 25.73409941,
+      "disk": {
+        "checkpoint_bytes": 1783694852,
+        "checkpoint_files": 3,
+        "free_after_bytes": 493369057280,
+        "free_before_bytes": 495154286592
+      },
+      "hashes": {
+        "config": "1d2f534e669b08baa9e58bbbb4f32e3780d69f68c29142b7c74f580419545882",
+        "container": "dd3d4110107712cb80fb595dbe4ed4e89fe67f06b0cabb3dffa31ed76e5f6d67",
+        "gpu": "632854543dc8390dfc11df86ebb165754f347b611d818e6baeeca65fffef973c",
+        "manifest": "1e4f727eba31227a1d899ded7f84a4b7cd677dbea066d68288f3f33251e6bf7d",
+        "measurement": "7528de08ac02b872da4552ea693ada961e706109281882208d7a6d4bf5657995",
+        "metrics": "2c3c033161a04f93a93907e49a16c5eacdc2792c60464e94a2183fdc73d3c620",
+        "vmstat": "d0ad9f086b417b858981adf3d27a6fd840a4b8db4a7800827891d77ba1102964",
+        "wandb_events": "42e6310e56820849a90e7fa0db380565cbce74a04b2cbef4db6e6f02237f352e"
+      },
+      "manifest": {
+        "data": [
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19",
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19"
+        ],
+        "experiment_id": "exp-3a1e87083d4652922543",
+        "git_sha": "049acf7fdfc37272a9c55c41d79aef5086e36e03",
+        "hardware": "89fe39e5f716bca12fbb08451eee29aa5c1c6ffba46c7bc7429f2066b2e15537",
+        "tokenizer": "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b"
+      },
+      "normalized_config": "74c24d9fc6ec6feffa235c0320fee1a27240e1425b790a4bec135817eb714344",
+      "performance": {
+        "allocated": {
+          "first_20_median": 1067637504.0,
+          "last_20_median": 1066972160.0,
+          "maximum": 1070213120
+        },
+        "cuda_phase_median_milliseconds": {
+          "backward": 26.861216068267822,
+          "clipping": 3.027024030685425,
+          "forward": 13.951648235321045,
+          "gradient_finite_check": 6.6583521366119385,
+          "gradient_norm_and_scalar_read": 1.186672031879425,
+          "gradient_scale": 1.7785919904708862,
+          "host_device_prepare": 0.7184480018913746,
+          "loss": 0.10726399999111891,
+          "loss_scalar_read": 0.01182399969547987,
+          "optimizer": 19.760767936706543,
+          "parameter_finite_check": 6.6675519943237305,
+          "scheduler": 0.012864000163972378
+        },
+        "data_wait_fraction": 0.08554411167923386,
+        "host_phase_median_seconds": {
+          "backward": 0.0237240139831556,
+          "clipping": 0.000606083995080553,
+          "data_wait": 0.010196079980232753,
+          "forward": 0.010719354526372626,
+          "gradient_finite_check": 0.008545318996766582,
+          "gradient_norm_and_scalar_read": 0.0011931610060855746,
+          "gradient_scale": 0.0009171249985229224,
+          "host_device_prepare": 0.0010206335573457181,
+          "loss": 0.00032924150582402945,
+          "loss_scalar_read": 1.776751014403999e-05,
+          "optimizer": 0.0015679515054216608,
+          "parameter_finite_check": 0.02733526600059122,
+          "scheduler": 1.9382991013117135e-05,
+          "step_metrics": 0.00021818200184497982
+        },
+        "reserved": {
+          "first_20_median": 1094713344.0,
+          "last_20_median": 1094713344.0,
+          "maximum": 1094713344
+        },
+        "step_max_seconds": 0.6148567829804961,
+        "step_median_seconds": 0.09216955200827215,
+        "step_p95_seconds": 0.11804745197878219,
+        "steps": 90,
+        "target_tokens": 5760,
+        "target_tokens_per_second": 537.0424612504273,
+        "wall_seconds": 10.725408911966952
+      },
+      "position": 3,
+      "repetition": 1,
+      "resources": {
+        "container": {
+          "coverage": 0.5,
+          "expected": 26,
+          "max_memory_bytes": 2586644054,
+          "samples": 13
+        },
+        "gpu": {
+          "coverage": 1.0077519379844961,
+          "expected": 129,
+          "power_w": {
+            "max": 19.42,
+            "median": 11.985,
+            "min": 4.28
+          },
+          "samples": 130,
+          "sm_clock_mhz": {
+            "max": 2411.0,
+            "median": 2411.0,
+            "min": 208.0
+          },
+          "temperature_c": {
+            "max": 40.0,
+            "median": 39.0,
+            "min": 36.0
+          },
+          "utilization_percent": {
+            "max": 72.0,
+            "median": 3.0,
+            "min": 0.0
+          }
+        },
+        "host": {
+          "coverage": 1.0,
+          "expected": 26,
+          "longest_swap_io_run": 0,
+          "minimum_free_buffer_cache_bytes": 122329747456,
+          "samples": 26
+        }
+      },
+      "run_id": "r1-p3-offline-on",
+      "scheduled_log_seconds": {
+        "max": 0.0013103709788993,
+        "median": 0.000909845985006541,
+        "total": 0.009757948981132358
+      },
+      "trajectory": "419cf821f6f29d6ad01c68d31fa8ee66c9427190d55ed7f9603a053750e11c8a",
+      "wandb": {
+        "lifecycle": [
+          [
+            "init",
+            "succeeded"
+          ],
+          [
+            "watch",
+            "succeeded"
+          ],
+          [
+            "unwatch",
+            "succeeded"
+          ],
+          [
+            "finish",
+            "succeeded"
+          ]
+        ],
+        "storage": {
+          "bytes": 1003878,
+          "file_count": 5,
+          "forbidden": [],
+          "run_file_count": 4
+        }
+      }
+    },
+    {
+      "arm": "offline-on",
+      "checkpoint": {
+        "counters": {
+          "optimizer_step": 100,
+          "target_tokens": 6400
+        },
+        "cursor_digest": "ef36679a70d3999eb818636165a25a34b4a5095540c30b2130b36ed20bd5611c",
+        "model_digest": "f61debd5fa91bbe070f0aadd6016a59d4451d7f30fffdc48aa8ce026c6a91d1b",
+        "resume_digest": "f5b6a3ea4b811e696acd7ae7d9050e22c68e80a42640dd7dca213aa962804a75",
+        "sha256": "952fa967a14200b80f657796dc88fc4146d0e81345e025ed5dc3feacf0d790d2",
+        "size_bytes": 594562848
+      },
+      "container_wall_seconds": 25.706507528,
+      "disk": {
+        "checkpoint_bytes": 1783694852,
+        "checkpoint_files": 3,
+        "free_after_bytes": 491583815680,
+        "free_before_bytes": 493369028608
+      },
+      "hashes": {
+        "config": "b1d937fceeb07fbef7aee5de454073f3f12532429eedda1b1cafc8081f4e3b93",
+        "container": "4674312897151e674ce101cadb2b59f5b914e4c5b673c81c9713c781e472883f",
+        "gpu": "e56b79aac7cf866df19d5496675f5cf2113dd5caa3def2ffebc583ba506c9e7d",
+        "manifest": "28858b98b5932387e1ead52ded48a4a08f306609103839a9fb241576a43766e5",
+        "measurement": "cb5b2c18fb363e68bc96d098d0f1a84640b95f8d312a50e2aa846e424bdab6e8",
+        "metrics": "0036be7d686df50e276b32363f78f1b3cb36d603a67a7d054d03a57572a22454",
+        "vmstat": "a239ffc00955bf8c3af26815c96f35c2d874070a46cd80f85b2cfe8cfb6f681b",
+        "wandb_events": "a881b2021d2a128b0705d9d989c9771a1d87ae5af87256f4d4d6dda77a5ca734"
+      },
+      "manifest": {
+        "data": [
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19",
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19"
+        ],
+        "experiment_id": "exp-3a1e87083d4652922543",
+        "git_sha": "049acf7fdfc37272a9c55c41d79aef5086e36e03",
+        "hardware": "b014846006b329431f31fcdef132893bd7032b320492aa05e38b96f762bbc03a",
+        "tokenizer": "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b"
+      },
+      "normalized_config": "74c24d9fc6ec6feffa235c0320fee1a27240e1425b790a4bec135817eb714344",
+      "performance": {
+        "allocated": {
+          "first_20_median": 1066972160.0,
+          "last_20_median": 1069804032.0,
+          "maximum": 1070213120
+        },
+        "cuda_phase_median_milliseconds": {
+          "backward": 26.779343843460083,
+          "clipping": 3.010143995285034,
+          "forward": 14.099568247795105,
+          "gradient_finite_check": 6.659424066543579,
+          "gradient_norm_and_scalar_read": 1.191760003566742,
+          "gradient_scale": 1.7898240089416504,
+          "host_device_prepare": 0.29324799962341785,
+          "loss": 0.10500800237059593,
+          "loss_scalar_read": 0.012128000147640705,
+          "optimizer": 19.730127334594727,
+          "parameter_finite_check": 6.671231985092163,
+          "scheduler": 0.013856000266969204
+        },
+        "data_wait_fraction": 0.10425409949287884,
+        "host_phase_median_seconds": {
+          "backward": 0.022949486039578915,
+          "clipping": 0.0005906629958190024,
+          "data_wait": 0.013002150517422706,
+          "forward": 0.010896120016695932,
+          "gradient_finite_check": 0.009376264497404918,
+          "gradient_norm_and_scalar_read": 0.0011986930039711297,
+          "gradient_scale": 0.0005203539913054556,
+          "host_device_prepare": 0.0004779390146723017,
+          "loss": 0.0003571995039237663,
+          "loss_scalar_read": 1.833499118220061e-05,
+          "optimizer": 0.0015490220102947205,
+          "parameter_finite_check": 0.02726550649094861,
+          "scheduler": 2.0711493561975658e-05,
+          "step_metrics": 0.00022287850151769817
+        },
+        "reserved": {
+          "first_20_median": 1094713344.0,
+          "last_20_median": 1094713344.0,
+          "maximum": 1094713344
+        },
+        "step_max_seconds": 0.6168873170099687,
+        "step_median_seconds": 0.09396092451061122,
+        "step_p95_seconds": 0.12369322401355021,
+        "steps": 90,
+        "target_tokens": 5760,
+        "target_tokens_per_second": 524.460375028321,
+        "wall_seconds": 10.982717235194286
+      },
+      "position": 1,
+      "repetition": 2,
+      "resources": {
+        "container": {
+          "coverage": 0.5,
+          "expected": 26,
+          "max_memory_bytes": 2587717795,
+          "samples": 13
+        },
+        "gpu": {
+          "coverage": 1.0077519379844961,
+          "expected": 129,
+          "power_w": {
+            "max": 19.49,
+            "median": 12.07,
+            "min": 4.3
+          },
+          "samples": 130,
+          "sm_clock_mhz": {
+            "max": 2411.0,
+            "median": 2411.0,
+            "min": 208.0
+          },
+          "temperature_c": {
+            "max": 40.0,
+            "median": 39.0,
+            "min": 37.0
+          },
+          "utilization_percent": {
+            "max": 73.0,
+            "median": 3.0,
+            "min": 0.0
+          }
+        },
+        "host": {
+          "coverage": 0.9615384615384616,
+          "expected": 26,
+          "longest_swap_io_run": 0,
+          "minimum_free_buffer_cache_bytes": 122326765568,
+          "samples": 25
+        }
+      },
+      "run_id": "r2-p1-offline-on",
+      "scheduled_log_seconds": {
+        "max": 0.002525557007174939,
+        "median": 0.0015254870086209849,
+        "total": 0.016256125003565103
+      },
+      "trajectory": "419cf821f6f29d6ad01c68d31fa8ee66c9427190d55ed7f9603a053750e11c8a",
+      "wandb": {
+        "lifecycle": [
+          [
+            "init",
+            "succeeded"
+          ],
+          [
+            "watch",
+            "succeeded"
+          ],
+          [
+            "unwatch",
+            "succeeded"
+          ],
+          [
+            "finish",
+            "succeeded"
+          ]
+        ],
+        "storage": {
+          "bytes": 1003857,
+          "file_count": 5,
+          "forbidden": [],
+          "run_file_count": 4
+        }
+      }
+    },
+    {
+      "arm": "disabled",
+      "checkpoint": {
+        "counters": {
+          "optimizer_step": 100,
+          "target_tokens": 6400
+        },
+        "cursor_digest": "ef36679a70d3999eb818636165a25a34b4a5095540c30b2130b36ed20bd5611c",
+        "model_digest": "f61debd5fa91bbe070f0aadd6016a59d4451d7f30fffdc48aa8ce026c6a91d1b",
+        "resume_digest": "f5b6a3ea4b811e696acd7ae7d9050e22c68e80a42640dd7dca213aa962804a75",
+        "sha256": "9d8c90b97c2efde9c0ecdbb6cce4d855d0490af020f1955f33dfe863887ea012",
+        "size_bytes": 594562784
+      },
+      "container_wall_seconds": 22.193865733,
+      "disk": {
+        "checkpoint_bytes": 1783694788,
+        "checkpoint_files": 3,
+        "free_after_bytes": 489799626752,
+        "free_before_bytes": 491583787008
+      },
+      "hashes": {
+        "config": "9644bb421e6991ad36a4f5aac23b33cc519445e245aec14d4d9f708dc5f9b412",
+        "container": "42ad23168475a4fc8509de831b9af7997aa69fef5126927de38f26632455856c",
+        "gpu": "00a078360431c407bfc7cc8eaf8728da522e5bc8d5a21542db6c0413f57136ea",
+        "manifest": "451956bd1322954a050a9935a8ece39740bbc9f51eae189e1d9622ac0ee7dc53",
+        "measurement": "451282ba657be5b1bda24ff400b8170f7ec5fe18f3509c26ac3ecebb55e5102a",
+        "metrics": "66e743313f2898306ede461f5a125a7580683b72c170672a63460a71e8a59e7c",
+        "vmstat": "c4171e7086701be98e6fd608339fdda20f350ed0311d2be8d7ccbc948395f4b5",
+        "wandb_events": "b9ba0b4e80a299b7a11db6912d4d63688c210f9593a17c625a2472b09c6be628"
+      },
+      "manifest": {
+        "data": [
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19",
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19"
+        ],
+        "experiment_id": "exp-3a1e87083d4652922543",
+        "git_sha": "049acf7fdfc37272a9c55c41d79aef5086e36e03",
+        "hardware": "d13e0dfcfcabc8d6e881e1e5c04c3cebb81d72c2221040c6a6082c79df58de99",
+        "tokenizer": "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b"
+      },
+      "normalized_config": "74c24d9fc6ec6feffa235c0320fee1a27240e1425b790a4bec135817eb714344",
+      "performance": {
+        "allocated": {
+          "first_20_median": 1067299840.0,
+          "last_20_median": 1066972160.0,
+          "maximum": 1070213120
+        },
+        "cuda_phase_median_milliseconds": {
+          "backward": 25.85092806816101,
+          "clipping": 3.0382559299468994,
+          "forward": 14.606079936027527,
+          "gradient_finite_check": 6.7023680210113525,
+          "gradient_norm_and_scalar_read": 1.1918079853057861,
+          "gradient_scale": 1.7908959984779358,
+          "host_device_prepare": 0.29887999780476093,
+          "loss": 0.10536000039428473,
+          "loss_scalar_read": 0.012144000269472599,
+          "optimizer": 19.6899356842041,
+          "parameter_finite_check": 6.703968048095703,
+          "scheduler": 0.013663999736309052
+        },
+        "data_wait_fraction": 0.11895599976530438,
+        "host_phase_median_seconds": {
+          "backward": 0.022282666497631,
+          "clipping": 0.0006184310041135177,
+          "data_wait": 0.010929018491879106,
+          "forward": 0.011386922487872653,
+          "gradient_finite_check": 0.008594606493716128,
+          "gradient_norm_and_scalar_read": 0.00119884850573726,
+          "gradient_scale": 0.0009790815092856064,
+          "host_device_prepare": 0.0004999490338377655,
+          "loss": 0.00041320799209643155,
+          "loss_scalar_read": 1.8391510820947587e-05,
+          "optimizer": 0.001550595014123246,
+          "parameter_finite_check": 0.027280528986011632,
+          "scheduler": 2.0559498807415366e-05,
+          "step_metrics": 0.00022959100897423923
+        },
+        "reserved": {
+          "first_20_median": 1094713344.0,
+          "last_20_median": 1094713344.0,
+          "maximum": 1094713344
+        },
+        "step_max_seconds": 0.0938235089997761,
+        "step_median_seconds": 0.09095380948565435,
+        "step_p95_seconds": 0.09317796098184772,
+        "steps": 90,
+        "target_tokens": 5760,
+        "target_tokens_per_second": 703.1159169322738,
+        "wall_seconds": 8.192105826776242
+      },
+      "position": 2,
+      "repetition": 2,
+      "resources": {
+        "container": {
+          "coverage": 0.4782608695652174,
+          "expected": 23,
+          "max_memory_bytes": 2592012763,
+          "samples": 11
+        },
+        "gpu": {
+          "coverage": 1.009009009009009,
+          "expected": 111,
+          "power_w": {
+            "max": 19.49,
+            "median": 11.95,
+            "min": 4.31
+          },
+          "samples": 112,
+          "sm_clock_mhz": {
+            "max": 2411.0,
+            "median": 2411.0,
+            "min": 208.0
+          },
+          "temperature_c": {
+            "max": 40.0,
+            "median": 39.0,
+            "min": 37.0
+          },
+          "utilization_percent": {
+            "max": 73.0,
+            "median": 3.0,
+            "min": 0.0
+          }
+        },
+        "host": {
+          "coverage": 0.9565217391304348,
+          "expected": 23,
+          "longest_swap_io_run": 0,
+          "minimum_free_buffer_cache_bytes": 122437767168,
+          "samples": 22
+        }
+      },
+      "run_id": "r2-p2-disabled",
+      "scheduled_log_seconds": {
+        "max": 8.046100265346467e-05,
+        "median": 4.7894500312395394e-05,
+        "total": 0.0005407950084190816
+      },
+      "trajectory": "419cf821f6f29d6ad01c68d31fa8ee66c9427190d55ed7f9603a053750e11c8a",
+      "wandb": {
+        "lifecycle": [
+          [
+            "init",
+            "disabled"
+          ]
+        ],
+        "storage": {
+          "bytes": 0,
+          "file_count": 0,
+          "forbidden": [],
+          "run_file_count": 0
+        }
+      }
+    },
+    {
+      "arm": "offline-off",
+      "checkpoint": {
+        "counters": {
+          "optimizer_step": 100,
+          "target_tokens": 6400
+        },
+        "cursor_digest": "ef36679a70d3999eb818636165a25a34b4a5095540c30b2130b36ed20bd5611c",
+        "model_digest": "f61debd5fa91bbe070f0aadd6016a59d4451d7f30fffdc48aa8ce026c6a91d1b",
+        "resume_digest": "f5b6a3ea4b811e696acd7ae7d9050e22c68e80a42640dd7dca213aa962804a75",
+        "sha256": "6e2bfabc47b7eae48c9c04407eb2ede7cee3a87f88341bb49b8774314212773b",
+        "size_bytes": 594562848
+      },
+      "container_wall_seconds": 22.538497701,
+      "disk": {
+        "checkpoint_bytes": 1783694852,
+        "checkpoint_files": 3,
+        "free_after_bytes": 488019861504,
+        "free_before_bytes": 489799602176
+      },
+      "hashes": {
+        "config": "567295728153b3f28ea41f18d1285c18cde0283cce182f7f79a096929f9f8a3b",
+        "container": "ab8707a9cc99c575b580c0a901f3afa0155c28bf0a1652809b05a3a422b8762e",
+        "gpu": "91be38b1a4349855543c874c54cbdd7a88b98a5f6ca234df7808baf9f9b57ef7",
+        "manifest": "5c69c7da17a91e6550d60fed8047a495e81500ad17791f0a507482da16fcc98f",
+        "measurement": "f274995273ca0d769587337cbeb8fee533ff7ae9bbf580c45419cdb07e8bca09",
+        "metrics": "a2caccd63e79b0e09247c04f88d007792326348c317bbc8f16c70a2fa0cb5b4f",
+        "vmstat": "825ae2a5509d86b53c3dd64fe4316ecddd6079a2bd7707e2787d6b23ce5c7d11",
+        "wandb_events": "b8a24291851cb012be37ea55b46aa3675cef7640bb79f64f60856502fcc38bdb"
+      },
+      "manifest": {
+        "data": [
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19",
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19"
+        ],
+        "experiment_id": "exp-3a1e87083d4652922543",
+        "git_sha": "049acf7fdfc37272a9c55c41d79aef5086e36e03",
+        "hardware": "5cca4aefc19bc825d1197993dcfb4405af3f84ba74d08080610c63c2b2d51a2a",
+        "tokenizer": "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b"
+      },
+      "normalized_config": "74c24d9fc6ec6feffa235c0320fee1a27240e1425b790a4bec135817eb714344",
+      "performance": {
+        "allocated": {
+          "first_20_median": 1067801344.0,
+          "last_20_median": 1066972160.0,
+          "maximum": 1070213120
+        },
+        "cuda_phase_median_milliseconds": {
+          "backward": 25.199536085128784,
+          "clipping": 3.004831910133362,
+          "forward": 14.04635202884674,
+          "gradient_finite_check": 6.662559986114502,
+          "gradient_norm_and_scalar_read": 1.1878079771995544,
+          "gradient_scale": 1.7827039957046509,
+          "host_device_prepare": 0.9385759998112917,
+          "loss": 0.10505599901080132,
+          "loss_scalar_read": 0.012095999903976917,
+          "optimizer": 19.636672019958496,
+          "parameter_finite_check": 6.671231985092163,
+          "scheduler": 0.013439999893307686
+        },
+        "data_wait_fraction": 0.11433600357784898,
+        "host_phase_median_seconds": {
+          "backward": 0.02106387948151678,
+          "clipping": 0.000602218002313748,
+          "data_wait": 0.010132352967048064,
+          "forward": 0.010852035527932458,
+          "gradient_finite_check": 0.009291684487834573,
+          "gradient_norm_and_scalar_read": 0.001194604512420483,
+          "gradient_scale": 0.0005865145067218691,
+          "host_device_prepare": 0.0012667145056184381,
+          "loss": 0.0003532830160111189,
+          "loss_scalar_read": 1.8239996279589832e-05,
+          "optimizer": 0.0014457549987128004,
+          "parameter_finite_check": 0.027310128512908705,
+          "scheduler": 2.032700285781175e-05,
+          "step_metrics": 0.00022249598987400532
+        },
+        "reserved": {
+          "first_20_median": 1094713344.0,
+          "last_20_median": 1094713344.0,
+          "maximum": 1094713344
+        },
+        "step_max_seconds": 0.09893789398483932,
+        "step_median_seconds": 0.08908976550446823,
+        "step_p95_seconds": 0.09199725699727423,
+        "steps": 90,
+        "target_tokens": 5760,
+        "target_tokens_per_second": 730.5744596674809,
+        "wall_seconds": 7.884206631890265
+      },
+      "position": 3,
+      "repetition": 2,
+      "resources": {
+        "container": {
+          "coverage": 0.4782608695652174,
+          "expected": 23,
+          "max_memory_bytes": 2682207076,
+          "samples": 11
+        },
+        "gpu": {
+          "coverage": 1.008849557522124,
+          "expected": 113,
+          "power_w": {
+            "max": 20.16,
+            "median": 12.0,
+            "min": 4.33
+          },
+          "samples": 114,
+          "sm_clock_mhz": {
+            "max": 2411.0,
+            "median": 2411.0,
+            "min": 208.0
+          },
+          "temperature_c": {
+            "max": 41.0,
+            "median": 39.0,
+            "min": 37.0
+          },
+          "utilization_percent": {
+            "max": 76.0,
+            "median": 3.0,
+            "min": 0.0
+          }
+        },
+        "host": {
+          "coverage": 0.9565217391304348,
+          "expected": 23,
+          "longest_swap_io_run": 0,
+          "minimum_free_buffer_cache_bytes": 122304061440,
+          "samples": 22
+        }
+      },
+      "run_id": "r2-p3-offline-off",
+      "scheduled_log_seconds": {
+        "max": 0.002004342997679487,
+        "median": 0.0013504064991138875,
+        "total": 0.013724601973081008
+      },
+      "trajectory": "419cf821f6f29d6ad01c68d31fa8ee66c9427190d55ed7f9603a053750e11c8a",
+      "wandb": {
+        "lifecycle": [
+          [
+            "init",
+            "succeeded"
+          ],
+          [
+            "watch",
+            "disabled"
+          ],
+          [
+            "finish",
+            "succeeded"
+          ]
+        ],
+        "storage": {
+          "bytes": 37048,
+          "file_count": 5,
+          "forbidden": [],
+          "run_file_count": 4
+        }
+      }
+    },
+    {
+      "arm": "offline-off",
+      "checkpoint": {
+        "counters": {
+          "optimizer_step": 100,
+          "target_tokens": 6400
+        },
+        "cursor_digest": "ef36679a70d3999eb818636165a25a34b4a5095540c30b2130b36ed20bd5611c",
+        "model_digest": "f61debd5fa91bbe070f0aadd6016a59d4451d7f30fffdc48aa8ce026c6a91d1b",
+        "resume_digest": "f5b6a3ea4b811e696acd7ae7d9050e22c68e80a42640dd7dca213aa962804a75",
+        "sha256": "78d5df94a8c9b22c771cade702d76a422fd20d6569c25a5306fb63d512b16b71",
+        "size_bytes": 594562848
+      },
+      "container_wall_seconds": 22.041996104,
+      "disk": {
+        "checkpoint_bytes": 1783694852,
+        "checkpoint_files": 3,
+        "free_after_bytes": 486233800704,
+        "free_before_bytes": 488019832832
+      },
+      "hashes": {
+        "config": "be780354120495b2c1c2652b6fce4dc495926eb9a4a405ac2b318aa891eeb473",
+        "container": "5aad949d9b745f012addfb68489a78ef22aabb3b5d94c9e671f64899881e5123",
+        "gpu": "add65ebeb541db84486ea54d725a5339a3d3e58f4d214d344aee0026015b46fc",
+        "manifest": "f27f25a56d7f1b27cb7ad3b983067c2221d0bf637045ef843babc34c6c3c6a96",
+        "measurement": "f2e0f80746241f5a422447fc9bd1bb10ab429317adb5e1cf8f1d67eff7005b6c",
+        "metrics": "f2487f9b0a7bceeeb894f202a38099c38d10b0e0294b42debbeff939a04a8aed",
+        "vmstat": "0eca6debb8a674b52e1e011a002e5c0f685a625d9f1520b7ecb9660f3b631d03",
+        "wandb_events": "1cde6f80c2f5b39acf1f1fed1b6c054fb8bff867a183c1a6db846c75c6fef79e"
+      },
+      "manifest": {
+        "data": [
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19",
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19"
+        ],
+        "experiment_id": "exp-3a1e87083d4652922543",
+        "git_sha": "049acf7fdfc37272a9c55c41d79aef5086e36e03",
+        "hardware": "d030121ef65d635ffbb3f015f3719df38207a945246777609dbc8c43a9dbcb3a",
+        "tokenizer": "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b"
+      },
+      "normalized_config": "74c24d9fc6ec6feffa235c0320fee1a27240e1425b790a4bec135817eb714344",
+      "performance": {
+        "allocated": {
+          "first_20_median": 1067637504.0,
+          "last_20_median": 1066972160.0,
+          "maximum": 1070213120
+        },
+        "cuda_phase_median_milliseconds": {
+          "backward": 23.723504066467285,
+          "clipping": 2.9948160648345947,
+          "forward": 13.808464050292969,
+          "gradient_finite_check": 6.643327951431274,
+          "gradient_norm_and_scalar_read": 1.1902400255203247,
+          "gradient_scale": 1.785856008529663,
+          "host_device_prepare": 0.8411999847739935,
+          "loss": 0.10696000047028065,
+          "loss_scalar_read": 0.012256000190973282,
+          "optimizer": 19.70094394683838,
+          "parameter_finite_check": 6.660463809967041,
+          "scheduler": 0.01307199988514185
+        },
+        "data_wait_fraction": 0.11526541035030775,
+        "host_phase_median_seconds": {
+          "backward": 0.01795934150868561,
+          "clipping": 0.0005945640004938468,
+          "data_wait": 0.010135016476851888,
+          "forward": 0.010563752963207662,
+          "gradient_finite_check": 0.009764147005626,
+          "gradient_norm_and_scalar_read": 0.0011970550112891942,
+          "gradient_scale": 0.0004746000049635768,
+          "host_device_prepare": 0.0009202010260196403,
+          "loss": 0.0003359334950800985,
+          "loss_scalar_read": 1.8479491700418293e-05,
+          "optimizer": 0.0014556624955730513,
+          "parameter_finite_check": 0.027337000516126864,
+          "scheduler": 1.9831000827252865e-05,
+          "step_metrics": 0.00021824050054419786
+        },
+        "reserved": {
+          "first_20_median": 1094713344.0,
+          "last_20_median": 1094713344.0,
+          "maximum": 1094713344
+        },
+        "step_max_seconds": 0.09254913497716188,
+        "step_median_seconds": 0.08657070499612018,
+        "step_p95_seconds": 0.09039577102521434,
+        "steps": 90,
+        "target_tokens": 5760,
+        "target_tokens_per_second": 735.6366116316219,
+        "wall_seconds": 7.829952872009017
+      },
+      "position": 1,
+      "repetition": 3,
+      "resources": {
+        "container": {
+          "coverage": 0.4782608695652174,
+          "expected": 23,
+          "max_memory_bytes": 2662879723,
+          "samples": 11
+        },
+        "gpu": {
+          "coverage": 1.009009009009009,
+          "expected": 111,
+          "power_w": {
+            "max": 19.88,
+            "median": 12.02,
+            "min": 4.48
+          },
+          "samples": 112,
+          "sm_clock_mhz": {
+            "max": 2411.0,
+            "median": 2411.0,
+            "min": 208.0
+          },
+          "temperature_c": {
+            "max": 41.0,
+            "median": 40.0,
+            "min": 37.0
+          },
+          "utilization_percent": {
+            "max": 76.0,
+            "median": 3.0,
+            "min": 0.0
+          }
+        },
+        "host": {
+          "coverage": 0.9565217391304348,
+          "expected": 23,
+          "longest_swap_io_run": 0,
+          "minimum_free_buffer_cache_bytes": 122400370688,
+          "samples": 22
+        }
+      },
+      "run_id": "r3-p1-offline-off",
+      "scheduled_log_seconds": {
+        "max": 0.00238540701684542,
+        "median": 0.0018717119965003803,
+        "total": 0.0182754120323807
+      },
+      "trajectory": "419cf821f6f29d6ad01c68d31fa8ee66c9427190d55ed7f9603a053750e11c8a",
+      "wandb": {
+        "lifecycle": [
+          [
+            "init",
+            "succeeded"
+          ],
+          [
+            "watch",
+            "disabled"
+          ],
+          [
+            "finish",
+            "succeeded"
+          ]
+        ],
+        "storage": {
+          "bytes": 37064,
+          "file_count": 5,
+          "forbidden": [],
+          "run_file_count": 4
+        }
+      }
+    },
+    {
+      "arm": "offline-on",
+      "checkpoint": {
+        "counters": {
+          "optimizer_step": 100,
+          "target_tokens": 6400
+        },
+        "cursor_digest": "ef36679a70d3999eb818636165a25a34b4a5095540c30b2130b36ed20bd5611c",
+        "model_digest": "f61debd5fa91bbe070f0aadd6016a59d4451d7f30fffdc48aa8ce026c6a91d1b",
+        "resume_digest": "f5b6a3ea4b811e696acd7ae7d9050e22c68e80a42640dd7dca213aa962804a75",
+        "sha256": "e53305f8a90319bb4d5a2571c9ffdec8127db648aaf8c4c2454cbc2ea46b0519",
+        "size_bytes": 594562848
+      },
+      "container_wall_seconds": 25.458013855,
+      "disk": {
+        "checkpoint_bytes": 1783694852,
+        "checkpoint_files": 3,
+        "free_after_bytes": 484446527488,
+        "free_before_bytes": 486233772032
+      },
+      "hashes": {
+        "config": "725403c129aa31b487ef29e219457370e90ee3a6abf846825df5d56904c961da",
+        "container": "aa30902da493a24a2a47cfa3062d52bc018c8358783dfbb2f90749634d774fb7",
+        "gpu": "e95e5f892df4e0bdc9f2bb6d71987f29391a5c00e83aad28adba4dda5f64f915",
+        "manifest": "aa9cf609f9375e444c240facb7725176647d1e6b26fad19fde8a34df2727eb8e",
+        "measurement": "ff0dcd98c48265d3bb4adc7114210d5ff312a148ec5bbcce53e3655af1170da6",
+        "metrics": "8f0f61b665ab5fadd74a3047980d379ba047bed1a6c7cd53b91913fdedc8f162",
+        "vmstat": "ef74f1accdbeb1b3cfa871c956db480dcaa29fe9c7f22a8200b1cc48f5e174d6",
+        "wandb_events": "2f3ef211be6f41b85e2293f8e99f015f472a4779cc8276e0eb0381a6c472bcc6"
+      },
+      "manifest": {
+        "data": [
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19",
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19"
+        ],
+        "experiment_id": "exp-3a1e87083d4652922543",
+        "git_sha": "049acf7fdfc37272a9c55c41d79aef5086e36e03",
+        "hardware": "9c0fa4c705a35237ab692de70097ba1b7f1ca345815ad5a40579bc21a25f4e31",
+        "tokenizer": "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b"
+      },
+      "normalized_config": "74c24d9fc6ec6feffa235c0320fee1a27240e1425b790a4bec135817eb714344",
+      "performance": {
+        "allocated": {
+          "first_20_median": 1067637504.0,
+          "last_20_median": 1069804032.0,
+          "maximum": 1070213120
+        },
+        "cuda_phase_median_milliseconds": {
+          "backward": 26.443695783615112,
+          "clipping": 3.017983913421631,
+          "forward": 13.854335904121399,
+          "gradient_finite_check": 6.654640197753906,
+          "gradient_norm_and_scalar_read": 1.1939359903335571,
+          "gradient_scale": 1.78684800863266,
+          "host_device_prepare": 0.9600800070911646,
+          "loss": 0.10518399998545647,
+          "loss_scalar_read": 0.01206399966031313,
+          "optimizer": 19.819968223571777,
+          "parameter_finite_check": 6.681823968887329,
+          "scheduler": 0.013423999771475792
+        },
+        "data_wait_fraction": 0.08155413073654244,
+        "host_phase_median_seconds": {
+          "backward": 0.023147327010519803,
+          "clipping": 0.0005983974988339469,
+          "data_wait": 0.009517628015601076,
+          "forward": 0.010638213978381827,
+          "gradient_finite_check": 0.00933716949657537,
+          "gradient_norm_and_scalar_read": 0.001200986502226442,
+          "gradient_scale": 0.0005301590135786682,
+          "host_device_prepare": 0.0011001975071849301,
+          "loss": 0.0003544300270732492,
+          "loss_scalar_read": 1.8343489500693977e-05,
+          "optimizer": 0.0015328070003306493,
+          "parameter_finite_check": 0.02743752850801684,
+          "scheduler": 2.040699473582208e-05,
+          "step_metrics": 0.00023217700072564185
+        },
+        "reserved": {
+          "first_20_median": 1094713344.0,
+          "last_20_median": 1094713344.0,
+          "maximum": 1094713344
+        },
+        "step_max_seconds": 0.608942313992884,
+        "step_median_seconds": 0.09101102700515185,
+        "step_p95_seconds": 0.11987069502356462,
+        "steps": 90,
+        "target_tokens": 5760,
+        "target_tokens_per_second": 542.4731737059576,
+        "wall_seconds": 10.618036576168379
+      },
+      "position": 2,
+      "repetition": 3,
+      "resources": {
+        "container": {
+          "coverage": 0.5,
+          "expected": 26,
+          "max_memory_bytes": 2292438794,
+          "samples": 13
+        },
+        "gpu": {
+          "coverage": 1.0078125,
+          "expected": 128,
+          "power_w": {
+            "max": 19.94,
+            "median": 12.03,
+            "min": 4.24
+          },
+          "samples": 129,
+          "sm_clock_mhz": {
+            "max": 2418.0,
+            "median": 2411.0,
+            "min": 208.0
+          },
+          "temperature_c": {
+            "max": 41.0,
+            "median": 40.0,
+            "min": 38.0
+          },
+          "utilization_percent": {
+            "max": 72.0,
+            "median": 10.0,
+            "min": 0.0
+          }
+        },
+        "host": {
+          "coverage": 0.9615384615384616,
+          "expected": 26,
+          "longest_swap_io_run": 0,
+          "minimum_free_buffer_cache_bytes": 122398863360,
+          "samples": 25
+        }
+      },
+      "run_id": "r3-p2-offline-on",
+      "scheduled_log_seconds": {
+        "max": 0.002807926997775212,
+        "median": 0.0013617090007755905,
+        "total": 0.014183805993525311
+      },
+      "trajectory": "419cf821f6f29d6ad01c68d31fa8ee66c9427190d55ed7f9603a053750e11c8a",
+      "wandb": {
+        "lifecycle": [
+          [
+            "init",
+            "succeeded"
+          ],
+          [
+            "watch",
+            "succeeded"
+          ],
+          [
+            "unwatch",
+            "succeeded"
+          ],
+          [
+            "finish",
+            "succeeded"
+          ]
+        ],
+        "storage": {
+          "bytes": 1003762,
+          "file_count": 5,
+          "forbidden": [],
+          "run_file_count": 4
+        }
+      }
+    },
+    {
+      "arm": "disabled",
+      "checkpoint": {
+        "counters": {
+          "optimizer_step": 100,
+          "target_tokens": 6400
+        },
+        "cursor_digest": "ef36679a70d3999eb818636165a25a34b4a5095540c30b2130b36ed20bd5611c",
+        "model_digest": "f61debd5fa91bbe070f0aadd6016a59d4451d7f30fffdc48aa8ce026c6a91d1b",
+        "resume_digest": "f5b6a3ea4b811e696acd7ae7d9050e22c68e80a42640dd7dca213aa962804a75",
+        "sha256": "f7f0c9e7c4b9f15da8c2bc2414706a9395b5709a6a7618ed1a270661af26ee87",
+        "size_bytes": 594562784
+      },
+      "container_wall_seconds": 22.42529674,
+      "disk": {
+        "checkpoint_bytes": 1783694788,
+        "checkpoint_files": 3,
+        "free_after_bytes": 482661978112,
+        "free_before_bytes": 484446285824
+      },
+      "hashes": {
+        "config": "64cbfed90e5699a675b51327150212d9035a92c638dec9f85fca8418fd2af3ad",
+        "container": "f3f34431ea2ff303da9556819b8bf2456769af2423b6b249b61d947a9524da35",
+        "gpu": "54f1546feb5848db82b6e575d5de393527da74ba028740c4d902135b7c14f474",
+        "manifest": "d3e9be2ac930fbad895c0d8abd1675979f048ddce297e5dc1128d1b68844d64b",
+        "measurement": "d1c6ae76c61cad26a83f40c9c3e50012db433584be96b7ab8dc60e4bfd19e7fb",
+        "metrics": "bb216e2d0beb4987b0e2eebfa77490b40ddb902c06bce29a2f20c0c1251bdad7",
+        "vmstat": "4f5814475dc51a0a28d510558649d15fd1d5dc065afae3e134890158d789371b",
+        "wandb_events": "2a59a3e2cb4a888d3beb36f8fc382832c0289cb0bc729b779808d0aa212ca21c"
+      },
+      "manifest": {
+        "data": [
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19",
+          "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19"
+        ],
+        "experiment_id": "exp-3a1e87083d4652922543",
+        "git_sha": "049acf7fdfc37272a9c55c41d79aef5086e36e03",
+        "hardware": "e96165c4a7eb5e4a4aaf8f11702aacb0396ab5d08e0e7d0099993226496bfc27",
+        "tokenizer": "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b"
+      },
+      "normalized_config": "74c24d9fc6ec6feffa235c0320fee1a27240e1425b790a4bec135817eb714344",
+      "performance": {
+        "allocated": {
+          "first_20_median": 1067136000.0,
+          "last_20_median": 1066972160.0,
+          "maximum": 1070213120
+        },
+        "cuda_phase_median_milliseconds": {
+          "backward": 25.76803183555603,
+          "clipping": 3.008944034576416,
+          "forward": 14.381407976150513,
+          "gradient_finite_check": 6.693215847015381,
+          "gradient_norm_and_scalar_read": 1.1894399523735046,
+          "gradient_scale": 1.7884000539779663,
+          "host_device_prepare": 0.30755200050771236,
+          "loss": 0.10531200002878904,
+          "loss_scalar_read": 0.01244799979031086,
+          "optimizer": 19.874879837036133,
+          "parameter_finite_check": 6.699104070663452,
+          "scheduler": 0.013520000036805868
+        },
+        "data_wait_fraction": 0.12678566766893828,
+        "host_phase_median_seconds": {
+          "backward": 0.022127083022496663,
+          "clipping": 0.0006122780032455921,
+          "data_wait": 0.011335226488881744,
+          "forward": 0.011143926996737719,
+          "gradient_finite_check": 0.00868967900169082,
+          "gradient_norm_and_scalar_read": 0.0011974925000686198,
+          "gradient_scale": 0.0009361724951304495,
+          "host_device_prepare": 0.0004759700095746666,
+          "loss": 0.0003744850109796971,
+          "loss_scalar_read": 1.874299778137356e-05,
+          "optimizer": 0.001616000008652918,
+          "parameter_finite_check": 0.027385991998016834,
+          "scheduler": 2.0575011149048805e-05,
+          "step_metrics": 0.0002240020112367347
+        },
+        "reserved": {
+          "first_20_median": 1094713344.0,
+          "last_20_median": 1094713344.0,
+          "maximum": 1094713344
+        },
+        "step_max_seconds": 0.09644784100237302,
+        "step_median_seconds": 0.0919417935074307,
+        "step_p95_seconds": 0.09492643899284303,
+        "steps": 90,
+        "target_tokens": 5760,
+        "target_tokens_per_second": 697.8593758593572,
+        "wall_seconds": 8.253811869915808
+      },
+      "position": 3,
+      "repetition": 3,
+      "resources": {
+        "container": {
+          "coverage": 0.4782608695652174,
+          "expected": 23,
+          "max_memory_bytes": 2623151276,
+          "samples": 11
+        },
+        "gpu": {
+          "coverage": 1.008849557522124,
+          "expected": 113,
+          "power_w": {
+            "max": 19.65,
+            "median": 11.975,
+            "min": 4.22
+          },
+          "samples": 114,
+          "sm_clock_mhz": {
+            "max": 2411.0,
+            "median": 2411.0,
+            "min": 208.0
+          },
+          "temperature_c": {
+            "max": 41.0,
+            "median": 40.0,
+            "min": 38.0
+          },
+          "utilization_percent": {
+            "max": 73.0,
+            "median": 3.0,
+            "min": 0.0
+          }
+        },
+        "host": {
+          "coverage": 0.9565217391304348,
+          "expected": 23,
+          "longest_swap_io_run": 0,
+          "minimum_free_buffer_cache_bytes": 122346721280,
+          "samples": 22
+        }
+      },
+      "run_id": "r3-p3-disabled",
+      "scheduled_log_seconds": {
+        "max": 7.562999962829053e-05,
+        "median": 4.596650251187384e-05,
+        "total": 0.0004999529919587076
+      },
+      "trajectory": "419cf821f6f29d6ad01c68d31fa8ee66c9427190d55ed7f9603a053750e11c8a",
+      "wandb": {
+        "lifecycle": [
+          [
+            "init",
+            "disabled"
+          ]
+        ],
+        "storage": {
+          "bytes": 0,
+          "file_count": 0,
+          "forbidden": [],
+          "run_file_count": 0
+        }
+      }
+    }
+  ],
+  "schema_version": 1,
+  "ticket": "WB-001",
+  "verdict": "FAIL",
+  "warnings": [
+    "r1-p1-disabled:data_wait_investigate",
+    "r1-p3-offline-on:data_wait_investigate",
+    "r3-p2-offline-on:data_wait_investigate",
+    "offline_on_vs_disabled_investigate_5_percent",
+    "watch_vs_offline_off_investigate_5_percent"
+  ]
+}

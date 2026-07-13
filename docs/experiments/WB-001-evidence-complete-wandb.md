@@ -6,7 +6,8 @@
   no GitHub publication command; complete body prepared at
   `/tmp/WB-001-pr-body.md`
 - Experiment owner: implementation agent
-- Status: R1 repair validation passed; predeclared DGX R2 comparison pending
+- Status: R1 repair validation passed; DGX Attempt 2 failed and adaptive Attempt
+  3 is predeclared
 - Started (UTC): 2026-07-13
 - Last updated (UTC): 2026-07-13
 - Model-run provenance: `docs/model-runs/WB-001-evidence-complete-wandb.md`
@@ -183,14 +184,68 @@ uv run python docs/experiments/evidence/verify_wb001_dgx.py \
   --expected-image-id "$IMAGE_ID"
 ```
 
+### Attempt 2 result — FAIL, evidence retained
+
+- Measured commit: `049acf7fdfc37272a9c55c41d79aef5086e36e03`.
+- Image: `llm-scratch:env-001`, exact ID
+  `sha256:23a1bee69fe189e77105cdddeee9aeff6ef0763d58a691625fbfcab64efd1887`.
+- Raw evidence root:
+  `/tmp/wb001-r2-049acf7fdfc37272a9c55c41d79aef5086e36e03`;
+  durable verifier projection:
+  `docs/experiments/evidence/WB-001-dgx-r2-failed.json`.
+- All nine containers exited 0. Every arm completed exactly 100 steps and 6,400
+  target tokens; normalized configs, experiment/data/tokenizer IDs, scalar
+  trajectories, model tensors, resume state, and stream cursors were exact.
+  W&B lifecycle/storage gates, GPU/host coverage, finite values, checkpoint
+  survival, swap, and allocator-stability gates passed.
+- The run still failed honestly. Six arms exceeded the declared 10% data-wait
+  ceiling (observed 8.16–12.68%), so the sequence-8 workload was too small for a
+  trustworthy hot-path comparison. Docker's `stats --no-stream` produced only
+  about 0.5 samples/s, below the declared 1 Hz/90% coverage. The hardware
+  equality projection also included Docker's random container hostname rather
+  than stable hardware identity.
+- Offline/watch-off had a noisy median throughput change of -5.41% versus
+  disabled (individual pairs -31.26%, -3.91%, and -5.41%). Watch-on incurred a
+  consistent 26.26% median regression versus offline/watch-off and wrote about
+  1.00 MB/run instead of about 37 KB/run because the 100-batch interval emitted
+  repeated histograms. This is treated as a real unsafe default for opt-in
+  watch, not discarded as mere noise.
+- Each run retained three verified checkpoints totaling about 1.784 GB, W&B
+  uploaded zero cloud bytes, allocator peaks stabilized near 1.07 GB allocated
+  and 1.095 GB reserved, and no sustained swap I/O occurred.
+- One initial command used an unobserved full-SHA expansion. The runner rejected
+  it before container launch; the corrected command used `git rev-parse HEAD`.
+
+### Predeclared Attempt 3 — adaptive compute-bound retry
+
+The retry keeps the same commit-controlled code path, image, GPU, seed, model,
+data order, three-arm Latin square, 100-step horizon, steps 1–10 warm-up,
+artifact policy, and all original decision thresholds. It changes only the
+failed measurement controls:
+
+- override `training.sequence_length=64` in every cache-prime and measured arm
+  so data wait is a smaller share of steady-state work;
+- use the official/default `wandb.watch.log_freq=1000`, retaining watch hooks
+  while avoiding the demonstrated 100-batch histogram volume;
+- use streaming `docker stats` for the declared approximately 1 Hz sampler; and
+- compare stable OS/Torch/CUDA/device/image identity while excluding Docker's
+  randomized container hostname (the exact container/image/mount/network
+  identity remains separately verified).
+
+Attempt 3 stops and remains failed if data wait still exceeds 10%, any sampler
+coverage is below 90%, exact trajectory/checkpoint identity diverges, or any
+paired median regression is at least 10%. The 5% investigation threshold and
+all memory/swap/storage/lifecycle gates remain unchanged.
+
 ## Conclusion
 
-- Hypothesis result: supported at R1; DGX overhead conclusion pending.
+- Hypothesis result: supported at R1; DGX Attempt 2 failed its measurement and
+  watch-cost gates, so the overhead conclusion remains pending Attempt 3.
 - Evidence-backed conclusion: the implementation can preserve local metrics and
   checkpoints across disabled/offline W&B and tested external failure paths,
   while fail-closing every artifact safety gate.
 - Uncertainty and limitations: no online service call, real quota consumption,
-  artifact upload, or DGX measurement was performed.
-- Exactly one next step: independently review the implementation against
-  WB-001, `PHILOSOPHY.md`, and selected `CHECK.md`; if code review passes, run
-  the predeclared R2 only when the target runtime is intentionally scheduled.
+  or artifact upload was performed; the failed DGX evidence is retained rather
+  than used for a positive performance claim.
+- Exactly one next step: run and verify the predeclared adaptive Attempt 3 on a
+  clean repair commit before the mandatory independent review.

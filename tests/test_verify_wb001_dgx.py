@@ -53,6 +53,36 @@ def test_parse_vmstat_discards_since_boot_row_and_retains_swap_fields():
     assert rows[1]["si"] == 1
 
 
+def test_container_stats_accepts_streaming_docker_row(tmp_path):
+    path = tmp_path / "container-stats.txt"
+    path.write_text(
+        "wb001-r1-p1-disabled|101.2%|1.25GiB / 120GiB|1.04%|0B / 0B|1MB / 2MB|8\n",
+        encoding="utf-8",
+    )
+    summary = VERIFY._container(path, wall=1.0)
+    assert summary["samples"] == 1
+    assert summary["coverage"] == 1.0
+    assert summary["max_memory_bytes"] == int(1.25 * 1024**3)
+
+
+def test_hardware_projection_excludes_random_container_hostname():
+    common = {
+        "os": "Linux",
+        "architecture": "aarch64",
+        "python": "3.12",
+        "torch": "2.8",
+        "cuda": {
+            "driver_version": "570.00",
+            "devices": [{"name": "NVIDIA GB200", "total_memory_bytes": 1}],
+            "bf16_supported": True,
+        },
+        "container_image": "sha256:fixed",
+    }
+    first = {"hardware_software": {"host": "random-a", **common}}
+    second = {"hardware_software": {"host": "random-b", **common}}
+    assert VERIFY._hardware(first) == VERIFY._hardware(second)
+
+
 def test_normalized_config_removes_only_predeclared_arm_selectors():
     config = {
         "training": {"max_steps": 100},
@@ -60,7 +90,7 @@ def test_normalized_config_removes_only_predeclared_arm_selectors():
             "mode": "offline",
             "name": "r1-p2-offline-off",
             "project": "llm-scratch",
-            "watch": {"enabled": False, "log": "gradients", "log_freq": 100},
+            "watch": {"enabled": False, "log": "gradients", "log_freq": 1000},
             "artifact": {"policy": "none"},
         },
     }
@@ -69,7 +99,7 @@ def test_normalized_config_removes_only_predeclared_arm_selectors():
         "training": {"max_steps": 100},
         "wandb": {
             "project": "llm-scratch",
-            "watch": {"log": "gradients", "log_freq": 100},
+            "watch": {"log": "gradients", "log_freq": 1000},
             "artifact": {"policy": "none"},
         },
     }

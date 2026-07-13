@@ -86,7 +86,7 @@ wandb:
   watch:
     enabled: false
     log: gradients
-    log_freq: 100
+    log_freq: 1000
   artifact:
     policy: none  # none | best | final | milestone
     usage_snapshot_path: null

@@ -157,6 +157,7 @@ prime_cache() {
       -w /workspace "$IMAGE" \
       python src/train.py profile=stability_smoke runtime.device=cuda \
         data.streaming.cache.dir=/cache reproducibility.seed=42 \
+        training.sequence_length=64 \
         training.max_steps=1 training.max_tokens=null training.max_time=null \
         artifacts.checkpoints_dir=/evidence/checkpoints measurement.enabled=false \
         wandb.mode=disabled wandb.watch.enabled=false wandb.artifact.policy=none \
@@ -207,6 +208,7 @@ run_one() {
     sh -c 'while [ ! -f /evidence/START ]; do sleep 0.05; done; exec "$@"' sh
     python src/train.py profile=stability_smoke runtime.device=cuda
     data.streaming.cache.dir=/cache reproducibility.seed=42
+    training.sequence_length=64
     training.max_steps=100 training.max_tokens=null training.max_time=null
     artifacts.checkpoints_dir=/evidence/checkpoints
     measurement.enabled=true measurement.warmup_optimizer_steps=10
@@ -241,12 +243,8 @@ run_one() {
     sleep 0.1
   done
   [[ -s $out/container-inspect.json ]] || { echo "container was not inspectable" >&2; return 5; }
-  (
-    while docker inspect "$RUN_NAME" >/dev/null 2>&1; do
-      printf '%s|' "$(date +%s%N)"
-      docker stats --no-stream --format '{{.CPUPerc}}|{{.MemUsage}}|{{.MemPerc}}|{{.NetIO}}|{{.BlockIO}}|{{.PIDs}}' "$RUN_NAME"
-    done
-  ) > "$out/container-stats.txt" 2> "$out/container-stats.stderr" &
+  docker stats --format '{{.Container}}|{{.CPUPerc}}|{{.MemUsage}}|{{.MemPerc}}|{{.NetIO}}|{{.BlockIO}}|{{.PIDs}}' \
+    "$RUN_NAME" > "$out/container-stats.txt" 2> "$out/container-stats.stderr" &
   STATS_PID=$!
   for attempt in $(seq 1 150); do [[ -s $out/container-stats.txt ]] && break; sleep 0.1; done
   [[ -s $out/container-stats.txt ]] || { echo "container sampler did not start" >&2; return 5; }

@@ -42,8 +42,10 @@ reference](https://docs.wandb.ai/models/track/log)).
 
 `wandb.watch.enabled=false` is the default. When explicitly enabled, its hook
 type and frequency are configured under `wandb.watch`, and the hooks are
-removed before finish. Model watching can add gradient/parameter collection
-work independent of ordinary scalar logging; see the official [PyTorch
+removed before finish. The default watch interval is 1,000 batches, matching
+the SDK's documented default and avoiding the failed R2's excessive 100-batch
+histogram volume. Model watching can add gradient/parameter collection work
+independent of ordinary scalar logging; see the official [PyTorch
 integration](https://docs.wandb.ai/models/integrations/pytorch).
 
 The W&B run config contains the resolved training configuration except that
