@@ -40,7 +40,9 @@ def test_network_integration_is_not_a_pull_request_trigger():
     assert "RUN_HF_DATASET_INTEGRATION" in workflow
 
 
-def test_offline_smoke_environment_removes_credentials_and_loads_socket_guard(tmp_path, monkeypatch):
+def test_offline_smoke_environment_removes_credentials_and_loads_socket_guard(
+    tmp_path, monkeypatch
+):
     module = load_offline_smoke()
     monkeypatch.setenv("WANDB_API_KEY", "should-not-reach-smoke")
     monkeypatch.setenv("HF_TOKEN", "should-not-reach-smoke")
@@ -57,3 +59,5 @@ def test_offline_smoke_environment_removes_credentials_and_loads_socket_guard(tm
     assert environment["WANDB_MODE"] == "disabled"
     assert environment["PYTHONPATH"].split(os.pathsep, 1)[0] == str(tmp_path)
     assert "_guarded_connect" in module.NETWORK_GUARD
+    assert "_guarded_connect_ex" in module.NETWORK_GUARD
+    assert "_guarded_sendto" in module.NETWORK_GUARD

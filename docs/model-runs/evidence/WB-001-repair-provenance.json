@@ -1,0 +1,58 @@
+{
+  "schema_version": "1.0",
+  "captured_at": "2026-07-13T16:47:13.492420Z",
+  "phase": "repair",
+  "role": "lead-integration",
+  "task_path": "/root",
+  "requested": {
+    "model": {
+      "value": "GPT-5.6 appropriate model",
+      "source": "explicit invocation/config default",
+      "status": "observed"
+    },
+    "reasoning_mode": {
+      "value": "high repair reasoning",
+      "source": "explicit invocation/config default",
+      "status": "observed"
+    }
+  },
+  "actual": {
+    "product": {
+      "value": "not exposed by runtime",
+      "source": "not exposed by runtime",
+      "status": "unavailable",
+      "unavailable_reason": "The runtime did not expose product metadata to the caller."
+    },
+    "displayed_model_family": {
+      "value": "not exposed by runtime",
+      "source": "not exposed by runtime",
+      "status": "unavailable",
+      "unavailable_reason": "The runtime did not expose a model family to the caller."
+    },
+    "exact_model_identifier": {
+      "value": "not exposed by runtime",
+      "source": "not exposed by runtime",
+      "status": "unavailable",
+      "unavailable_reason": "The active runtime did not expose an exact deployment/model identifier to the caller."
+    },
+    "reasoning_mode": {
+      "value": "not exposed by runtime",
+      "source": "not exposed by runtime",
+      "status": "unavailable",
+      "unavailable_reason": "The active runtime did not expose a reasoning mode to the caller."
+    }
+  },
+  "environment": {
+    "codex_cli_version": "codex-cli 0.144.1",
+    "branch": "codex/wb-001-evidence-safe-wandb",
+    "commit": "74d9e24c251b62b23892b11ba0c1c9c723cd8a12",
+    "thread_id": "not recorded (privacy)"
+  },
+  "privacy": {
+    "raw_thread_id_recorded": false,
+    "prompts_recorded": false,
+    "hidden_chain_of_thought_recorded": false,
+    "token_counts_recorded": false,
+    "secrets_recorded": false
+  }
+}

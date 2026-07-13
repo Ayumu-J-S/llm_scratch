@@ -126,7 +126,7 @@ def _streaming_checkpoint_config(*, split_field: str = "sources"):
         config.training.precision = "fp32"
         config.training.gradient_accumulation_steps = 1
         config.training.max_grad_norm = None
-        config.wandb.enabled = False
+        config.wandb.mode = "disabled"
         if split_field == "datasets":
             for split_name in ("train", "validation"):
                 split = config.data.streaming[split_name]
@@ -423,7 +423,7 @@ def test_trainer_memorization_metrics_have_no_validation_namespace(tmp_path):
                 "milestone_every_n_steps": None,
                 "scheduler": {"interval": "step"},
             },
-            "wandb": {"enabled": False},
+            "wandb": {"mode": "disabled"},
         }
     )
     trainer = Trainer(
@@ -582,7 +582,6 @@ def test_standalone_wandb_summary_records_compact_identities_and_local_hash(tmp_
         evaluation_config.evaluation.checkpoint_path = str(checkpoint)
         evaluation_config.evaluation.output_path = str(output_path)
         evaluation_config.evaluation.device = "cpu"
-        evaluation_config.evaluation.wandb.enabled = True
         evaluation_config.evaluation.wandb.mode = "offline"
 
     result_path = evaluate_module.evaluate_checkpoint(evaluation_config)
@@ -654,6 +653,27 @@ def test_standalone_preflight_rejects_cpu_for_bf16_checkpoint(tmp_path, monkeypa
     ):
         evaluate_module.evaluate_checkpoint(evaluation_config)
     assert not (tmp_path / "must-not-exist.json").exists()
+
+
+def test_standalone_wandb_failure_cannot_erase_or_fail_local_result(tmp_path, monkeypatch):
+    checkpoint, *_ = _milestone_checkpoint(tmp_path / "checkpoints")
+
+    def fail_init(**kwargs):
+        raise RuntimeError("simulated W&B outage")
+
+    monkeypatch.setattr(evaluate_module.wandb, "init", fail_init)
+    evaluation_config = _compose("profile=evaluation")
+    output_path = tmp_path / "wandb-failure-local-result.json"
+    with open_dict(evaluation_config):
+        evaluation_config.evaluation.checkpoint_path = str(checkpoint)
+        evaluation_config.evaluation.output_path = str(output_path)
+        evaluation_config.evaluation.device = "cpu"
+        evaluation_config.evaluation.wandb.mode = "offline"
+
+    result_path = evaluate_module.evaluate_checkpoint(evaluation_config)
+
+    assert result_path == output_path
+    assert json.loads(result_path.read_text(encoding="utf-8"))["result"]["scorer_revision"]
 
 
 def test_checkpoint_resolved_config_tampering_is_rejected_before_evaluation(tmp_path):

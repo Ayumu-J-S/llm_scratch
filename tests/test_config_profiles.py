@@ -97,6 +97,32 @@ def test_benchmark_measurement_is_disabled_by_default_and_strict():
         validate_training_config(config)
 
 
+def test_wandb_defaults_and_nested_schema_are_strict():
+    config = compose("profile=pretrain_streaming")
+    validate_training_config(config)
+
+    assert config.wandb.mode == "disabled"
+    assert config.wandb.finish_timeout_seconds == 30
+    assert config.wandb.watch.enabled is False
+    assert config.wandb.artifact.policy == "none"
+    assert config.wandb.artifact.usage_snapshot_path is None
+
+    config.wandb.artifact.policy = "every-checkpoint"
+    with pytest.raises(ConfigPreflightError, match="artifact.policy"):
+        validate_training_config(config)
+
+    config = compose("profile=pretrain_streaming")
+    config.wandb.finish_timeout_seconds = 0
+    with pytest.raises(ConfigPreflightError, match="finish_timeout_seconds"):
+        validate_training_config(config)
+
+    config = compose("profile=pretrain_streaming")
+    OmegaConf.set_struct(config, False)
+    config.wandb.artifact.plan_limit_bytes = 123
+    with pytest.raises(ConfigPreflightError, match="unknown critical"):
+        validate_training_config(config)
+
+
 def test_gate_overfit_uses_versioned_distinct_fixture_manifests_without_validation_events():
     config = compose("profile=gate_overfit")
     validate_training_config(config)
@@ -105,7 +131,7 @@ def test_gate_overfit_uses_versioned_distinct_fixture_manifests_without_validati
     assert config.training.max_steps == 200
     assert config.training.validation_every_n_steps == 1000
     assert config.training.checkpoint_every_n_steps == 100
-    assert config.wandb.enabled is False
+    assert config.wandb.mode == "disabled"
     assert config.data.streaming.train.sources[0].selection == "all"
     assert config.data.streaming.validation.sources[0].selection == "all"
     assert (

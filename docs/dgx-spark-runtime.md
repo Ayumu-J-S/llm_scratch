@@ -96,7 +96,7 @@ unavailable, the entrypoint raises before tokenizer or data loading. CPU is
 available only as an explicit development override:
 
 ```bash
-uv run python src/train.py runtime.device=cpu wandb.enabled=false
+uv run python src/train.py runtime.device=cpu wandb.mode=disabled
 make test-cpu
 ```
 

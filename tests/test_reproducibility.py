@@ -121,7 +121,7 @@ def test_run_manifest_is_self_contained_and_mutation_is_explicit(tmp_path):
         verify_run_manifest(run_dir)
 
 
-def test_resume_path_is_the_only_normalized_run_identity_config_delta(monkeypatch, tmp_path):
+def test_resume_path_is_an_operational_run_identity_config_delta(monkeypatch, tmp_path):
     config = _manifest_config()
     config["artifacts"] = {
         "checkpoints_dir": "checkpoints",
@@ -171,6 +171,23 @@ def test_resume_path_is_the_only_normalized_run_identity_config_delta(monkeypatc
     assert build_checkpoint_identity(config, run_manifest_path=first_manifest_path) == (
         build_checkpoint_identity(resumed, run_manifest_path=resumed_manifest_path)
     )
+
+
+def test_operational_wandb_controls_do_not_change_checkpoint_compatibility():
+    with hydra.initialize_config_dir(version_base=None, config_dir=str(ROOT / "config")):
+        disabled = hydra.compose(config_name="train", overrides=["profile=smoke_overfit"])
+        online = hydra.compose(
+            config_name="train",
+            overrides=[
+                "profile=smoke_overfit",
+                "wandb.mode=online",
+                "wandb.watch.enabled=true",
+                "wandb.artifact.policy=final",
+                "wandb.artifact.usage_snapshot_path=/operator/usage.json",
+            ],
+        )
+
+    assert build_checkpoint_identity(disabled) == build_checkpoint_identity(online)
 
 
 def test_verify_run_manifest_rejects_dirty_source_worktree(monkeypatch, tmp_path):

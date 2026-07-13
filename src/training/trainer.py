@@ -9,14 +9,12 @@ from __future__ import annotations
 
 import json
 import math
-import re
 import time
 from pathlib import Path
 from typing import Any, Callable
 
 import torch
 import torch.nn.functional as F
-import wandb
 from loguru import logger
 from omegaconf import DictConfig, OmegaConf
 from torch.optim.lr_scheduler import ReduceLROnPlateau
@@ -34,6 +32,7 @@ from training.checkpoint import (
     restore_rng_state,
 )
 from training.optimization import autocast_context, get_learning_rate
+from training.wandb_tracking import WandbTracker
 
 
 class Trainer:
@@ -76,13 +75,15 @@ class Trainer:
         self.target_tokens = 0
         self.elapsed_seconds = 0.0
         self.metrics: list[dict[str, Any]] = []
-        self.run = None
         self._last_validation_step: int | None = None
         self._last_checkpoint_step: int | None = None
         self._last_milestone_step: int | None = None
         self._last_log_step: int | None = None
         self._last_token_event_boundary: dict[str, int] = {}
         self._start_time: float | None = None
+        self._latest_wandb_scalars: dict[str, Any] = {}
+        self._best_checkpoint_path: Path | None = None
+        self._best_checkpoint_step: int | None = None
         measurement = self.cfg.get("measurement", {}) or {}
         self._measurement_enabled = bool(measurement.get("enabled", False))
         self._measurement_warmup_steps = int(measurement.get("warmup_optimizer_steps", 10))
@@ -132,6 +133,11 @@ class Trainer:
             keep_last_n=keep_last_n,
             identity=self.checkpoint_identity,
         )
+        self.wandb = WandbTracker(
+            cfg=self.cfg,
+            evidence_dir=self.checkpoint_dir,
+            checkpoint_identity=self.checkpoint_identity,
+        )
         configured_resume = artifacts.get("resume_path")
         self.resume_path = Path(resume_path) if resume_path is not None else configured_resume
         self._resumed_from: ResumeCheckpoint | None = None
@@ -153,14 +159,14 @@ class Trainer:
     def fit(self) -> list[dict[str, Any]]:
         """Run training and return the local metric records."""
 
-        # A checkpoint directory can be reused by a later run. Metrics are
-        # run-local evidence, not append-only checkpoint state. Initialize W&B
-        # first; if that fails, preserve the previous evidence for diagnosis.
+        # A checkpoint directory can be reused by a later run. Metrics and W&B
+        # decisions are run-local evidence, not append-only checkpoint state.
         self.metrics.clear()
-        self.run = None
-        self.run = self._init_wandb()
+        self._latest_wandb_scalars.clear()
         if self._resumed_from is None:
             self._reset_local_metrics()
+            self.wandb.reset_local_evidence()
+        self.wandb.start(self.model)
         self._measurement_rows.clear()
         self._measurement_completed = False
         self._start_time = time.monotonic() - self.elapsed_seconds
@@ -260,7 +266,7 @@ class Trainer:
                         "train/perplexity": _perplexity(train_loss),
                         "optimizer/lr": get_learning_rate(self.optimizer),
                     },
-                    send_to_wandb=True,
+                    send_to_wandb=False,
                 )
                 self._run_events(epoch_end=True, train_loss=train_loss)
                 if self.scheduler is not None and self.scheduler_interval == "epoch":
@@ -298,6 +304,29 @@ class Trainer:
                 },
                 send_to_wandb=False,
             )
+            artifact_policy = str(
+                ((self.cfg.get("wandb", {}) or {}).get("artifact", {}) or {}).get("policy", "none")
+            )
+            if artifact_policy == "best" and self._best_checkpoint_path is not None:
+                self.wandb.consider_artifact(
+                    reason="best",
+                    checkpoint_path=self._best_checkpoint_path,
+                    step=self._best_checkpoint_step or self.optimizer_step,
+                )
+            elif artifact_policy == "final":
+                self.wandb.consider_artifact(
+                    reason="final",
+                    checkpoint_path=final_path,
+                    step=self.optimizer_step,
+                )
+            self.wandb.update_summary(
+                {
+                    "run/final_optimizer_step": self.optimizer_step,
+                    "run/final_target_tokens": self.target_tokens,
+                    "run/final_elapsed_seconds": self.elapsed_seconds,
+                    **self._latest_wandb_scalars,
+                }
+            )
             if self._measurement_enabled:
                 self._measurement_rows.append(
                     {
@@ -312,9 +341,7 @@ class Trainer:
             return list(self.metrics)
         finally:
             self._flush_measurements()
-            if self.run is not None:
-                self.run.finish()
-                self.run = None
+            self.wandb.finish()
 
     def _train_update(
         self,
@@ -488,6 +515,8 @@ class Trainer:
             return
         self._latest_validation_loss = getattr(self, "_latest_validation_loss", None)
 
+        should_log = self._event_due("log_every_n_steps", "log_every_n_tokens", epoch_end)
+
         should_validate = self._event_due(
             "validation_every_n_steps", "validation_every_n_tokens", epoch_end
         )
@@ -513,8 +542,10 @@ class Trainer:
                 self._best_validation_loss is None or validation_loss < self._best_validation_loss
             ):
                 self._best_validation_loss = validation_loss
+                self._best_checkpoint_step = step
                 checkpoint_started = time.perf_counter()
                 best_path = self._save_best_checkpoint()
+                self._best_checkpoint_path = best_path
                 best_checkpoint_seconds = time.perf_counter() - checkpoint_started
                 best_checkpoint_written = True
                 best_checkpoint_measurement = self._checkpoint_measurement_metrics()
@@ -531,7 +562,30 @@ class Trainer:
                     send_to_wandb=False,
                 )
             validation_metrics_started = time.perf_counter() if self._measurement_enabled else None
-            self._record_validation_metrics(validation_result)
+            compact_validation = self._record_validation_metrics(validation_result)
+            if not should_log and self._last_log_step != step:
+                validation_log_started = time.perf_counter() if self._measurement_enabled else None
+                self.wandb.log(
+                    {
+                        "event": f"{validation_result.namespace}_log",
+                        "optimizer_step": step,
+                        "target_tokens": self.target_tokens,
+                        "elapsed_seconds": self.elapsed_seconds,
+                        **compact_validation,
+                        **self._system_wandb_scalars(),
+                    }
+                )
+                if validation_log_started is not None:
+                    self._measurement_rows.append(
+                        {
+                            "event": "validation_log",
+                            "optimizer_step": step,
+                            "target_tokens": self.target_tokens,
+                            "validation_log_seconds": (
+                                time.perf_counter() - validation_log_started
+                            ),
+                        }
+                    )
             validation_metrics_seconds = (
                 time.perf_counter() - validation_metrics_started
                 if validation_metrics_started is not None
@@ -581,7 +635,6 @@ class Trainer:
                     }
                 )
 
-        should_log = self._event_due("log_every_n_steps", "log_every_n_tokens", epoch_end)
         if should_log and self._last_log_step != step:
             self._last_log_step = step
             values = {
@@ -589,7 +642,8 @@ class Trainer:
                 "optimizer_step": step,
                 "target_tokens": self.target_tokens,
                 "elapsed_seconds": self.elapsed_seconds,
-                "optimizer/lr": get_learning_rate(self.optimizer),
+                **self._latest_wandb_scalars,
+                **self._system_wandb_scalars(),
             }
             scheduled_log_started = time.perf_counter() if self._measurement_enabled else None
             self._record_metrics(values, send_to_wandb=True)
@@ -665,12 +719,14 @@ class Trainer:
                         **self._checkpoint_measurement_metrics(),
                     }
                 )
-        if milestone_due and self.run is not None:
-            assert milestone_path is not None
-            self._log_model_artifact(
-                run=self.run,
+        artifact_policy = str(
+            ((self.cfg.get("wandb", {}) or {}).get("artifact", {}) or {}).get("policy", "none")
+        )
+        if milestone_path is not None and artifact_policy == "milestone":
+            self.wandb.consider_artifact(
+                reason="milestone",
                 checkpoint_path=milestone_path,
-                epoch_number=step,
+                step=step,
             )
 
     def _record_step_metrics(
@@ -683,26 +739,37 @@ class Trainer:
         clipped: bool,
         learning_rate_used: float,
     ) -> None:
-        self._record_metrics(
+        values = {
+            "event": "step",
+            "optimizer_step": self.optimizer_step,
+            "target_tokens": self.target_tokens,
+            "elapsed_seconds": self.elapsed_seconds,
+            "train/loss_step": loss,
+            "train/target_tokens_step": token_count,
+            "train/effective_target_tokens_update": token_count,
+            "train/effective_target_tokens_configured": self._configured_effective_tokens(),
+            "train/micro_batches_per_update": micro_batches,
+            "optimizer/gradient_norm": gradient_norm,
+            "optimizer/gradient_clipped": clipped,
+            "optimizer/lr_used": learning_rate_used,
+            "optimizer/lr": get_learning_rate(self.optimizer),
+        }
+        self._latest_wandb_scalars.update(
             {
-                "event": "step",
-                "optimizer_step": self.optimizer_step,
-                "target_tokens": self.target_tokens,
-                "elapsed_seconds": self.elapsed_seconds,
-                "train/loss_step": loss,
+                "train/nll": loss,
+                "train/perplexity": _perplexity(loss),
                 "train/target_tokens_step": token_count,
-                "train/effective_target_tokens_update": token_count,
-                "train/effective_target_tokens_configured": self._configured_effective_tokens(),
                 "train/micro_batches_per_update": micro_batches,
                 "optimizer/gradient_norm": gradient_norm,
-                "optimizer/gradient_clipped": clipped,
+                "optimizer/gradient_clipped": int(clipped),
+                "optimizer/nonfinite_count": 0,
                 "optimizer/lr_used": learning_rate_used,
                 "optimizer/lr": get_learning_rate(self.optimizer),
-            },
-            send_to_wandb=False,
+            }
         )
+        self._record_metrics(values, send_to_wandb=False)
 
-    def _record_validation_metrics(self, validation_result: EvaluationResult) -> None:
+    def _record_validation_metrics(self, validation_result: EvaluationResult) -> dict[str, Any]:
         namespace = validation_result.namespace
         values: dict[str, Any] = {
             "event": namespace,
@@ -732,11 +799,31 @@ class Trainer:
                 name: score.as_dict() for name, score in sorted(validation_result.by_corpus.items())
             },
         }
+        compact = {
+            f"{namespace}/nll": validation_result.nll,
+            f"{namespace}/perplexity": validation_result.perplexity,
+            f"{namespace}/perplexity_overflow": validation_result.aggregate.perplexity_overflow,
+            f"{namespace}/target_tokens": validation_result.target_tokens,
+            f"{namespace}/evaluated_windows": validation_result.evaluated_windows,
+            f"{namespace}/pause_seconds": validation_result.pause_seconds,
+            f"{namespace}/evaluated_targets_per_second": (
+                validation_result.evaluated_targets_per_second
+            ),
+        }
+        for name, score in sorted(validation_result.by_corpus.items()):
+            compact[f"{namespace}/corpus/{name}/nll"] = score.nll
+            compact[f"{namespace}/corpus/{name}/perplexity"] = score.perplexity
+            compact[f"{namespace}/corpus/{name}/perplexity_overflow"] = (
+                score.perplexity_overflow
+            )
+            compact[f"{namespace}/corpus/{name}/target_tokens"] = score.target_tokens
+        self._latest_wandb_scalars.update(compact)
         self._record_metrics(
             values,
-            send_to_wandb=True,
+            send_to_wandb=False,
             preserve_none=(f"{namespace}/perplexity",),
         )
+        return compact
 
     def _is_memorization_run(self) -> bool:
         data = self.cfg.get("data", {}) or {}
@@ -762,8 +849,8 @@ class Trainer:
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         with (self.checkpoint_dir / "metrics.jsonl").open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(record, sort_keys=True) + "\n")
-        if send_to_wandb and self.run is not None:
-            self.run.log(record)
+        if send_to_wandb:
+            self.wandb.log(record)
 
     def _reset_local_metrics(self) -> None:
         """Atomically start a fresh local evidence stream after run init."""
@@ -773,6 +860,34 @@ class Trainer:
         temporary_path = metrics_path.with_name(f".{metrics_path.name}.tmp")
         temporary_path.write_text("", encoding="utf-8")
         temporary_path.replace(metrics_path)
+
+    def _system_wandb_scalars(self) -> dict[str, float | int]:
+        values: dict[str, float | int] = {
+            "throughput/target_tokens_per_second": (
+                self.target_tokens / self.elapsed_seconds if self.elapsed_seconds > 0 else 0.0
+            )
+        }
+        try:
+            status = Path("/proc/self/status").read_text(encoding="utf-8")
+        except OSError:
+            status = ""
+        for line in status.splitlines():
+            if line.startswith("VmRSS:"):
+                values["system/rss_bytes"] = int(line.split()[1]) * 1024
+            elif line.startswith("VmHWM:"):
+                values["system/rss_peak_bytes"] = int(line.split()[1]) * 1024
+        if self.device.type == "cuda":
+            values.update(
+                {
+                    "system/cuda_peak_allocated_bytes": int(
+                        torch.cuda.max_memory_allocated(self.device)
+                    ),
+                    "system/cuda_peak_reserved_bytes": int(
+                        torch.cuda.max_memory_reserved(self.device)
+                    ),
+                }
+            )
+        return values
 
     def _new_step_measurement(self) -> dict[str, Any]:
         phases = (
@@ -902,20 +1017,6 @@ class Trainer:
             return "optimizer_step"
         return "target_tokens"
 
-    def _init_wandb(self):
-        wandb_cfg = self.cfg.get("wandb")
-        if wandb_cfg is None or not wandb_cfg.get("enabled", False):
-            return None
-        run = wandb.init(
-            project=wandb_cfg.get("project"),
-            entity=wandb_cfg.get("entity"),
-            name=wandb_cfg.get("name"),
-            mode=wandb_cfg.get("mode", "online"),
-            config=OmegaConf.to_container(self.cfg, resolve=True),
-        )
-        run.watch(self.model)
-        return run
-
     def _save_checkpoint(self) -> Path:
         return self.checkpoints.save_recovery(self._checkpoint_state())
 
@@ -955,6 +1056,7 @@ class Trainer:
                 "last_log_step": self._last_log_step,
                 "last_token_event_boundary": dict(self._last_token_event_boundary),
                 "best_validation_loss": self._best_validation_loss,
+                "best_checkpoint_step": self._best_checkpoint_step,
             },
             "rng": capture_rng_state(),
             "stream_cursor": self._stream_cursor_state(),
@@ -1037,6 +1139,18 @@ class Trainer:
         }
         best = event_state.get("best_validation_loss")
         self._best_validation_loss = float(best) if best is not None else None
+        best_step = event_state.get("best_checkpoint_step")
+        if best is not None and best_step is None:
+            raise CheckpointCompatibilityError(
+                "checkpoint with a best validation score is missing its checkpoint step"
+            )
+        if best_step is not None and (
+            isinstance(best_step, bool) or not isinstance(best_step, int) or best_step < 0
+        ):
+            raise CheckpointCompatibilityError("checkpoint best-checkpoint step is invalid")
+        self._best_checkpoint_step = best_step
+        best_path = self.checkpoint_dir / "best.pt"
+        self._best_checkpoint_path = best_path if best_path.is_file() else None
         restore_rng_state(state["rng"])
         self._resumed_from = resumed
         if resumed.rejected_paths:
@@ -1063,19 +1177,6 @@ class Trainer:
                 "checkpoint contains a stream cursor but this train loader cannot restore one"
             )
         load_state_dict(cursor)
-
-    def _log_model_artifact(self, *, run, checkpoint_path: Path, epoch_number: int) -> None:
-        artifact = wandb.Artifact(
-            name=self._model_artifact_name(), type="model", metadata={"step": epoch_number}
-        )
-        artifact.add_file(str(checkpoint_path), name=checkpoint_path.name)
-        run.log_artifact(artifact, aliases=[f"step-{epoch_number}", "latest"])
-
-    def _model_artifact_name(self) -> str:
-        model_name = self.model.__class__.__name__.strip()
-        if not model_name:
-            return "model"
-        return re.sub(r"(?<!^)(?=[A-Z])", "-", model_name).lower()
 
     def _get_scheduler_interval(self) -> str:
         if self.scheduler is None:
@@ -1239,6 +1340,17 @@ class Trainer:
                 ),
             },
             send_to_wandb=False,
+        )
+        self.wandb.log(
+            {
+                "event": "nonfinite",
+                "optimizer_step": self.optimizer_step,
+                "target_tokens": self.target_tokens,
+                "elapsed_seconds": self.elapsed_seconds,
+                "optimizer/nonfinite_count": 1,
+                "stability/nonfinite_kind": kind,
+                "stability/batch_index": batch_index,
+            }
         )
 
     def _remaining_tokens(self, pending_tokens: int = 0) -> int | None:

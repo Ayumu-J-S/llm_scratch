@@ -12,6 +12,7 @@ from typing import Any
 import hydra
 import wandb
 from hydra.core.hydra_config import HydraConfig
+from loguru import logger
 from omegaconf import DictConfig, OmegaConf
 
 from data.identity import canonical_json_bytes
@@ -34,6 +35,7 @@ from training.checkpoint import (
     configured_manifest_fingerprints,
     load_checkpoint_for_generation,
 )
+from training.wandb_tracking import finish_run_bounded
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -241,15 +243,28 @@ def _maybe_log_wandb(
     local_result_identity: Mapping[str, Any],
 ) -> None:
     wandb_cfg = evaluation_cfg.get("wandb", {}) or {}
-    if not wandb_cfg.get("enabled", False):
+    mode = str(wandb_cfg.get("mode", "disabled"))
+    if mode == "disabled":
         return
-    run = wandb.init(
-        project=wandb_cfg.get("project"),
-        entity=wandb_cfg.get("entity"),
-        name=wandb_cfg.get("name"),
-        mode=wandb_cfg.get("mode", "online"),
-    )
+    run = None
     try:
+        if mode == "online" and not wandb.login(
+            force=True,
+            verify=True,
+            timeout=int(wandb_cfg.get("init_timeout_seconds", 10)),
+        ):
+            raise RuntimeError("verified W&B login did not succeed")
+        run = wandb.init(
+            project=wandb_cfg.get("project"),
+            entity=wandb_cfg.get("entity"),
+            name=wandb_cfg.get("name"),
+            mode=mode,
+            settings=wandb.Settings(
+                init_timeout=float(wandb_cfg.get("init_timeout_seconds", 10.0))
+            ),
+        )
+        if run is None:
+            raise RuntimeError("wandb.init returned no run")
         run.summary.update(
             {
                 "evaluation/namespace": result.namespace,
@@ -273,8 +288,23 @@ def _maybe_log_wandb(
                 },
             }
         )
+    except Exception as error:
+        logger.warning(
+            "Standalone W&B evaluation logging failed after local result commit: {}",
+            error,
+        )
     finally:
-        run.finish()
+        if run is not None:
+            try:
+                finish_run_bounded(
+                    run,
+                    timeout_seconds=float(wandb_cfg.get("finish_timeout_seconds", 30.0)),
+                )
+            except Exception as error:
+                logger.warning(
+                    "Standalone W&B evaluation finish failed after local result commit: {}",
+                    error,
+                )
 
 
 @hydra.main(version_base=None, config_path="../config", config_name="train")

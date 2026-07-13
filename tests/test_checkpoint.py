@@ -121,7 +121,7 @@ def _trainer(directory: Path, *, resume_path: str | Path | None = None) -> Train
                 "scheduler": {"interval": "step"},
             },
             "artifacts": {"checkpoints_dir": "checkpoints", "keep_last_n": 2, "resume_path": None},
-            "wandb": {"enabled": False},
+            "wandb": {"mode": "disabled"},
         }
     )
     dataset = CursorDataset(total_batches=6)
