@@ -3,7 +3,7 @@
 - Roadmap ticket: `VAL-001`
 - Branch: `codex/val-001-held-out-validation`
 - Draft PR: [#42](https://github.com/Ayumu-J-S/llm_scratch/pull/42)
-- Status: independent review `FAIL` at `41191cb`; repair implemented; re-review pending
+- Status: Attempt 6 evidence `PASS WITH NOTE`; independent re-review pending
 - Started / last updated (UTC): 2026-07-13 / 2026-07-13
 - Model-run record: `docs/model-runs/VAL-001-held-out-validation.md`
 
@@ -31,7 +31,7 @@
 | Training work | 245,760 targets per arm; 1,474,560 targets across six acceptance runs | 4,096 effective targets/update in the repaired sequence-4,096 protocol |
 | Validation | 65,536 fixed targets at steps 25 and 50 in each on arm | Six Japanese/English 50/50 validation events |
 | Checkpoints | Final in every arm; best after each improving held-out score | Required parity, identity, and pause evidence |
-| Resource trace | GPU at 5 Hz; host and container at 1 Hz | Continuous attribution and at least 90% expected sample coverage |
+| Resource trace | GPU at 5 Hz; host at 1 Hz; container at nominal 0.5 Hz in prospective Attempt 6 | Continuous attribution plus interval and per-validation-event coverage gates |
 | External logging | W&B disabled | Local metrics, one measurement JSON, and compact evidence are sufficient for this ticket |
 
 ## Attempt 1 — pre-repair CPU fixture
@@ -402,6 +402,43 @@ validation interval. PyTorch per-step allocator measurements and the 5 Hz GPU /
 Attempt 6 protocol script SHA-256 is
 `4fc1cfee44f5c44657e6deeb87a3a5d301872d3c456588c381ad3b39f93c7914`.
 
+### Outcome — `PASS WITH NOTE`, independent re-review pending
+
+The compact decision record is
+[`VAL-001-dgx-r6.json`](evidence/VAL-001-dgx-r6.json).
+
+- All six arms completed at exact head `497a7b6`. Every pair's full 60-step
+  non-time trajectory and canonical final-model digest matched exactly. Paired
+  validation-on throughput deltas were -0.152%, +0.041%, and +0.008% (median
+  +0.008%); run throughput was 9,855-9,881 targets/s and every data-wait fraction
+  was below 0.69%.
+- Validation ran exactly at steps 25/50 in every on arm and never in off arms.
+  All six full pauses stayed below 7.50 s and scoring below 4.76 s. All events
+  reconciled, shared identical manifest/window/token identity, and produced
+  exact replicated scores at the same step.
+- Pair-1 step-50 training-time and standalone scores, corpus reductions,
+  denominators, logical identity, manifest identity, window identity, and token
+  identity matched exactly. The standalone output SHA-256 is
+  `bdddc4aaf13c71b6903e14f401d4e3784e6f3b96f6ef1285537b2107267ad080`;
+  its verified best-checkpoint SHA-256 is
+  `246c9ec331719b4eaa0367eeda28d392fa21b896d844401fff2544bf939a6a1f`.
+- All six adaptive first-post gates passed. First steps were 0.20-1.28% above
+  pre-event p95 and -0.36% to +0.48% versus the paired off step. Following-five
+  means were at most 1.57% above pre-event and 0.28% above paired off. Phase
+  attribution retained in the JSON shows the largest consistent step-25 deltas
+  were approximately 4-13 ms of host-device preparation or data wait; exact
+  training state and sustained throughput were unchanged.
+- GPU nominal-5-Hz coverage was at least 99.5%; host nominal-1-Hz coverage was
+  at least 97.9%. Every container interval was below 2.03 s, nominal-0.5-Hz
+  coverage passed, and each validation interval contained 3-4 samples. Allocator
+  memory recovered, step tails stayed bounded, cache inventory/shard hashes were
+  unchanged, all leases released, and swap remained zero.
+- Evidence verdict is `PASS WITH NOTE`, not an erasure of Attempt 5. The recovery
+  rule is an explicitly adaptive, CHECK-anchored revision validated on a fully
+  fresh matrix. It supports only a bounded <=5% first-step transient and <=5%
+  sustained slowdown conclusion. Strict determinism's roughly 45% descriptive
+  cost versus warn-only remains a DGX-001 baseline-policy decision.
+
 ## Independent review FAIL and repair
 
 The independent review requested `gpt-5.6-sol` / Max for `41191cb` and returned
@@ -434,8 +471,8 @@ The repair phase, requested as `gpt-5.6-luna` / Extra High, has implemented:
 
 The ordinary path adds no CUDA synchronization. Benchmark mode deliberately
 uses one end-step boundary synchronization so CUDA event timings are valid.
-Attempts 3-5 produced stopped current-head evidence; Attempt 6 is the
-predeclared fresh adaptive evidence-protocol retry.
+Attempts 3-5 produced stopped current-head evidence; fresh Attempt 6 returned
+`PASS WITH NOTE` under its predeclared adaptive evidence protocol.
 Exact displayed repair model and reasoning mode are not exposed by runtime.
 
 Local repair verification: focused validation/checkpoint/trainer/generation
@@ -446,8 +483,8 @@ which were not changed. Independent re-review is still required.
 
 ## Conclusion
 
-The prior DGX R2 is insufficient current performance evidence because it is a
-single old-head pair with an observed roughly 10% on/off throughput delta. The
-repair is locally implemented and its focused tests pass, but VAL-001 remains
-`FAIL` until the predeclared fresh Attempt 6 DGX protocol passes and an
-independent heavy re-review accepts the exact documented head.
+The prior DGX R2 is insufficient current performance evidence, and failed
+Attempts 3-5 remain visible. Attempt 6 provides current-head repeated acceptance
+evidence with an explicit adaptive-protocol note. VAL-001 remains incomplete
+only until an independent heavy re-review accepts the exact documented evidence
+head as `PASS` or justified `PASS WITH NOTE`.

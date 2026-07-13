@@ -7,7 +7,7 @@
   standalone checkpoint results with complete immutable evaluation identity.
 - Experiment: `docs/experiments/VAL-001-held-out-validation.md`
 - Started: 2026-07-13
-- Current verdict: independent review `FAIL`; repair implemented; re-review pending
+- Current verdict: Attempt 6 evidence `PASS WITH NOTE`; independent re-review pending
 - Final record owner: implementation agent
 
 ## Scope and decision context
@@ -38,7 +38,7 @@
 | 3b | repair completion | not exposed by runtime / not exposed by runtime | not exposed by runtime / not exposed by runtime | `41191cb` working tree | implemented; DGX evidence and re-review pending | Replaced always-on/stale timing with disabled-by-default atomic measurement mode, separated optimizer/validation intervals, added CUDA-event and memory capture, closed loader selection/missing-metadata gaps, predeclared the repeated DGX protocol, and corrected provenance claims |
 | 4 | CUDA determinism repair | available lightweight implementation model | not exposed by runtime / not exposed by runtime | `74a6d6b` | implemented; Attempt 5 and re-review pending | Attempt 4 failed exact trajectory at step 1 before validation; changed deterministic mode from warn-only to strict, strengthened its regression, and predeclared a fresh full matrix |
 | 4 | repair QA | `gpt-5.6-luna` / Extra High (`xhigh` invocation) | not exposed by runtime / not exposed by runtime | `74a6d6b` working tree | PASS | Read-only focused review found no issue and agreed strict fail-closed determinism is the smallest sound repair; not the required final heavy re-review |
-| 5 | evidence-protocol repair | not exposed by runtime / not exposed by runtime | not exposed by runtime / not exposed by runtime | `4264e4a` | implemented; Attempt 6 pending | Preserved Attempt 5 as FAIL, repaired container sampling/start barrier, prospectively bounded the adaptive first-step recovery gate, and prohibited further relaxation |
+| 5 | evidence-protocol repair | not exposed by runtime / not exposed by runtime | not exposed by runtime / not exposed by runtime | `4264e4a` | Attempt 6 `PASS WITH NOTE`; heavy re-review pending | Preserved Attempt 5 as FAIL, repaired container sampling/start barrier, prospectively bounded the adaptive first-step recovery gate, and prohibited further relaxation |
 | 5 | protocol review | not exposed by runtime / not exposed by runtime | not exposed by runtime / not exposed by runtime | `4264e4a` working tree | PASS WITH NOTE | Adaptive 5% gate is defensible only with a fully fresh matrix, CHECK-anchored disclosure, phase attribution, coarse container claims, and no further revision |
 
 Requested values are invocation/config values, not claimed actual deployment
@@ -144,6 +144,15 @@ run. The earlier R2 pair remains historical old-head evidence only.
   boundaries/failures, batching/context/source digest changes, unknown sources,
   strict JSON overflow, iterator lifecycle, zero targets, mode restoration,
   memorization namespace/no-best, and standalone milestone parity/identity.
+- Acceptance mapping: `test_known_logits_match_token_weighted_nll_and_perplexity`
+  proves analytical scoring; `test_cross_manifest_content_overlap_is_rejected_even_when_ids_differ`
+  and `test_audit_requires_document_ids_and_reports_both_overlap_types` prove
+  held-out overlap rejection; `test_trainer_memorization_metrics_have_no_validation_namespace`
+  and `test_standalone_held_out_evaluation_rejects_memorization_checkpoint` prove
+  namespace and checkpoint separation; `test_validation_and_checkpoint_cadences_are_independent`
+  and `test_token_cadence_records_boundaries_and_local_metrics` prove cadence;
+  `test_standalone_milestone_matches_shared_training_time_score` proves milestone
+  score and identity parity.
 - Repair-focused tests additionally cover exact logical identity parity,
   resolved-config and data-fingerprint tampering, ordered manifest mismatch,
   actual-loader fingerprint/selection verification, missing-loader-metadata
@@ -182,7 +191,8 @@ Durable evidence:
 - Validation plus best-save pauses totaled 43.1997 seconds. The first clean
   post-validation step returned to the immediate pre-validation timing range.
 
-CHECK §6.3 remains `FAIL` pending current-head evidence. The prior R2 pair had
+For that historical R2, CHECK §6.3 remained `FAIL` pending current-head evidence.
+The prior pair had
 no warm-up cutoff or continuous trace, and its reported p50 step times imply an
 approximately 10.13% on/off throughput regression, meeting CHECK's normal FAIL
 trigger. The predeclared repair-head protocol requires three matched pairs,
@@ -255,6 +265,36 @@ Durable compact evidence:
   disclosed, every signed phase result remains reportable, and no further gate
   relaxation is allowed.
 
+### Current-head DGX Attempt 6 — `PASS WITH NOTE`
+
+Durable compact evidence:
+[`docs/experiments/evidence/VAL-001-dgx-r6.json`](../experiments/evidence/VAL-001-dgx-r6.json).
+
+- Exact head `497a7b6`; all six fresh arms completed at 60 steps/245,760 targets.
+  Every pair's non-time trajectory and canonical final-model digest matched
+  exactly. Paired throughput deltas were -0.152%, +0.041%, and +0.008% (median
+  +0.008%); all data-wait fractions were below 0.69%.
+- Validation cadence, scores, per-corpus/aggregate denominators, identities,
+  pause attribution, and replicated fixed-window results passed exactly. The
+  maximum full event was 7.50 s and maximum scorer 4.76 s.
+- Pair-1 step-50 training-time and standalone results matched exactly. Standalone
+  output SHA-256 is `bdddc4aaf13c71b6903e14f401d4e3784e6f3b96f6ef1285537b2107267ad080`;
+  verified best-checkpoint SHA-256 is
+  `246c9ec331719b4eaa0367eeda28d392fa21b896d844401fff2544bf939a6a1f`.
+- Every adaptive first-post and unchanged sustained-recovery gate passed. First
+  steps were 0.20-1.28% versus pre-event p95 and -0.36% to +0.48% versus paired
+  off. Following-five means were at most +1.57% versus pre-event and +0.28%
+  versus paired off. Retained phases attribute the largest step-25 differences
+  to approximately 4-13 ms host-device preparation/data wait.
+- GPU/host and coarse-container trace gates passed; every container interval was
+  below 2.03 s and 3-4 samples fell inside each validation event. Step tails,
+  allocator recovery, immutable cache/shards, released leases, and no-swap gates
+  passed.
+- The note is mandatory: the 5% first-step rule was adapted after Attempt 5 and
+  validated only on a fresh matrix. The conclusion is bounded recovery, not zero
+  restart cost. Strict determinism's roughly 45% descriptive throughput cost
+  versus failed warn-only Attempt 4 remains for DGX-001 to decide.
+
 The R2 measured `2133248`; `0a13838` only changes exceptional iterator cleanup.
 No successful scoring/training code path or performance control changed. This
 parent-head relationship is disclosed rather than misrepresented as exact-head
@@ -320,8 +360,8 @@ measurement.
   model/mode were not exposed. It required an entirely fresh matrix, explicit
   adaptive/cherry-picking risk disclosure, phase attribution for the consistent
   direction, and no further threshold revision.
-- Completion: Attempt 6 must pass all six fresh arms. Even a passing result must
-  retain an adaptive-protocol note and may conclude only a bounded transient.
+- Completion: Attempt 6 passed all six fresh arms with the mandatory adaptive-
+  protocol/bounded-transient note; independent heavy re-review is next.
 
 ## Failed-review handoff
 
@@ -400,21 +440,22 @@ measurement.
 - What was deliberately not changed: no Attempt 5 evidence reclassification or
   reuse, no training/scoring/model/data change, and no further gate-relaxation
   option.
-- Commit reviewed next: the forthcoming docs/evidence protocol head.
+- Commit reviewed next: the evidence/docs head containing this record.
 - Re-review verdict: pending; the prior independent verdict remains `FAIL`.
 
 ## Risks and handoff
 
-- Known trade-off: the fixed 65,536-target validation pass costs about 19.52 s
-  plus about 1.8–2.4 s when an improving best checkpoint is saved.
-- Evidence blocker: Attempt 5 passed mathematical/performance controls but
-  failed container coverage and its zero-tolerance first-post rule. The
-  predeclared fresh Attempt 6 needs three passing matched pairs and valid traces.
+- Known trade-off: on current Attempt 6, each fixed 65,536-target validation
+  scores in 4.62–4.76 s and adds 2.04–2.74 s when an improving best checkpoint
+  is saved. The earlier 19.52 s scorer result remains historical R2 evidence.
+- Evidence status: fresh Attempt 6 is `PASS WITH NOTE` across all three matched
+  pairs, exact identities/scores, standalone parity, recovery, and valid traces.
+  Independent heavy re-review remains the only technical completion gate.
 - Dependency: this stacked PR still depends on DATA-004, whose source-rights
   disposition is a human policy gate.
 - Merge path: human review and merge; no self-merge authorization exists.
-- Exactly one next step: run and analyze predeclared DGX Attempt 6; independent
-  heavy re-review follows only if it passes.
+- Exactly one next step: independently heavy-review the exact Attempt 6 evidence
+  head against VAL-001, `PHILOSOPHY.md`, and applicable `CHECK.md`.
 
 ## Merge authority and final audit
 
