@@ -6,9 +6,8 @@
   no GitHub publication command; complete body prepared at
   `/tmp/WB-001-pr-body.md`
 - Experiment owner: implementation agent
-- Status: R1 repair validation passed; DGX Attempts 2, 5, and 7 failed,
-  Attempts 3, 4, and 6 were aborted, and depth-26 Attempt 8 passed prelaunch
-  audit and is predeclared
+- Status: local `PASS WITH NOTE` — R1 passed and depth-26 DGX Attempt 8 passed
+  all 170 gates with predeclared 5% investigation notes
 - Started (UTC): 2026-07-13
 - Last updated (UTC): 2026-07-13
 - Model-run provenance: `docs/model-runs/WB-001-evidence-complete-wandb.md`
@@ -42,9 +41,9 @@
 | Resource | Limit | Derivation / measurement source |
 | --- | --- | --- |
 | CPU correctness | Focused tests plus one disabled and one offline canonical smoke | Ticket validation asks for test doubles, matrix, missing login, schema, offline smoke |
-| Elapsed time on target hardware | Retained Attempt 2: 3×3×100; retained Attempt 5: 3×3×300; retained Attempt 7 and predeclared Attempt 8: 3×3×260 steps each | CHECK §§6.3 and 9.2 repeated disabled/offline/watch comparison; 260 steps execute 1,040 backward batches and one default-frequency watch event |
+| Elapsed time on target hardware | Retained Attempt 2: 3×3×100; retained Attempt 5: 3×3×300; retained Attempts 7 and 8: 3×3×260 steps each | CHECK §§6.3 and 9.2 repeated disabled/offline/watch comparison; 260 steps execute 1,040 backward batches and one default-frequency watch event |
 | Training tokens | Attempts 7 and 8: 133,120 targets/arm from a 133,248-token streaming cap; identical in every arm within an attempt | 260 steps × batch 2 × sequence 64 × accumulation 4; the extra 128 stream tokens provide full windows |
-| Optimizer steps | 2 CPU smoke invocations; retained Attempt 2: 900; retained Attempt 5: 2,700; retained Attempt 7 and planned Attempt 8: 2,340 each | Each current matrix uses 260 steps × 3 arms × 3 repetitions |
+| Optimizer steps | 2 CPU smoke invocations; retained Attempt 2: 900; retained Attempt 5: 2,700; retained Attempts 7 and 8: 2,340 each | Each current matrix uses 260 steps × 3 arms × 3 repetitions |
 | Evaluation work and cadence | Identical across all R2 arms; no extra W&B cadence | Isolates W&B/watch overhead |
 | Checkpoint count and bytes | Existing local checkpoint policy per arm, inventoried with exact bytes; no W&B artifact in required R2 | Artifact behavior is proven with test doubles, not service quota |
 | Local / external / W&B storage | Temp directories for CPU smoke; future R2 records W&B directory bytes; zero cloud bytes required | W&B is not backup or bulk storage |
@@ -92,8 +91,7 @@
 
 - Automated result after integration repairs: focused integration `115 passed
   in 11.26s` plus `16 passed` for the R2 verifier and `2 passed` for the offline
-  inspector; full repository suite `361
-  passed, 1 skipped in 68.20s`.
+  inspector; final full repository suite `369 passed, 1 skipped in 66.85s`.
 - Offline smoke: both disabled and offline invocations completed while
   credentials were removed; name resolution, non-Unix `connect`, `connect_ex`,
   and `sendto` operations were blocked. Offline W&B 0.25.1 initialized, logged
@@ -108,7 +106,8 @@
   from artifacts in code. Operational W&B changes do not alter checkpoint
   compatibility identity.
 - Final static QA: repository Ruff, changed-file format check, `uv lock
-  --check`, and `git diff --check` all passed.
+  --check`, and `git diff --check` all passed. A whole-tree format check reports
+  four unchanged baseline files; none is in the WB-001 diff.
 
 ### Attempt interpretation
 
@@ -401,17 +400,42 @@ at least 121.48 GB host free/buffer/cache, zero swap I/O, and more than 431 GB
 disk free. Attempt 8 must run as a wholly fresh matrix from its own clean exact
 commit before any conclusion.
 
+### Attempt 8 result — PASS WITH NOTE
+
+Attempt 8 ran all nine fresh arms at exact commit
+`b59f84483d1f85a5cd42005d48e8b99d60ab2695` in the pinned image. Raw evidence
+is retained at
+`/tmp/wb001-r8-b59f84483d1f85a5cd42005d48e8b99d60ab2695`; the byte-identical
+structured summary is
+`docs/experiments/evidence/WB-001-dgx-r8-pass-with-note.json`.
+
+All 170 verifier gates passed. Every arm completed 260 optimizer steps and
+133,120 targets with identical trajectories and checkpoint digests. Data wait
+ranged from 6.53% to 8.54%, below the 10% failure limit but above the 5%
+investigation threshold in every arm. Offline/watch-off versus disabled had a
+1.75% median change. Offline/watch-on versus disabled had a 6.56% median, and
+watch-on versus offline/watch-off had a 5.46% median; both are investigation
+notes below the 10% failure threshold.
+
+Each watch-on arm contained exactly one structurally valid decoded histogram
+record with 315 gradient series; watch-off and disabled arms contained none.
+The largest watch-on W&B directory was 1,079,003 bytes, watch-off stayed below
+65,143 bytes, and disabled produced zero W&B storage. Validation, local
+checkpoints, sampler coverage, memory stability, and zero swap-I/O gates all
+passed. No online auth, quota, retention, upload, or cloud behavior is inferred
+from this network-isolated artifact-policy-none matrix.
+
 ## Conclusion
 
-- Hypothesis result: supported at R1; DGX Attempts 2 and 5 failed measurement
-  gates, Attempts 3, 4, and 6 made no comparison claim, and Attempt 7 passed
-  every paired overhead gate but failed three per-arm data-wait gates. The
-  final target-workload conclusion remains pending Attempt 8.
+- Hypothesis result: supported at R1 and `PASS WITH NOTE` at R2. Attempt 8
+  passed all 170 gates; 5–10% data-wait and watch/online-offline overhead values
+  remain explicit investigation notes rather than failures.
 - Evidence-backed conclusion: the implementation can preserve local metrics and
   checkpoints across disabled/offline W&B and tested external failure paths,
   while fail-closing every artifact safety gate.
 - Uncertainty and limitations: no online service call, real quota consumption,
-  or artifact upload was performed; the failed DGX evidence is retained rather
-  than used for a positive performance claim.
-- Exactly one next step: run and verify the predeclared fresh Attempt 8 on a
-  clean repair commit before the mandatory independent heavy review.
+  or artifact upload was performed; failed DGX evidence is retained, and no
+  cross-attempt performance claim is made. The positive R2 result is scoped to
+  the depth-26 target workload and the pinned runtime.
+- Exactly one next step: run the mandatory independent heavy review against the
+  exact evidence head, then repair and re-review any actionable finding.

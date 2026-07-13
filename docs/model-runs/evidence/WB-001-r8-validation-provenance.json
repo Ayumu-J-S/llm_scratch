@@ -1,0 +1,67 @@
+{
+  "schema_version": "1.0",
+  "captured_at": "2026-07-13T19:19:01Z",
+  "phase": "post-run-evidence-validation",
+  "role": "independent-r2-validation",
+  "task_path": "/root",
+  "requested": {
+    "model": "GPT-5.6 appropriate model",
+    "reasoning_mode": "high evidence validation"
+  },
+  "actual": {
+    "exact_model_identifier": "not exposed by runtime",
+    "reasoning_mode": "not exposed by runtime"
+  },
+  "evidence": {
+    "measured_commit": "b59f84483d1f85a5cd42005d48e8b99d60ab2695",
+    "image_id": "sha256:23a1bee69fe189e77105cdddeee9aeff6ef0763d58a691625fbfcab64efd1887",
+    "raw_root": "/tmp/wb001-r8-b59f84483d1f85a5cd42005d48e8b99d60ab2695",
+    "durable_summary": "docs/experiments/evidence/WB-001-dgx-r8-pass-with-note.json",
+    "summary_sha256": "df51d5c1c22bfec4a444460336be6d7c9cd5efb99e3f4b39fac4f858c61c0802",
+    "byte_identical": true,
+    "passed_gates": 170,
+    "total_gates": 170,
+    "failures": [],
+    "verdict": "PASS WITH NOTE"
+  },
+  "independent_recomputation": {
+    "per_arm_data_wait_percent_range": [6.5271, 8.5371],
+    "optimizer_steps_per_arm": 260,
+    "warmup_steps_per_arm": 26,
+    "measured_steps_per_arm": 234,
+    "total_targets_per_arm": 133120,
+    "measured_targets_per_arm": 119808,
+    "validation_targets_per_arm": 64,
+    "paired_median_percent": {
+      "offline_off_vs_disabled": 1.749905,
+      "offline_on_vs_disabled": 6.557356,
+      "watch_vs_offline_off": 5.455648
+    },
+    "raw_rows_match_summary": true
+  },
+  "independent_reviews": [
+    {
+      "task_path": "/root/wb001_implementation",
+      "verdict": "PASS WITH NOTE",
+      "exact_model_identifier": "not exposed by runtime",
+      "reasoning_mode": "not exposed by runtime"
+    },
+    {
+      "task_path": "/root/wb_dgx_protocol_harness",
+      "verdict": "PASS WITH NOTE",
+      "exact_model_identifier": "not exposed by runtime",
+      "reasoning_mode": "not exposed by runtime"
+    }
+  ],
+  "limitations": [
+    "Network-isolated artifact-policy-none evidence makes no online auth, quota, retention, upload, or cloud claim.",
+    "DGX Spark unified-memory headroom uses host, container, and allocator evidence.",
+    "Decoded W&B binary records prove local history and watch content only."
+  ],
+  "privacy": {
+    "prompts_recorded": false,
+    "hidden_chain_of_thought_recorded": false,
+    "token_counts_recorded": false,
+    "secrets_recorded": false
+  }
+}

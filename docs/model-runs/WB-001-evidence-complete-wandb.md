@@ -8,7 +8,7 @@
   becoming training authority, bulk storage, or a local failure mode.
 - Experiment record: `docs/experiments/WB-001-evidence-complete-wandb.md`
 - Started: 2026-07-13
-- Final verdict: in progress — Attempt 8 measurement and independent heavy review pending
+- Final verdict: local `PASS WITH NOTE`; independent heavy review pending
 - Final record owner: lead roadmap agent
 
 ## Scope and decision context
@@ -64,6 +64,8 @@
 | 10 | validation | not exposed by runtime | not exposed by runtime | exact clean `a4117ce` Attempt 7 | Run and verify the full fresh matrix | FAIL | 163/166 gates passed and all paired medians were <5%, but two offline-off and one disabled arm exceeded 10% data wait | raw root plus `WB-001-dgx-r7-failed.json` |
 | 11 | repair | not exposed by runtime | not exposed by runtime | retained Attempt 7 FAIL and depth-scaling evidence | Increase compute enough to clear the unchanged per-arm data-wait gate | repaired | Change only depth 18→26; retain sequence 64, 260/26 steps, 1,040 batches, target horizon, validation, watch cadence, thresholds, and fresh matrix; reject any pre-existing output/cache root | two delegated sizing reviews plus real CUDA one-step train/validation/checkpoint smoke |
 | 11 | review | not exposed by runtime | not exposed by runtime | uncommitted depth-26 repair and records | Final prelaunch audit before Attempt 8 | PASS | Exact work/validation/watch/resources/gates agree; fresh-root enforcement and production-versus-measurement identity wording were repaired and re-audited | two independent delegated audits; 18 focused tests and static checks pass |
+| 11 | validation | not exposed by runtime | not exposed by runtime | exact clean `b59f844` Attempt 8 | Run and verify the full fresh matrix | PASS WITH NOTE | All 170 gates passed; 6.53–8.54% data wait and 6.56% offline-on/5.46% watch medians trigger only the predeclared 5% investigation notes | raw root plus `WB-001-dgx-r8-pass-with-note.json` |
+| 11 | review | not exposed by runtime | not exposed by runtime | exact raw and durable Attempt 8 evidence | Independently recompute the result before the mandatory heavy review | PASS WITH NOTE | Raw per-arm denominators, paired formula/medians, exact work, identities, W&B records, samplers, memory, and swap agree; the 11 warnings are exactly the declared investigation notes | two delegated validations plus byte/hash and raw-row recomputation |
 | 12 | review | pending | pending | exact integration/evidence head pending | Mandatory heavy review against philosophy, ticket, and applicable CHECK after evidence | pending | pending | pending |
 
 Requested values are recorded separately from actual runtime display. The
@@ -89,8 +91,9 @@ they are not inferred from the request.
   `docs/model-runs/evidence/WB-001-r6-container-sampler-provenance.json`,
   `docs/model-runs/evidence/WB-001-r7-thermal-repair-provenance.json`,
   `docs/model-runs/evidence/WB-001-r9-compute-repair-provenance.json`,
-  `docs/model-runs/evidence/WB-001-r10-depth-repair-provenance.json`, and
-  `docs/model-runs/evidence/WB-001-r11-depth-repair-provenance.json`
+  `docs/model-runs/evidence/WB-001-r10-depth-repair-provenance.json`,
+  `docs/model-runs/evidence/WB-001-r11-depth-repair-provenance.json`, and
+  `docs/model-runs/evidence/WB-001-r8-validation-provenance.json`
 - Codex CLI version: `codex-cli 0.144.1`
 - Branch/commit: `codex/wb-001-evidence-safe-wandb` / input `74d9e24`
 - Phase/role/task path: implementation / implementation /
@@ -271,7 +274,14 @@ they are not inferred from the request.
   Sequence, loader horizon, cadence, validation, warm-up, thresholds, and the
   fresh-matrix requirement remain unchanged. A network-isolated CUDA one-step
   train/validation/checkpoint smoke passed with 85,024,394 parameters.
-- Commit measured next: pending clean Attempt 8 head after prelaunch audit.
+- Attempt 8 at exact `b59f844`: all nine fresh arms completed and all 170 gates
+  passed. Data wait was 6.53–8.54%; offline-off versus disabled median overhead
+  was 1.75%. Offline-on versus disabled was 6.56% and watch-on versus
+  offline-off was 5.46%, so the verdict is `PASS WITH NOTE` under the
+  predeclared 5% investigation and 10% failure thresholds. Watch-on contained
+  one valid decoded 315-series histogram record per arm; all exactness,
+  checkpoint, validation, storage, sampler, memory, and swap gates passed.
+- Commit reviewed next: pending exact evidence/documentation head.
 
 ## Final evidence
 
@@ -286,11 +296,11 @@ they are not inferred from the request.
   checkpoint-owned experiment/Git/config/lock/tokenizer/data fingerprints.
 - Validation and measurements: focused integration `115 passed in 11.26s` plus
   `16 passed` for the R2 verifier and `2 passed` for the offline inspector; full
-  repository suite `361 passed, 1 skipped
-  in 68.20s`. Canonical disabled
+  repository suite `369 passed, 1 skipped in 66.85s`. Canonical disabled
   plus offline smoke passed with credentials removed and name resolution,
   `connect`, `connect_ex`, and `sendto` blocked. Ruff, changed-file format,
-  lock, and diff checks pass.
+  lock, and diff checks pass. Whole-tree format reports four unchanged baseline
+  files outside the WB-001 diff.
 - Performance/resource result: DGX Attempt 2 retained a `FAIL` at exact commit
   `049acf7`: all nine processes and exact trajectory/checkpoint gates passed,
   but data wait reached 12.68%, container coverage was about 48%, and watch-on
@@ -301,7 +311,8 @@ they are not inferred from the request.
   offline-off median regression. Attempt 6 stopped during cache prime because
   sequence 256 invalidated the tiny validation fixture. Attempt 7 passed all
   paired overhead gates but failed three 10.49–11.90% per-arm data-wait gates.
-  Depth-26 Attempt 8 is predeclared; no cross-attempt performance claim is made.
+  Depth-26 Attempt 8 passed all 170 gates with 5–10% investigation notes; no
+  cross-attempt performance claim is made.
 - Failed attempts retained: first offline smoke placed its W&B directory under
   the repository; it was removed and `WANDB_DIR` now points at the smoke temp
   root. No training failure occurred.
@@ -310,8 +321,8 @@ they are not inferred from the request.
   Billing UI/CSV snapshot because the public Python API does not expose current
   storage usage.
 - Unresolved risks: real online auth/service behavior remains unexercised and
-  fail-closed; the target-workload verdict remains unresolved until fresh
-  Attempt 8 passes.
+  fail-closed. The R2 result is limited to the pinned depth-26 workload/runtime,
+  and 5–10% data-wait/watch overhead remains a monitoring note.
 - Human decision requested: human review/merge after a passing independent
   review; no self-merge authorization exists.
 
