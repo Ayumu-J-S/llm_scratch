@@ -1,0 +1,62 @@
+{
+  "schema_version": "1.0",
+  "captured_at": "2026-07-13T14:08:34.301831Z",
+  "phase": "repair-review",
+  "role": "read-only-review-agent",
+  "task_path": "VAL-001",
+  "requested": {
+    "model": {
+      "value": "gpt-5.6-luna",
+      "source": "explicit CLI invocation",
+      "status": "observed"
+    },
+    "reasoning_mode": {
+      "value": "Extra High",
+      "source": "explicit CLI xhigh invocation",
+      "status": "observed"
+    }
+  },
+  "actual": {
+    "product": {
+      "value": "Codex",
+      "source": "active runtime display",
+      "status": "observed"
+    },
+    "displayed_model_family": {
+      "value": "not exposed by runtime",
+      "source": "not exposed by runtime",
+      "status": "unavailable",
+      "unavailable_reason": "The CLI event stream did not expose a model family."
+    },
+    "exact_model_identifier": {
+      "value": "not exposed by runtime",
+      "source": "not exposed by runtime",
+      "status": "unavailable",
+      "unavailable_reason": "The CLI event stream did not expose an exact deployment/model identifier."
+    },
+    "reasoning_mode": {
+      "value": "not exposed by runtime",
+      "source": "not exposed by runtime",
+      "status": "unavailable",
+      "unavailable_reason": "The CLI event stream did not expose the active reasoning mode."
+    }
+  },
+  "environment": {
+    "codex_cli_version": "codex-cli 0.144.1",
+    "branch": "codex/val-001-held-out-validation",
+    "commit": "74a6d6b0b39a4802379188a1d37ed2be582def1a",
+    "thread_id": "not recorded (privacy)"
+  },
+  "outcome": {
+    "verdict": "PASS",
+    "findings": [],
+    "note": "Focused repair QA only; required independent heavy re-review remains pending after DGX evidence."
+  },
+  "privacy": {
+    "raw_thread_id_recorded": false,
+    "prompts_recorded": false,
+    "hidden_chain_of_thought_recorded": false,
+    "token_counts_recorded": false,
+    "secrets_recorded": false
+  }
+}

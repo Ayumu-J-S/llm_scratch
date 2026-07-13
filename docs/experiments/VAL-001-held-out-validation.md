@@ -260,7 +260,7 @@ docker run --rm --gpus all --ipc=host \
   most 7.40 GB PyTorch reserved memory and 6.49 GB allocated memory. These
   diagnostics choose the repaired protocol; they are not acceptance runs.
 
-## Attempt 4 — predeclared sequence-4,096 DGX R3 retry
+## Attempt 4 — stopped sequence-4,096 DGX R3 retry
 
 This retry is committed before its acceptance runs. It changes only the train
 shape needed to remove the evidenced per-window producer bottleneck:
@@ -290,6 +290,48 @@ The sequence-4,096 choice was made from validation-off diagnostics before any
 sequence-4,096 on/off comparison, so it does not select a favorable validation
 effect.
 
+### Outcome and stop decision
+
+- Pair 1 completed at exact head `74a6d6b`: both arms reached 60 steps and
+  245,760 targets; the off arm emitted zero validation events and the on arm
+  validated exactly at steps 25/50.
+- Post-warm-up throughput was 17,909.59 targets/s off and 17,965.08 targets/s
+  on. Data wait was 0.99% off and 1.36% on, so the sequence-shape repair cleared
+  the Attempt 3 producer bottleneck.
+- Validation pauses were 6.9007 s and 7.4542 s; scoring was 4.5640 s and
+  4.6195 s, and attribution error stayed below 0.3 ms. These observations remain
+  failed-attempt evidence rather than acceptance results.
+- The predeclared exact-trajectory gate failed at optimizer step 1, before the
+  first validation event. Step-1 loss was identical (`11.029861450195312`), but
+  gradient norm differed by `7.89165e-05`; all 60 step rows then differed.
+  Both arms emitted PyTorch's warning that memory-efficient-attention backward
+  is nondeterministic while deterministic algorithms are configured warn-only.
+- Pair 1 therefore stopped the attempt before pairs 2/3. This failure does not
+  show validation contamination: it shows that the cross-process exactness
+  control was invalid under the configured CUDA determinism policy.
+
+## Attempt 5 — predeclared strict-deterministic DGX R3 retry
+
+The repair changes `reproducibility.deterministic=true` from warn-only to strict
+PyTorch deterministic algorithms. Unsupported nondeterministic operations now
+fail explicitly; this is not a promise of bitwise equality across platforms or
+PyTorch versions. Two pinned-image sequence-4,096 BF16 probes with strict mode
+produced identical loss and complete model-tensor digests.
+
+Attempt 5 restarts the full acceptance matrix at the strict-determinism repair
+head. It retains every Attempt 4 condition and gate: sequence 4,096, batch 1,
+accumulation 1, 60 steps/245,760 targets per arm, warm-up steps 1–10, validation
+at steps 25/50, the same manifests/cache/image/hardware/seed, continuous sampler
+rates, and run order `1-off`, `1-on`, `2-on`, `2-off`, `3-off`, `3-on`. No
+Attempt 4 arm is reused. The exact trajectory and canonical final-model digest
+must match inside every pair before later pairs continue.
+
+CHECK §8.1's deterministic-mode cost will be reported descriptively against the
+otherwise matched Attempt 4 pair, while the three strict-mode pairs remain the
+decision-grade validation-off/on comparison. All original throughput, data-wait,
+pause, identity, standalone-parity, recovery, memory, cache, and trace-coverage
+gates remain unchanged.
+
 ## Independent review FAIL and repair
 
 The independent review requested `gpt-5.6-sol` / Max for `41191cb` and returned
@@ -316,12 +358,14 @@ The repair phase, requested as `gpt-5.6-luna` / Extra High, has implemented:
   forward, loss, backward, finite checks, clipping, optimizer, scheduler,
   metrics/logging, checkpoint, validation, CUDA-event phases, and allocator
   memory, retained in one atomically flushed measurement JSON; and
-- direct imports from `evaluation.scoring` without package-level re-exports.
+- direct imports from `evaluation.scoring` without package-level re-exports; and
+- strict deterministic-algorithm enforcement when Hydra requests deterministic
+  execution, closing the CUDA attention control failure exposed by Attempt 4.
 
 The ordinary path adds no CUDA synchronization. Benchmark mode deliberately
 uses one end-step boundary synchronization so CUDA event timings are valid.
-Attempt 3 produced a stopped current-head pair and diagnostics; Attempt 4 is
-the predeclared acceptance retry.
+Attempts 3 and 4 produced stopped current-head evidence; Attempt 5 is the
+predeclared strict-deterministic acceptance retry.
 Exact displayed repair model and reasoning mode are not exposed by runtime.
 
 Local repair verification: focused validation/checkpoint/trainer/generation
@@ -335,5 +379,5 @@ which were not changed. Independent re-review is still required.
 The prior DGX R2 is insufficient current performance evidence because it is a
 single old-head pair with an observed roughly 10% on/off throughput delta. The
 repair is locally implemented and its focused tests pass, but VAL-001 remains
-`FAIL` until the predeclared repeated post-repair DGX protocol passes and an
-independent heavy re-review accepts the exact documented head.
+`FAIL` until the predeclared repeated strict-deterministic DGX protocol passes
+and an independent heavy re-review accepts the exact documented head.

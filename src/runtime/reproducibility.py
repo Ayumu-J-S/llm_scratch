@@ -55,7 +55,8 @@ def seed_everything(seed: int, *, deterministic: bool = True) -> torch.Generator
 
     Model construction must happen after this call.  ``torch.Generator`` is
     returned so each DataLoader can use an explicit, inspectable RNG rather
-    than depending on process-global state.
+    than depending on process-global state.  Deterministic mode fails on an
+    operation without a deterministic implementation.
     """
 
     seed = _positive_seed(seed)
@@ -66,11 +67,9 @@ def seed_everything(seed: int, *, deterministic: bool = True) -> torch.Generator
         torch.cuda.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
     if deterministic:
-        # CPU fixture runs use deterministic kernels.  ``warn_only`` avoids
-        # making an otherwise valid GPU run fail on a kernel that has no
-        # deterministic implementation; GPU bitwise determinism is explicitly
-        # outside REP-001's scope.
-        torch.use_deterministic_algorithms(True, warn_only=True)
+        # Fail rather than silently weakening the requested deterministic mode.
+        # This does not promise bitwise equality across platforms or versions.
+        torch.use_deterministic_algorithms(True, warn_only=False)
         if hasattr(torch.backends, "cudnn"):
             torch.backends.cudnn.deterministic = True
             torch.backends.cudnn.benchmark = False

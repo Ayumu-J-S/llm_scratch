@@ -36,6 +36,8 @@
 | 2 | independent heavy review | `gpt-5.6-sol` / Max | not exposed by runtime / not exposed by runtime | `41191cb` | FAIL | Checkpoint config was not bound to `identity.config_sha256`; configured/resolved manifest identity was not reconciled before scoring; scorer could trust a separately supplied manifest identity; training-time and standalone logical checkpoint identities differed; phase timing was incomplete for CHECK 6.3; evaluation package re-exports were unused |
 | 3 | repair | `gpt-5.6-luna` / Extra High | not exposed by runtime / not exposed by runtime | `41191cb` | implemented; DGX evidence and re-review pending | Added canonical config/data identity verification, fail-closed actual-loader fingerprint/selection verification, shared logical identity parity, tamper regressions, benchmark-only atomic measurement capture, and direct evaluation imports |
 | 3b | repair completion | not exposed by runtime / not exposed by runtime | not exposed by runtime / not exposed by runtime | `41191cb` working tree | implemented; DGX evidence and re-review pending | Replaced always-on/stale timing with disabled-by-default atomic measurement mode, separated optimizer/validation intervals, added CUDA-event and memory capture, closed loader selection/missing-metadata gaps, predeclared the repeated DGX protocol, and corrected provenance claims |
+| 4 | CUDA determinism repair | available lightweight implementation model | not exposed by runtime / not exposed by runtime | `74a6d6b` | implemented; Attempt 5 and re-review pending | Attempt 4 failed exact trajectory at step 1 before validation; changed deterministic mode from warn-only to strict, strengthened its regression, and predeclared a fresh full matrix |
+| 4 | repair QA | `gpt-5.6-luna` / Extra High (`xhigh` invocation) | not exposed by runtime / not exposed by runtime | `74a6d6b` working tree | PASS | Read-only focused review found no issue and agreed strict fail-closed determinism is the smallest sound repair; not the required final heavy re-review |
 
 Requested values are invocation/config values, not claimed actual deployment
 identifiers. The runtime did not expose the exact identifier or reasoning mode to
@@ -55,6 +57,10 @@ the caller for implementation/repair, so those actual fields remain unavailable.
   `docs/model-runs/evidence/VAL-001-repair-cycle-3-provenance.json`.
 - Repair-cycle-3b capture:
   `docs/model-runs/evidence/VAL-001-repair-cycle-3b-provenance.json`.
+- CUDA determinism repair capture:
+  `docs/model-runs/evidence/VAL-001-repair-cycle-4-provenance.json`.
+- CUDA determinism repair QA capture:
+  `docs/model-runs/evidence/VAL-001-repair-cycle-4-luna-review-provenance.json`.
 - Codex CLI: `codex-cli 0.144.1` for recorded implementation/repair captures.
 - Implementation head: `a8520d7fad718574d1fca4293e6f969c7a478b79`.
 - Main invariant repair: `057983c`; measured merged head:
@@ -63,8 +69,10 @@ the caller for implementation/repair, so those actual fields remain unavailable.
 - Failed independent review: requested `gpt-5.6-sol` / Max at `41191cb`;
   exact runtime model/mode not exposed.
 - Repair phase model and reasoning: exact values not exposed by runtime.
-- Repair head: working tree after `41191cb`; no uncommitted-tree commit SHA is
-  claimed before local verification completes.
+- Identity/measurement repair head: `78e0448`.
+- Attempt 4 protocol head: `74a6d6b`.
+- CUDA determinism repair head: working tree after `74a6d6b`; no uncommitted-tree
+  commit SHA is claimed before local verification completes.
 - Privacy: no prompts, hidden chain-of-thought, token counts, secrets, or raw
   thread IDs are recorded.
 
@@ -115,6 +123,8 @@ run. The earlier R2 pair remains historical old-head evidence only.
 - Repair-focused suite after the final split/measurement repair: `55 passed`.
 - Full repository suite after the final split/measurement repair:
   `310 passed, 1 skipped in 64.87s`.
+- Full repository suite after the strict-determinism repair:
+  `310 passed, 1 skipped in 64.15s`.
 - Full repository suite at measured head `2133248`:
   `302 passed, 1 skipped in 64.17s`.
 - `uv lock --check`, full Ruff lint, changed-Python-file format check, and
@@ -195,6 +205,24 @@ a median paired regression below 5%.
   4,096, batch 1, accumulation 1, and 4,096 targets/update. Diagnostic arms are
   excluded from acceptance replication.
 
+### Current-head DGX Attempt 4 — stopped on CUDA nondeterminism
+
+- Exact head `74a6d6b`, pinned image/GB10/cache, and continuous traces were used.
+  Pair 1 reached 60 steps/245,760 targets per arm, cleared the data-wait gate
+  (0.99% off, 1.36% on), and stayed within validation/scoring pause budgets.
+- Post-warm-up throughput was 17,909.59 targets/s off and 17,965.08 targets/s on.
+  Those values are retained as failed-attempt and deterministic-cost context,
+  not acceptance replication.
+- Exact trajectory failed at step 1, before validation: loss was exact, while
+  gradient norm differed by `7.89165e-05`; all 60 step records differed. Both
+  arms reported nondeterministic memory-efficient-attention backward because
+  `deterministic=true` still used `warn_only=True`.
+- Pair 1 stopped the attempt before pairs 2/3. Pinned-image BF16 probes confirmed
+  unequal gradients in warn-only mode and exact gradients/model digests in
+  strict mode. The smallest repair makes deterministic mode strict, retains the
+  documented cross-platform/version caveat, and restarts all six arms as
+  predeclared Attempt 5.
+
 The R2 measured `2133248`; `0a13838` only changes exceptional iterator cleanup.
 No successful scoring/training code path or performance control changed. This
 parent-head relationship is disclosed rather than misrepresented as exact-head
@@ -229,6 +257,23 @@ measurement.
   independent re-review remain pending.
 - Completion: do not mark VAL-001 complete until an independent review returns
   `PASS` or justified `PASS WITH NOTE` for the exact repair head.
+
+### Repair cycle 4
+
+- Repair model/mode: exact displayed values not exposed by runtime; a focused
+  implementation sub-agent was delegated the bounded change.
+- Input: Attempt 4's step-1 gradient mismatch, identical step-1 loss, and the
+  pinned runtime's explicit memory-efficient-attention nondeterminism warning.
+- Outcome: `deterministic=true` now calls strict PyTorch deterministic
+  algorithms; unsupported nondeterministic operations fail rather than warn and
+  continue. The regression asserts warn-only is disabled.
+- Evidence: focused reproducibility suite `9 passed`; full repository suite
+  `310 passed, 1 skipped in 64.15s`; Ruff lint/format and `git diff --check`
+  pass. Two pinned-image strict BF16 probes returned the same loss and full
+  model-tensor digest. A read-only `gpt-5.6-luna` / Extra High repair QA returned
+  `PASS` with no findings; exact runtime model/mode were not exposed.
+- Completion: Attempt 5 must pass the entire fresh three-pair matrix before
+  independent heavy re-review.
 
 ## Failed-review handoff
 
@@ -287,18 +332,29 @@ measurement.
 - Re-review model / mode: pending independent heavy review.
 - Re-review verdict: pending; the prior verdict remains `FAIL`.
 
+### CUDA determinism repair result
+
+- Repair cycle: 4.
+- Repair model / mode: not exposed by runtime / not exposed by runtime.
+- Changes made: strict deterministic-algorithm enforcement and a focused
+  regression proving warn-only is disabled.
+- What was deliberately not changed: no SDPA backend hard-code, new Hydra knob,
+  architecture change, evidence reuse, or cross-platform bitwise promise.
+- Commit reviewed next: the forthcoming commit containing this repair and the
+  predeclared Attempt 5 protocol.
+- Re-review verdict: pending; the prior independent verdict remains `FAIL`.
+
 ## Risks and handoff
 
 - Known trade-off: the fixed 65,536-target validation pass costs about 19.52 s
   plus about 1.8–2.4 s when an improving best checkpoint is saved.
-- Evidence blocker: current-head Attempt 3 repaired the apparent on/off
-  regression but failed its absolute data-wait gate; the predeclared
-  sequence-4,096 Attempt 4 needs three passing matched pairs and continuous
-  traces.
+- Evidence blocker: Attempt 3 failed data wait and Attempt 4 failed the exact
+  trajectory control at step 1 before validation. The predeclared strict-mode
+  Attempt 5 needs three passing matched pairs and continuous traces.
 - Dependency: this stacked PR still depends on DATA-004, whose source-rights
   disposition is a human policy gate.
 - Merge path: human review and merge; no self-merge authorization exists.
-- Exactly one next step: run and analyze predeclared DGX Attempt 4; independent
+- Exactly one next step: run and analyze predeclared DGX Attempt 5; independent
   heavy re-review follows only if it passes.
 
 ## Merge authority and final audit
