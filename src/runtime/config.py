@@ -23,6 +23,8 @@ _TOP_LEVEL = {
     "model",
     "artifacts",
     "wandb",
+    "evaluation",
+    "measurement",
 }
 _RUNTIME = {"device"}
 _REPRODUCIBILITY = {"seed", "deterministic", "reject_dirty"}
@@ -123,6 +125,9 @@ _TRAINING = {
 _MODEL = {"embed_size", "num_heads", "num_layers", "dropout"}
 _ARTIFACTS = {"checkpoints_dir", "keep_last_n", "resume_path"}
 _WANDB = {"enabled", "project", "entity", "name", "mode", "log_model_every_n_epoch"}
+_EVALUATION = {"checkpoint_path", "output_path", "device", "wandb"}
+_EVALUATION_WANDB = {"enabled", "project", "entity", "name", "mode"}
+_MEASUREMENT = {"enabled", "warmup_optimizer_steps", "cuda_events", "output_path"}
 
 
 def _plain(config: Mapping[str, Any] | DictConfig) -> dict[str, Any]:
@@ -205,6 +210,40 @@ def _sources(split: Mapping[str, Any], path: str) -> list[dict[str, Any]]:
     return result
 
 
+def validate_evaluation_config(config: Mapping[str, Any] | DictConfig) -> dict[str, Any]:
+    """Validate standalone operational controls without overriding checkpoint authority."""
+
+    cfg = _plain(config)
+    _check_keys(cfg, _TOP_LEVEL, "<root>")
+    _required(cfg, ("profile", "evaluation"), "<root>")
+    profile = _plain(cfg["profile"])
+    if (
+        profile.get("name") != "evaluation"
+        or profile.get("purpose") != "evaluation"
+        or profile.get("task") != "evaluate_checkpoint"
+    ):
+        raise ConfigPreflightError("standalone evaluation requires profile=evaluation")
+    evaluation = _plain(cfg["evaluation"])
+    _check_keys(evaluation, _EVALUATION, "evaluation")
+    _required(evaluation, ("checkpoint_path", "output_path", "device"), "evaluation")
+    for key in ("checkpoint_path", "output_path", "device"):
+        if not isinstance(evaluation[key], str) or not evaluation[key].strip():
+            raise ConfigPreflightError(f"evaluation.{key} must be a non-empty string")
+    if evaluation["device"] not in {"cpu", "cuda"}:
+        raise ConfigPreflightError("evaluation.device must be either 'cpu' or 'cuda'")
+    wandb_config = evaluation.get("wandb", {})
+    if not isinstance(wandb_config, Mapping):
+        raise ConfigPreflightError("evaluation.wandb must be a mapping")
+    _check_keys(wandb_config, _EVALUATION_WANDB, "evaluation.wandb")
+    enabled = wandb_config.get("enabled", False)
+    if not isinstance(enabled, bool):
+        raise ConfigPreflightError("evaluation.wandb.enabled must be boolean")
+    mode = wandb_config.get("mode", "online")
+    if mode not in {"online", "offline"}:
+        raise ConfigPreflightError("evaluation.wandb.mode must be either 'online' or 'offline'")
+    return cfg
+
+
 def validate_training_config(config: Mapping[str, Any] | DictConfig) -> dict[str, Any]:
     """Validate a composed config before tokenizer/data/model initialization."""
 
@@ -220,6 +259,8 @@ def validate_training_config(config: Mapping[str, Any] | DictConfig) -> dict[str
         ("model", _MODEL),
         ("artifacts", _ARTIFACTS),
         ("wandb", _WANDB),
+        ("evaluation", _EVALUATION),
+        ("measurement", _MEASUREMENT),
     ):
         _check_nested(cfg, key, allowed, "<root>")
 
@@ -232,6 +273,25 @@ def validate_training_config(config: Mapping[str, Any] | DictConfig) -> dict[str
     ):
         raise ConfigPreflightError("reproducibility.seed must be a non-negative integer")
 
+    measurement = _plain(cfg.get("measurement", {}))
+    if measurement:
+        for key in ("enabled", "cuda_events"):
+            value = measurement.get(key)
+            if not isinstance(value, bool):
+                raise ConfigPreflightError(f"measurement.{key} must be boolean")
+        warmup_steps = measurement.get("warmup_optimizer_steps")
+        if isinstance(warmup_steps, bool) or not isinstance(warmup_steps, int) or warmup_steps < 0:
+            raise ConfigPreflightError(
+                "measurement.warmup_optimizer_steps must be a non-negative integer"
+            )
+        output_path = measurement.get("output_path")
+        if output_path is not None and (
+            not isinstance(output_path, str) or not output_path.strip()
+        ):
+            raise ConfigPreflightError(
+                "measurement.output_path must be null or a non-empty path string"
+            )
+
     profile = _plain(cfg["profile"])
     _required(profile, ("name",), "profile")
     profile_name = str(profile["name"])
@@ -241,8 +301,7 @@ def validate_training_config(config: Mapping[str, Any] | DictConfig) -> dict[str
         or profile.get("task") == "evaluate_checkpoint"
     ):
         raise ConfigPreflightError(
-            "profile=evaluation is composition-only until the evaluation ticket; "
-            "the training entrypoint cannot run it"
+            "profile=evaluation is standalone-only; the training entrypoint cannot run it"
         )
     data = _plain(cfg["data"])
     _required(data, ("mode",), "data")

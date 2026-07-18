@@ -67,6 +67,14 @@ artifacts:
   # Use a recovery file/directory or `latest` for this run's checkpoint dir.
   resume_path: null
 
+# Benchmark-only phase/resource capture. Disabled runs do not create CUDA
+# events, synchronize, or write a separate measurement artifact.
+measurement:
+  enabled: false
+  warmup_optimizer_steps: 10
+  cuda_events: true
+  output_path: null
+
 wandb:
   enabled: true
   project: llm-scratch

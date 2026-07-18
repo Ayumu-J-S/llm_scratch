@@ -73,6 +73,7 @@ def test_same_seed_reproduces_initial_batches_and_loss_sequence():
 def test_deterministic_toggle_is_explicit():
     seed_everything(123, deterministic=True)
     assert torch.are_deterministic_algorithms_enabled()
+    assert not torch.is_deterministic_algorithms_warn_only_enabled()
     seed_everything(123, deterministic=False)
     assert not torch.are_deterministic_algorithms_enabled()
     seed_everything(123, deterministic=True)

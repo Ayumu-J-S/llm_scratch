@@ -1,10 +1,22 @@
 # @package _global_
-# Reserved composition profile for future checkpoint evaluation. Evaluation is
-# intentionally not implemented by the training entrypoint yet.
+# Standalone checkpoint evaluation profile. The evaluator takes model/data
+# authority from the checkpoint's resolved Hydra config; these values are
+# operational output/device/W&B controls only.
 profile:
   name: evaluation
   purpose: evaluation
   task: evaluate_checkpoint
+
+evaluation:
+  checkpoint_path: null
+  output_path: evaluation.json
+  device: cpu
+  wandb:
+    enabled: false
+    project: llm-scratch
+    entity: sunday-research
+    name: null
+    mode: online
 
 runtime:
   device: cpu

@@ -59,12 +59,15 @@ The equivalent importable console commands are available after `make sync`:
 ```bash
 uv run llm-scratch-config-check profile=pretrain_streaming
 uv run llm-scratch-train profile=smoke_overfit runtime.device=cpu training.epochs=1 training.batch_size=2 wandb.enabled=false
+uv run llm-scratch-evaluate profile=evaluation evaluation.checkpoint_path=/absolute/path/to/milestone.pt
 ```
 
 `config/profile/smoke_overfit.yaml`, `pretrain_streaming.yaml`, and
 `evaluation.yaml` are the canonical Hydra profiles. `evaluation` is a
-composition placeholder until the evaluation ticket lands; it is not accepted
-by the training loop as a hidden fallback. Every training invocation writes
+standalone-only checkpoint scoring profile and is rejected by the training
+entrypoint. It takes model, tokenizer, and held-out data authority from the
+verified checkpoint while Hydra controls only device, output, and optional
+compact W&B summary behavior. See `docs/validation.md`. Every training invocation writes
 the fully resolved configuration to `runs/<profile>/<timestamp>/resolved_config.yaml`
 (the installed console wrapper uses `runs/<profile>/manual/`).
 
@@ -140,7 +143,10 @@ for both train and validation:
 - the manifest fingerprint, source checksum, document identities, and explicit smoke purpose are verified before tokenization
 - optimizer class selection lives under `training.optimizer._target_`
 - learning-rate scheduler selection lives under `training.scheduler._target_`
-- training logs per-step `train/loss_step` plus epoch-aggregated train/validation loss and perplexity to Weights & Biases
+- same-corpus scoring is recorded only as `memorization/*`; it never emits
+  `validation/*` or selects a best held-out-validation checkpoint
+- real streaming profiles score fresh fixed held-out windows through the same
+  token-weighted implementation used by standalone checkpoint evaluation
 - when W&B is enabled, training automatically enables W&B model watching with default settings so gradient panels can be collected
 - this does not add a custom scalar grad-norm line, and short runs may still show little or no gradient data with W&B's default watch behavior
 - local recovery, best, final, and milestone checkpoints remain complete and
@@ -197,6 +203,8 @@ See `data/manifests/README.md`.
 - `docs/model-runs/`: per-PR model execution records and aggregate model outcomes
 - `src/train.py`: Hydra-based decoder-only training script using the canonical tokenizer
 - `src/training/trainer.py`: decoder-only trainer loop, validation, checkpointing, and W&B logging
+- `src/evaluate.py`, `src/evaluation/scoring.py`: standalone Hydra checkpoint
+  evaluation and the shared token-weighted held-out scorer
 - `src/models/embedding.py`: token embedding and sinusoidal positional encoding
 - `src/models/simple_decoder_transformer.py`: GPT-style decoder-only Transformer blocks with causal self-attention
 - `src/tokenizer/canonical.py`: strict offline tokenizer manifest/wrapper validation

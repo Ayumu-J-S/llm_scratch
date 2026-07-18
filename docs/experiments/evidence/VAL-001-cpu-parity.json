@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "ticket": "VAL-001",
+  "commit": "a8520d7fad718574d1fca4293e6f969c7a478b79",
+  "command": "uv run --no-sync python src/train.py profile=smoke_overfit runtime.device=cpu training.max_steps=1 training.validation_every_n_steps=1 training.checkpoint_every_n_steps=1 training.batch_size=8 model.embed_size=8 model.num_heads=2 model.num_layers=1 model.dropout=0.0 wandb.enabled=false hydra.run.dir=/tmp/val001-cpu-a852",
+  "standalone_command": "uv run --no-sync python src/evaluate.py profile=evaluation evaluation.checkpoint_path=/tmp/val001-cpu-a852/checkpoints/best.pt evaluation.output_path=result.json hydra.run.dir=/tmp/val001-eval-a852",
+  "resolved_config_sha256": "6f1616500b513a0555ad6dd097af000e420dbc910694dcae3f33f0c275d99c3d",
+  "lock_sha256": "a02dec14fc9a20e5314eae368e9e22a289616791f55cd81b68ceadd25b71ad91",
+  "tokenizer_fingerprint": "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b",
+  "manifest_identity": {
+    "name": "fixture-memorization-v1",
+    "manifest_fingerprint": "00c3797a7d0eda13950fd699a60c45fcd388829f016479caaeb369438767bd31",
+    "dataset_fingerprint": "21c82c527fb8fafbbba4e2ea2bdf7057aed48ec8ac995a369a356747c70cd05b",
+    "selection": "all"
+  },
+  "checkpoint": {
+    "kind": "best",
+    "sha256": "10695b16bd84e8fe68bf8aa4e56fb90d57203c1d3963a59ed1c49afb9be4bd05",
+    "size_bytes": 10365425,
+    "optimizer_step": 1,
+    "training_target_tokens": 64
+  },
+  "evaluation": {
+    "namespace": "memorization",
+    "aggregate_nll": 11.207522365781996,
+    "aggregate_perplexity": 73682.63004369408,
+    "evaluated_target_tokens": 72,
+    "evaluated_windows": 9,
+    "evaluated_window_sha256": "6cbbf181afc2cd44d4ce9859c49afb962d58c1a8ff8f729c1fa85dd2ba0d3f8c",
+    "evaluated_token_sha256": "5390413b4a8d6b982b31cae770df3856b7bda402dfe38d25bcd89690c9b97be3",
+    "training_pause_seconds": 0.01193903700914234,
+    "standalone_pause_seconds": 0.008372592012165114,
+    "parity": {
+      "nll_exact": true,
+      "window_digest_exact": true,
+      "token_digest_exact": true,
+      "namespace_is_not_held_out_validation": true
+    }
+  },
+  "raw_held_out_text_or_tokens_recorded": false
+}

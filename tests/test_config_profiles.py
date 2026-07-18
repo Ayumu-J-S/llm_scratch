@@ -5,7 +5,11 @@ import pytest
 from omegaconf import OmegaConf
 
 import train as train_module
-from runtime.config import ConfigPreflightError, validate_training_config
+from runtime.config import (
+    ConfigPreflightError,
+    validate_evaluation_config,
+    validate_training_config,
+)
 
 
 CONFIG_DIR = Path(__file__).parents[1] / "config"
@@ -74,6 +78,22 @@ def test_stability_smoke_exposes_the_bf16_update_recipe():
     assert config.training.scheduler.decay_steps == 100
 
 
+def test_benchmark_measurement_is_disabled_by_default_and_strict():
+    config = compose("profile=pretrain_streaming")
+    assert config.measurement.enabled is False
+    validate_training_config(config)
+
+    config.measurement.enabled = True
+    config.measurement.warmup_optimizer_steps = 0
+    config.measurement.cuda_events = False
+    config.measurement.output_path = "/tmp/measurement.json"
+    validate_training_config(config)
+
+    config.measurement.warmup_optimizer_steps = -1
+    with pytest.raises(ConfigPreflightError, match="warmup_optimizer_steps"):
+        validate_training_config(config)
+
+
 def test_gate_overfit_uses_versioned_distinct_fixture_manifests_without_validation_events():
     config = compose("profile=gate_overfit")
     validate_training_config(config)
@@ -124,9 +144,22 @@ def test_evaluation_profile_is_rejected_by_training_preflight(monkeypatch):
         raise AssertionError("evaluation profile must stop before tokenizer initialization")
 
     monkeypatch.setattr(train_module.CanonicalTokenizer, "from_config", fail_if_tokenizer_is_loaded)
-    with pytest.raises(ConfigPreflightError, match="composition-only"):
+    with pytest.raises(ConfigPreflightError, match="standalone-only"):
         train_module.main.__wrapped__(config)
     assert not tokenizer_touched
+
+
+def test_evaluation_preflight_accepts_only_explicit_operational_controls():
+    config = compose(
+        "profile=evaluation",
+        "evaluation.checkpoint_path=/tmp/milestone.pt",
+    )
+    validate_evaluation_config(config)
+
+    OmegaConf.set_struct(config, False)
+    config.evaluation.wandb.raw_documents = True
+    with pytest.raises(ConfigPreflightError, match="unknown critical"):
+        validate_evaluation_config(config)
 
 
 @pytest.mark.parametrize(

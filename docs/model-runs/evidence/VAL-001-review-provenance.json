@@ -1,0 +1,54 @@
+{
+  "schema_version": "1.0",
+  "captured_at": "2026-07-13T12:06:09.875810Z",
+  "phase": "review",
+  "role": "independent-reviewer",
+  "task_path": "VAL-001",
+  "requested": {
+    "model": {
+      "value": "heavier review model",
+      "source": "explicit invocation/config default",
+      "status": "observed"
+    },
+    "reasoning_mode": {
+      "value": "Extra Thinking",
+      "source": "explicit invocation/config default",
+      "status": "observed"
+    }
+  },
+  "actual": {
+    "product": {
+      "value": "Codex",
+      "source": "active runtime display",
+      "status": "observed"
+    },
+    "displayed_model_family": {
+      "value": "not exposed by runtime",
+      "source": "active runtime display",
+      "status": "unavailable"
+    },
+    "exact_model_identifier": {
+      "value": "not exposed by runtime",
+      "source": "active runtime display",
+      "status": "unavailable"
+    },
+    "reasoning_mode": {
+      "value": "not exposed by runtime",
+      "source": "active runtime display",
+      "status": "unavailable"
+    }
+  },
+  "environment": {
+    "codex_cli_version": "codex-cli 0.144.1",
+    "branch": "not exposed by runtime",
+    "commit": "a8520d7fad718574d1fca4293e6f969c7a478b79",
+    "thread_id": "not recorded (privacy)"
+  },
+  "privacy": {
+    "raw_thread_id_recorded": false,
+    "prompts_recorded": false,
+    "hidden_chain_of_thought_recorded": false,
+    "token_counts_recorded": false,
+    "secrets_recorded": false
+  }
+}

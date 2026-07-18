@@ -1,0 +1,64 @@
+{
+  "schema_version": "1.0",
+  "captured_at": "2026-07-13T14:30:40.634751Z",
+  "phase": "repair-review",
+  "role": "protocol-review-sub-agent",
+  "task_path": "VAL-001",
+  "requested": {
+    "model": {
+      "value": "not exposed by runtime",
+      "source": "not supplied",
+      "status": "unavailable"
+    },
+    "reasoning_mode": {
+      "value": "not exposed by runtime",
+      "source": "not supplied",
+      "status": "unavailable"
+    }
+  },
+  "actual": {
+    "product": {
+      "value": "Codex",
+      "source": "active runtime display",
+      "status": "observed"
+    },
+    "displayed_model_family": {
+      "value": "not exposed by runtime",
+      "source": "not exposed by runtime",
+      "status": "unavailable",
+      "unavailable_reason": "The collaboration runtime did not expose a model family."
+    },
+    "exact_model_identifier": {
+      "value": "not exposed by runtime",
+      "source": "not exposed by runtime",
+      "status": "unavailable",
+      "unavailable_reason": "The collaboration runtime did not expose an exact deployment/model identifier."
+    },
+    "reasoning_mode": {
+      "value": "not exposed by runtime",
+      "source": "not exposed by runtime",
+      "status": "unavailable",
+      "unavailable_reason": "The collaboration runtime did not expose the active reasoning mode."
+    }
+  },
+  "environment": {
+    "codex_cli_version": "codex-cli 0.144.1",
+    "branch": "codex/val-001-held-out-validation",
+    "commit": "4264e4a606972ee0e95c1aca4ebcb838afe48c41",
+    "thread_id": "not recorded (privacy)"
+  },
+  "outcome": {
+    "verdict": "PASS WITH NOTE",
+    "findings": [
+      "The 5% first-step gate is adaptive and must be disclosed rather than represented as original.",
+      "A fresh six-arm matrix, paired-off comparison, unchanged sustained gates, phase attribution, coarse container claims, and no further relaxation are required."
+    ]
+  },
+  "privacy": {
+    "raw_thread_id_recorded": false,
+    "prompts_recorded": false,
+    "hidden_chain_of_thought_recorded": false,
+    "token_counts_recorded": false,
+    "secrets_recorded": false
+  }
+}

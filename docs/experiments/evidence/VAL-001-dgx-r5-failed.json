@@ -1,0 +1,1017 @@
+{
+  "acceptance": {
+    "failures": [
+      "Container sampler coverage was 50.1-50.6% of the predeclared 1 Hz intervals because docker stats --no-stream plus the wrapper cadence emitted about every 2.04 seconds.",
+      "Five of six first post-validation steps exceeded the preceding five-step nearest-rank p95 under the predeclared zero-tolerance single-step rule; excess was 0.7-4.7%, while all following-five means and paired controls stayed within the separate 5% gates."
+    ],
+    "passed_controls": [
+      "All three 60-step trajectories and canonical final model digests matched exactly within pairs.",
+      "Median paired validation-on throughput delta stayed below 5%, every data-wait fraction stayed below 1%, and all validation/scoring pause budgets passed.",
+      "Training-time and standalone scores, denominators, manifests, logical identity, window identity, and token identity matched exactly.",
+      "Cache inventories and shard hashes were unchanged, all leases released, memory recovered, following-five recovery means passed, and no swap occurred."
+    ],
+    "verdict": "FAIL"
+  },
+  "aggregate": {
+    "paired_throughput_delta": {
+      "max": -0.0001594955419442315,
+      "median": -0.0002222256993277039,
+      "min": -0.012117070554049217,
+      "values": [
+        -0.012117070554049217,
+        -0.0001594955419442315,
+        -0.0002222256993277039
+      ]
+    },
+    "recovery": [
+      {
+        "allocated_recovered": true,
+        "first_post_pass": false,
+        "first_post_seconds": 0.4327483020024374,
+        "pair": 1,
+        "post_five_mean_pass": true,
+        "post_five_vs_paired_off_fraction": 0.017129537551447527,
+        "post_five_vs_pre_fraction": 0.029010949303393208,
+        "pre_five_nearest_rank_p95_seconds": 0.4133863289898727,
+        "reserved_recovered": true,
+        "validation_step": 25
+      },
+      {
+        "allocated_recovered": true,
+        "first_post_pass": false,
+        "first_post_seconds": 0.4291212190000806,
+        "pair": 1,
+        "post_five_mean_pass": true,
+        "post_five_vs_paired_off_fraction": 0.018034687056099674,
+        "post_five_vs_pre_fraction": 0.0021015453235138093,
+        "pre_five_nearest_rank_p95_seconds": 0.42421859901514836,
+        "reserved_recovered": true,
+        "validation_step": 50
+      },
+      {
+        "allocated_recovered": true,
+        "first_post_pass": false,
+        "first_post_seconds": 0.42058387998258695,
+        "pair": 2,
+        "post_five_mean_pass": true,
+        "post_five_vs_paired_off_fraction": 0.0007963985585577316,
+        "post_five_vs_pre_fraction": 0.009523654939851411,
+        "pre_five_nearest_rank_p95_seconds": 0.41639533700072207,
+        "reserved_recovered": true,
+        "validation_step": 25
+      },
+      {
+        "allocated_recovered": true,
+        "first_post_pass": false,
+        "first_post_seconds": 0.4193936660012696,
+        "pair": 2,
+        "post_five_mean_pass": true,
+        "post_five_vs_paired_off_fraction": 0.0009348297432181241,
+        "post_five_vs_pre_fraction": 0.0038917518482524116,
+        "pre_five_nearest_rank_p95_seconds": 0.41666851699119434,
+        "reserved_recovered": true,
+        "validation_step": 50
+      },
+      {
+        "allocated_recovered": true,
+        "first_post_pass": false,
+        "first_post_seconds": 0.42251380198285915,
+        "pair": 3,
+        "post_five_mean_pass": true,
+        "post_five_vs_paired_off_fraction": 0.0018886472072785487,
+        "post_five_vs_pre_fraction": 0.01104799165892989,
+        "pre_five_nearest_rank_p95_seconds": 0.4151747229916509,
+        "reserved_recovered": true,
+        "validation_step": 25
+      },
+      {
+        "allocated_recovered": true,
+        "first_post_pass": true,
+        "first_post_seconds": 0.41711502498947084,
+        "pair": 3,
+        "post_five_mean_pass": true,
+        "post_five_vs_paired_off_fraction": -0.005031635175085314,
+        "post_five_vs_pre_fraction": 0.0007172463907980653,
+        "pre_five_nearest_rank_p95_seconds": 0.4172987480123993,
+        "reserved_recovered": true,
+        "validation_step": 50
+      }
+    ],
+    "strict_determinism_cost_context": {
+      "attempt4_pair1_off_tokens_per_second": 17909.594,
+      "attempt4_pair1_on_tokens_per_second": 17965.07745,
+      "attempt5_pair1_off_tokens_per_second": 9883.155073941087,
+      "attempt5_pair1_on_tokens_per_second": 9763.400186613533,
+      "note": "Descriptive same-stack context only; Attempt 4 failed exact trajectory and was not acceptance replication.",
+      "off_delta_fraction": -0.44816420327891937,
+      "on_delta_fraction": -0.4565344784186537
+    },
+    "validation_event_seconds_max": 7.464100821991451,
+    "validation_identity_exact": true,
+    "validation_score_exact_by_step": true,
+    "validation_scoring_seconds_max": 4.79810793598881
+  },
+  "attempt": 5,
+  "environment": {
+    "cache_inventory_after_sha256": "e20b980760caccc155554831e0329e0c7e883e3c6c436833d5f579e47f65bf52",
+    "cache_inventory_before_sha256": "e20b980760caccc155554831e0329e0c7e883e3c6c436833d5f579e47f65bf52",
+    "cache_shards_after_sha256": "1f47b3163a9ab037891c57364d6cf645a0fbc62be9526e963420b9ed728de037",
+    "cache_shards_before_sha256": "1f47b3163a9ab037891c57364d6cf645a0fbc62be9526e963420b9ed728de037",
+    "cuda": "13.3",
+    "driver": "580.159.03",
+    "hardware": "NVIDIA GB10",
+    "image_id": "sha256:23a1bee69fe189e77105cdddeee9aeff6ef0763d58a691625fbfcab64efd1887",
+    "pytorch": "2.13.0a0+8145d63"
+  },
+  "measured_commit": "4264e4a606972ee0e95c1aca4ebcb838afe48c41",
+  "pairs": [
+    {
+      "final_model_digest": "79f1b5c32b9b718bdaf4af6bb54ba672514694cde60292326a9d161610957e25",
+      "final_model_digest_exact": true,
+      "id": 1,
+      "off": "1-off",
+      "on": "1-on",
+      "throughput_delta_fraction": -0.012117070554049217,
+      "trajectory_exact": true
+    },
+    {
+      "final_model_digest": "79f1b5c32b9b718bdaf4af6bb54ba672514694cde60292326a9d161610957e25",
+      "final_model_digest_exact": true,
+      "id": 2,
+      "off": "2-off",
+      "on": "2-on",
+      "throughput_delta_fraction": -0.0001594955419442315,
+      "trajectory_exact": true
+    },
+    {
+      "final_model_digest": "79f1b5c32b9b718bdaf4af6bb54ba672514694cde60292326a9d161610957e25",
+      "final_model_digest_exact": true,
+      "id": 3,
+      "off": "3-off",
+      "on": "3-on",
+      "throughput_delta_fraction": -0.0002222256993277039,
+      "trajectory_exact": true
+    }
+  ],
+  "protocol": {
+    "batch_size": 1,
+    "gradient_accumulation_steps": 1,
+    "pairs": 3,
+    "protocol_script_sha256": "a7da11527fca0109168bc1b566dfb5004129e3d12e85776ce863f7a0ea41dd4d",
+    "run_order": [
+      "1-off",
+      "1-on",
+      "2-on",
+      "2-off",
+      "3-off",
+      "3-on"
+    ],
+    "sequence_length": 4096,
+    "steps_per_arm": 60,
+    "targets_per_arm": 245760,
+    "validation_steps": [
+      25,
+      50
+    ],
+    "warmup_steps": 10
+  },
+  "provenance": {
+    "actual_model": "not exposed by runtime",
+    "actual_reasoning": "not exposed by runtime"
+  },
+  "recomputation": {
+    "record": "VAL-001-dgx-r5-recompute.json",
+    "record_sha256": "31618b6ae43473a31a5899ca2076136f2953ba8c5b3da49ba15ce7f76bf67be8",
+    "scope": "training trajectory, final-model tensor equality, replicated validation score/identity, and training-time/standalone score/identity parity",
+    "verifier": "verify_val001_dgx.py",
+    "verifier_sha256": "7b17fec49fc75fc0f8efc3cfdb36a1d8556b06ff1fac88f10816f0df6ac770c8"
+  },
+  "runs": [
+    {
+      "arm": "off",
+      "artifacts": {
+        "container": "0829f7b3cd65a2538f86fe58e24824f3699e9a2ef6d148f067947d4dd7441ffe",
+        "gpu": "7dfbd7f7115f3659ee11c2dfbec58447ecaa56f92d6e9d4c379ef08a003e628e",
+        "host": "991ea4ab6927fa7d3106f019788264d5b5bff8715226322fa92711a575127331",
+        "measurement": "f347be6caa9ddf99aef559737668ff331a80583213a23fa18a9310cc313ac848",
+        "metrics": "b57fb43124f7f8d52626612bbd1f2c02a94ca41323f5dbbfbe4ad738a3694961",
+        "resolved_config": "c334cef3c35e7ce30b97c0553ac22fcd7eacbf66b672c765347d917ccb09a5ee",
+        "run_manifest": "f5b7f76a98a8434b02beb7e8cbac9b1a4b78f03294590a37e56f9abfe2677a20",
+        "stderr": "464e9e62805fe5389180e2eaf49d96773092b9349e24e43e0fc147def4d504c3",
+        "stdout": "5c00002edeab3e0259ecdbe597fb68586953d7d69d6e877e21217df259237cf8"
+      },
+      "cache": {
+        "active_leases_end": 0,
+        "downloads": 0,
+        "evictions": 0
+      },
+      "id": "1-off",
+      "resources": {
+        "container": {
+          "coverage_1hz": 0.5065040510625799,
+          "mean_interval_seconds": 2.0392723962666666,
+          "memory_bytes_max": 2203318222,
+          "samples": 16
+        },
+        "gpu": {
+          "coverage_5hz": 0.99511328298534,
+          "power_watts_max": 25.53,
+          "samples": 168,
+          "temperature_c_max": 47.0,
+          "utilization_percent_max": 96.0
+        },
+        "host": {
+          "coverage_1hz": 1.0,
+          "max_swap_in_per_second": 0,
+          "max_swap_out_per_second": 0,
+          "samples": 34
+        }
+      },
+      "steady": {
+        "data_wait_fraction": 0.004471379440774648,
+        "host_phase_seconds": {
+          "backward": {
+            "max": 0.031152389012277126,
+            "p50": 0.004375875520054251,
+            "p95": 0.005124191034701652
+          },
+          "clipping": {
+            "max": 0.0006898680003359914,
+            "p50": 0.0005993925005896017,
+            "p95": 0.0006684379608486779
+          },
+          "data_wait": {
+            "max": 0.008470405999105424,
+            "p50": 0.0014396254991879687,
+            "p95": 0.0038521150054293637
+          },
+          "forward": {
+            "max": 0.02997514998423867,
+            "p50": 0.004103647006559186,
+            "p95": 0.01712373199407011
+          },
+          "gradient_finite_check": {
+            "max": 0.27807351099909283,
+            "p50": 0.27515878999838606,
+            "p95": 0.27713194429670696
+          },
+          "gradient_norm_and_scalar_read": {
+            "max": 0.002073829004075378,
+            "p50": 0.0011881364916916937,
+            "p95": 0.0015601823688484717
+          },
+          "gradient_scale": {
+            "max": 0.0006772439810447395,
+            "p50": 0.0005078359972685575,
+            "p95": 0.000642282803892158
+          },
+          "host_device_prepare": {
+            "max": 0.011773647012887523,
+            "p50": 8.80994921317324e-05,
+            "p95": 0.011226037205778992
+          },
+          "loss": {
+            "max": 0.0004092009912710637,
+            "p50": 0.00018248749256599694,
+            "p95": 0.0002994381487951614
+          },
+          "loss_scalar_read": {
+            "max": 2.961701829917729e-05,
+            "p50": 1.884049561340362e-05,
+            "p95": 2.1973016555421054e-05
+          },
+          "optimizer": {
+            "max": 0.0027859210094902664,
+            "p50": 0.0014809400163358077,
+            "p95": 0.0019371048430912195
+          },
+          "parameter_finite_check": {
+            "max": 0.02982944800169207,
+            "p50": 0.028738430002704263,
+            "p95": 0.029603607751778328
+          },
+          "scheduler": {
+            "max": 2.699298784136772e-05,
+            "p50": 1.7568498151376843e-05,
+            "p95": 2.3995416995603584e-05
+          },
+          "step_metrics": {
+            "max": 0.0002506989985704422,
+            "p50": 0.0002133605012204498,
+            "p95": 0.00023994040384422988
+          }
+        },
+        "pytorch_allocated_bytes_max": 6492746752,
+        "pytorch_reserved_bytes_max": 7398752256,
+        "step_seconds": {
+          "max": 0.44265453101252206,
+          "p50": 0.41404223001154605,
+          "p95": 0.4206780076638097
+        },
+        "tokens_per_second": 9883.155073941087
+      },
+      "validation_events": [],
+      "work": {
+        "steps": 60,
+        "targets": 245760
+      }
+    },
+    {
+      "arm": "on",
+      "artifacts": {
+        "container": "2c9e62fcdc7169fe1e92723c0dff199058512545570e72ee93befd846c809bad",
+        "gpu": "3bcb50fc54c4edf4ad797700881f69ee061268cbfe2baba8fbcda7f00edd1f1e",
+        "host": "76cc3294a561978f0e4dc29c362fe3b4a9059249c76cfc58431d02275725794b",
+        "measurement": "b83a91b240f09dcc0aae342949bfd79068b713680c400f1040d53087182b20d8",
+        "metrics": "9bbd1f262d6f1bc809e6f823dbd8ff2f888d1fbad84ef23af19f1cb5f42d35ab",
+        "resolved_config": "1458f0b1a2aa3bf4c0d1f1dd5b4058cce7c7f025b3db90ea842fdefb9f630178",
+        "run_manifest": "04be21f5b945706f36118e5a5a63b32ee9cd113de1168fc878670c28be627fe1",
+        "stderr": "810c511a980079e55969ccccdaf43641e0ee1a5e6baa51c03f94330bf4ad3159",
+        "stdout": "5c00002edeab3e0259ecdbe597fb68586953d7d69d6e877e21217df259237cf8"
+      },
+      "cache": {
+        "active_leases_end": 0,
+        "downloads": 0,
+        "evictions": 0
+      },
+      "id": "1-on",
+      "resources": {
+        "container": {
+          "coverage_1hz": 0.5008640238320452,
+          "mean_interval_seconds": 2.03987812173913,
+          "memory_bytes_max": 2790655000,
+          "samples": 24
+        },
+        "gpu": {
+          "coverage_5hz": 0.9972595965631632,
+          "power_watts_max": 29.32,
+          "samples": 242,
+          "temperature_c_max": 50.0,
+          "utilization_percent_max": 96.0
+        },
+        "host": {
+          "coverage_1hz": 1.0,
+          "max_swap_in_per_second": 0,
+          "max_swap_out_per_second": 0,
+          "samples": 49
+        }
+      },
+      "steady": {
+        "data_wait_fraction": 0.009447283355998612,
+        "host_phase_seconds": {
+          "backward": {
+            "max": 0.030187393014784902,
+            "p50": 0.004608037517755292,
+            "p95": 0.005199566257942934
+          },
+          "clipping": {
+            "max": 0.0006890799850225449,
+            "p50": 0.0006328309973469004,
+            "p95": 0.0006714138566167094
+          },
+          "data_wait": {
+            "max": 0.01779086800524965,
+            "p50": 0.0015779929963173345,
+            "p95": 0.014182509890815705
+          },
+          "forward": {
+            "max": 0.030972135020419955,
+            "p50": 0.008504984507453628,
+            "p95": 0.027196011348860336
+          },
+          "gradient_finite_check": {
+            "max": 0.27710106599261053,
+            "p50": 0.27499372250167653,
+            "p95": 0.27634676319721624
+          },
+          "gradient_norm_and_scalar_read": {
+            "max": 0.002134508016752079,
+            "p50": 0.001184459004434757,
+            "p95": 0.0019068219466134907
+          },
+          "gradient_scale": {
+            "max": 0.0006726319843437523,
+            "p50": 0.0005686924851033837,
+            "p95": 0.0006510747480206192
+          },
+          "host_device_prepare": {
+            "max": 0.018678121006814763,
+            "p50": 8.187450293917209e-05,
+            "p95": 0.011395601890399114
+          },
+          "loss": {
+            "max": 0.00035137200029566884,
+            "p50": 0.00023164050071500242,
+            "p95": 0.0003345232020365074
+          },
+          "loss_scalar_read": {
+            "max": 2.3519998649135232e-05,
+            "p50": 1.9424493075348437e-05,
+            "p95": 2.1454063244163987e-05
+          },
+          "optimizer": {
+            "max": 0.0035127360024489462,
+            "p50": 0.001595537003595382,
+            "p95": 0.0020195067525492047
+          },
+          "parameter_finite_check": {
+            "max": 0.029530126979807392,
+            "p50": 0.028791606004233472,
+            "p95": 0.029271566543320658
+          },
+          "scheduler": {
+            "max": 3.0736991902813315e-05,
+            "p50": 1.8288992578163743e-05,
+            "p95": 2.3325001529883592e-05
+          },
+          "step_metrics": {
+            "max": 0.0002659770252648741,
+            "p50": 0.0002253920101793483,
+            "p95": 0.0002462705902871676
+          }
+        },
+        "pytorch_allocated_bytes_max": 6492746752,
+        "pytorch_reserved_bytes_max": 7398752256,
+        "step_seconds": {
+          "max": 0.44375428900821134,
+          "p50": 0.4199602204898838,
+          "p95": 0.4304533550370252
+        },
+        "tokens_per_second": 9763.400186613533
+      },
+      "validation_events": [
+        {
+          "best_checkpoint_seconds": 2.2170380809984636,
+          "full_pause_seconds": 6.83421766399988,
+          "scoring_seconds": 4.616795169014949,
+          "step": 25,
+          "unattributed_seconds": 0.00022989595890976489
+        },
+        {
+          "best_checkpoint_seconds": 2.6485982520098332,
+          "full_pause_seconds": 7.2523789039987605,
+          "scoring_seconds": 4.6033916950109415,
+          "step": 50,
+          "unattributed_seconds": 0.00024247192777693272
+        }
+      ],
+      "work": {
+        "steps": 60,
+        "targets": 245760
+      }
+    },
+    {
+      "arm": "on",
+      "artifacts": {
+        "container": "4c00f57552e7ce0c27f727b88ac12ed738e29b03cf16955bca43062afc06969b",
+        "gpu": "c82db1ec4ce6aaeb4cc16f55610aedadedb618f8ec2f1d4be62625268374b10c",
+        "host": "c02d1ea79825307f457140096b570c0b27e326af42924a2e274dfca7ff5067b8",
+        "measurement": "ab099cfb9d259cf9267949a053696debd69b65d306d611107a48254e833050f3",
+        "metrics": "0b7245ab01c3d5055f72184927f5e8f2c027949c61b73161f4ef540282027ca1",
+        "resolved_config": "1458f0b1a2aa3bf4c0d1f1dd5b4058cce7c7f025b3db90ea842fdefb9f630178",
+        "run_manifest": "165981b65e2e9d6a7baf3a3103dda5f043ebbdf48ad77a53240af896840931e1",
+        "stderr": "4611ff10af8fca10305cc59b9c21e911160d9b7e5c408100858f78d1f9cd078e",
+        "stdout": "5c00002edeab3e0259ecdbe597fb68586953d7d69d6e877e21217df259237cf8"
+      },
+      "cache": {
+        "active_leases_end": 0,
+        "downloads": 0,
+        "evictions": 0
+      },
+      "id": "2-on",
+      "resources": {
+        "container": {
+          "coverage_1hz": 0.5014735122691154,
+          "mean_interval_seconds": 2.037346020652174,
+          "memory_bytes_max": 2773475131,
+          "samples": 24
+        },
+        "gpu": {
+          "coverage_5hz": 0.9959183673469387,
+          "power_watts_max": 28.59,
+          "samples": 244,
+          "temperature_c_max": 49.0,
+          "utilization_percent_max": 96.0
+        },
+        "host": {
+          "coverage_1hz": 1.0,
+          "max_swap_in_per_second": 0,
+          "max_swap_out_per_second": 0,
+          "samples": 49
+        }
+      },
+      "steady": {
+        "data_wait_fraction": 0.007160499206652991,
+        "host_phase_seconds": {
+          "backward": {
+            "max": 0.030413806001888588,
+            "p50": 0.004720300014014356,
+            "p95": 0.0052452711533987895
+          },
+          "clipping": {
+            "max": 0.0007271560025401413,
+            "p50": 0.0006338255188893527,
+            "p95": 0.0007152486039558425
+          },
+          "data_wait": {
+            "max": 0.015005856985226274,
+            "p50": 0.0015300425147870556,
+            "p95": 0.011235346402099809
+          },
+          "forward": {
+            "max": 0.032255868980428204,
+            "p50": 0.009511158496025018,
+            "p95": 0.01627721928671235
+          },
+          "gradient_finite_check": {
+            "max": 0.2768660239817109,
+            "p50": 0.275063051507459,
+            "p95": 0.2765973663146724
+          },
+          "gradient_norm_and_scalar_read": {
+            "max": 0.0021997399744577706,
+            "p50": 0.0011826325062429532,
+            "p95": 0.0020039420924149454
+          },
+          "gradient_scale": {
+            "max": 0.0007097630004864186,
+            "p50": 0.0005607435014098883,
+            "p95": 0.0006843290495453403
+          },
+          "host_device_prepare": {
+            "max": 0.010490878979908302,
+            "p50": 7.556199852842838e-05,
+            "p95": 0.008896310854470355
+          },
+          "loss": {
+            "max": 0.0003086959768552333,
+            "p50": 0.00024325451522599906,
+            "p95": 0.00029613734077429396
+          },
+          "loss_scalar_read": {
+            "max": 0.00041508302092552185,
+            "p50": 1.9655984942801297e-05,
+            "p95": 2.2644556884188203e-05
+          },
+          "optimizer": {
+            "max": 0.00232371297897771,
+            "p50": 0.0016897260065888986,
+            "p95": 0.002244169451296329
+          },
+          "parameter_finite_check": {
+            "max": 0.029480816010618582,
+            "p50": 0.02854932501213625,
+            "p95": 0.029273550942889415
+          },
+          "scheduler": {
+            "max": 3.264099359512329e-05,
+            "p50": 1.911250001285225e-05,
+            "p95": 2.4297252821270376e-05
+          },
+          "step_metrics": {
+            "max": 0.00029893600731156766,
+            "p50": 0.00022107800759840757,
+            "p95": 0.0002510430058464408
+          }
+        },
+        "pytorch_allocated_bytes_max": 6492746752,
+        "pytorch_reserved_bytes_max": 7398752256,
+        "step_seconds": {
+          "max": 0.44329307301086374,
+          "p50": 0.4154478729906259,
+          "p95": 0.42273074335098504
+        },
+        "tokens_per_second": 9850.258434253838
+      },
+      "validation_events": [
+        {
+          "best_checkpoint_seconds": 2.318237121013226,
+          "full_pause_seconds": 7.092292544984957,
+          "scoring_seconds": 4.773674789001234,
+          "step": 25,
+          "unattributed_seconds": 0.00023344697547145188
+        },
+        {
+          "best_checkpoint_seconds": 2.8174124830111396,
+          "full_pause_seconds": 7.464100821991451,
+          "scoring_seconds": 4.646266214986099,
+          "step": 50,
+          "unattributed_seconds": 0.0002553519734647125
+        }
+      ],
+      "work": {
+        "steps": 60,
+        "targets": 245760
+      }
+    },
+    {
+      "arm": "off",
+      "artifacts": {
+        "container": "76323e11d2ac7ab28dfea9f554b6e8693facc64a90fb6ee2a1b084e472d28d7e",
+        "gpu": "67b845d6b4b2cb7dc8dbfbb10e301ebbefe45287efc28d828aa572c1f8eeba71",
+        "host": "197dcab0958dce9c46272e716acf93095dec63ec33e6a6a78922cba1b27ee9c4",
+        "measurement": "14a7abbd4a7a3aad0b2117a8b94383b4ade572e6969f4b0e9900672cdcca83cd",
+        "metrics": "f7f57a732c28a8887ee32198e0bf501cb34a28d907d62e749dbd7b58aa0b41b7",
+        "resolved_config": "c334cef3c35e7ce30b97c0553ac22fcd7eacbf66b672c765347d917ccb09a5ee",
+        "run_manifest": "9617367a9d93f7a18d947e893d96e513f687051b59080c19a5c4a7413a0f4753",
+        "stderr": "af675fe13bd9b66a3994683665db2cba68c76be76aa24739287fe48faee1a1b2",
+        "stdout": "5c00002edeab3e0259ecdbe597fb68586953d7d69d6e877e21217df259237cf8"
+      },
+      "cache": {
+        "active_leases_end": 0,
+        "downloads": 0,
+        "evictions": 0
+      },
+      "id": "2-off",
+      "resources": {
+        "container": {
+          "coverage_1hz": 0.506782672917477,
+          "mean_interval_seconds": 2.038114581133333,
+          "memory_bytes_max": 2204391964,
+          "samples": 16
+        },
+        "gpu": {
+          "coverage_5hz": 0.9954670695938139,
+          "power_watts_max": 25.68,
+          "samples": 168,
+          "temperature_c_max": 49.0,
+          "utilization_percent_max": 96.0
+        },
+        "host": {
+          "coverage_1hz": 1.0,
+          "max_swap_in_per_second": 0,
+          "max_swap_out_per_second": 0,
+          "samples": 34
+        }
+      },
+      "steady": {
+        "data_wait_fraction": 0.0067769933129129024,
+        "host_phase_seconds": {
+          "backward": {
+            "max": 0.029766448016744107,
+            "p50": 0.004804844516911544,
+            "p95": 0.005215159452927764
+          },
+          "clipping": {
+            "max": 0.0007024009828455746,
+            "p50": 0.0006261355010792613,
+            "p95": 0.00069139965926297
+          },
+          "data_wait": {
+            "max": 0.014952656987588853,
+            "p50": 0.00154008500976488,
+            "p95": 0.00926022390485741
+          },
+          "forward": {
+            "max": 0.0206557709898334,
+            "p50": 0.007390802493318915,
+            "p95": 0.016845515489694658
+          },
+          "gradient_finite_check": {
+            "max": 0.27671171800466254,
+            "p50": 0.27501152001786977,
+            "p95": 0.2761392282045563
+          },
+          "gradient_norm_and_scalar_read": {
+            "max": 0.0020891070016659796,
+            "p50": 0.0011890294990735129,
+            "p95": 0.0016954278078628695
+          },
+          "gradient_scale": {
+            "max": 0.0006707209977321327,
+            "p50": 0.0005553654918912798,
+            "p95": 0.0006638448030571453
+          },
+          "host_device_prepare": {
+            "max": 0.012099112005671486,
+            "p50": 7.680150156375021e-05,
+            "p95": 0.007600122338044451
+          },
+          "loss": {
+            "max": 0.00035928800934925675,
+            "p50": 0.00024818199744913727,
+            "p95": 0.0003213208008673973
+          },
+          "loss_scalar_read": {
+            "max": 0.00010070600546896458,
+            "p50": 2.0000501535832882e-05,
+            "p95": 2.2271751367952676e-05
+          },
+          "optimizer": {
+            "max": 0.0021482450247276574,
+            "p50": 0.0016141429950948805,
+            "p95": 0.0020091842161491513
+          },
+          "parameter_finite_check": {
+            "max": 0.03003035599249415,
+            "p50": 0.028829739487264305,
+            "p95": 0.02949705396022182
+          },
+          "scheduler": {
+            "max": 2.5601009838283062e-05,
+            "p50": 2.128050255123526e-05,
+            "p95": 2.4381004914175718e-05
+          },
+          "step_metrics": {
+            "max": 0.000254534010309726,
+            "p50": 0.0002199895097874105,
+            "p95": 0.0002496468034223653
+          }
+        },
+        "pytorch_allocated_bytes_max": 6492746752,
+        "pytorch_reserved_bytes_max": 7396655104,
+        "step_seconds": {
+          "max": 0.4439034189854283,
+          "p50": 0.4153429844882339,
+          "p95": 0.42178032234805873
+        },
+        "tokens_per_second": 9851.829757180101
+      },
+      "validation_events": [],
+      "work": {
+        "steps": 60,
+        "targets": 245760
+      }
+    },
+    {
+      "arm": "off",
+      "artifacts": {
+        "container": "82704dc78c10e97312eadc121fccd2becdc1c87ced487122bb3f3182a1ff1d04",
+        "gpu": "5fe737e123df6d3ad73faf598318db2bdf0ab8bb6e61689f32fc1028ad17bcf8",
+        "host": "0c9a4013bdd4f80c8d06e19c4053c6cbf6894597ea180a5a42ea307f0effa223",
+        "measurement": "5a117b97d27b309abb62c4ebb89e95271d8e3f21756eac8c462c0545caca525c",
+        "metrics": "e09d80c9fae5cc0d25f298d4f80e8541215dd2d094372703f87f0fd0900ca446",
+        "resolved_config": "c334cef3c35e7ce30b97c0553ac22fcd7eacbf66b672c765347d917ccb09a5ee",
+        "run_manifest": "5760c8f8404c41ffc4e810ccfa63e61f07962229be0e8697460e8860860c9d9a",
+        "stderr": "82dccf57be81850d5f05fcb178b10417bbe326f459838c481e2aee7ed88bb7d4",
+        "stdout": "5c00002edeab3e0259ecdbe597fb68586953d7d69d6e877e21217df259237cf8"
+      },
+      "cache": {
+        "active_leases_end": 0,
+        "downloads": 0,
+        "evictions": 0
+      },
+      "id": "3-off",
+      "resources": {
+        "container": {
+          "coverage_1hz": 0.5064685061897597,
+          "mean_interval_seconds": 2.0394201948666666,
+          "memory_bytes_max": 2202244481,
+          "samples": 16
+        },
+        "gpu": {
+          "coverage_5hz": 0.99511328298534,
+          "power_watts_max": 25.69,
+          "samples": 168,
+          "temperature_c_max": 51.0,
+          "utilization_percent_max": 96.0
+        },
+        "host": {
+          "coverage_1hz": 1.0,
+          "max_swap_in_per_second": 0,
+          "max_swap_out_per_second": 0,
+          "samples": 34
+        }
+      },
+      "steady": {
+        "data_wait_fraction": 0.006124898026549758,
+        "host_phase_seconds": {
+          "backward": {
+            "max": 0.03224525699624792,
+            "p50": 0.003878210991388187,
+            "p95": 0.004302931207348593
+          },
+          "clipping": {
+            "max": 0.0006918710132595152,
+            "p50": 0.0005967965116724372,
+            "p95": 0.0006666533183306455
+          },
+          "data_wait": {
+            "max": 0.013243719993624836,
+            "p50": 0.001466463494580239,
+            "p95": 0.010405726739554665
+          },
+          "forward": {
+            "max": 0.03672135001397692,
+            "p50": 0.0064524015033384785,
+            "p95": 0.01925358744629193
+          },
+          "gradient_finite_check": {
+            "max": 0.2782832420198247,
+            "p50": 0.27512908849166706,
+            "p95": 0.2765236909952364
+          },
+          "gradient_norm_and_scalar_read": {
+            "max": 0.002084204985294491,
+            "p50": 0.0011904489947482944,
+            "p95": 0.0018422646957333196
+          },
+          "gradient_scale": {
+            "max": 0.0006535339925903827,
+            "p50": 0.0004642500134650618,
+            "p95": 0.0005434003454865886
+          },
+          "host_device_prepare": {
+            "max": 0.010775011993246153,
+            "p50": 7.901749631855637e-05,
+            "p95": 0.009783856439753434
+          },
+          "loss": {
+            "max": 0.00035371899139136076,
+            "p50": 0.0002363330131629482,
+            "p95": 0.00034387340128887444
+          },
+          "loss_scalar_read": {
+            "max": 7.763298344798386e-05,
+            "p50": 1.921650255098939e-05,
+            "p95": 2.210240054409951e-05
+          },
+          "optimizer": {
+            "max": 0.00359084497904405,
+            "p50": 0.0014115900121396407,
+            "p95": 0.0018382659545750357
+          },
+          "parameter_finite_check": {
+            "max": 0.030333253991557285,
+            "p50": 0.029105440000421368,
+            "p95": 0.029941313157905824
+          },
+          "scheduler": {
+            "max": 2.6401015929877758e-05,
+            "p50": 1.7623984604142606e-05,
+            "p95": 2.341965155210346e-05
+          },
+          "step_metrics": {
+            "max": 0.00026632598019205034,
+            "p50": 0.00020230851077940315,
+            "p95": 0.0002494481988833286
+          }
+        },
+        "pytorch_allocated_bytes_max": 6492746752,
+        "pytorch_reserved_bytes_max": 7396655104,
+        "step_seconds": {
+          "max": 0.4450831330032088,
+          "p50": 0.41493500949582085,
+          "p95": 0.42058952554070855
+        },
+        "tokens_per_second": 9872.05455535284
+      },
+      "validation_events": [],
+      "work": {
+        "steps": 60,
+        "targets": 245760
+      }
+    },
+    {
+      "arm": "on",
+      "artifacts": {
+        "container": "664516ffc237e058d66b1a46cae01ca5d4b44d420059488ed33db3ee743596f8",
+        "gpu": "7260c7d258bb2e9e31efc465a77f39ecc6494ce2db5bfe22b52490e25bd5d451",
+        "host": "b2f23669804f0334b786669a0ee3f67b1f0c2697feff949dab8317a86f61b239",
+        "measurement": "e0b56c38c310154589d9273cc8778b5c174624b8aaae0d027845bdf60552eeda",
+        "metrics": "a095e7a9aaa701bb60c64ebc6fac96a8da4894d8ca0404568cd69f2a7c7a11da",
+        "resolved_config": "1458f0b1a2aa3bf4c0d1f1dd5b4058cce7c7f025b3db90ea842fdefb9f630178",
+        "run_manifest": "f6edf6b77be5139789749aec8b2bbcae70f43c9e766c18631e92863de960884c",
+        "stderr": "b06c37bc16ea0eb4bb0534fb93677aa3d712bd30ae71b84b4ca4d27bfda72b74",
+        "stdout": "5c00002edeab3e0259ecdbe597fb68586953d7d69d6e877e21217df259237cf8"
+      },
+      "cache": {
+        "active_leases_end": 0,
+        "downloads": 0,
+        "evictions": 0
+      },
+      "id": "3-on",
+      "resources": {
+        "container": {
+          "coverage_1hz": 0.5016564707241721,
+          "mean_interval_seconds": 2.0385503592272727,
+          "memory_bytes_max": 2794949967,
+          "samples": 23
+        },
+        "gpu": {
+          "coverage_5hz": 0.9960284939797011,
+          "power_watts_max": 29.59,
+          "samples": 237,
+          "temperature_c_max": 50.0,
+          "utilization_percent_max": 96.0
+        },
+        "host": {
+          "coverage_1hz": 1.0,
+          "max_swap_in_per_second": 0,
+          "max_swap_out_per_second": 0,
+          "samples": 48
+        }
+      },
+      "steady": {
+        "data_wait_fraction": 0.0049396416315345805,
+        "host_phase_seconds": {
+          "backward": {
+            "max": 0.03028788699884899,
+            "p50": 0.004693128998042084,
+            "p95": 0.005187464589835144
+          },
+          "clipping": {
+            "max": 0.0007043980003800243,
+            "p50": 0.0006164199876366183,
+            "p95": 0.000674989799153991
+          },
+          "data_wait": {
+            "max": 0.009983697993448004,
+            "p50": 0.0014394114987226203,
+            "p95": 0.0058382317001814885
+          },
+          "forward": {
+            "max": 0.02239267702680081,
+            "p50": 0.007010109518887475,
+            "p95": 0.01711875099717872
+          },
+          "gradient_finite_check": {
+            "max": 0.27687977100140415,
+            "p50": 0.27511772949947044,
+            "p95": 0.27651287189946744
+          },
+          "gradient_norm_and_scalar_read": {
+            "max": 0.0019923580111935735,
+            "p50": 0.0011874635092681274,
+            "p95": 0.0019015528028830885
+          },
+          "gradient_scale": {
+            "max": 0.0007974230102263391,
+            "p50": 0.000566834511118941,
+            "p95": 0.0006874865837744437
+          },
+          "host_device_prepare": {
+            "max": 0.013352031994145364,
+            "p50": 7.540899969171733e-05,
+            "p95": 0.008827951650891917
+          },
+          "loss": {
+            "max": 0.0003733669873327017,
+            "p50": 0.00024658099573571235,
+            "p95": 0.0003477342179394327
+          },
+          "loss_scalar_read": {
+            "max": 4.4993008486926556e-05,
+            "p50": 1.9504499505273998e-05,
+            "p95": 2.253644779557362e-05
+          },
+          "optimizer": {
+            "max": 0.0022548749984707683,
+            "p50": 0.001647192009841092,
+            "p95": 0.0020804923566174693
+          },
+          "parameter_finite_check": {
+            "max": 0.030406428006244823,
+            "p50": 0.02849482500459999,
+            "p95": 0.02944126913935179
+          },
+          "scheduler": {
+            "max": 2.572897938080132e-05,
+            "p50": 1.8703998648561537e-05,
+            "p95": 2.4362844123970716e-05
+          },
+          "step_metrics": {
+            "max": 0.00025826101773418486,
+            "p50": 0.00022394800907932222,
+            "p95": 0.00024244339729193596
+          }
+        },
+        "pytorch_allocated_bytes_max": 6492746752,
+        "pytorch_reserved_bytes_max": 7398752256,
+        "step_seconds": {
+          "max": 0.4430220889917109,
+          "p50": 0.41458745098498184,
+          "p95": 0.42213613318890564
+        },
+        "tokens_per_second": 9869.860731125476
+      },
+      "validation_events": [
+        {
+          "best_checkpoint_seconds": 2.208079602016369,
+          "full_pause_seconds": 6.870645393006271,
+          "scoring_seconds": 4.662178008002229,
+          "step": 25,
+          "unattributed_seconds": 0.00023054800112731755
+        },
+        {
+          "best_checkpoint_seconds": 2.2799379990028683,
+          "full_pause_seconds": 7.078429814981064,
+          "scoring_seconds": 4.79810793598881,
+          "step": 50,
+          "unattributed_seconds": 0.00023790900013409555
+        }
+      ],
+      "work": {
+        "steps": 60,
+        "targets": 245760
+      }
+    }
+  ],
+  "schema_version": 1,
+  "standalone_parity": {
+    "checkpoint_sha256": "dceec1908bfea8501144227ae28ad51f7ff84e68c90be646f3ccc0e5af41819e",
+    "exact": true,
+    "output_sha256": "d0ac97c5e525744515cc6dd9316dc39ff4bb91d4ac28f3efc69756ebf507f3d5"
+  },
+  "ticket": "VAL-001"
+}
