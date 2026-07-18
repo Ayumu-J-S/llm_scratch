@@ -1,12 +1,12 @@
 # GATE-001 - Post-merge Finalization
 
-- PR: [#40](https://github.com/Ayumu-J-S/llm_scratch/pull/40) (draft)
+- PR: [#40](https://github.com/Ayumu-J-S/llm_scratch/pull/40) (merged as `7648316`)
 - Branch: `codex/gate-001-postmerge-finalize`
 - Ticket: `GATE-001`
 - Hypothesis: a documentation-only follow-up can make the merged outcome, dependency states, ledger, and audit trail agree without changing implementation or evidence.
 - Experiment record: `docs/experiments/GATE-001-bilingual-overfit-proof.md`
 - Started: 2026-07-12
-- Final verdict: PASS — repair re-review `4680822884`; final docs-only confirmation and guarded audit pending
+- Final verdict: PASS — final review `4680826547`; guarded audit and squash merge complete
 - Final record owner: implementation agent
 
 ## Scope and decision context
@@ -126,29 +126,29 @@ No actionable findings remain.
 - Human authorization: bounded roadmap-series authorization recorded in GATE PR #39 and its model-run record.
 - Authorization evidence location: parent goal context and PR #39.
 - Authorization covers this named PR or bounded ticket/goal series: yes.
-- Exact independently reviewed head SHA: `a653d5e8ea87d459b02e5eb75ff4ef734db9888f`; final review-record successor requires no-drift confirmation.
-- Latest independent verdict / model / mode: PASS / not exposed by runtime / not exposed by runtime; review `4680822884`.
+- Exact independently reviewed head SHA: `bab54820e60dfe21aaaf924a593c2022864d9859`.
+- Latest independent verdict / model / mode: PASS / not exposed by runtime / not exposed by runtime; review `4680826547`.
 - All actionable findings repaired and independently re-reviewed: yes.
-- Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: none observed; final audit must re-fetch.
-- Newer human objections since authorization/review: none known; final audit must re-fetch.
+- Blocking review decision / outstanding `CHANGES_REQUESTED` evidence: none at immediate pre-merge refresh.
+- Newer human objections since authorization/review: none at immediate pre-merge refresh.
 - Human review dismissed by an agent: no.
-- Unresolved review threads at final audit: pending.
-- Branch-protection required-context inventory: pending final refresh.
+- Unresolved review threads at final audit: zero.
+- Branch-protection required-context inventory: protection disabled, enforcement off, empty required contexts/checks, zero protected branches, and effective rules HTTP 200 `[]` at `main@2e2c4f4`.
 - Applicable configured workflow/check inventory: PR quality applies; network integration is schedule/manual only.
-- Observed exact-head check statuses: Actions `29209852450` succeeded for reviewed repair head; final docs successor requires its own run.
-- Expected checks absent, pending, skipped, cancelled, or non-successful: pending final successor run/audit.
+- Observed exact-head check statuses: Actions `29209962508` succeeded for exact final head; legacy statuses empty.
+- Expected checks absent, pending, skipped, cancelled, or non-successful: zero.
 - No-check evidence when both inventories are empty: N/A — PR quality is configured.
 - Target branch and base SHA at final audit: `main` / `2e2c4f4` initially.
-- Up-to-date, conflict-free, and mergeable evidence: pending.
-- Record, ledger, PR trail, validation, and risks parity: repair review recorded; final docs-only confirmation pending.
+- Up-to-date, conflict-free, and mergeable evidence: `main@2e2c4f4` was an ancestor, branch was zero behind, refs matched, and GitHub reported mergeable at immediate refresh.
+- Record, ledger, PR trail, validation, and risks parity: complete and re-fetched immediately before merge.
 - Prohibited self-merge categories: clear; documentation-only repository collaboration.
 - Admin/bypass/force/disabled-check requirement: no.
-- Final audit PR body/comment location: pending.
+- Final audit PR body/comment location: comment `4952877487`.
 - Final audit changed reviewed head: no.
-- Immediate pre-merge re-fetch/compare observation location: pending.
-- Immediate refresh compared authorization, head, base, review decision/objections, threads, expected checks/statuses, and mergeability: pending.
-- Drift found: pending.
-- Merge outcome: pending.
+- Immediate pre-merge re-fetch/compare observation location: comment `4952881722`.
+- Immediate refresh compared authorization, head, base, review decision/objections, threads, expected checks/statuses, and mergeability: yes.
+- Drift found: no.
+- Merge outcome: agent squash-merged exact head `bab5482` as `7648316`.
 
 ## Model assessment from this ticket
 
@@ -161,5 +161,5 @@ No actionable findings remain.
 - [x] Added this PR row to `docs/model-runs/README.md`.
 - [x] Updated per-model implementation, repair, successful-repair, and review counts.
 - [x] Confirmed the PR execution trail matches this record through the repair re-review.
-- [ ] Recorded complete guarded merge evidence.
+- [x] Recorded complete guarded merge evidence.
 - [x] Confirmed this is not the bootstrap policy PR.

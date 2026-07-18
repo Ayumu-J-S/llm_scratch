@@ -8,6 +8,7 @@ import random
 import queue
 import re
 import threading
+import time
 import traceback
 from dataclasses import dataclass
 from pathlib import Path
@@ -59,6 +60,10 @@ class SourceState:
     quota: int | None
     dataset: Mapping[str, Any] | None = None
     emitted_tokens: int = 0
+    trained_targets: int = 0
+    quota_truncated_fragments: int = 0
+    quota_removed_tokens: int = 0
+    target_quota: int | None = None
     exhausted: bool = False
     # Number of raw documents consumed from the source.  This is distinct from
     # emitted token accounting because a bounded shuffle buffer may contain
@@ -73,6 +78,12 @@ class SourceState:
         if self.quota is None:
             return None
         return self.quota - self.emitted_tokens
+
+    @property
+    def remaining_target_quota(self) -> int | None:
+        if self.target_quota is None:
+            return None
+        return self.target_quota - self.trained_targets
 
 
 class MemoryTextSource:
@@ -116,15 +127,40 @@ class IterableTextSource:
 
 
 class ManifestTextSource:
-    def __init__(self, manifest: ResolvedManifest) -> None:
+    def __init__(
+        self,
+        manifest: ResolvedManifest,
+        *,
+        cache: BoundedShardCache | None = None,
+        cursor: Mapping[str, Any] | None = None,
+        timeout_seconds: float = 30.0,
+    ) -> None:
         self.manifest = manifest
+        self.cache = cache
+        self.cursor = cursor
+        self.timeout_seconds = timeout_seconds
 
     def __iter__(self) -> Iterator[RawDocument]:
-        for document in self.manifest.documents:
-            yield RawDocument(
+        if self.manifest.is_lazy:
+            if self.cache is None:
+                raise ValueError("lazy Parquet manifests require cache.dir")
+            from data.parquet_source import ParquetManifestSource
+
+            return iter(
+                ParquetManifestSource(
+                    self.manifest,
+                    self.cache,
+                    cursor=self.cursor,
+                    timeout_seconds=self.timeout_seconds,
+                )
+            )
+        return iter(
+            RawDocument(
                 text=document.text,
                 metadata=document.metadata(self.manifest),
             )
+            for document in self.manifest.documents
+        )
 
 
 class JsonlTextSource:
@@ -266,6 +302,20 @@ class StreamLoader:
             self.max_tokens = int(self.max_tokens)
             if self.max_tokens < 1:
                 raise ValueError("max_tokens must be positive or 'max'")
+        self.mixture_basis = str(self.config.get("mixture_basis", "tokenizer_tokens"))
+        if self.mixture_basis not in {"tokenizer_tokens", "trained_targets"}:
+            raise ValueError("mixture_basis must be tokenizer_tokens or trained_targets")
+        configured_target_tokens = self.config.get("max_target_tokens")
+        self.max_target_tokens = (
+            None if configured_target_tokens is None else int(configured_target_tokens)
+        )
+        if self.max_target_tokens is not None and self.max_target_tokens < 1:
+            raise ValueError("max_target_tokens must be positive when set")
+        if self.mixture_basis == "trained_targets":
+            if self.output_mode != "packed_sequences":
+                raise ValueError("trained_targets mixture requires packed_sequences output")
+            if self.max_target_tokens is None:
+                raise ValueError("trained_targets mixture requires max_target_tokens")
 
         self.cursor_enabled = bool(
             cursor is not None
@@ -323,6 +373,7 @@ class StreamLoader:
         self.drop_remainder = bool(self.config.get("drop_remainder", True))
         self.add_eos = bool(self.config.get("add_eos", True))
         self.preserve_metadata = bool(self.config.get("preserve_metadata", False))
+        self.measure_performance = bool(self.config.get("measure_performance", False))
         self.shutdown_timeout_seconds = float(self.config.get("shutdown_timeout_seconds", 5.0))
 
         self.tokenizer = CanonicalTokenizer.from_config(self.config.get("tokenizer"))
@@ -342,6 +393,8 @@ class StreamLoader:
                 self.cache_dir,
                 max_size_bytes=int(cache_config.get("max_size_bytes", 1 << 30)),
                 retry_policy=self.retry_policy,
+                min_free_bytes=int(cache_config.get("min_free_bytes", 0)),
+                wait_timeout_seconds=float(cache_config.get("wait_timeout_seconds", 30.0)),
             )
 
         self.dataset_configs = [dict(item) for item in self.config.get("datasets", [])]
@@ -387,6 +440,40 @@ class StreamLoader:
             "target_token_count": 0,
             "dropped_target_count": 0,
         }
+        self.trained_target_counts: dict[str, int] = {
+            dataset["name"]: 0 for dataset in self.dataset_configs
+        }
+        self.rejection_counts: dict[str, dict[str, int]] = {
+            dataset["name"]: {} for dataset in self.dataset_configs
+        }
+        self.fallback_counts: dict[str, int] = {
+            dataset["name"]: 0 for dataset in self.dataset_configs
+        }
+        self.document_counts: dict[str, int] = {
+            dataset["name"]: 0 for dataset in self.dataset_configs
+        }
+        self.text_bytes: dict[str, int] = {dataset["name"]: 0 for dataset in self.dataset_configs}
+        self.truncated_counts: dict[str, int] = {
+            dataset["name"]: 0 for dataset in self.dataset_configs
+        }
+        self.quota_truncated_fragment_counts: dict[str, int] = {
+            dataset["name"]: 0 for dataset in self.dataset_configs
+        }
+        self.quota_removed_token_counts: dict[str, int] = {
+            dataset["name"]: 0 for dataset in self.dataset_configs
+        }
+        self.raw_row_counts: dict[str, int] = {
+            dataset["name"]: 0 for dataset in self.dataset_configs
+        }
+        self.missing_data_counts: dict[str, dict[str, int]] = {
+            dataset["name"]: {} for dataset in self.dataset_configs
+        }
+        self.source_read_seconds: dict[str, float] = {
+            dataset["name"]: 0.0 for dataset in self.dataset_configs
+        }
+        self.tokenization_seconds: dict[str, float] = {
+            dataset["name"]: 0.0 for dataset in self.dataset_configs
+        }
 
     def _source_rng(self, name: str, epoch: int) -> random.Random:
         # Stable arithmetic avoids Python's process-randomized hash() and keeps
@@ -410,6 +497,9 @@ class StreamLoader:
                         "source_position": 0,
                         "epoch": self._pass_index,
                         "emitted_tokens": 0,
+                        "trained_targets": 0,
+                        "quota_truncated_fragments": 0,
+                        "quota_removed_tokens": 0,
                         "exhausted": False,
                         "shuffle_buffer": [],
                         "shuffle_rng_state": _jsonable_rng_state(
@@ -509,6 +599,9 @@ class StreamLoader:
                     "source_position": 0,
                     "epoch": 0,
                     "emitted_tokens": 0,
+                    "trained_targets": 0,
+                    "quota_truncated_fragments": 0,
+                    "quota_removed_tokens": 0,
                     "exhausted": False,
                     "shuffle_buffer": [],
                     "shuffle_rng_state": _jsonable_rng_state(
@@ -538,6 +631,9 @@ class StreamLoader:
                     "source_position": state.source_position,
                     "epoch": state.epoch,
                     "emitted_tokens": state.emitted_tokens,
+                    "trained_targets": state.trained_targets,
+                    "quota_truncated_fragments": state.quota_truncated_fragments,
+                    "quota_removed_tokens": state.quota_removed_tokens,
                     "exhausted": state.exhausted,
                     "shuffle_buffer": [
                         _serialize_document(document) for document in (state.shuffle_buffer or [])
@@ -545,6 +641,7 @@ class StreamLoader:
                     "shuffle_rng_state": _jsonable_rng_state(
                         (state.shuffle_rng or self._source_rng(state.name, state.epoch)).getstate()
                     ),
+                    "artifact_cursor": copy.deepcopy(getattr(state.iterator, "cursor", None)),
                 }
                 for state in source_states
             },
@@ -636,10 +733,32 @@ class StreamLoader:
                 if _is_prefetch_accounting(item):
                     self.token_counts = dict(item["token_counts"])
                     self.packed_token_counts = dict(item["packed_token_counts"])
+                    self.trained_target_counts = dict(item["trained_target_counts"])
+                    self.rejection_counts = copy.deepcopy(item["rejection_counts"])
+                    self.fallback_counts = dict(item["fallback_counts"])
+                    self.document_counts = dict(item["document_counts"])
+                    self.text_bytes = dict(item["text_bytes"])
+                    self.truncated_counts = dict(item["truncated_counts"])
+                    self.quota_truncated_fragment_counts = dict(
+                        item["quota_truncated_fragment_counts"]
+                    )
+                    self.quota_removed_token_counts = dict(item["quota_removed_token_counts"])
+                    self.raw_row_counts = dict(item["raw_row_counts"])
+                    self.missing_data_counts = copy.deepcopy(item["missing_data_counts"])
+                    self.source_read_seconds = dict(item["source_read_seconds"])
+                    self.tokenization_seconds = dict(item["tokenization_seconds"])
                     continue
                 if _is_prefetch_cursor(item):
                     self._cursor = _copy_cursor(item["cursor"])
                     self._consumer_cursor = _copy_cursor(item["cursor"])
+                    if self._process is not None:
+                        for name, state in item["cursor"].get("source_states", {}).items():
+                            self.quota_truncated_fragment_counts[name] = int(
+                                state.get("quota_truncated_fragments", 0)
+                            )
+                            self.quota_removed_token_counts[name] = int(
+                                state.get("quota_removed_tokens", 0)
+                            )
                     # A subsequent process-prefetch pass serializes
                     # ``self.config`` into a spawned worker.  Keep that plain
                     # config synchronized with the acknowledged cursor so
@@ -771,7 +890,9 @@ class StreamLoader:
         if stride < 1:
             raise ValueError("packed_sequences requires sequence_length of at least 2")
 
-        for sample in self._sample_iter(stop_event=stop_event):
+        sample_iterator = self._sample_iter(stop_event=stop_event)
+        target_budget_complete = False
+        for sample in sample_iterator:
             if stop_event is not None and stop_event.is_set():
                 return
 
@@ -784,35 +905,65 @@ class StreamLoader:
                     "end": sample_start + sample.token_count,
                 }
             )
+            self._packed_cursor_buffer = list(buffer)
+            self._packed_cursor_spans = copy.deepcopy(spans)
 
             while len(buffer) >= self.sequence_length:
-                token_ids = buffer[: self.sequence_length]
+                window_length = self.sequence_length
+                if self.max_target_tokens is not None:
+                    remaining_targets = self.max_target_tokens - sum(
+                        self.trained_target_counts.values()
+                    )
+                    if remaining_targets <= 0:
+                        target_budget_complete = True
+                        break
+                    window_length = min(window_length, remaining_targets + 1)
+                token_ids = buffer[:window_length]
+                target_counts = self._record_trained_targets(spans, window_length)
+                target_count = window_length - 1
                 output = {
                     "input_ids": np.asarray(token_ids, dtype=np.uint32),
-                    "window_token_count": self.sequence_length,
-                    "target_token_count": stride,
+                    "window_token_count": window_length,
+                    "target_token_count": target_count,
+                    "source_target_counts": target_counts,
                 }
                 if self.preserve_metadata:
-                    output["source_spans"] = _slice_spans(spans, self.sequence_length)
-                self.packed_token_counts["window_token_count"] += self.sequence_length
-                self.packed_token_counts["target_token_count"] += stride
+                    output["source_spans"] = _slice_spans(spans, window_length)
+                self.packed_token_counts["window_token_count"] += window_length
+                self.packed_token_counts["target_token_count"] += target_count
                 if self.cursor_enabled:
-                    self._packed_cursor_buffer = list(buffer[stride:])
-                    self._packed_cursor_spans = _shift_spans(spans, stride)
+                    self._packed_cursor_buffer = list(buffer[target_count:])
+                    self._packed_cursor_spans = _shift_spans(spans, target_count)
                     if self._active_source_states is not None and self._active_rng is not None:
                         self._cursor = self._capture_cursor(
                             self._active_source_states,
                             self._active_rng,
                         )
                 yield output
-                del buffer[:stride]
-                spans = _shift_spans(spans, stride)
+                del buffer[:target_count]
+                spans = _shift_spans(spans, target_count)
+                if (
+                    self.max_target_tokens is not None
+                    and sum(self.trained_target_counts.values()) >= self.max_target_tokens
+                ):
+                    target_budget_complete = True
+                    break
+            if target_budget_complete:
+                break
+
+        if target_budget_complete:
+            sample_iterator.close()
+            self._clear_packed_cursor_residual()
+            if self.cursor_enabled and self._cursor is not None:
+                self._cursor["pass_complete"] = True
+            return
 
         if len(buffer) > 1 and not self.drop_remainder:
             output = {
                 "input_ids": np.asarray(buffer, dtype=np.uint32),
                 "window_token_count": len(buffer),
                 "target_token_count": max(len(buffer) - 1, 0),
+                "source_target_counts": self._record_trained_targets(spans, len(buffer)),
             }
             if self.preserve_metadata:
                 output["source_spans"] = _slice_spans(spans, len(buffer))
@@ -825,6 +976,12 @@ class StreamLoader:
             yield output
         elif buffer:
             self.packed_token_counts["dropped_target_count"] += max(len(buffer) - 1, 0)
+        if self.max_target_tokens is not None:
+            missing = self.max_target_tokens - sum(self.trained_target_counts.values())
+            if missing > 0:
+                raise StreamLoaderError(
+                    f"datasets exhausted before max_target_tokens was met: {missing}"
+                )
         self._clear_packed_cursor_residual()
         if (
             self.cursor_enabled
@@ -832,6 +989,30 @@ class StreamLoader:
             and self._active_rng is not None
         ):
             self._cursor = self._capture_cursor(self._active_source_states, self._active_rng)
+
+    def _record_trained_targets(
+        self,
+        spans: list[dict[str, Any]],
+        window_length: int,
+    ) -> dict[str, int]:
+        counts = {name: 0 for name in self.trained_target_counts}
+        for span in spans:
+            # Causal labels are token positions 1..W-1, attributed to the source
+            # of the target token (not the preceding input token).
+            start = max(int(span["start"]), 1)
+            end = min(int(span["end"]), window_length)
+            if start < end:
+                counts[span["source"]] += end - start
+        if sum(counts.values()) != max(window_length - 1, 0):
+            raise StreamLoaderError("packed source spans do not reconcile with trained targets")
+        for name, count in counts.items():
+            self.trained_target_counts[name] += count
+            if self._active_source_states is not None:
+                for state in self._active_source_states:
+                    if state.name == name:
+                        state.trained_targets += count
+                        break
+        return {name: count for name, count in counts.items() if count}
 
     def _clear_packed_cursor_residual(self) -> None:
         self._packed_cursor_buffer = []
@@ -891,15 +1072,50 @@ class StreamLoader:
                 if state is None:
                     break
 
-                document = self._next_source_document(state)
+                if self.measure_performance:
+                    started = time.perf_counter()
+                    document = self._next_source_document(state)
+                    self.source_read_seconds[state.name] += time.perf_counter() - started
+                else:
+                    document = self._next_source_document(state)
                 if document is None:
                     source_states = [item for item in source_states if not item.exhausted]
                     continue
 
-                token_ids = self.tokenizer.encode(document.text)
+                if self.measure_performance:
+                    started = time.perf_counter()
+                    token_ids = self.tokenizer.encode(document.text)
+                    self.tokenization_seconds[state.name] += time.perf_counter() - started
+                else:
+                    token_ids = self.tokenizer.encode(document.text)
                 if self.add_eos:
                     token_ids.append(int(self.tokenizer.eos_token_id))
                 original_token_count = len(token_ids)
+                target_quota_removed = 0
+
+                remaining_target_quota = self._remaining_target_capacity(state)
+                if remaining_target_quota is not None:
+                    if remaining_target_quota <= 0:
+                        source_states = [
+                            item
+                            for item in source_states
+                            if self._remaining_target_capacity(item) != 0
+                        ]
+                        continue
+                    if len(token_ids) > remaining_target_quota:
+                        if not self.add_eos and self.output_mode == "packed_sequences":
+                            raise StreamLoaderError(
+                                "packed_sequences cannot target-quota-truncate a document "
+                                "without add_eos=true because the fragment would have no "
+                                "boundary token"
+                            )
+                        if self.add_eos:
+                            assert self.tokenizer.eos_token_id is not None
+                            token_ids = token_ids[: max(remaining_target_quota - 1, 0)]
+                            token_ids.append(int(self.tokenizer.eos_token_id))
+                        else:
+                            token_ids = token_ids[:remaining_target_quota]
+                        target_quota_removed = original_token_count - len(token_ids)
 
                 remaining_quota = state.remaining_quota
                 if remaining_quota is not None:
@@ -924,6 +1140,14 @@ class StreamLoader:
                 if not token_ids:
                     continue
 
+                if target_quota_removed:
+                    state.quota_truncated_fragments += 1
+                    state.quota_removed_tokens += target_quota_removed
+                    self.quota_truncated_fragment_counts[state.name] = (
+                        state.quota_truncated_fragments
+                    )
+                    self.quota_removed_token_counts[state.name] = state.quota_removed_tokens
+
                 text = document.text
                 if len(token_ids) != original_token_count:
                     decode_ids = list(token_ids)
@@ -947,7 +1171,11 @@ class StreamLoader:
                 source_states = [
                     item
                     for item in source_states
-                    if item.remaining_quota is None or item.remaining_quota > 0
+                    if (item.remaining_quota is None or item.remaining_quota > 0)
+                    and (
+                        self._remaining_target_capacity(item) is None
+                        or self._remaining_target_capacity(item) > 0
+                    )
                 ]
 
             if self.max_tokens != "max" and not self._can_repeat_source():
@@ -963,6 +1191,21 @@ class StreamLoader:
             completed = True
         finally:
             for state in all_source_states:
+                self.rejection_counts[state.name] = dict(
+                    getattr(state.iterator, "rejection_counts", {})
+                )
+                self.fallback_counts[state.name] = int(getattr(state.iterator, "fallback_count", 0))
+                self.document_counts[state.name] = int(getattr(state.iterator, "document_count", 0))
+                self.text_bytes[state.name] = int(getattr(state.iterator, "text_bytes", 0))
+                self.truncated_counts[state.name] = int(
+                    getattr(state.iterator, "truncated_count", 0)
+                )
+                self.quota_truncated_fragment_counts[state.name] = state.quota_truncated_fragments
+                self.quota_removed_token_counts[state.name] = state.quota_removed_tokens
+                self.raw_row_counts[state.name] = int(getattr(state.iterator, "raw_row_count", 0))
+                self.missing_data_counts[state.name] = dict(
+                    getattr(state.iterator, "missing_data_counts", {})
+                )
                 _close_iterator(state.iterator)
             if self.cursor_enabled and all_source_states:
                 self._cursor = self._capture_cursor(all_source_states, rng)
@@ -972,6 +1215,7 @@ class StreamLoader:
 
     def _build_source_states(self) -> list[SourceState]:
         quotas = self._token_quotas()
+        target_quotas = self._target_quotas()
         cursor_states = {}
         if self._cursor is not None:
             cursor_states = dict(self._cursor.get("source_states", {}))
@@ -980,13 +1224,21 @@ class StreamLoader:
             name = dataset["name"]
             saved = cursor_states.get(name, {})
             epoch = int(saved.get("epoch", 0))
+            source = self._build_source(
+                dataset,
+                artifact_cursor=saved.get("artifact_cursor"),
+            )
             state = SourceState(
                 name=name,
                 ratio=float(dataset["ratio"]),
-                iterator=iter(self._build_source(dataset)),
+                iterator=iter(source),
                 quota=quotas.get(name),
+                target_quota=target_quotas.get(name),
                 dataset=dataset,
                 emitted_tokens=int(saved.get("emitted_tokens", 0)),
+                trained_targets=int(saved.get("trained_targets", 0)),
+                quota_truncated_fragments=int(saved.get("quota_truncated_fragments", 0)),
+                quota_removed_tokens=int(saved.get("quota_removed_tokens", 0)),
                 exhausted=bool(saved.get("exhausted", False)),
                 source_position=int(saved.get("source_position", 0)),
                 epoch=epoch,
@@ -997,10 +1249,29 @@ class StreamLoader:
             )
             if saved.get("shuffle_rng_state") is not None:
                 state.shuffle_rng.setstate(_restore_rng_state(saved["shuffle_rng_state"]))
-            if state.source_position:
+            if state.source_position and not hasattr(state.iterator, "cursor"):
                 self._skip_source_documents(state)
+            self.token_counts[name] = state.emitted_tokens
+            self.trained_target_counts[name] = state.trained_targets
+            self.quota_truncated_fragment_counts[name] = state.quota_truncated_fragments
+            self.quota_removed_token_counts[name] = state.quota_removed_tokens
             states.append(state)
         return states
+
+    def _remaining_target_capacity(self, state: SourceState) -> int | None:
+        remaining = state.remaining_target_quota
+        if remaining is None:
+            return None
+        pending = 0
+        buffer_length = len(getattr(self, "_packed_cursor_buffer", []))
+        for span in getattr(self, "_packed_cursor_spans", []):
+            if span["source"] != state.name:
+                continue
+            pending += max(
+                min(int(span["end"]), buffer_length) - max(int(span["start"]), 1),
+                0,
+            )
+        return remaining - pending
 
     def _skip_source_documents(self, state: SourceState) -> None:
         """Replay the immutable source up to the saved raw-document cursor."""
@@ -1078,7 +1349,12 @@ class StreamLoader:
         # never terminate on a finite fixture.
         return self._explicit_repeat and self.repeat and self.max_tokens != "max"
 
-    def _build_source(self, dataset: Mapping[str, Any]) -> Iterable[RawDocument]:
+    def _build_source(
+        self,
+        dataset: Mapping[str, Any],
+        *,
+        artifact_cursor: Mapping[str, Any] | None = None,
+    ) -> Iterable[RawDocument]:
         source_type = dataset.get("type", dataset.get("source", "hf"))
         if source_type == "memory":
             return MemoryTextSource(dataset)
@@ -1093,7 +1369,12 @@ class StreamLoader:
         if source_type == "hf":
             return HuggingFaceTextSource(dataset, cache_dir=self.cache_dir)
         if source_type == "manifest":
-            return ManifestTextSource(self.resolved_manifests[dataset["name"]])
+            return ManifestTextSource(
+                self.resolved_manifests[dataset["name"]],
+                cache=self.cache,
+                cursor=artifact_cursor,
+                timeout_seconds=float(dataset.get("timeout_seconds", 30.0)),
+            )
         raise ValueError(f"Unsupported dataset source type: {source_type}")
 
     def _choose_source(
@@ -1106,9 +1387,27 @@ class StreamLoader:
             for state in source_states
             if (not state.exhausted or state.shuffle_buffer)
             and (state.remaining_quota is None or state.remaining_quota > 0)
+            and (
+                self._remaining_target_capacity(state) is None
+                or self._remaining_target_capacity(state) > 0
+            )
         ]
         if not candidates:
             return None
+
+        if self.mixture_basis == "trained_targets":
+            total = sum(state.trained_targets for state in source_states)
+            return max(
+                candidates,
+                key=lambda state: (
+                    state.ratio * (total + 1) - state.trained_targets,
+                    -next(
+                        index
+                        for index, dataset in enumerate(self.dataset_configs)
+                        if dataset["name"] == state.name
+                    ),
+                ),
+            )
 
         if self.max_tokens != "max":
             return rng.choices(
@@ -1124,6 +1423,8 @@ class StreamLoader:
         )[0]
 
     def _token_quotas(self) -> dict[str, int | None]:
+        if self.mixture_basis == "trained_targets":
+            return {dataset["name"]: None for dataset in self.dataset_configs}
         if self.max_tokens == "max":
             return {dataset["name"]: None for dataset in self.dataset_configs}
 
@@ -1133,6 +1434,25 @@ class StreamLoader:
         ]
         quotas = {name: int(math.floor(quota)) for name, quota in raw_quotas}
         residual = self.max_tokens - sum(quotas.values())
+        remainders = sorted(
+            raw_quotas,
+            key=lambda item: (item[1] - math.floor(item[1]), item[0]),
+            reverse=True,
+        )
+        for index in range(residual):
+            quotas[remainders[index][0]] += 1
+        return quotas
+
+    def _target_quotas(self) -> dict[str, int | None]:
+        if self.mixture_basis != "trained_targets":
+            return {dataset["name"]: None for dataset in self.dataset_configs}
+        assert self.max_target_tokens is not None
+        raw_quotas = [
+            (dataset["name"], self.max_target_tokens * float(dataset["ratio"]))
+            for dataset in self.dataset_configs
+        ]
+        quotas = {name: int(math.floor(quota)) for name, quota in raw_quotas}
+        residual = self.max_target_tokens - sum(quotas.values())
         remainders = sorted(
             raw_quotas,
             key=lambda item: (item[1] - math.floor(item[1]), item[0]),
@@ -1211,6 +1531,8 @@ def preflight_stream_manifests(config: Mapping[str, Any]) -> dict[str, ResolvedM
             cache_config["dir"],
             max_size_bytes=int(cache_config.get("max_size_bytes", 1 << 30)),
             retry_policy=retry_policy,
+            min_free_bytes=int(cache_config.get("min_free_bytes", 0)),
+            wait_timeout_seconds=float(cache_config.get("wait_timeout_seconds", 30.0)),
         )
     datasets = [dict(item) for item in config_dict.get("datasets", [])]
     return _preflight_manifest_datasets(datasets, cache=cache)
@@ -1332,6 +1654,18 @@ def _process_prefetch_worker(
                     _ACCOUNTING_MARKER: True,
                     "token_counts": loader.token_counts,
                     "packed_token_counts": loader.packed_token_counts,
+                    "trained_target_counts": loader.trained_target_counts,
+                    "rejection_counts": loader.rejection_counts,
+                    "fallback_counts": loader.fallback_counts,
+                    "document_counts": loader.document_counts,
+                    "text_bytes": loader.text_bytes,
+                    "truncated_counts": loader.truncated_counts,
+                    "quota_truncated_fragment_counts": (loader.quota_truncated_fragment_counts),
+                    "quota_removed_token_counts": loader.quota_removed_token_counts,
+                    "raw_row_counts": loader.raw_row_counts,
+                    "missing_data_counts": loader.missing_data_counts,
+                    "source_read_seconds": loader.source_read_seconds,
+                    "tokenization_seconds": loader.tokenization_seconds,
                 },
             )
             _put_prefetch_queue_item(

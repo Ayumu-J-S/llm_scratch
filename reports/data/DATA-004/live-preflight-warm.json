@@ -1,0 +1,740 @@
+{
+  "cache": {
+    "active_leases": 0,
+    "corruptions": 0,
+    "downloaded_bytes": 0,
+    "downloaded_bytes_per_second": 0.0,
+    "downloads": 0,
+    "evictions": 0,
+    "free_bytes": 523739082752,
+    "hits": 7,
+    "misses": 0,
+    "retries": 0,
+    "size_bytes": 1269008673,
+    "wait_timeouts": 0
+  },
+  "disk": {
+    "cache_cap_bytes": 80000000000,
+    "cache_cap_limit_bytes": 200000000000,
+    "cache_cap_within_limit": true,
+    "current_managed_cache_bytes": 1269008673,
+    "filesystem_free_bytes": 523739082752,
+    "filesystem_total_bytes": 982819848192,
+    "filesystem_used_bytes": 409080729600,
+    "headroom_admission_passed": true,
+    "largest_shard_temp_bytes": 4844733228,
+    "projected_free_at_full_cache_bytes": 445008091425,
+    "projected_free_at_full_cache_with_largest_temp_bytes": 440163358197,
+    "reserved_os_checkpoint_bytes": 256000000000
+  },
+  "fingerprints": {
+    "code": {
+      "dirty": false,
+      "git_commit": "fee0f1a231e24957cee86568d9ef89f04eb4e27d"
+    },
+    "config": "f4dd39e18620142e78e9809db0ea0223955727ad519ed1ce53a44fae6ebc39e3",
+    "data": {
+      "fineweb2_ja_train:train": {
+        "dataset": "522b11e5e13d82180e6d47021b66d5262bc1b6fd60a26977444ebd7a8be740db",
+        "manifest": "2fc3eb60986c96fcb752b14d740dd5a3f7cea8b52bb5a13cb5834a1f805d6bba",
+        "selection": "train"
+      },
+      "fineweb2_ja_validation:validation": {
+        "dataset": "522b11e5e13d82180e6d47021b66d5262bc1b6fd60a26977444ebd7a8be740db",
+        "manifest": "2fc3eb60986c96fcb752b14d740dd5a3f7cea8b52bb5a13cb5834a1f805d6bba",
+        "selection": "validation"
+      },
+      "fineweb_en_train:train": {
+        "dataset": "928e21caa4b9647c682c65998f2706dd71dedf583f3a91b832ffb3602fa2af6f",
+        "manifest": "626a1eb095e9089e5c62ee2df9c058ab7c6dfc54064eca5c13e4d84e65a8d60a",
+        "selection": "train"
+      },
+      "fineweb_en_validation:validation": {
+        "dataset": "928e21caa4b9647c682c65998f2706dd71dedf583f3a91b832ffb3602fa2af6f",
+        "manifest": "626a1eb095e9089e5c62ee2df9c058ab7c6dfc54064eca5c13e4d84e65a8d60a",
+        "selection": "validation"
+      }
+    },
+    "tokenizer": "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b"
+  },
+  "integrity": {
+    "manifest_disjointness_validated": true,
+    "observed_document_id_overlap": 0,
+    "observed_normalized_content_overlap": 0,
+    "raw_text_retained": false
+  },
+  "limits": {
+    "max_documents_per_split": 4096,
+    "max_target_tokens": 262144
+  },
+  "measurement": {
+    "conditions": {
+      "cache_state": "warm",
+      "claim_boundary": "Measures source iteration, filtering, canonical tokenization, packing, cache, and process resources only; it does not measure a model, GPU utilization, host-to-device transfer, end-to-end training consumption, or supply headroom.",
+      "clock": "time.monotonic_ns",
+      "first_sample_definition": "latency of the first external next(loader) call in a phase",
+      "loader_next_definition": "External next(loader) wall time includes source read/filter, production tokenization, packing, prefetch synchronization, and Python overhead; separate instrumented source-read and production-tokenization counters are also reported.",
+      "machine": "aarch64",
+      "pid": 943079,
+      "platform": "Linux-6.17.0-1021-nvidia-aarch64-with-glibc2.39",
+      "process_memory_definition": "current RSS and swap from /proc/self/status; peak RSS and page faults from getrusage(RUSAGE_SELF)",
+      "python": "3.11.15",
+      "rate_denominator": "monotonic elapsed wall time for the named loader-only phase",
+      "scope": "loader_only",
+      "steady_sample_definition": "latencies of all later external next(loader) calls in a phase"
+    },
+    "phases": {
+      "audit_loader_initialization_seconds": 0.248201975,
+      "cache_and_tokenizer_initialization_seconds": 0.107128108,
+      "configuration_validation_seconds": 0.0004364,
+      "packing_loader_initialization_seconds": 0.137002791,
+      "packing_seconds": 46.700019964,
+      "train_audit_seconds": 15.769621474,
+      "validation_audit_seconds": 164.599121646
+    },
+    "process_resources": {
+      "current_rss_bytes": 824680448,
+      "end": {
+        "current_rss_bytes": 824680448,
+        "major_page_faults": 0,
+        "minor_page_faults": 211796,
+        "monotonic_ns": 170497486738522,
+        "peak_rss_bytes": 837894144,
+        "swap_bytes": 0
+      },
+      "major_page_faults": 0,
+      "major_page_faults_per_second": 0.0,
+      "minor_page_faults": 168318,
+      "minor_page_faults_per_second": 739.633291,
+      "peak_rss_bytes": 837894144,
+      "peak_rss_growth_bytes": 590036992,
+      "start": {
+        "current_rss_bytes": 248094720,
+        "major_page_faults": 0,
+        "minor_page_faults": 43478,
+        "monotonic_ns": 170269917208999,
+        "peak_rss_bytes": 247857152,
+        "swap_bytes": 0
+      },
+      "swap_bytes": 0,
+      "swap_growth_bytes": 0
+    },
+    "whole_run_boundary": "Hydra-decorated main entry through completed loader/cache/disk evidence, before report serialization",
+    "whole_run_elapsed_seconds": 227.569529523
+  },
+  "mode": "warm",
+  "packing": {
+    "accounting_reconciled": true,
+    "expected_ratios": {
+      "fineweb2_ja_train": 0.5,
+      "fineweb_en_train": 0.5
+    },
+    "production_timing_by_source": {
+      "fineweb2_ja_train": {
+        "source_read_seconds": 0.211064053,
+        "tokenization_seconds": 0.125644978
+      },
+      "fineweb_en_train": {
+        "source_read_seconds": 0.361694995,
+        "tokenization_seconds": 0.196082489
+      }
+    },
+    "quota_truncation": {
+      "fragments_by_source": {
+        "fineweb2_ja_train": 1,
+        "fineweb_en_train": 1
+      },
+      "policy": "trained-target source quota; distinct from byte-policy document truncation",
+      "removed_tokens_by_source": {
+        "fineweb2_ja_train": 671,
+        "fineweb_en_train": 224
+      },
+      "total_fragments": 2,
+      "total_removed_tokens": 895
+    },
+    "rates": {
+      "target_tokens_per_second": 5613.359485,
+      "windows_per_second": 701.669936
+    },
+    "ratio_deviations": {
+      "fineweb2_ja_train": 0.0,
+      "fineweb_en_train": 0.0
+    },
+    "ratio_tolerance": 0.01,
+    "ratios_within_tolerance": true,
+    "realized_ratios": {
+      "fineweb2_ja_train": 0.5,
+      "fineweb_en_train": 0.5
+    },
+    "source_trained_targets": {
+      "fineweb2_ja_train": 131072,
+      "fineweb_en_train": 131072
+    },
+    "timing": {
+      "elapsed_seconds": 46.700019964,
+      "first_sample_loader_next_ms": 172.951277,
+      "loader_next_seconds": 46.61140685,
+      "steady_sample_loader_next_ms": {
+        "count": 32767,
+        "max": 261.128547,
+        "p50": 0.956127,
+        "p95": 3.258175,
+        "p99": 4.141007
+      }
+    },
+    "trained_targets": 262144,
+    "window_tokens": 294912,
+    "windows": 32768
+  },
+  "reproduction": {
+    "argv": [
+      "scripts/preflight_data.py",
+      "profile=pretrain_streaming",
+      "data.streaming.cache.dir=/tmp/llm-scratch-data004-repair-cold-fee0f1a",
+      "+preflight.max_documents_per_split=4096",
+      "+preflight.output_dir=/tmp/data004-repair-evidence-fee0f1a",
+      "+preflight.report_stem=live-preflight-warm-v2",
+      "hydra.run.dir=/tmp/data004-repair-hydra-warm-fee0f1a"
+    ],
+    "config_sha256": "f4dd39e18620142e78e9809db0ea0223955727ad519ed1ce53a44fae6ebc39e3",
+    "effective_argv": [
+      "scripts/preflight_data.py",
+      "profile=pretrain_streaming",
+      "data.streaming.cache.dir=/tmp/llm-scratch-data004-repair-cold-fee0f1a",
+      "+preflight.max_documents_per_split=4096",
+      "+preflight.output_dir=/tmp/data004-repair-evidence-fee0f1a",
+      "+preflight.report_stem=live-preflight-warm-v2",
+      "hydra.run.dir=/tmp/data004-repair-hydra-warm-fee0f1a"
+    ],
+    "note": "argv/python_command retain operator inputs; effective_argv records internal --cold translation for Hydra. An outer uv launcher is not observable inside Python.",
+    "python_command": "/home/ayumu/Documents/Proj/llm_scratch/.venv/bin/python3 scripts/preflight_data.py profile=pretrain_streaming data.streaming.cache.dir=/tmp/llm-scratch-data004-repair-cold-fee0f1a +preflight.max_documents_per_split=4096 +preflight.output_dir=/tmp/data004-repair-evidence-fee0f1a +preflight.report_stem=live-preflight-warm-v2 hydra.run.dir=/tmp/data004-repair-hydra-warm-fee0f1a",
+    "resolved_hydra_config": {
+      "artifacts": {
+        "checkpoints_dir": "checkpoints",
+        "keep_last_n": 3,
+        "resume_path": null
+      },
+      "data": {
+        "mode": "streaming",
+        "streaming": {
+          "cache": {
+            "dir": "/tmp/llm-scratch-data004-repair-cold-fee0f1a",
+            "max_size_bytes": 80000000000,
+            "min_free_bytes": 256000000000,
+            "wait_timeout_seconds": 120.0
+          },
+          "prefetch": {
+            "buffer_size": 16,
+            "enabled": true
+          },
+          "repeat": true,
+          "require_manifests": true,
+          "train": {
+            "add_eos": true,
+            "max_target_tokens": 262144,
+            "max_tokens": "max",
+            "mixture_basis": "trained_targets",
+            "seed": 42,
+            "sources": [
+              {
+                "expected_fingerprint": "2fc3eb60986c96fcb752b14d740dd5a3f7cea8b52bb5a13cb5834a1f805d6bba",
+                "manifest_path": "data/manifests/fineweb2-ja-jpn-jpan.manifest.json",
+                "name": "fineweb2_ja_train",
+                "ratio": 0.5,
+                "selection": "train",
+                "type": "manifest"
+              },
+              {
+                "expected_fingerprint": "626a1eb095e9089e5c62ee2df9c058ab7c6dfc54064eca5c13e4d84e65a8d60a",
+                "manifest_path": "data/manifests/fineweb-en-sample-10bt.manifest.json",
+                "name": "fineweb_en_train",
+                "ratio": 0.5,
+                "selection": "train",
+                "type": "manifest"
+              }
+            ]
+          },
+          "validation": {
+            "add_eos": true,
+            "max_target_tokens": 65536,
+            "max_tokens": "max",
+            "mixture_basis": "trained_targets",
+            "seed": 43,
+            "sources": [
+              {
+                "expected_fingerprint": "2fc3eb60986c96fcb752b14d740dd5a3f7cea8b52bb5a13cb5834a1f805d6bba",
+                "manifest_path": "data/manifests/fineweb2-ja-jpn-jpan.manifest.json",
+                "name": "fineweb2_ja_validation",
+                "ratio": 0.5,
+                "selection": "validation",
+                "type": "manifest"
+              },
+              {
+                "expected_fingerprint": "626a1eb095e9089e5c62ee2df9c058ab7c6dfc54064eca5c13e4d84e65a8d60a",
+                "manifest_path": "data/manifests/fineweb-en-sample-10bt.manifest.json",
+                "name": "fineweb_en_validation",
+                "ratio": 0.5,
+                "selection": "validation",
+                "type": "manifest"
+              }
+            ]
+          }
+        }
+      },
+      "model": {
+        "dropout": 0.1,
+        "embed_size": 384,
+        "num_heads": 6,
+        "num_layers": 6
+      },
+      "preflight": {
+        "max_documents_per_split": 4096,
+        "output_dir": "/tmp/data004-repair-evidence-fee0f1a",
+        "report_stem": "live-preflight-warm-v2"
+      },
+      "profile": {
+        "name": "pretrain_streaming",
+        "purpose": "pretraining"
+      },
+      "reproducibility": {
+        "deterministic": true,
+        "reject_dirty": true,
+        "seed": 42
+      },
+      "runtime": {
+        "device": "cuda"
+      },
+      "tokenizer": {
+        "expected_fingerprint": "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b",
+        "manifest_path": "assets/tokenizers/llm-jp-v1/manifest.json"
+      },
+      "training": {
+        "batch_size": 2,
+        "checkpoint_every_n_steps": null,
+        "checkpoint_every_n_tokens": null,
+        "epochs": 1,
+        "gradient_accumulation_steps": 4,
+        "log_every_n_steps": 1,
+        "log_every_n_tokens": null,
+        "max_grad_norm": 10.0,
+        "max_steps": null,
+        "max_time": null,
+        "max_tokens": null,
+        "milestone_every_n_steps": null,
+        "milestone_every_n_tokens": null,
+        "optimizer": {
+          "_target_": "torch.optim.AdamW",
+          "betas": [
+            0.9,
+            0.95
+          ],
+          "eps": 1e-08,
+          "lr": 0.0003,
+          "weight_decay": 0.1
+        },
+        "precision": "bf16",
+        "scheduler": {
+          "_target_": "training.optimization.WarmupCosineScheduler",
+          "decay_steps": 10000,
+          "enabled": true,
+          "interval": "step",
+          "min_lr_ratio": 0.1,
+          "warmup_steps": 100
+        },
+        "sequence_length": 8,
+        "shuffle": true,
+        "validation_every_n_steps": null,
+        "validation_every_n_tokens": null
+      },
+      "wandb": {
+        "enabled": true,
+        "entity": "sunday-research",
+        "log_model_every_n_epoch": null,
+        "mode": "online",
+        "name": null,
+        "project": "llm-scratch"
+      }
+    }
+  },
+  "schema_version": 2,
+  "splits": {
+    "train": {
+      "bounded": true,
+      "documents": 4096,
+      "max_documents": 4096,
+      "rates": {
+        "documents_per_second": 259.739906,
+        "source_rows_per_second": 263.291038
+      },
+      "sources": {
+        "fineweb2_ja_train": {
+          "canonical_tokens": 1644568,
+          "documents": 2008,
+          "eos_tokens": 2008,
+          "languages": {
+            "en": 0,
+            "ja": 367,
+            "mixed": 1641,
+            "other": 0
+          },
+          "quality": {
+            "duplicates": 0,
+            "fallback_document_ids": 0,
+            "missing_data": {},
+            "missing_data_event_rate_per_row": 0.0,
+            "missing_data_events": 0,
+            "rejection_rate_per_row": 0.013229,
+            "rejections": {
+              "control_character": 0,
+              "empty": 0,
+              "empty_after_truncation": 0,
+              "invalid_unicode": 0,
+              "non_string": 0,
+              "other_split_validation": 27,
+              "wrong_script": 0
+            },
+            "source_rows_read": 2041,
+            "truncated": 0
+          },
+          "rates": {
+            "canonical_tokens_per_second": 104287.09419,
+            "documents_per_second": 127.333431,
+            "missing_data_events_per_second": 0.0,
+            "production_source_rows_per_second": 2153.453295,
+            "production_tokenizer_canonical_tokens_per_second": 1020379.209481,
+            "production_tokenizer_documents_per_second": 1245.872139,
+            "production_tokenizer_utf8_bytes_per_second": 4612347.094291,
+            "qa_retokenizer_canonical_tokens_per_second": 595310.980305,
+            "qa_retokenizer_documents_per_second": 726.868362,
+            "qa_retokenizer_utf8_bytes_per_second": 2690941.607488,
+            "rejections_per_second": 1.712153,
+            "source_rows_per_second": 129.426062,
+            "utf8_bytes_per_second": 471401.486222
+          },
+          "scripts": {
+            "japanese": 2205983,
+            "latin": 94818,
+            "other_letters": 3427
+          },
+          "tails": {
+            "document_tokens": {
+              "count": 2008,
+              "max": 39345.0,
+              "p50": 465.0,
+              "p95": 2370.0,
+              "p99": 6585.0
+            },
+            "document_utf8_bytes": {
+              "count": 2008,
+              "max": 198274.0,
+              "p50": 2067.0,
+              "p95": 10824.0,
+              "p99": 30375.0
+            },
+            "tokenization_latency_ms": {
+              "count": 2008,
+              "max": 40.053598,
+              "p50": 0.52864,
+              "p95": 6.608509,
+              "p99": 11.799611
+            }
+          },
+          "timing": {
+            "loader_next_seconds": 2.985111058,
+            "production_source_read_seconds": 0.947780017,
+            "production_tokenization_seconds": 1.611722372,
+            "qa_retokenization_seconds": 2.762535976
+          },
+          "tokenization_failures": 0,
+          "tokenizer_byte_fallback_tokens": 3481,
+          "utf8_bytes": 7433823
+        },
+        "fineweb_en_train": {
+          "canonical_tokens": 1532968,
+          "documents": 2088,
+          "eos_tokens": 2088,
+          "languages": {
+            "en": 2082,
+            "ja": 0,
+            "mixed": 6,
+            "other": 0
+          },
+          "quality": {
+            "duplicates": 0,
+            "fallback_document_ids": 0,
+            "missing_data": {},
+            "missing_data_event_rate_per_row": 0.0,
+            "missing_data_events": 0,
+            "rejection_rate_per_row": 0.009948,
+            "rejections": {
+              "control_character": 0,
+              "empty": 0,
+              "empty_after_truncation": 0,
+              "invalid_unicode": 0,
+              "non_string": 0,
+              "other_split_validation": 21,
+              "wrong_script": 0
+            },
+            "source_rows_read": 2111,
+            "truncated": 0
+          },
+          "rates": {
+            "canonical_tokens_per_second": 97210.196359,
+            "documents_per_second": 132.406476,
+            "missing_data_events_per_second": 0.0,
+            "production_source_rows_per_second": 1265.883641,
+            "production_tokenizer_canonical_tokens_per_second": 673116.602203,
+            "production_tokenizer_documents_per_second": 916.827661,
+            "production_tokenizer_utf8_bytes_per_second": 2596414.221258,
+            "qa_retokenizer_canonical_tokens_per_second": 391115.402386,
+            "qa_retokenizer_documents_per_second": 532.724075,
+            "qa_retokenizer_utf8_bytes_per_second": 1508650.343173,
+            "rejections_per_second": 1.331674,
+            "source_rows_per_second": 133.864976,
+            "utf8_bytes_per_second": 374969.114493
+          },
+          "scripts": {
+            "japanese": 264,
+            "latin": 4647944,
+            "other_letters": 1727
+          },
+          "tails": {
+            "document_tokens": {
+              "count": 2088,
+              "max": 21670.0,
+              "p50": 457.0,
+              "p95": 2135.0,
+              "p99": 4623.0
+            },
+            "document_utf8_bytes": {
+              "count": 2088,
+              "max": 54893.0,
+              "p50": 1776.0,
+              "p95": 8253.0,
+              "p99": 18429.0
+            },
+            "tokenization_latency_ms": {
+              "count": 2088,
+              "max": 19.165542,
+              "p50": 0.824831,
+              "p95": 7.837516,
+              "p99": 12.247066
+            }
+          },
+          "timing": {
+            "loader_next_seconds": 3.167618928,
+            "production_source_read_seconds": 1.667609827,
+            "production_tokenization_seconds": 2.277418199,
+            "qa_retokenization_seconds": 3.91947745
+          },
+          "tokenization_failures": 0,
+          "tokenizer_byte_fallback_tokens": 998,
+          "utf8_bytes": 5913121
+        }
+      },
+      "timing": {
+        "elapsed_seconds": 15.769621474,
+        "first_sample_loader_next_ms": 280.94884,
+        "loader_next_fraction": 0.390163,
+        "loader_next_seconds": 6.152729986,
+        "qa_retokenization_seconds": 6.682013426,
+        "steady_sample_loader_next_ms": {
+          "count": 4095,
+          "max": 164.544832,
+          "p50": 0.7656,
+          "p95": 5.647886,
+          "p99": 10.115035
+        }
+      }
+    },
+    "validation": {
+      "bounded": true,
+      "documents": 4096,
+      "max_documents": 4096,
+      "rates": {
+        "documents_per_second": 24.884701,
+        "source_rows_per_second": 2484.290292
+      },
+      "sources": {
+        "fineweb2_ja_validation": {
+          "canonical_tokens": 1943924,
+          "documents": 2015,
+          "eos_tokens": 2015,
+          "languages": {
+            "en": 0,
+            "ja": 359,
+            "mixed": 1656,
+            "other": 0
+          },
+          "quality": {
+            "duplicates": 0,
+            "fallback_document_ids": 0,
+            "missing_data": {},
+            "missing_data_event_rate_per_row": 0.0,
+            "missing_data_events": 0,
+            "rejection_rate_per_row": 0.990063,
+            "rejections": {
+              "control_character": 0,
+              "empty": 0,
+              "empty_after_truncation": 0,
+              "invalid_unicode": 0,
+              "non_string": 0,
+              "other_split_train": 200856,
+              "wrong_script": 0
+            },
+            "source_rows_read": 202872,
+            "truncated": 0
+          },
+          "rates": {
+            "canonical_tokens_per_second": 11810.050871,
+            "documents_per_second": 12.241864,
+            "missing_data_events_per_second": 0.0,
+            "production_source_rows_per_second": 3925.630246,
+            "production_tokenizer_canonical_tokens_per_second": 1043592.127191,
+            "production_tokenizer_documents_per_second": 1081.749151,
+            "production_tokenizer_utf8_bytes_per_second": 4659348.595551,
+            "qa_retokenizer_canonical_tokens_per_second": 700823.617258,
+            "qa_retokenizer_documents_per_second": 726.447942,
+            "qa_retokenizer_utf8_bytes_per_second": 3128982.532276,
+            "rejections_per_second": 1220.273826,
+            "source_rows_per_second": 1232.521765,
+            "utf8_bytes_per_second": 52728.592432
+          },
+          "scripts": {
+            "japanese": 2562843,
+            "latin": 153875,
+            "other_letters": 3268
+          },
+          "tails": {
+            "document_tokens": {
+              "count": 2015,
+              "max": 18861.0,
+              "p50": 533.0,
+              "p95": 3121.0,
+              "p99": 8310.0
+            },
+            "document_utf8_bytes": {
+              "count": 2015,
+              "max": 89751.0,
+              "p50": 2408.0,
+              "p95": 13879.0,
+              "p99": 37525.0
+            },
+            "tokenization_latency_ms": {
+              "count": 2015,
+              "max": 55.555622,
+              "p50": 0.710784,
+              "p95": 3.200031,
+              "p99": 14.424476
+            }
+          },
+          "timing": {
+            "loader_next_seconds": 58.927313025,
+            "production_source_read_seconds": 51.678835568,
+            "production_tokenization_seconds": 1.862723903,
+            "qa_retokenization_seconds": 2.773770678
+          },
+          "tokenization_failures": 0,
+          "tokenizer_byte_fallback_tokens": 6196,
+          "utf8_bytes": 8679080
+        },
+        "fineweb_en_validation": {
+          "canonical_tokens": 1635723,
+          "documents": 2081,
+          "eos_tokens": 2081,
+          "languages": {
+            "en": 2078,
+            "ja": 0,
+            "mixed": 3,
+            "other": 0
+          },
+          "quality": {
+            "duplicates": 0,
+            "fallback_document_ids": 0,
+            "missing_data": {},
+            "missing_data_event_rate_per_row": 0.0,
+            "missing_data_events": 0,
+            "rejection_rate_per_row": 0.9899,
+            "rejections": {
+              "control_character": 0,
+              "empty": 0,
+              "empty_after_truncation": 0,
+              "invalid_unicode": 0,
+              "non_string": 0,
+              "other_split_train": 203959,
+              "wrong_script": 0
+            },
+            "source_rows_read": 206040,
+            "truncated": 0
+          },
+          "rates": {
+            "canonical_tokens_per_second": 9937.616821,
+            "documents_per_second": 12.642838,
+            "missing_data_events_per_second": 0.0,
+            "production_source_rows_per_second": 1918.341643,
+            "production_tokenizer_canonical_tokens_per_second": 679093.280875,
+            "production_tokenizer_documents_per_second": 863.956255,
+            "production_tokenizer_utf8_bytes_per_second": 2601605.191174,
+            "qa_retokenizer_canonical_tokens_per_second": 358122.335905,
+            "qa_retokenizer_documents_per_second": 455.610504,
+            "qa_retokenizer_utf8_bytes_per_second": 1371966.052979,
+            "rejections_per_second": 1239.125689,
+            "source_rows_per_second": 1251.768527,
+            "utf8_bytes_per_second": 38070.992951
+          },
+          "scripts": {
+            "japanese": 74,
+            "latin": 4923900,
+            "other_letters": 550
+          },
+          "tails": {
+            "document_tokens": {
+              "count": 2081,
+              "max": 39149.0,
+              "p50": 473.0,
+              "p95": 2233.0,
+              "p99": 5403.0
+            },
+            "document_utf8_bytes": {
+              "count": 2081,
+              "max": 141457.0,
+              "p50": 1803.0,
+              "p95": 9072.0,
+              "p99": 19273.0
+            },
+            "tokenization_latency_ms": {
+              "count": 2081,
+              "max": 108.819919,
+              "p50": 0.959695,
+              "p95": 6.352142,
+              "p99": 31.94159
+            }
+          },
+          "timing": {
+            "loader_next_seconds": 93.608195092,
+            "production_source_read_seconds": 107.40526888,
+            "production_tokenization_seconds": 2.408686768,
+            "qa_retokenization_seconds": 4.567497852
+          },
+          "tokenization_failures": 0,
+          "tokenizer_byte_fallback_tokens": 786,
+          "utf8_bytes": 6266452
+        }
+      },
+      "timing": {
+        "elapsed_seconds": 164.599121646,
+        "first_sample_loader_next_ms": 162.249925,
+        "loader_next_fraction": 0.926709,
+        "loader_next_seconds": 152.535508117,
+        "qa_retokenization_seconds": 7.34126853,
+        "steady_sample_loader_next_ms": {
+          "count": 4095,
+          "max": 521.374186,
+          "p50": 24.9886,
+          "p95": 117.485499,
+          "p99": 212.558585
+        }
+      }
+    }
+  }
+}

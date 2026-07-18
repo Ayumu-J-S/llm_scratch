@@ -46,6 +46,12 @@ def stable_document_id(
     content_sha256: str,
     upstream_id: str | int | None,
 ) -> str:
+    """Return the schema-v1 document identity.
+
+    Version 1 intentionally prefers a provided upstream ID.  Existing
+    materialized fixture indexes depend on that contract, so real streaming
+    manifests use :func:`content_bound_document_id` instead.
+    """
     if not source_identity:
         raise ValueError("source_identity must be non-empty")
     _require_sha256(content_sha256, "content_sha256")
@@ -56,6 +62,35 @@ def stable_document_id(
         if not upstream_id:
             raise ValueError("upstream_id must be non-empty when provided")
         identity = {"source_identity": source_identity, "upstream_id": upstream_id}
+    return canonical_fingerprint(identity)
+
+
+def content_bound_document_id(
+    *,
+    source_identity: str,
+    content_sha256: str,
+    upstream_id: str | int | None,
+) -> str:
+    """Return the schema-v2 identity, always bound to normalized content.
+
+    The upstream ID remains useful provenance but can never make two different
+    documents share an identity.  Including it when present also keeps distinct
+    upstream records with identical content distinguishable; content-hash
+    overlap remains a separately enforced invariant.
+    """
+
+    if not source_identity:
+        raise ValueError("source_identity must be non-empty")
+    _require_sha256(content_sha256, "content_sha256")
+    identity: dict[str, str] = {
+        "content_sha256": content_sha256,
+        "source_identity": source_identity,
+    }
+    if upstream_id is not None:
+        upstream_id = str(upstream_id)
+        if not upstream_id:
+            raise ValueError("upstream_id must be non-empty when provided")
+        identity["upstream_id"] = upstream_id
     return canonical_fingerprint(identity)
 
 

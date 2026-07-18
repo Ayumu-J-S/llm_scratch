@@ -16,7 +16,9 @@ data:
     repeat: true
     cache:
       dir: data/stream_loader_cache
-      max_size_bytes: 750000000000
+      max_size_bytes: 80000000000
+      min_free_bytes: 256000000000
+      wait_timeout_seconds: 120.0
     prefetch:
       enabled: true
       buffer_size: 16

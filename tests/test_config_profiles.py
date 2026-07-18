@@ -37,10 +37,25 @@ def test_streaming_profile_has_distinct_manifest_selections():
     config = compose("profile=pretrain_streaming")
     validate_training_config(config)
     assert config.data.streaming.repeat is True
-    train = config.data.streaming.train.sources[0]
-    validation = config.data.streaming.validation.sources[0]
-    assert train.selection == "train"
-    assert validation.selection == "validation"
+    train = config.data.streaming.train.sources
+    validation = config.data.streaming.validation.sources
+    assert len(train) == len(validation) == 2
+    assert {source.selection for source in train} == {"train"}
+    assert {source.selection for source in validation} == {"validation"}
+    assert {source.ratio for source in train} == {0.5}
+    assert {source.ratio for source in validation} == {0.5}
+    assert config.data.streaming.train.max_target_tokens == 262144
+    assert config.data.streaming.validation.max_target_tokens == 65536
+
+
+def test_config_check_preflights_v2_metadata_without_downloading(monkeypatch, tmp_path):
+    config = compose("profile=pretrain_streaming")
+    monkeypatch.setattr(train_module, "_run_directory", lambda: tmp_path)
+    monkeypatch.setattr(
+        "data.parquet_source.download_url_to_path",
+        lambda *_args, **_kwargs: pytest.fail("config check must not download shards"),
+    )
+    assert train_module.run_config_check(config) == tmp_path / "resolved_config.yaml"
 
 
 def test_stability_smoke_exposes_the_bf16_update_recipe():

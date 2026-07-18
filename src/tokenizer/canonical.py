@@ -13,6 +13,7 @@ from tokenizers import Tokenizer
 ROOT_DIR = Path(__file__).resolve().parents[2]
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _REVISION_PATTERN = re.compile(r"^[0-9a-f]{40}$")
+_BYTE_FALLBACK_PIECE = re.compile(r"^<0x[0-9A-F]{2}>$")
 _CONFIG_KEYS = {"manifest_path", "expected_fingerprint"}
 _SPECIAL_ROLES = {
     "unk",
@@ -121,6 +122,16 @@ class CanonicalTokenizer:
                 "canonical tokenizer fingerprint mismatch: "
                 f"expected {expected_fingerprint}, got {self.fingerprint}"
             )
+
+    def count_byte_fallback_tokens(self, token_ids: Iterable[int]) -> int:
+        """Count exact serialized byte-fallback pieces in validated token IDs."""
+
+        ids = list(token_ids)
+        self._validate_ids(ids)
+        return sum(
+            _BYTE_FALLBACK_PIECE.fullmatch(self._tokenizer.id_to_token(token_id) or "") is not None
+            for token_id in ids
+        )
 
     def _validate_ids(self, token_ids: list[int]) -> None:
         for token_id in token_ids:

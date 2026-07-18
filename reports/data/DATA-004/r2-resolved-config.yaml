@@ -1,0 +1,113 @@
+tokenizer:
+  manifest_path: assets/tokenizers/llm-jp-v1/manifest.json
+  expected_fingerprint: 12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b
+data:
+  streaming:
+    require_manifests: true
+    train:
+      max_tokens: max
+      max_target_tokens: 262144
+      mixture_basis: trained_targets
+      add_eos: true
+      seed: 42
+      sources:
+      - name: fineweb2_ja_train
+        type: manifest
+        manifest_path: data/manifests/fineweb2-ja-jpn-jpan.manifest.json
+        expected_fingerprint: 2fc3eb60986c96fcb752b14d740dd5a3f7cea8b52bb5a13cb5834a1f805d6bba
+        selection: train
+        ratio: 0.5
+      - name: fineweb_en_train
+        type: manifest
+        manifest_path: data/manifests/fineweb-en-sample-10bt.manifest.json
+        expected_fingerprint: 626a1eb095e9089e5c62ee2df9c058ab7c6dfc54064eca5c13e4d84e65a8d60a
+        selection: train
+        ratio: 0.5
+    validation:
+      max_tokens: max
+      max_target_tokens: 65536
+      mixture_basis: trained_targets
+      add_eos: true
+      seed: 43
+      sources:
+      - name: fineweb2_ja_validation
+        type: manifest
+        manifest_path: data/manifests/fineweb2-ja-jpn-jpan.manifest.json
+        expected_fingerprint: 2fc3eb60986c96fcb752b14d740dd5a3f7cea8b52bb5a13cb5834a1f805d6bba
+        selection: validation
+        ratio: 0.5
+      - name: fineweb_en_validation
+        type: manifest
+        manifest_path: data/manifests/fineweb-en-sample-10bt.manifest.json
+        expected_fingerprint: 626a1eb095e9089e5c62ee2df9c058ab7c6dfc54064eca5c13e4d84e65a8d60a
+        selection: validation
+        ratio: 0.5
+    repeat: true
+    cache:
+      dir: /cache
+      max_size_bytes: 80000000000
+      min_free_bytes: 256000000000
+      wait_timeout_seconds: 120.0
+    prefetch:
+      enabled: true
+      buffer_size: 16
+  mode: streaming
+reproducibility:
+  seed: 42
+  deterministic: true
+  reject_dirty: true
+training:
+  max_steps: 50
+  max_tokens: null
+  max_time: null
+  log_every_n_steps: 1
+  log_every_n_tokens: null
+  validation_every_n_steps: null
+  validation_every_n_tokens: null
+  checkpoint_every_n_steps: null
+  checkpoint_every_n_tokens: null
+  milestone_every_n_steps: null
+  milestone_every_n_tokens: null
+  precision: bf16
+  gradient_accumulation_steps: 4
+  max_grad_norm: 10.0
+  optimizer:
+    _target_: torch.optim.AdamW
+    lr: 0.0003
+    betas:
+    - 0.9
+    - 0.95
+    eps: 1.0e-08
+    weight_decay: 0.1
+  scheduler:
+    enabled: true
+    interval: step
+    _target_: training.optimization.WarmupCosineScheduler
+    warmup_steps: 100
+    decay_steps: 10000
+    min_lr_ratio: 0.1
+  sequence_length: 8
+  epochs: 1
+  batch_size: 2
+  shuffle: true
+model:
+  embed_size: 384
+  num_heads: 6
+  num_layers: 6
+  dropout: 0.1
+artifacts:
+  checkpoints_dir: /evidence/checkpoints
+  keep_last_n: 3
+  resume_path: null
+wandb:
+  enabled: false
+  project: llm-scratch
+  entity: sunday-research
+  name: null
+  mode: online
+  log_model_every_n_epoch: null
+profile:
+  name: pretrain_streaming
+  purpose: pretraining
+runtime:
+  device: cuda
