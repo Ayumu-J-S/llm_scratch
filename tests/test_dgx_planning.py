@@ -1,12 +1,14 @@
 import hashlib
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import hydra
 import pytest
 from omegaconf import OmegaConf
 
 from dgx.planning import (
+    _validated_wandb_evidence,
     build_matrix_plan,
     select_candidate,
     summarize_evidence,
@@ -125,8 +127,10 @@ def _write_plan(root: Path, config) -> dict:
         else dict(config)
     )
     train = compose_train("dgx_candidate")
+    cache_root = root / "cache"
+    cache_root.mkdir(parents=True, exist_ok=True)
     cache = {
-        "root": "/cache",
+        "root": str(cache_root),
         "files": 2,
         "size_bytes": 1_000_000_000,
         "sha256": "cache",
@@ -452,7 +456,10 @@ def _matrix_fixture(root: Path):
     return config, plan
 
 
-def test_summary_gates_exact_matrix_and_selects_committed_profile(tmp_path):
+def test_summary_gates_exact_matrix_and_selects_committed_profile(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "dgx.planning.shutil.disk_usage", lambda _path: SimpleNamespace(free=1_000_000_000_000)
+    )
     config, _ = _matrix_fixture(tmp_path)
     summary = summarize_evidence(tmp_path, config)
     assert summary["schema_version"] == 3
@@ -465,6 +472,38 @@ def test_summary_gates_exact_matrix_and_selects_committed_profile(tmp_path):
     assert summary["plan"]["token_budgets"]["7_days"] >= 1_000_000_000
     assert summary["plan"]["checkpoint_copies"]["milestones"] > 0
     assert summary["plan"]["storage_headroom_passed"] is True
+    assert summary["plan"]["storage_same_filesystem"] is True
+
+
+def test_summary_fails_explicit_low_storage_without_weakening_gate(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "dgx.planning.shutil.disk_usage", lambda _path: SimpleNamespace(free=1_000_000)
+    )
+    config, _ = _matrix_fixture(tmp_path)
+    summary = summarize_evidence(tmp_path, config)
+    assert summary["verdict"] == "FAIL"
+    assert summary["plan"]["storage_headroom_passed"] is False
+    assert summary["plan"]["storage_same_filesystem"] is True
+
+
+def test_summary_accounts_cache_and_output_filesystems_separately(tmp_path, monkeypatch):
+    config, _ = _matrix_fixture(tmp_path)
+    monkeypatch.setattr(
+        "dgx.planning._filesystem_device",
+        lambda path: 1 if Path(path).name == "cache" else 2,
+    )
+    monkeypatch.setattr(
+        "dgx.planning.shutil.disk_usage",
+        lambda path: SimpleNamespace(
+            free=1_000_000_000_000 if Path(path).name == "cache" else 1_000_000
+        ),
+    )
+    summary = summarize_evidence(tmp_path, config)
+    assert summary["verdict"] == "FAIL"
+    assert summary["plan"]["storage_same_filesystem"] is False
+    reports = {tuple(item["roles"]): item for item in summary["plan"]["storage_filesystems"]}
+    assert reports[("cache",)]["headroom_passed"] is True
+    assert reports[("output",)]["headroom_passed"] is False
 
 
 def test_primary_denominator_includes_scheduled_pauses_exactly_once(tmp_path):
@@ -493,6 +532,33 @@ def test_schema_v1_measurement_is_rejected_without_fallback(tmp_path):
     measurement["schema_version"] = 1
     _write_json(measurement_path, measurement)
     with pytest.raises(ValueError, match="only the exact trainer measurement schema v3"):
+        summarize_run(run_dir, config["gates"], expected=entry, plan=plan)
+
+
+@pytest.mark.parametrize(
+    "cuda_timings",
+    [
+        {},
+        {"forward": 1.0, "backward": 2.0},
+        {"forward": 1.0, "backward": float("nan"), "optimizer": 1.0},
+        {"forward": 1.0, "backward": 2.0, "optimizer": -1.0},
+    ],
+)
+def test_measured_rows_require_complete_finite_cuda_timings(tmp_path, cuda_timings):
+    config = OmegaConf.to_container(compose_dgx(), resolve=True)
+    plan = _write_plan(tmp_path, config)
+    entry = build_matrix_plan(config)[0]
+    run_dir = _fake_run(tmp_path, entry, plan, 18_000)
+    measurement_path = run_dir / "measurement.json"
+    measurement = json.loads(measurement_path.read_text())
+    measured = next(
+        row
+        for row in measurement["segments"][0]["rows"]
+        if row.get("event") == "optimizer_step" and row.get("warmup") is False
+    )
+    measured["cuda_milliseconds"] = cuda_timings
+    _write_json(measurement_path, measurement)
+    with pytest.raises(ValueError, match="CUDA"):
         summarize_run(run_dir, config["gates"], expected=entry, plan=plan)
 
 
@@ -594,3 +660,51 @@ def test_selection_requires_all_runs_repeatability_and_exact_rule():
         },
     )
     assert selected["candidate_id"] == "deep-long"
+
+
+def test_wandb_evidence_rejects_scalar_or_summary_failures(tmp_path):
+    evidence_path = tmp_path / "checkpoints" / "wandb_events.jsonl"
+    evidence_path.parent.mkdir(parents=True)
+    rows = [
+        {
+            "schema_version": 1,
+            "action": "init",
+            "outcome": "succeeded",
+            "mode": "online",
+            "run_id": "run-id",
+            "run_url": "https://wandb.example/runs/run-id",
+        },
+        {"schema_version": 1, "action": "watch", "outcome": "disabled"},
+        {"schema_version": 1, "action": "finish", "outcome": "succeeded"},
+    ]
+
+    def record() -> dict:
+        evidence_path.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+        return {
+            "wandb_evidence": {
+                "path": "checkpoints/wandb_events.jsonl",
+                "sha256": _sha256(evidence_path),
+                "rows": len(rows),
+            }
+        }
+
+    evidence = _validated_wandb_evidence(tmp_path, record())
+    assert evidence["critical_failures"] == []
+    rows.append(
+        {
+            "schema_version": 1,
+            "action": "log",
+            "outcome": "failed",
+            "error": {"type": "TimeoutError", "message": "bounded timeout"},
+        }
+    )
+    rows.append(
+        {
+            "schema_version": 1,
+            "action": "summary",
+            "outcome": "failed",
+            "error": {"type": "RuntimeError", "message": "unavailable"},
+        }
+    )
+    evidence = _validated_wandb_evidence(tmp_path, record())
+    assert evidence["critical_failures"] == ["log", "summary"]

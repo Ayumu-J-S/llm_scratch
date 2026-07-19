@@ -324,7 +324,7 @@ def _container_command(
             f"{run_dir}:/evidence",
             "--workdir",
             str(ROOT),
-            str(cfg["image"]["name"]),
+            image_id,
             "python",
         ]
     )

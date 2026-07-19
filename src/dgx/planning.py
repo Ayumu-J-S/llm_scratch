@@ -48,6 +48,7 @@ MEASUREMENT_BOUNDARY_KEYS = {
 MEASUREMENT_BINDING_KEYS = MEASUREMENT_BOUNDARY_KEYS - {"status", "checkpoint_path"}
 COUNTER_KEYS = {"optimizer_step", "target_tokens", "elapsed_seconds"}
 CHECKPOINT_KINDS = {"recovery", "best", "final", "milestone"}
+REQUIRED_CUDA_PHASES = {"forward", "backward", "optimizer"}
 PROTOCOL_CONFIG_KEYS = {
     "schema_version",
     "image",
@@ -80,6 +81,77 @@ def _sha256_file(path: Path) -> str:
 
 def _tree_size(path: Path) -> int:
     return sum(item.stat().st_size for item in path.rglob("*") if item.is_file())
+
+
+def _filesystem_device(path: Path) -> int:
+    return path.stat().st_dev
+
+
+def _storage_headroom(
+    *,
+    cache_root: Path,
+    output_root: Path,
+    cache_existing_bytes: int,
+    cache_planned_bytes: int,
+    output_existing_bytes: int,
+    output_planned_bytes: int,
+    headroom_ratio: float,
+) -> dict[str, Any]:
+    allocations = (
+        {
+            "role": "cache",
+            "path": cache_root,
+            "existing_bytes": cache_existing_bytes,
+            "planned_bytes": cache_planned_bytes,
+        },
+        {
+            "role": "output",
+            "path": output_root,
+            "existing_bytes": output_existing_bytes,
+            "planned_bytes": output_planned_bytes,
+        },
+    )
+    filesystems: dict[int, dict[str, Any]] = {}
+    for allocation in allocations:
+        path = allocation["path"]
+        if not path.is_dir():
+            raise ValueError(f"DGX storage root does not exist: {path}")
+        device = _filesystem_device(path)
+        group = filesystems.setdefault(
+            device,
+            {
+                "device": device,
+                "representative_path": str(path),
+                "roles": [],
+                "existing_bytes": 0,
+                "planned_bytes": 0,
+            },
+        )
+        group["roles"].append(allocation["role"])
+        group["existing_bytes"] += int(allocation["existing_bytes"])
+        group["planned_bytes"] += int(allocation["planned_bytes"])
+    reports = []
+    for group in filesystems.values():
+        free_bytes = int(shutil.disk_usage(group["representative_path"]).free)
+        capacity_bytes = free_bytes + int(group["existing_bytes"])
+        required_capacity_bytes = math.ceil(float(headroom_ratio) * group["planned_bytes"])
+        reports.append(
+            {
+                **group,
+                "roles": sorted(group["roles"]),
+                "free_bytes": free_bytes,
+                "capacity_bytes": capacity_bytes,
+                "required_capacity_bytes": required_capacity_bytes,
+                "headroom_passed": capacity_bytes >= required_capacity_bytes,
+            }
+        )
+    reports.sort(key=lambda item: item["roles"])
+    return {
+        "same_filesystem": len(reports) == 1,
+        "headroom_ratio": float(headroom_ratio),
+        "filesystems": reports,
+        "passed": all(item["headroom_passed"] for item in reports),
+    }
 
 
 def validate_dgx_config(config: Mapping[str, Any] | DictConfig) -> dict[str, Any]:
@@ -577,6 +649,28 @@ def _finite_training(metrics: list[dict[str, Any]], expected_steps: int | None =
     )
 
 
+def _validated_cuda_timings(row: Mapping[str, Any]) -> dict[str, float]:
+    timings = row.get("cuda_milliseconds")
+    if not isinstance(timings, Mapping) or not timings:
+        raise ValueError("measured optimizer row lacks CUDA timing observations")
+    if not REQUIRED_CUDA_PHASES.issubset(timings):
+        missing = ", ".join(sorted(REQUIRED_CUDA_PHASES - set(timings)))
+        raise ValueError(f"measured optimizer row lacks required CUDA phases: {missing}")
+    validated: dict[str, float] = {}
+    for key, value in timings.items():
+        if (
+            not isinstance(key, str)
+            or not key
+            or isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(float(value))
+            or float(value) < 0
+        ):
+            raise ValueError("measured optimizer row has an invalid CUDA timing observation")
+        validated[key] = float(value)
+    return validated
+
+
 def summarize_run(
     run_dir: Path,
     gates: Mapping[str, Any],
@@ -672,8 +766,8 @@ def summarize_run(
     data_wait_seconds = sum(float(row["host_seconds"]["data_wait"]) for row in measured)
     phase_cuda: defaultdict[str, float] = defaultdict(float)
     for row in measured:
-        for key, value in row.get("cuda_milliseconds", {}).items():
-            phase_cuda[key] += float(value) / 1000.0
+        for key, value in _validated_cuda_timings(row).items():
+            phase_cuda[key] += value / 1000.0
     allocated = [int(row["pytorch_allocated_bytes"]) for row in measured]
     reserved = [int(row["pytorch_reserved_bytes"]) for row in measured]
     allocator_window = min(5, max(1, len(allocated) // 2))
@@ -1020,15 +1114,18 @@ def summarize_evidence(
     evidence_bytes = current_evidence_bytes + int(
         cfg["gates"]["post_matrix_evidence_reserve_bytes"]
     )
-    storage_footprint = cache_bytes + checkpoint_size * checkpoint_copies + evidence_bytes
-    storage_capacity = (
-        shutil.disk_usage(root).free
-        + current_evidence_bytes
-        + int(plan["cache_before"]["size_bytes"])
+    checkpoint_footprint = checkpoint_size * checkpoint_copies
+    output_footprint = checkpoint_footprint + evidence_bytes
+    storage = _storage_headroom(
+        cache_root=Path(str(plan["cache_before"]["root"])),
+        output_root=root,
+        cache_existing_bytes=int(plan["cache_before"]["size_bytes"]),
+        cache_planned_bytes=cache_bytes,
+        output_existing_bytes=current_evidence_bytes,
+        output_planned_bytes=output_footprint,
+        headroom_ratio=float(cfg["gates"]["storage_headroom_ratio"]),
     )
-    storage_passed = storage_capacity >= storage_footprint * float(
-        cfg["gates"]["storage_headroom_ratio"]
-    )
+    storage_passed = bool(storage["passed"])
     profile_matches = _committed_profile_matches(selected)
     verdict = "PASS" if storage_passed and profile_matches else "FAIL"
     return {
@@ -1072,10 +1169,12 @@ def summarize_evidence(
                 "total": checkpoint_copies,
             },
             "cache_bytes": cache_bytes,
+            "checkpoint_footprint_bytes": checkpoint_footprint,
             "matrix_and_future_evidence_bytes": evidence_bytes,
-            "storage_footprint_bytes": storage_footprint,
-            "storage_capacity_bytes": storage_capacity,
-            "storage_headroom_ratio": cfg["gates"]["storage_headroom_ratio"],
+            "output_footprint_bytes": output_footprint,
+            "storage_filesystems": storage["filesystems"],
+            "storage_same_filesystem": storage["same_filesystem"],
+            "storage_headroom_ratio": storage["headroom_ratio"],
             "storage_headroom_passed": storage_passed,
             "wandb_mode": "online",
             "wandb_watch": False,
@@ -1210,6 +1309,55 @@ def summarize_decomposition(
     }
 
 
+def _validated_wandb_evidence(run_dir: Path, run: Mapping[str, Any]) -> dict[str, Any]:
+    recorded = run.get("wandb_evidence")
+    if not isinstance(recorded, Mapping):
+        raise ValueError("pilot lacks W&B evidence identity")
+    relative_path = Path(str(recorded.get("path", "")))
+    if relative_path.is_absolute() or ".." in relative_path.parts:
+        raise ValueError("pilot W&B evidence path is not run-relative")
+    path = run_dir / relative_path
+    if not path.is_file() or _sha256_file(path) != recorded.get("sha256"):
+        raise ValueError("pilot W&B evidence physical identity changed")
+    rows = _read_jsonl(path)
+    if len(rows) != recorded.get("rows") or any(
+        not isinstance(row, Mapping) or row.get("schema_version") != 1 for row in rows
+    ):
+        raise ValueError("pilot W&B evidence record shape/count is invalid")
+    init = [
+        row for row in rows if row.get("action") == "init" and row.get("outcome") == "succeeded"
+    ]
+    finished = [
+        row for row in rows if row.get("action") == "finish" and row.get("outcome") == "succeeded"
+    ]
+    critical_failures = sorted(
+        {
+            str(row.get("action"))
+            for row in rows
+            if row.get("outcome") == "failed"
+            and row.get("action") in {"log", "summary", "runtime_summary"}
+        }
+    )
+    successful_init = init[-1] if len(init) == 1 else {}
+    return {
+        "path": str(relative_path),
+        "sha256": recorded.get("sha256"),
+        "rows": len(rows),
+        "init_status": "succeeded" if len(init) == 1 else None,
+        "mode": successful_init.get("mode"),
+        "run_id": successful_init.get("run_id"),
+        "run_url": successful_init.get("run_url"),
+        "watch_disabled": any(
+            row.get("action") == "watch" and row.get("outcome") == "disabled" for row in rows
+        ),
+        "finish_succeeded": len(finished) == 1,
+        "artifact_uploads": sum(
+            row.get("action") == "artifact" and row.get("outcome") == "uploaded" for row in rows
+        ),
+        "critical_failures": critical_failures,
+    }
+
+
 def summarize_pilot(evidence_root: Path, config: Mapping[str, Any] | DictConfig) -> dict[str, Any]:
     cfg = validate_dgx_config(config)
     root = Path(evidence_root)
@@ -1224,7 +1372,7 @@ def summarize_pilot(evidence_root: Path, config: Mapping[str, Any] | DictConfig)
     expected = {**dict(selected), "repetition": 1}
     result = summarize_run(run_dirs[0], cfg["gates"], expected=expected, plan=plan, role="pilot")
     run = _read_json(run_dirs[0] / "run.json")
-    wandb = run.get("wandb_evidence", {})
+    wandb = _validated_wandb_evidence(run_dirs[0], run)
     pilot_gates = {
         "training_gates": result["passed"],
         "duration_representative": float(run["final_elapsed_seconds"]) >= 1500.0
@@ -1239,6 +1387,7 @@ def summarize_pilot(evidence_root: Path, config: Mapping[str, Any] | DictConfig)
         "wandb_finished": wandb.get("finish_succeeded") is True,
         "wandb_watch_off": wandb.get("watch_disabled") is True,
         "wandb_no_artifacts": wandb.get("artifact_uploads") == 0,
+        "wandb_logging_healthy": not wandb.get("critical_failures"),
     }
     return {
         "schema_version": 3,

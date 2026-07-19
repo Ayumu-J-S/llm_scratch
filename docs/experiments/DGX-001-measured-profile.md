@@ -3,7 +3,8 @@
 - Roadmap ticket: `DGX-001`
 - Branch: `codex/dgx-001-final-integration`
 - Draft PR: [#47](https://github.com/Ayumu-J-S/llm_scratch/pull/47)
-- Status: pre-measurement protocol repaired; exact-head re-audit pending
+- Status: second pre-measurement repair implemented; exact-head re-review
+  blocked by review-service quota until 2026-07-25 23:43 UTC
 - Baseline input: merged `WB-001` head
   `8791bb7237663b08c001b732393a76b240362476`
 
@@ -118,6 +119,9 @@ to claim that a measured profile has been selected.
 | 9 | Projection repair | implemented | First-sweep P70 allocations showed a stable periodic low/high pattern. The monotonic-growth gate now compares the lower envelope of the first/last five measured steps instead of rejecting peak-to-trough oscillation. | Raw per-step allocator rows and regression test |
 | 10 | Independent pre-measurement review | `FAIL` at `3abb62d` | Historical schema-v1 evidence could not authorize the final matrix; auxiliary authority, physical checkpoint binding, pause-aware throughput, full telemetry/watchdog, decomposition, storage, host ownership, and exact-run constraints needed to be made machine-verifiable before more GPU use | Draft PR review trail and repair handoff |
 | 11 | Protocol repair | implemented; re-audit pending | Replaced the stale evidence parser with direct schema v3; bound plan/source/cache/config/manifest/checkpoint identities; declared the exact 9x3 10+20 matrix; added repeated decomposition and a representative online-W&B pilot; made throughput pause-aware; added telemetry coverage/health, repeatability, storage, and committed-profile gates; retained per-run logs | Focused planning/runner/config tests and exact commands above |
+| 12 | Independent pre-measurement re-review | `FAIL` at `63283cd` | Docker still launched a mutable tag after verifying its ID; measured rows did not require complete finite CUDA phases; cache/output capacity could be conflated across filesystems; telemetry scheduling was unnecessarily ambiguous after overruns; pilot W&B gates ignored scalar/summary circuit-breaker failures | Exact review findings retained in PR #47 |
+| 13 | Protocol repair 2 | implemented | Launch by verified image digest; reject missing/non-finite/negative required CUDA phases; group cache/output plans by real filesystem device with separate headroom; schedule telemetry from collection completion; physically verify and parse W&B evidence with scalar/summary failure gates; make ample/low/split-filesystem tests deterministic | Focused and full validation recorded in PR #47 |
+| 14 | Independent re-review | `blocked` | The required exact-head `/review` cannot run again until the shared review-service quota resets at 2026-07-25 23:43 UTC. No PASS is claimed, and target GPU work remains blocked. | PR #47 review handoff |
 
 Independent `/review` will cover `PHILOSOPHY.md`, DGX-001 acceptance, and the
 applicable `CHECK.md` minimum, comparison, data supply, DGX/UMA, training-health,

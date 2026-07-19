@@ -41,6 +41,8 @@ def test_matrix_container_is_user_owned_offline_and_tracking_disabled(tmp_path):
         role="matrix",
     )
     assert command[command.index("--user") + 1] == f"{os.getuid()}:{os.getgid()}"
+    assert cfg["image"]["expected_id"] in command
+    assert cfg["image"]["name"] not in command
     assert "--network=none" in command
     assert "WANDB_MODE=disabled" in command
     assert "WANDB_DISABLED=true" in command

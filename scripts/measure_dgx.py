@@ -65,8 +65,16 @@ def _wandb_evidence(checkpoint_dir: Path) -> dict:
     rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
     init = [row for row in rows if row.get("action") == "init"]
     run = init[-1] if init else {}
+    critical_failures = sorted(
+        {
+            str(row.get("action"))
+            for row in rows
+            if row.get("outcome") == "failed"
+            and row.get("action") in {"log", "summary", "runtime_summary"}
+        }
+    )
     return {
-        "path": str(path),
+        "path": str(path.relative_to(checkpoint_dir.parent)),
         "sha256": _sha256(path),
         "rows": len(rows),
         "init_status": init[-1].get("outcome") if init else None,
@@ -82,6 +90,7 @@ def _wandb_evidence(checkpoint_dir: Path) -> dict:
         "artifact_uploads": sum(
             row.get("action") == "artifact" and row.get("outcome") == "uploaded" for row in rows
         ),
+        "critical_failures": critical_failures,
     }
 
 

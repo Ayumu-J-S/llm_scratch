@@ -185,9 +185,9 @@ class TelemetrySampler:
                         if self.interrupt_on_violation:
                             _thread.interrupt_main()
                             self._stop.set()
-                deadline = max(
-                    deadline + self.interval_seconds, time.monotonic() + self.interval_seconds
-                )
+                # Schedule from collection completion so an overrun never causes
+                # immediate catch-up samples that masquerade as steady cadence.
+                deadline = time.monotonic() + self.interval_seconds
                 self._stop.wait(max(0.0, deadline - time.monotonic()))
             handle.flush()
             os.fsync(handle.fileno())
