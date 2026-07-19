@@ -292,8 +292,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         if sampler is not None and sampler._thread is not None and sampler._thread.is_alive():
             try:
                 sampler.stop()
-            except RuntimeError as error:
-                record.setdefault("telemetry_stop_error", str(error))
+            except BaseException as error:
+                record.setdefault("telemetry_stop_error", f"{type(error).__name__}: {error}")
         if sampler is not None:
             record.setdefault("telemetry_ended_monotonic_seconds", time.monotonic())
             record["telemetry_samples"] = sampler.samples

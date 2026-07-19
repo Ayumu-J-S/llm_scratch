@@ -166,6 +166,8 @@ class TelemetrySampler:
         self._initial_swap_out_pages: int | None = None
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
+        self._thread_failure: str | None = None
+        self._completed_cleanly = False
 
     def start(self) -> None:
         if self._thread is not None:
@@ -180,21 +182,41 @@ class TelemetrySampler:
             self._thread.join(timeout=max(5.0, self.interval_seconds * 2))
             if self._thread.is_alive():
                 raise RuntimeError("telemetry sampler did not stop")
+            if self._thread_failure is not None:
+                raise RuntimeError(f"telemetry sampler failed: {self._thread_failure}")
+            if not self._completed_cleanly:
+                raise RuntimeError("telemetry sampler thread exited unexpectedly")
+
+    def _record_thread_failure(self, phase: str, error: BaseException) -> None:
+        message = f"{phase}: {type(error).__name__}: {error}"
+        self.errors.append(message)
+        first_failure = self._thread_failure is None
+        if first_failure:
+            self._thread_failure = message
+        self._stop.set()
+        if self.interrupt_on_violation and first_failure:
+            _thread.interrupt_main()
+
+    def _open_output(self):
+        return self.output_path.open("a", encoding="utf-8")
 
     def _run(self) -> None:
         deadline = time.monotonic()
-        with self.output_path.open("a", encoding="utf-8") as handle:
+        handle = None
+        try:
+            handle = self._open_output()
             while not self._stop.is_set():
                 try:
                     sample = system_sample(self.output_path.parent, self.additional_disk_paths)
                 except (OSError, RuntimeError, subprocess.SubprocessError, ValueError) as error:
-                    self.errors.append(f"{type(error).__name__}: {error}")
-                    if self.interrupt_on_violation:
-                        _thread.interrupt_main()
-                        self._stop.set()
+                    self._record_thread_failure("sample", error)
                 else:
-                    handle.write(json.dumps(sample, sort_keys=True) + "\n")
-                    handle.flush()
+                    try:
+                        handle.write(json.dumps(sample, sort_keys=True) + "\n")
+                        handle.flush()
+                    except (OSError, RuntimeError, TypeError, ValueError) as error:
+                        self._record_thread_failure("write", error)
+                        continue
                     self.samples += 1
                     violations = self._hard_limit_violations(sample)
                     if violations:
@@ -206,8 +228,22 @@ class TelemetrySampler:
                 # immediate catch-up samples that masquerade as steady cadence.
                 deadline = time.monotonic() + self.interval_seconds
                 self._stop.wait(max(0.0, deadline - time.monotonic()))
-            handle.flush()
-            os.fsync(handle.fileno())
+            try:
+                handle.flush()
+                os.fsync(handle.fileno())
+            except (OSError, RuntimeError, ValueError) as error:
+                self._record_thread_failure("finalize", error)
+                return
+            self._completed_cleanly = self._thread_failure is None
+        except BaseException as error:
+            self._record_thread_failure("open-or-run", error)
+        finally:
+            if handle is not None:
+                try:
+                    handle.close()
+                except (OSError, RuntimeError, ValueError) as error:
+                    self._record_thread_failure("close", error)
+                    self._completed_cleanly = False
 
     def _hard_limit_violations(self, sample: Mapping[str, Any]) -> list[str]:
         host = sample["host"]

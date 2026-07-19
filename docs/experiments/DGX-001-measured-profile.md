@@ -60,6 +60,10 @@ logs/evidence. No destructive cleanup is part of this ticket.
   repetitions of the device-resident model path and real streaming loader path
   for the summary-selected profile. Both roles use the same fail-closed hard
   resource watchdog and preserve their failed evidence on interruption.
+- Telemetry evidence I/O is itself fail-closed: open, sample, serialization,
+  write, flush, fsync, close, and unexpected worker failures remain available
+  through in-memory control state, interrupt the workload, and are surfaced by
+  `stop()` even when the evidence file cannot describe its own failure.
 - `scripts/run_dgx_measurements.py` checks clean source/image identity, executes
   the rotated triplicate matrix in the network-isolated pinned container as the
   host UID:GID, preserves commands and logs, hashes the immutable data cache
@@ -148,6 +152,8 @@ to claim that a measured profile has been selected.
 | 17 | Human operational constraint | implemented | Preserve at least 100 GB machine availability using a 120 GB preflight/watchdog floor, projected cache/output growth grouped by filesystem, and an independent 100 GB post-plan reserve gate; no destructive cleanup | Same/split filesystem, low-space, and independent-reserve tests |
 | 18 | Supplemental exact-head re-audit | `FAIL` at `e858bf3` | The live 120 GB watchdog interrupted only pilot; matrix/model-only/loader-only could record a 119 GB violation, return success, and allow later commands to continue | Auditor CPU reproduction and PR #47 trail |
 | 19 | Protocol repair 4 | implemented; re-audit pending | Arm fail-closed interruption for every role, add decomposition hard preflight, preserve failed run/telemetry evidence, stop runner sequencing after any nonzero role, and bind the 100 GB reserve to a conservative per-role atomic-write budget that dynamically raises the live floor when needed | Role-level low-disk interruption, runner-incomplete, budget-boundary, and authority-tamper tests |
+| 20 | Supplemental exact-head re-audit | `FAIL` at `016b323` | Evidence-file open/write/flush/fsync or malformed-sample failure could kill only the telemetry worker, leaving the workload un-interrupted and no machine-readable error | Exact `/dev/full` reproduction and PR #47 trail |
+| 21 | Protocol repair 5 | implemented; re-audit pending | Contain the complete telemetry worker lifecycle, retain fatal state independently of the evidence file, interrupt every armed workload, and make `stop()` reject captured failure or unexpected thread death | Open/write/flush/malformed-sample/fsync/close/`/dev/full` adversarial tests |
 
 Independent `/review` will cover `PHILOSOPHY.md`, DGX-001 acceptance, and the
 applicable `CHECK.md` minimum, comparison, data supply, DGX/UMA, training-health,
