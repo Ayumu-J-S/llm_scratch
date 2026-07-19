@@ -246,7 +246,7 @@ def summarize_run(run_dir: Path, gates: Mapping[str, Any]) -> dict[str, Any]:
         "checkpoint_size_bytes": checkpoint_size,
         "checkpoint_seconds": sum(float(row["checkpoint_seconds"]) for row in checkpoint_rows),
         "validation_seconds": sum(
-            float(row.get("validation_event_seconds", 0.0))
+            float(row.get("full_event_pause_seconds", 0.0))
             for row in measurement.get("rows", [])
             if row.get("event") == "validation"
         ),
