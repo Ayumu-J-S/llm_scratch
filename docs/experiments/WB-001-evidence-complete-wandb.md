@@ -2,13 +2,13 @@
 
 - Roadmap ticket: `WB-001`
 - Branch: `codex/wb-001-main-integration`
-- Draft PR: recorded in the live pull-request handoff.
-- Status: current-main integration and exact-head review in progress. The
-  retained pre-integration review was `PASS WITH NOTE`; all six findings from
-  its prior `FAIL` were closed. R1 and the repaired-code depth-26 DGX Attempt 9
-  result are `PASS WITH NOTE`, with all 168 applicable measurement gates
-  passing. Attempt 9 supersedes Attempt 8 as repaired-code performance evidence,
-  while Attempt 8 remains as history.
+- Draft PR: [#46](https://github.com/Ayumu-J-S/llm_scratch/pull/46)
+- Status: current-main integration is complete; the exact-head review outcome
+  is recorded in live PR #46. The retained pre-integration review was
+  `PASS WITH NOTE`; all six findings from its prior `FAIL` were closed. R1 and
+  the repaired-code depth-26 DGX Attempt 9 result are `PASS WITH NOTE`, with all
+  168 applicable measurement gates passing. Attempt 9 supersedes Attempt 8 as
+  repaired-code performance evidence, while Attempt 8 remains as history.
 - Started (UTC): 2026-07-13
 - Last updated (UTC): 2026-07-19
 
@@ -64,11 +64,12 @@
   `scripts/offline_smoke.py`, first `wandb.mode=disabled`, then
   `wandb.mode=offline`. Each temporary run retained its own resolved config and
   manifest until the temporary directory closed.
-- Git commit SHA: baseline `74d9e24`; implementation working tree, not yet
-  committed by the delegated implementation agent.
+- Git commit SHA: baseline `74d9e24`; the first implementation attempt was not
+  yet committed.
 - Worktree state: dirty with the WB-001 implementation diff; no unrelated
   pre-existing dirty files were present at start.
-- Dependency lock identity: `uv.lock` unchanged; lock check pending final QA.
+- Dependency lock identity: `uv.lock` unchanged; lock check passed in final
+  current-main validation.
 - Container/image identity: `N/A` — CPU R1 only; no DGX claim.
 
 ### Scientific identity
@@ -561,8 +562,10 @@ isolation plus artifact policy `none` support no online/cloud claim; quota
 reservation is conservative within one tracker lifetime rather than an
 account-global multi-process reservation; and a permanently stuck daemon SDK
 worker may remain until process exit while local training and tracker shutdown
-stay bounded. PR publication is unavailable because the `gh` prerequisite is
-missing. Human review and merge remain required; no self-merge is authorized.
+stay bounded. Draft PR
+[#46](https://github.com/Ayumu-J-S/llm_scratch/pull/46) is the current handoff;
+guarded self-merge is authorized for the bounded roadmap goal series only after
+the exact-head review and every merge gate pass.
 
 ## Conclusion
 
