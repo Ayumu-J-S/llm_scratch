@@ -43,6 +43,7 @@ from benchmarks.suite import (
     LoadedSuite,
     LoadedTask,
     load_suite,
+    protocol_component_hashes,
 )
 from data.identity import canonical_fingerprint
 from data.stream_loader.cache import BoundedShardCache
@@ -372,10 +373,10 @@ def test_injected_contamination_reports_source_and_document_id(monkeypatch, tmp_
     index = json.loads(index_files[0].read_text(encoding="utf-8"))
     assert index["index_identity_sha256"] == evidence["scan_index_identity_sha256"]
     assert index["index_identity"]["normalization_revision"] == (
-        "normalize-text-identity-nfc-strip-plus-json-object-v2"
+        "normalize-text-identity-nfc-strip-plus-json-object-v3"
     )
     assert index["index_identity"]["json_object_normalization_revision"] == (
-        "canonical-json-object-sha256-v1"
+        "normalized-canonical-json-object-sha256-v2"
     )
     assert index["index_identity"]["matcher_revision"] == (
         "collision-verified-rolling-hash-codepoint-v1"
@@ -507,7 +508,7 @@ def test_all_selected_source_records_match_verbatim_and_reordered_json():
                 indent=2,
             )
             structured = _document_matches(
-                reordered,
+                f"\ufeff  {reordered.replace(chr(10), chr(13) + chr(10))}  ",
                 source_name="fixture_train",
                 document_id=f"{task.name}-{example.example_id}-reordered",
                 upstream_id=None,
@@ -902,6 +903,7 @@ def test_external_baseline_record_is_aggregate_only_and_isolated(monkeypatch, tm
                 "protocol_sha256": (
                     "d56ffdbdf0862929f40e51b1fe748b58826b8bb95532f11e1af4e8a9a7972377"
                 ),
+                "component_hashes": protocol_component_hashes(),
                 "passed": True,
                 "no_truncation": True,
                 "required_context_length": 300,
@@ -939,6 +941,7 @@ def test_external_baseline_record_is_aggregate_only_and_isolated(monkeypatch, tm
     assert record["suite"]["protocol_sha256"] == (
         "d56ffdbdf0862929f40e51b1fe748b58826b8bb95532f11e1af4e8a9a7972377"
     )
+    assert record["suite"]["component_hashes"] == protocol_component_hashes()
     assert record["suite"]["tasks"]["jcommonsenseqa"]["selected_examples_sha256"] == (
         "37e39dca6ce5108fe720dda6e0246f7c8ef858e22961229540d2023faeabe0bd"
     )
@@ -973,6 +976,13 @@ def test_external_baseline_record_is_aggregate_only_and_isolated(monkeypatch, tm
     wrong_protocol["subject"]["protocol_context_preflight"]["protocol_sha256"] = "0" * 64
     with pytest.raises(ExternalComparisonError, match="compiled benchmark protocol"):
         write_external_comparison(wrong_protocol, output_path="wrong-protocol.json")
+
+    wrong_component = copy.deepcopy(payload)
+    wrong_component["subject"]["protocol_context_preflight"]["component_hashes"]["gsm8k"][
+        "scorer_sha256"
+    ] = "0" * 64
+    with pytest.raises(ExternalComparisonError, match="prompt and scorer components"):
+        write_external_comparison(wrong_component, output_path="wrong-component.json")
 
     truncated_context = copy.deepcopy(payload)
     truncated_context["subject"]["protocol_context_preflight"]["required_context_length"] = 3000

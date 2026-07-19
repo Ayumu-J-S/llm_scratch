@@ -241,6 +241,8 @@ class CheckpointSampler:
                 for _ in range(allowed):
                     tokens = torch.tensor([token_ids], dtype=torch.long, device=self.device)
                     logits = self.model(tokens)[0, -1]
+                    if not bool(torch.isfinite(logits).all().item()):
+                        raise SamplingError("generation produced non-finite logits")
                     if temperature_value is None:
                         token_id = int(torch.argmax(logits).item())
                     else:

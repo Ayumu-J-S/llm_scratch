@@ -27,11 +27,11 @@ from runtime.reproducibility import sha256_file
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 SHINGLE_CODEPOINTS = 48
-SCAN_REVISION = "BENCH-001-contamination-v4"
-NORMALIZATION_REVISION = "normalize-text-identity-nfc-strip-plus-json-object-v2"
+SCAN_REVISION = "BENCH-001-contamination-v5"
+NORMALIZATION_REVISION = "normalize-text-identity-nfc-strip-plus-json-object-v3"
 SCAN_INDEX_SCHEMA_VERSION = 2
 MATCHER_REVISION = "collision-verified-rolling-hash-codepoint-v1"
-JSON_OBJECT_NORMALIZATION_REVISION = "canonical-json-object-sha256-v1"
+JSON_OBJECT_NORMALIZATION_REVISION = "normalized-canonical-json-object-sha256-v2"
 PRODUCER_IDENTITY_REVISION = "contamination-producer-v1"
 PRODUCER_SOURCE_SCOPE_REVISION = "src-python-pyproject-lock-v1"
 _PRODUCER_PACKAGES = ("pyarrow",)
@@ -573,7 +573,7 @@ def _document_matches(
         ("normalized", probe_index.normalized.get(_sha256(normalized), [])),
         ("shingle_48", probe_index.shingles.references_in(normalized)),
     )
-    structured_json = _canonical_json_object(text)
+    structured_json = _canonical_json_object(normalized)
     if structured_json is not None:
         observed = (
             *observed,

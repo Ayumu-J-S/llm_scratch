@@ -56,6 +56,10 @@
 | 33 | Repair | Complete | Retained each selected example's exact pinned JSONL source record, bound its SHA-256 into selected-example identity, and added a protocol-versioned canonical JSON-object identity that is invariant to key order and insignificant whitespace while remaining linear per candidate document |
 | 34 | Focused validation | PASS | 103 benchmark/config/tokenizer/generation/reproducibility tests and scoped Ruff/format/diff checks pass; a 256-example synthetic all-selected invariant detects 128/128 source-faithful and reordered/indented variants for each task. Canonical online acceptance independently detects 128/128 exact source records and 128/128 reordered JSON objects for both JCommonsenseQA and GSM8K; registry `adf433c…`, protocol `d56ffdb…`, JCommonsenseQA selection `37e39dc…`, GSM8K selection `03fa95e…` |
 | 35 | Full validation | PASS | Official CPU gate: 354 passed, 1 skipped; Ruff, Hydra config preflight, lock drift, offline smoke, `uv lock --check`, changed-path format, and diff checks pass |
+| 36 | Independent re-review | FAIL | Exact-head review of `6abee17` reran 354 tests (1 skipped), canonical development/final loading, context checks, and Ruff, then found three defects: structure-aware contamination did not compose with BOM/newline/NFC text normalization; external records omitted separately attested prompt/scorer component hashes; and GSM8K generation accepted non-finite logits as arbitrary tokens and a normal score |
+| 37 | Repair | Complete | Applied the repository text-identity normalization before canonical JSON parsing and revised the cache identity; attached and independently attested prompt/scorer hashes in external records; rejected any non-finite generation logits before argmax or sampling can produce a token or result |
+| 38 | Focused validation | PASS | 27 benchmark/generation tests plus scoped Ruff/format/diff checks pass. The all-selected synthetic invariant now combines BOM, outer whitespace, CRLF, key reordering, and JSON indentation; canonical online acceptance independently detects 128/128 such variants for each task, and tests prove all NaN/positive-infinity/negative-infinity generation paths fail closed |
+| 39 | Full validation | PASS | Official CPU gate: 357 passed, 1 skipped; Ruff, Hydra config preflight, lock drift, offline smoke, `uv lock --check`, changed-path format, and diff checks pass |
 
 ## Resolved protocol
 
@@ -73,9 +77,9 @@
 - Final acknowledgement: `BENCHMARK_FINAL_ACK=BENCH-001-suite-v1`; checked
   outside Hydra.
 - Contamination: complete checkpoint-owned train selections, exact/normalized
-  whole-document identity, source-faithful record identity, canonical JSON-object
-  identity across key-order/whitespace variants, and normalized 48-codepoint
-  shingles.
+  whole-document identity, source-faithful record identity, text-normalized
+  canonical JSON-object identity across key-order/whitespace variants, and
+  normalized 48-codepoint shingles.
 
 ## Review selection
 
@@ -93,7 +97,7 @@
 
 ## Current conclusion
 
-All nine independent failed reviews remain visible. Their twenty-two findings are
+All ten independent failed reviews remain visible. Their twenty-five findings are
 repaired without weakening the fixed protocol or complete contamination gate:
 cheap context incompatibility precedes scanning, both tasks honor checkpoint
 precision, external records are pinned, evaluator/runtime and dirty source
@@ -111,13 +115,16 @@ contamination evidence is reference-deduplicated, generation traces bind
 canonical token-sequence hashes, evaluator identity rejects symlinked or special
 producer paths, and the full optimizer-bearing load is reclaimed before the
 suite and corpus scan. Selected examples now retain and hash the pinned source
-record representation, while a structure-normalized JSON identity detects
-equivalent key-order and whitespace variants; canonical acceptance covers every
-selected development record in both tasks.
+record representation, while text normalization composes with a
+structure-normalized JSON identity to detect BOM, newline, Unicode,
+key-order, and whitespace variants; canonical acceptance covers every selected
+development record in both tasks. External comparisons separately attest the
+compiled prompt and scorer hashes, and generation rejects non-finite logits
+before any GSM8K token or score is accepted.
 An extra
 repository-wide format diagnostic identified four pre-existing, unrelated
 files outside this ticket's diff; the configured Ruff lint gate and all changed
-benchmark paths pass, so those files were not rewritten here. The ninth repair's
+benchmark paths pass, so those files were not rewritten here. The tenth repair's
 focused and full gates plus canonical online acceptance pass; exact-head independent
 re-review remains. No
 benchmark score from the zero-weight fixture is a model-quality result.

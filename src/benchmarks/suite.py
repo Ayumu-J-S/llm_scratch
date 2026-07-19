@@ -231,6 +231,7 @@ def canonical_external_dev_identity() -> dict[str, Any]:
         "suite_fingerprint": registry["suite_fingerprint"],
         "access": "dev",
         "protocol_sha256": hashlib.sha256(canonical_json_bytes(protocol)).hexdigest(),
+        "component_hashes": protocol_component_hashes(),
         "minimum_context_length": PROTOCOL_MINIMUM_CONTEXT_LENGTH,
         "subset_selector": subset["selector"],
         "tasks": {
