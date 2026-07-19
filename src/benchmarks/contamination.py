@@ -29,12 +29,12 @@ from runtime.reproducibility import sha256_file
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 SHINGLE_CODEPOINTS = 48
-SCAN_REVISION = "BENCH-001-contamination-v22"
-NORMALIZATION_REVISION = "normalize-text-identity-nfc-strip-plus-json-object-v20"
+SCAN_REVISION = "BENCH-001-contamination-v23"
+NORMALIZATION_REVISION = "normalize-text-identity-nfc-strip-plus-json-object-v21"
 SCAN_INDEX_SCHEMA_VERSION = 2
 MATCHER_REVISION = "collision-verified-rolling-hash-codepoint-v1"
 JSON_OBJECT_NORMALIZATION_REVISION = (
-    "bounded-all-object-string-input-projection-json-nfc-sha256-v19"
+    "bounded-all-object-string-input-projection-json-nfc-sha256-v20"
 )
 PRODUCER_IDENTITY_REVISION = "contamination-producer-v1"
 PRODUCER_SOURCE_SCOPE_REVISION = "src-python-pyproject-lock-v1"
@@ -1135,8 +1135,12 @@ def _json_object_candidate_ranges(
                 in_string = False
             elif character in "\r\n":
                 object_starts.clear()
-                in_string = False
-                escaped = False
+                # A newline invalidates any active JSON candidate, but arbitrary
+                # prose after it still has no authoritative quote parity. Reset
+                # each pass to its distinct hypothesis instead of collapsing all
+                # passes to the outside-string state.
+                in_string = initial_in_string
+                escaped = initial_escaped
             continue
         if character == '"':
             in_string = True

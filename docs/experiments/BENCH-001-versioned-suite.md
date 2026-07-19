@@ -140,6 +140,10 @@
 | 117 | Focused and canonical validation | PASS | The reviewer reproduction detects both complete and input-only selected mappings. Direct, recursive, all-selected, complete-scan, and whitespace-name regressions pass; pinned canonical development acceptance detects 128/128 direct and 128/128 recursively wrapped malformed-outer-object inputs in both tasks. The broader BENCH/generation/config/reproducibility/tokenizer selection passes 159 tests; scoped Ruff, format, and diff checks pass |
 | 118 | Full validation | PASS | Official network-isolated CPU gate passes 509 tests with 1 skipped plus repository Ruff, resolved Hydra preflight, lock-drift rejection, and disabled/offline process-tree smoke. No GPU, online W&B, full-corpus scan, or large artifact was used; exact-head CI and independent re-review remain pending |
 | 119 | Exact-head independent `/review` | blocked | Review was invoked on clean pushed head `89d45e1`, but the reviewer exited before analysis because the account usage limit was reached; retry availability was reported as 2026-07-26 09:06 UTC. No verdict was produced or inferred, and the PR remains draft |
+| 120 | Supplemental exact-head audit | FAIL | Audit of clean head `4db4d7d` composed newline recovery with a later unmatched quote. Newline handling collapsed every lexer pass to the same outside-string state, after which all passes entered the same string state and hid 128/128 pinned JCommonsenseQA input-only development records, permitting false-clean complete-scan evidence |
+| 121 | Repair | Complete | A newline still invalidates every active candidate, but each fixed linear pass now resets to its own distinct malformed-prefix string/escape hypothesis rather than converging. Scan, normalization, and JSON-object identities were advanced so prior evidence is ineligible for reuse |
+| 122 | Focused and canonical validation | PASS | Direct, escaped, recursively decoded, all-selected, and complete-scan newline-prefix regressions use input-only mappings and pass. Pinned canonical development acceptance detects 128/128 plain-newline, 128/128 escaped-newline, and 128/128 recursively wrapped escaped-newline inputs in each task. The broader BENCH/generation/config/reproducibility/tokenizer gate passes 162 tests; Ruff, format, and diff checks pass |
+| 123 | Full validation | PASS | Official network-isolated CPU gate passes 512 tests with 1 skipped plus repository Ruff, resolved Hydra preflight, lock-drift rejection, and disabled/offline process-tree smoke. No GPU, online W&B, full-corpus scan, or large artifact was used; formal exact-head re-review remains quota-blocked |
 
 ## Resolved protocol
 
@@ -201,7 +205,7 @@
 
 ## Current conclusion
 
-All twenty-nine failed review/audit cycles remain visible. Their fifty-two findings are
+All thirty failed review/audit cycles remain visible. Their fifty-three findings are
 repaired without weakening the fixed protocol or complete contamination gate:
 cheap context incompatibility precedes scanning, both tasks honor checkpoint
 precision, external records are pinned, evaluator/runtime and dirty source
@@ -226,8 +230,8 @@ complete selected mappings augmented with scalar or nested provenance, and
 unlabeled question/input mappings whose answer field is absent or changed,
 including the exact prompt-bearing JCommonsenseQA mapping without source-only
 `q_id` metadata, even when later duplicate JSON keys contain benign values or
-an escaped unmatched prose quote precedes the record directly, recursively, or
-inside an already-open malformed object.
+an escaped unmatched prose quote precedes the record directly, recursively,
+inside an already-open malformed object, or after newline recovery.
 Decoded JSON strings are recursively inspected through object, array,
 double-serialized, and quoted-prose wrappers under strict per-document
 byte/node/depth/string caps; normalized-key collisions and parser recursion are

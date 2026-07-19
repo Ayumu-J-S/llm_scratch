@@ -421,10 +421,10 @@ def test_injected_contamination_reports_source_and_document_id(monkeypatch, tmp_
     index = json.loads(index_files[0].read_text(encoding="utf-8"))
     assert index["index_identity_sha256"] == evidence["scan_index_identity_sha256"]
     assert index["index_identity"]["normalization_revision"] == (
-        "normalize-text-identity-nfc-strip-plus-json-object-v20"
+        "normalize-text-identity-nfc-strip-plus-json-object-v21"
     )
     assert index["index_identity"]["json_object_normalization_revision"] == (
-        "bounded-all-object-string-input-projection-json-nfc-sha256-v19"
+        "bounded-all-object-string-input-projection-json-nfc-sha256-v20"
     )
     assert index["index_identity"]["matcher_revision"] == (
         "collision-verified-rolling-hash-codepoint-v1"
@@ -604,6 +604,15 @@ def test_all_selected_source_records_match_verbatim_and_reordered_json():
             "jcommonsenseqa": 0,
             "gsm8k": 0,
         },
+        "newline_unterminated_quote_object": {"jcommonsenseqa": 0, "gsm8k": 0},
+        "newline_escaped_unterminated_quote_object": {
+            "jcommonsenseqa": 0,
+            "gsm8k": 0,
+        },
+        "recursive_newline_escaped_unterminated_quote_object": {
+            "jcommonsenseqa": 0,
+            "gsm8k": 0,
+        },
         "recursive_escaped_unterminated_quote_object": {"jcommonsenseqa": 0, "gsm8k": 0},
     }
 
@@ -717,6 +726,26 @@ def test_all_selected_source_records_match_verbatim_and_reordered_json():
                     },
                     ensure_ascii=True,
                 ),
+                "newline_unterminated_quote_object": (
+                    'ordinary malformed\n" prefix '
+                    + json.dumps(input_only_record, ensure_ascii=True, indent=2)
+                    + " trailing"
+                ),
+                "newline_escaped_unterminated_quote_object": (
+                    f"ordinary malformed\n{escaped_unmatched_quote} prefix "
+                    + json.dumps(input_only_record, ensure_ascii=True, indent=2)
+                    + " trailing"
+                ),
+                "recursive_newline_escaped_unterminated_quote_object": json.dumps(
+                    {
+                        "payload": (
+                            f"ordinary malformed\n{escaped_unmatched_quote} prefix "
+                            + json.dumps(input_only_record, ensure_ascii=True, indent=2)
+                            + " trailing"
+                        )
+                    },
+                    ensure_ascii=True,
+                ),
                 "recursive_escaped_unterminated_quote_object": json.dumps(
                     {
                         "payload": (
@@ -782,6 +811,15 @@ def test_all_selected_source_records_match_verbatim_and_reordered_json():
             "gsm8k": 128,
         },
         "recursive_escaped_unterminated_quote_inside_object": {
+            "jcommonsenseqa": 128,
+            "gsm8k": 128,
+        },
+        "newline_unterminated_quote_object": {"jcommonsenseqa": 128, "gsm8k": 128},
+        "newline_escaped_unterminated_quote_object": {
+            "jcommonsenseqa": 128,
+            "gsm8k": 128,
+        },
+        "recursive_newline_escaped_unterminated_quote_object": {
             "jcommonsenseqa": 128,
             "gsm8k": 128,
         },
@@ -1126,6 +1164,9 @@ def test_full_scan_detects_serialized_record_used_as_valid_json_object_key(
         "unterminated_quote",
         "escaped_unterminated_quote",
         "escaped_unterminated_quote_inside_object",
+        "newline_unterminated_quote",
+        "newline_escaped_unterminated_quote",
+        "recursive_newline_escaped_unterminated_quote",
         "recursive_escaped_unterminated_quote_inside_object",
         "recursive_escaped_unterminated_quote",
     ],
@@ -1146,7 +1187,7 @@ def test_full_scan_detects_reordered_record_after_unterminated_quote(
     )
     example = next(task for task in suite.tasks if task.name == "jcommonsenseqa").examples[0]
     target = _structured_adversarial_record(example)
-    if "inside_object" in wrapper_name:
+    if "inside_object" in wrapper_name or "newline" in wrapper_name:
         input_only = {
             key: unicodedata.normalize("NFD", value) if isinstance(value, str) else value
             for key, value in reversed(list(example.record.items()))
@@ -1156,6 +1197,8 @@ def test_full_scan_detects_reordered_record_after_unterminated_quote(
     prefix = "\\" + '"' if "escaped" in wrapper_name else '"'
     if "inside_object" in wrapper_name:
         text = f'{{"meta":"unterminated {prefix} prefix {target} trailing}}'
+    elif "newline" in wrapper_name:
+        text = f"ordinary malformed\n{prefix} prefix {target} trailing"
     else:
         text = f"ordinary malformed {prefix} prefix {target} trailing"
     if wrapper_name.startswith("recursive"):
