@@ -78,8 +78,11 @@ DGX-001 measurement is narrower than generic CUDA diagnosis. Every matrix,
 decomposition, and pilot role must observe one `NVIDIA GB10` device on
 `aarch64`, compute capability 12.1, and a 120–140 GB memory total reported
 identically by the host and CUDA device. The summarizer revalidates that raw
-identity before accepting evidence; CUDA/BF16 support on another GPU is not
-DGX Spark evidence.
+identity before accepting evidence. It also retains the physical GPU UUID,
+driver, CUDA runtime, Torch build, and host OS/kernel identity and requires every
+decomposition and pilot phase to match the matrix authority exactly; CUDA/BF16
+support on another GPU or after an unreviewed runtime change is not DGX Spark
+evidence.
 
 Both negative checks must exit nonzero when no GPU is passed:
 
@@ -149,8 +152,9 @@ CUDA events only at measurement boundaries, exercises the pinned bilingual
 train/validation path, writes a verified final checkpoint, and samples host/GPU
 state out of band. The summarizer fails closed on incomplete repetitions,
 commit/image drift, non-finite training, unavailable CUDA events, sampler gaps,
-UMA or disk floors, swap growth, temperature above 80 C, allocator growth, or a
-missing verified checkpoint. It reports median and spread, step median/p95/max,
+UMA or disk floors, swap growth, temperature above 80 C, allocated or reserved
+allocator-baseline growth, or a missing verified checkpoint. It reports median
+and spread, step median/p95/max,
 trained-target tokens/s, phase/data-wait decomposition, memory, validation and
 checkpoint overhead, and conservative 1-hour/24-hour/7-day budgets.
 
@@ -158,6 +162,9 @@ Hydra may make a safety threshold stricter, but configuration validation rejects
 any override that weakens the committed UMA, telemetry, temperature, swap,
 allocator, data-wait, loader-supply, storage, repeatability, or selection gates.
 The 120 GB live disk floor and independent 100 GB post-plan reserve remain exact.
+Storage forecasting retains at least the full verified existing cache footprint
+when it is larger than the configured cache maximum; an immutable oversized
+cache is never treated as space that the measurement will reclaim.
 
 Matrix preselection is deterministic: a candidate must pass every gate and project at
 least one billion targets in seven days from its slowest repetition. Among
@@ -170,8 +177,10 @@ selecting the largest arm that merely avoids OOM.
 That preselection is not final deployment authority. The online W&B pilot must
 observe a scheduled scalar-log boundary, then recompute the 1-hour, 24-hour,
 and 7-day token budgets for every matrix candidate using the worse of matrix
-and online log latency. The same seven-day floor and 20%/85% rule run again; a
-changed selection or failed floor makes the pilot fail closed.
+and online event latency. Any selected-shape compute slowdown observed in the
+online pilot is applied conservatively to every matrix candidate before the
+same seven-day floor and 20%/85% rule run again; a changed selection or failed
+floor makes the pilot fail closed.
 
 After reviewing `dgx-summary.json`, run the selected arm for the required
 30-minute thermal/storage pilot and retain its verified checkpoint plus two
@@ -200,3 +209,7 @@ role before it may pass or name a bottleneck. Pilot telemetry remains active
 through final-checkpoint loading and verification, continuation sampling, and
 W&B evidence capture so that their overlapping UMA, swap, thermal, and storage
 pressure is included in the resource verdict.
+For every role, the sampler persists and gate-checks an initial resource sample
+before model placement, optimizer allocation, tokenizer/data preview, or loader
+construction begins, so setup is inside the live UMA/swap/thermal/storage
+envelope rather than hidden between preflight and training.

@@ -23,9 +23,13 @@ def _evidence() -> tuple[dict, dict]:
     return (
         {
             "architecture": "aarch64",
+            "os": "Linux-6.17.0-1021-nvidia-aarch64-with-glibc2.39",
+            "torch": {"version": "2.13.0", "compiled_cuda": "13.3"},
             "cuda": {
                 "available": True,
                 "bf16_supported": True,
+                "runtime_version": 13030,
+                "driver_version": "580.159.03",
                 "device_count": 1,
                 "devices": [
                     {
@@ -40,7 +44,7 @@ def _evidence() -> tuple[dict, dict]:
         },
         {
             "host": {"memory_total_bytes": TOTAL},
-            "gpu": {"name": "NVIDIA GB10"},
+            "gpu": {"name": "NVIDIA GB10", "uuid": "GPU-fixture-uuid"},
         },
     )
 
@@ -50,10 +54,16 @@ def test_target_hardware_identity_is_explicit_and_unified():
     assert validate_dgx_spark_environment(environment, preflight, EXPECTED) == {
         "architecture": "aarch64",
         "gpu_name": "NVIDIA GB10",
+        "gpu_uuid": "GPU-fixture-uuid",
         "device_count": 1,
         "compute_capability": [12, 1],
         "unified_memory_bytes": TOTAL,
         "host_device_memory_equal": True,
+        "driver_version": "580.159.03",
+        "cuda_runtime_version": 13030,
+        "torch_version": "2.13.0",
+        "torch_compiled_cuda": "13.3",
+        "os_kernel": "Linux-6.17.0-1021-nvidia-aarch64-with-glibc2.39",
     }
 
 
@@ -75,6 +85,9 @@ def test_target_hardware_identity_is_explicit_and_unified():
             total_bytes=129_000_000_000
         ),
         lambda _environment, preflight: preflight["gpu"].update(name="NVIDIA H100"),
+        lambda _environment, preflight: preflight["gpu"].update(uuid=""),
+        lambda environment, _preflight: environment["cuda"].update(driver_version=None),
+        lambda environment, _preflight: environment.update(os=""),
     ],
 )
 def test_non_target_hardware_fails_closed(mutation):

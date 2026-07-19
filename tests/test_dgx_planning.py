@@ -13,6 +13,7 @@ from dgx.planning import (
     _decomposition_decision,
     _online_adjusted_projection,
     _project_token_budget,
+    _require_matrix_hardware_identity,
     _telemetry_summary,
     _validate_matrix_authority,
     _validated_wandb_evidence,
@@ -310,9 +311,13 @@ def _target_hardware_evidence() -> tuple[dict, dict, dict]:
     total = 130_596_048_896
     environment = {
         "architecture": "aarch64",
+        "os": "Linux-6.17.0-1021-nvidia-aarch64-with-glibc2.39",
+        "torch": {"version": "2.13.0", "compiled_cuda": "13.3"},
         "cuda": {
             "available": True,
             "bf16_supported": True,
+            "runtime_version": 13030,
+            "driver_version": "580.159.03",
             "device_count": 1,
             "devices": [
                 {
@@ -327,15 +332,21 @@ def _target_hardware_evidence() -> tuple[dict, dict, dict]:
     }
     preflight = {
         "host": {"memory_total_bytes": total},
-        "gpu": {"name": "NVIDIA GB10"},
+        "gpu": {"name": "NVIDIA GB10", "uuid": "GPU-fixture-uuid"},
     }
     verified = {
         "architecture": "aarch64",
         "gpu_name": "NVIDIA GB10",
+        "gpu_uuid": "GPU-fixture-uuid",
         "device_count": 1,
         "compute_capability": [12, 1],
         "unified_memory_bytes": total,
         "host_device_memory_equal": True,
+        "driver_version": "580.159.03",
+        "cuda_runtime_version": 13030,
+        "torch_version": "2.13.0",
+        "torch_compiled_cuda": "13.3",
+        "os_kernel": "Linux-6.17.0-1021-nvidia-aarch64-with-glibc2.39",
     }
     return environment, preflight, verified
 
@@ -694,6 +705,41 @@ def test_post_plan_free_reserve_is_separate_from_headroom_ratio(tmp_path, monkey
     assert summary["verdict"] == "FAIL"
 
 
+def test_oversized_immutable_cache_is_preserved_in_storage_forecast(tmp_path, monkeypatch):
+    config = compose_dgx(["mode=matrix"])
+    plan = _write_plan(tmp_path, config)
+    oversized = 90_000_000_000
+    plan["cache_before"]["size_bytes"] = oversized
+    unsigned = dict(plan)
+    unsigned.pop("plan_id")
+    plan["plan_id"] = _canonical_sha256(unsigned)
+    _write_json(tmp_path / "plan.json", plan)
+    _write_json(
+        tmp_path / "cache-integrity.json",
+        {"before": plan["cache_before"], "after": plan["cache_before"], "unchanged": True},
+    )
+    for entry in build_matrix_plan(config):
+        _fake_run(tmp_path, entry, plan, _throughput(entry))
+    monkeypatch.setattr(
+        "dgx.planning._filesystem_device",
+        lambda path: 1 if Path(path).name == "cache" else 2,
+    )
+    monkeypatch.setattr(
+        "dgx.planning.shutil.disk_usage",
+        lambda path: SimpleNamespace(
+            free=95_000_000_000 if Path(path).name == "cache" else 1_000_000_000_000
+        ),
+    )
+
+    summary = summarize_evidence(tmp_path, config)
+
+    reports = {tuple(item["roles"]): item for item in summary["plan"]["storage_filesystems"]}
+    assert summary["plan"]["cache_bytes"] == oversized
+    assert reports[("cache",)]["planned_bytes"] == oversized
+    assert reports[("cache",)]["post_plan_reserve_passed"] is False
+    assert summary["verdict"] == "FAIL"
+
+
 def test_primary_denominator_includes_scheduled_pauses_exactly_once(tmp_path):
     config = OmegaConf.to_container(compose_dgx(), resolve=True)
     plan = _write_plan(tmp_path, config)
@@ -822,8 +868,9 @@ def test_online_log_latency_reprojects_and_regates_every_matrix_candidate():
             }
         )
     projection = _online_adjusted_projection(
-        {"candidates": candidates},
+        {"candidates": candidates, "selected": candidates[1]},
         {
+            "compute_tokens_per_second": 9_000.0,
             "scheduled_log_pause_seconds": [2.0, 3.0],
             "validation_pause_seconds": [4.0],
             "recovery_checkpoint_pause_seconds": [5.0],
@@ -832,6 +879,9 @@ def test_online_log_latency_reprojects_and_regates_every_matrix_candidate():
         config,
     )
     assert projection["online_scheduled_log_max_seconds"] == 3.0
+    assert projection["online_pilot_compute_tokens_per_second"] == 9_000.0
+    assert projection["selected_matrix_compute_tokens_per_second"] == 18_000.0
+    assert projection["online_compute_factor"] == 0.5
     assert len(projection["candidates"]) == 2
     assert projection["selected"]["candidate_id"] == "deep"
     for candidate, adjusted in zip(candidates, projection["candidates"], strict=True):
@@ -839,6 +889,9 @@ def test_online_log_latency_reprojects_and_regates_every_matrix_candidate():
         assert adjusted["projected_overhead_seconds"]["validation_each"] == 4.0
         assert adjusted["projected_overhead_seconds"]["recovery_each"] == 5.0
         assert adjusted["projected_overhead_seconds"]["final_once"] == 6.0
+        assert adjusted["conservative_compute_tokens_per_second"] == pytest.approx(
+            candidate["conservative_compute_tokens_per_second"] * 0.5
+        )
         assert adjusted["token_budgets"]["7_days"] % 32768 == 0
         assert adjusted["token_budgets"]["7_days"] < int(
             candidate["conservative_compute_tokens_per_second"] * 604800
@@ -1136,6 +1189,29 @@ def test_periodic_allocator_peaks_do_not_look_like_monotonic_growth(tmp_path):
     assert result["gates"]["allocator_stable"] is False
 
 
+def test_reserved_allocator_growth_is_a_hard_gate(tmp_path):
+    config = OmegaConf.to_container(compose_dgx(), resolve=True)
+    plan = _write_plan(tmp_path, config)
+    entry = build_matrix_plan(config)[0]
+    run_dir = _fake_run(tmp_path, entry, plan, 18_000)
+    measurement_path = run_dir / "measurement.json"
+    measurement = json.loads(measurement_path.read_text())
+    measured = [
+        row
+        for row in measurement["segments"][0]["rows"]
+        if row.get("event") == "optimizer_step" and row.get("warmup") is False
+    ]
+    for row in measured[-5:]:
+        row["pytorch_reserved_bytes"] += 500_000_000
+    _write_json(measurement_path, measurement)
+
+    result = summarize_run(run_dir, config["gates"], expected=entry, plan=plan)
+
+    assert result["pytorch_allocator_baseline_growth_bytes"] == 15
+    assert result["pytorch_reserved_baseline_growth_bytes"] == 500_000_000
+    assert result["gates"]["allocator_stable"] is False
+
+
 def test_selection_requires_all_runs_repeatability_and_exact_rule():
     base = {
         "all_runs_passed": True,
@@ -1196,6 +1272,7 @@ def test_auxiliary_authority_requires_exact_matrix_plan_protocol_and_selection(t
         "git_commit": COMMIT,
         "image_id": IMAGE,
         "selection_rule": matrix_config["selection"],
+        "measurement_conditions": {"target_hardware": _target_hardware_evidence()[2]},
         "selected": {
             **selected,
             "conservative_tokens_per_second": 9.0,
@@ -1220,6 +1297,7 @@ def test_auxiliary_authority_requires_exact_matrix_plan_protocol_and_selection(t
             "selection_rule": matrix_config["selection"],
             "selected": selected["candidate_id"],
             "end_to_end_compute_tokens_per_second": 10.0,
+            "target_hardware": _target_hardware_evidence()[2],
         }
 
     write_summary()
@@ -1240,6 +1318,17 @@ def test_auxiliary_authority_requires_exact_matrix_plan_protocol_and_selection(t
         _validate_matrix_authority(auxiliary_plan)
 
     summary["plan_id"] = matrix_plan["plan_id"]
+    summary["selection_rule"] = matrix_config["selection"]
+    summary["measurement_conditions"]["target_hardware"] = {
+        **_target_hardware_evidence()[2],
+        "gpu_uuid": "GPU-another-machine",
+    }
+    write_summary()
+    auxiliary_plan["matrix_summary_identity"] = authority()
+    with pytest.raises(ValueError, match="one passing exact summary"):
+        _validate_matrix_authority(auxiliary_plan)
+
+    summary["measurement_conditions"]["target_hardware"] = _target_hardware_evidence()[2]
     summary["selection_rule"] = {
         **matrix_config["selection"],
         "max_slowdown_fraction": 0.99,
@@ -1248,6 +1337,16 @@ def test_auxiliary_authority_requires_exact_matrix_plan_protocol_and_selection(t
     auxiliary_plan["matrix_summary_identity"] = authority()
     with pytest.raises(ValueError, match="one passing exact summary"):
         _validate_matrix_authority(auxiliary_plan)
+
+
+def test_auxiliary_run_must_match_matrix_physical_software_identity():
+    target = _target_hardware_evidence()[2]
+    authority = {"target_hardware": target}
+    _require_matrix_hardware_identity(target, authority, role="pilot")
+
+    changed = {**target, "gpu_uuid": "GPU-another-machine"}
+    with pytest.raises(ValueError, match="pilot environment differs from matrix authority"):
+        _require_matrix_hardware_identity(changed, authority, role="pilot")
 
 
 def test_wandb_evidence_requires_successful_scalar_runtime_and_final_summaries(tmp_path):

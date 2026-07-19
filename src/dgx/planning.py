@@ -976,8 +976,11 @@ def summarize_run(
     allocated = [int(row["pytorch_allocated_bytes"]) for row in measured]
     reserved = [int(row["pytorch_reserved_bytes"]) for row in measured]
     allocator_window = min(5, max(1, len(allocated) // 2))
-    allocator_growth = max(
+    allocated_growth = max(
         0, min(allocated[-allocator_window:]) - min(allocated[:allocator_window])
+    )
+    reserved_growth = max(
+        0, min(reserved[-allocator_window:]) - min(reserved[:allocator_window])
     )
     telemetry, telemetry_gates = _telemetry_summary(
         _read_jsonl(run_dir / "system.jsonl"), run, gates
@@ -1012,7 +1015,8 @@ def summarize_run(
             metrics, expected_steps=30 if role == "matrix" else None
         ),
         **telemetry_gates,
-        "allocator_stable": allocator_growth <= int(gates["max_allocator_growth_bytes"]),
+        "allocator_stable": max(allocated_growth, reserved_growth)
+        <= int(gates["max_allocator_growth_bytes"]),
         "data_wait": data_wait_seconds / step_wall_seconds
         <= float(gates["max_data_wait_fraction"]),
         "checkpoint_verified": bool(run.get("checkpoint_verified")) and bool(final_checkpoint_rows),
@@ -1051,7 +1055,8 @@ def summarize_run(
         "cuda_phase_seconds": dict(sorted(phase_cuda.items())),
         "pytorch_peak_allocated_bytes": max(allocated),
         "pytorch_peak_reserved_bytes": max(reserved),
-        "pytorch_allocator_baseline_growth_bytes": allocator_growth,
+        "pytorch_allocator_baseline_growth_bytes": allocated_growth,
+        "pytorch_reserved_baseline_growth_bytes": reserved_growth,
         "checkpoint_size_bytes": max(
             (int(row["checkpoint/size_bytes"]) for row in checkpoint_rows), default=0
         ),
@@ -1142,9 +1147,28 @@ def _online_adjusted_projection(
     online_validation_seconds = observed_max("validation_pause_seconds")
     online_recovery_seconds = observed_max("recovery_checkpoint_pause_seconds")
     online_final_seconds = observed_max("final_checkpoint_pause_seconds")
+    pilot_compute_tokens_per_second = _finite_threshold(
+        pilot_result.get("compute_tokens_per_second"),
+        "online pilot compute throughput",
+    )
+    if pilot_compute_tokens_per_second <= 0.0:
+        raise ValueError("online pilot compute throughput must be positive")
     candidates = matrix_summary.get("candidates")
     if not isinstance(candidates, list) or not candidates:
         raise ValueError("matrix summary has no candidates for online projection")
+    matrix_selected = matrix_summary.get("selected")
+    if not isinstance(matrix_selected, Mapping):
+        raise ValueError("matrix summary has no selected candidate for online projection")
+    selected_matrix_compute = _finite_threshold(
+        matrix_selected.get("conservative_compute_tokens_per_second"),
+        "selected matrix compute throughput",
+    )
+    if selected_matrix_compute <= 0.0:
+        raise ValueError("selected matrix compute throughput must be positive")
+    # The online pilot runs the selected shape. Apply any observed compute
+    # slowdown to every matrix arm so W&B background activity, thermals, or data
+    # contention cannot leave the disabled-mode matrix forecast overstated.
+    online_compute_factor = min(1.0, pilot_compute_tokens_per_second / selected_matrix_compute)
     adjusted = []
     for candidate in candidates:
         if not isinstance(candidate, Mapping):
@@ -1161,14 +1185,21 @@ def _online_adjusted_projection(
             float(overhead["recovery_each"]), online_recovery_seconds
         )
         conservative_final_seconds = max(float(overhead["final_once"]), online_final_seconds)
+        matrix_compute_tokens_per_second = _finite_threshold(
+            candidate.get("conservative_compute_tokens_per_second"),
+            "matrix candidate compute throughput",
+        )
+        if matrix_compute_tokens_per_second <= 0.0:
+            raise ValueError("matrix candidate compute throughput must be positive")
+        conservative_compute_tokens_per_second = (
+            matrix_compute_tokens_per_second * online_compute_factor
+        )
         training_seconds = dict(SECONDS)
         training_seconds["1_hour"] -= int(cfg["pilot"]["finalization_reserve_seconds"])
         token_budgets = {
             label: _project_token_budget(
                 training_seconds[label],
-                compute_tokens_per_second=float(
-                    candidate["conservative_compute_tokens_per_second"]
-                ),
+                compute_tokens_per_second=conservative_compute_tokens_per_second,
                 logging_seconds=conservative_logging_seconds,
                 validation_seconds=conservative_validation_seconds,
                 recovery_seconds=conservative_recovery_seconds,
@@ -1184,6 +1215,12 @@ def _online_adjusted_projection(
             | {
                 "matrix_conservative_tokens_per_second": float(
                     candidate["conservative_tokens_per_second"]
+                ),
+                "matrix_conservative_compute_tokens_per_second": (
+                    matrix_compute_tokens_per_second
+                ),
+                "conservative_compute_tokens_per_second": (
+                    conservative_compute_tokens_per_second
                 ),
                 "conservative_tokens_per_second": (token_budgets["7_days"] / SECONDS["7_days"]),
                 "token_budget_training_seconds": training_seconds,
@@ -1206,7 +1243,13 @@ def _online_adjusted_projection(
     else:
         selection_error = None
     return {
-        "basis": "matrix compute throughput plus worst matrix/online pilot event latency",
+        "basis": (
+            "matrix compute throughput scaled by the selected online pilot slowdown, "
+            "plus worst matrix/online pilot event latency"
+        ),
+        "selected_matrix_compute_tokens_per_second": selected_matrix_compute,
+        "online_pilot_compute_tokens_per_second": pilot_compute_tokens_per_second,
+        "online_compute_factor": online_compute_factor,
         "matrix_scheduled_log_max_seconds": max(
             float(candidate["projected_overhead_seconds"]["scheduled_log_each"])
             for candidate in candidates
@@ -1507,6 +1550,12 @@ def _validate_matrix_authority(plan: Mapping[str, Any]) -> dict[str, Any]:
     ):
         raise ValueError("matrix selection source plan differs from auxiliary protocol authority")
     summary = _read_json(summary_path)
+    measurement_conditions = summary.get("measurement_conditions")
+    target_hardware = (
+        measurement_conditions.get("target_hardware")
+        if isinstance(measurement_conditions, Mapping)
+        else None
+    )
     if (
         summary.get("schema_version") != 3
         or summary.get("verdict") != "PASS"
@@ -1518,9 +1567,18 @@ def _validate_matrix_authority(plan: Mapping[str, Any]) -> dict[str, Any]:
         or summary.get("selected", {}).get("candidate_id") != authority.get("selected")
         or summary.get("selected", {}).get("conservative_compute_tokens_per_second")
         != authority.get("end_to_end_compute_tokens_per_second")
+        or not isinstance(target_hardware, Mapping)
+        or dict(target_hardware) != authority.get("target_hardware")
     ):
         raise ValueError("matrix selection authority is not one passing exact summary")
     return summary
+
+
+def _require_matrix_hardware_identity(
+    observed: Mapping[str, Any], authority: Mapping[str, Any], *, role: str
+) -> None:
+    if dict(observed) != authority.get("target_hardware"):
+        raise ValueError(f"{role} environment differs from matrix authority")
 
 
 def _committed_profile_matches(
@@ -1598,7 +1656,13 @@ def summarize_evidence(
     checkpoint_size = int(selected["checkpoint_size_bytes_max"])
     milestone_copies = math.ceil(full_tokens / int(cfg["pilot"]["milestone_every_target_tokens"]))
     checkpoint_copies = 3 + 1 + 1 + 1 + milestone_copies
-    cache_bytes = int(plan["data_cache_max_bytes"])
+    # The cache is immutable during the matrix. If it already exceeds the
+    # configured maximum, no later hit-driven eviction will reclaim the excess,
+    # so the storage plan must retain its full observed footprint.
+    cache_bytes = max(
+        int(plan["cache_before"]["size_bytes"]),
+        int(plan["data_cache_max_bytes"]),
+    )
     current_evidence_bytes = _tree_size(root)
     evidence_bytes = current_evidence_bytes + int(
         cfg["gates"]["post_matrix_evidence_reserve_bytes"]
@@ -1768,6 +1832,7 @@ def summarize_decomposition(
         )
         if raw.get("target_hardware") != target_hardware:
             raise ValueError("decomposition target identity differs from verified environment")
+        _require_matrix_hardware_identity(target_hardware, authority, role="decomposition")
         for shape_key in (
             "num_layers",
             "embed_size",
@@ -1969,13 +2034,19 @@ def summarize_pilot(evidence_root: Path, config: Mapping[str, Any] | DictConfig)
         raise ValueError("selected-profile pilot requires exactly one run")
     expected = {**dict(selected), "repetition": 1}
     result = summarize_run(run_dirs[0], cfg["gates"], expected=expected, plan=plan, role="pilot")
+    _require_matrix_hardware_identity(
+        result["target_hardware"], plan["matrix_summary_identity"], role="pilot"
+    )
     run = _read_json(run_dirs[0] / "run.json")
     wandb = _validated_wandb_evidence(run_dirs[0], run)
     try:
         online_projection = _online_adjusted_projection(matrix_summary, result, cfg)
     except ValueError as error:
         online_projection = {
-            "basis": "matrix compute throughput plus worst matrix/online pilot event latency",
+            "basis": (
+                "matrix compute throughput scaled by the selected online pilot slowdown, "
+                "plus worst matrix/online pilot event latency"
+            ),
             "candidates": [],
             "selection_finalists": [],
             "selected": None,

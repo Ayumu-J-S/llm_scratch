@@ -256,6 +256,24 @@ def main(argv: Sequence[str] | None = None) -> int:
         output_path = Path(cfg.measurement.output_path)
         if not output_path.is_absolute() or output_path != output_dir / "measurement.json":
             raise RuntimeError("measurement.output_path must be the exact absolute evidence path")
+        sampler = TelemetrySampler(
+            output_dir / "system.jsonl",
+            interval_seconds=args.telemetry_interval_seconds,
+            hard_limits={
+                "min_available_memory_bytes": args.min_available_memory_bytes,
+                "min_free_disk_bytes": effective_disk_floor,
+                "max_temperature_c": args.max_temperature_c,
+                "max_swap_in_pages": args.max_swap_in_pages,
+                "max_swap_out_pages": args.max_swap_out_pages,
+            },
+            interrupt_on_violation=True,
+            additional_disk_paths=(Path("/cache"),),
+        )
+        record["telemetry_started_monotonic_seconds"] = time.monotonic()
+        sampler.start()
+        sampler.wait_for_initial_sample()
+        # Model placement, optimizer allocation, and data/tokenizer preview are
+        # part of the measured resource envelope, not unobserved setup work.
         trainer = prepare_trainer(cfg, run_dir=output_dir)
         effective_tokens = (
             int(cfg.training.sequence_length)
@@ -285,21 +303,6 @@ def main(argv: Sequence[str] | None = None) -> int:
                 },
             }
         )
-        sampler = TelemetrySampler(
-            output_dir / "system.jsonl",
-            interval_seconds=args.telemetry_interval_seconds,
-            hard_limits={
-                "min_available_memory_bytes": args.min_available_memory_bytes,
-                "min_free_disk_bytes": effective_disk_floor,
-                "max_temperature_c": args.max_temperature_c,
-                "max_swap_in_pages": args.max_swap_in_pages,
-                "max_swap_out_pages": args.max_swap_out_pages,
-            },
-            interrupt_on_violation=True,
-            additional_disk_paths=(Path("/cache"),),
-        )
-        record["telemetry_started_monotonic_seconds"] = time.monotonic()
-        sampler.start()
         metrics = trainer.fit()
         final_checkpoint = output_dir / cfg.artifacts.checkpoints_dir / "final.pt"
         loaded = load_checkpoint_for_generation(final_checkpoint)

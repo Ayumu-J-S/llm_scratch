@@ -8,6 +8,69 @@ import pytest
 from dgx.telemetry import TelemetrySampler
 
 
+def test_initial_sample_is_persisted_and_gate_checked_before_setup(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        "dgx.telemetry.system_sample",
+        lambda *_args: {
+            "host": {
+                "memory_available_bytes": 200_000_000_000,
+                "disk_free_bytes": 200_000_000_000,
+                "swap_in_pages": 7,
+                "swap_out_pages": 9,
+            },
+            "gpu": {"temperature_c": 40.0},
+        },
+    )
+    sampler = TelemetrySampler(
+        tmp_path / "system.jsonl",
+        interval_seconds=1.0,
+        hard_limits={
+            "min_available_memory_bytes": 64_000_000_000,
+            "min_free_disk_bytes": 120_000_000_000,
+            "max_temperature_c": 80,
+            "max_swap_in_pages": 0,
+            "max_swap_out_pages": 0,
+        },
+        interrupt_on_violation=True,
+    )
+
+    sampler.start()
+    sampler.wait_for_initial_sample()
+
+    assert sampler.samples >= 1
+    assert sampler._initial_swap_in_pages == 7
+    assert sampler._initial_swap_out_pages == 9
+    assert (tmp_path / "system.jsonl").read_text(encoding="utf-8").strip()
+    sampler.stop()
+
+
+def test_initial_resource_violation_blocks_setup_even_without_signal_delivery(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        "dgx.telemetry.system_sample",
+        lambda *_args: {
+            "host": {
+                "memory_available_bytes": 200_000_000_000,
+                "disk_free_bytes": 119_000_000_000,
+                "swap_in_pages": 0,
+                "swap_out_pages": 0,
+            },
+            "gpu": {"temperature_c": 40.0},
+        },
+    )
+    monkeypatch.setattr("dgx.telemetry._thread.interrupt_main", lambda: None)
+    sampler = TelemetrySampler(
+        tmp_path / "system.jsonl",
+        interval_seconds=1.0,
+        hard_limits={"min_free_disk_bytes": 120_000_000_000},
+        interrupt_on_violation=True,
+    )
+
+    sampler.start()
+    with pytest.raises(RuntimeError, match="initial telemetry sample violated"):
+        sampler.wait_for_initial_sample()
+    sampler.stop()
+
+
 def test_sampler_schedules_from_collection_completion_without_catchup(monkeypatch, tmp_path):
     starts = []
 

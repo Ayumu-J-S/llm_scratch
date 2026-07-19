@@ -168,6 +168,7 @@ class TelemetrySampler:
         self._thread: threading.Thread | None = None
         self._thread_failure: str | None = None
         self._completed_cleanly = False
+        self._initial_sample_ready = threading.Event()
 
     def start(self) -> None:
         if self._thread is not None:
@@ -187,12 +188,32 @@ class TelemetrySampler:
             if not self._completed_cleanly:
                 raise RuntimeError("telemetry sampler thread exited unexpectedly")
 
+    def wait_for_initial_sample(self, *, timeout_seconds: float = 10.0) -> None:
+        """Prove one persisted, gate-checked baseline before measured setup work."""
+
+        if self._thread is None:
+            raise RuntimeError("telemetry sampler is not started")
+        if timeout_seconds <= 0:
+            raise ValueError("initial telemetry timeout must be positive")
+        if not self._initial_sample_ready.wait(timeout_seconds):
+            raise RuntimeError("telemetry sampler did not establish its initial resource sample")
+        if self._thread_failure is not None:
+            raise RuntimeError(f"telemetry sampler failed: {self._thread_failure}")
+        if self.violations:
+            raise RuntimeError(
+                "initial telemetry sample violated hard resource limits: "
+                + "; ".join(self.violations)
+            )
+        if self.samples < 1:
+            raise RuntimeError("telemetry sampler did not persist its initial resource sample")
+
     def _record_thread_failure(self, phase: str, error: BaseException) -> None:
         message = f"{phase}: {type(error).__name__}: {error}"
         self.errors.append(message)
         first_failure = self._thread_failure is None
         if first_failure:
             self._thread_failure = message
+        self._initial_sample_ready.set()
         self._stop.set()
         if self.interrupt_on_violation and first_failure:
             _thread.interrupt_main()
@@ -234,6 +255,8 @@ class TelemetrySampler:
                     violations = self._hard_limit_violations(sample)
                     if violations:
                         self.violations.extend(violations)
+                    self._initial_sample_ready.set()
+                    if violations:
                         if self.interrupt_on_violation:
                             _thread.interrupt_main()
                             self._stop.set()

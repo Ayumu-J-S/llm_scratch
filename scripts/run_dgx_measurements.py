@@ -296,6 +296,12 @@ def _selected_entry(cfg: dict, plan: list[dict], *, image_id: str) -> dict:
         raise RuntimeError("matrix selection authority has an invalid immutable plan hash")
     active_protocol = {key: cfg[key] for key in PROTOCOL_CONFIG_KEYS}
     matrix_protocol = {key: matrix_plan.get("config", {}).get(key) for key in PROTOCOL_CONFIG_KEYS}
+    measurement_conditions = summary.get("measurement_conditions")
+    target_hardware = (
+        measurement_conditions.get("target_hardware")
+        if isinstance(measurement_conditions, dict)
+        else None
+    )
     current_commit = _git("rev-parse", "HEAD")
     if (
         summary.get("schema_version") != 3
@@ -314,6 +320,7 @@ def _selected_entry(cfg: dict, plan: list[dict], *, image_id: str) -> dict:
         or matrix_plan.get("runs") != plan
         or matrix_plan.get("selected") is not None
         or matrix_plan.get("matrix_summary_identity") is not None
+        or not isinstance(target_hardware, dict)
     ):
         raise RuntimeError(
             "selected_candidate is not authorized by the exact passing matrix plan/summary"
@@ -345,6 +352,7 @@ def _selected_entry(cfg: dict, plan: list[dict], *, image_id: str) -> dict:
         "end_to_end_compute_tokens_per_second": summary["selected"][
             "conservative_compute_tokens_per_second"
         ],
+        "target_hardware": target_hardware,
     }
     return entry
 

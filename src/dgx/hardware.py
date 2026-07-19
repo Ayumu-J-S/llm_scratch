@@ -12,6 +12,12 @@ def _integer(value: Any, label: str) -> int:
     return value
 
 
+def _nonempty_string(value: Any, label: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{label} must be a non-empty string")
+    return value.strip()
+
+
 def validate_dgx_spark_environment(
     environment: Mapping[str, Any],
     preflight: Mapping[str, Any],
@@ -65,11 +71,31 @@ def validate_dgx_spark_environment(
     if preflight_gpu.get("name") != expected.get("gpu_name"):
         raise ValueError("DGX preflight and runtime disagree on GPU identity")
 
+    gpu_uuid = _nonempty_string(preflight_gpu.get("uuid"), "preflight GPU UUID")
+    if not gpu_uuid.startswith("GPU-"):
+        raise ValueError("DGX preflight GPU UUID is not a stable physical GPU identity")
+    driver_version = _nonempty_string(cuda.get("driver_version"), "CUDA driver version")
+    runtime_version = _integer(cuda.get("runtime_version"), "CUDA runtime version")
+    if runtime_version <= 0:
+        raise ValueError("CUDA runtime version must be positive")
+    os_identity = _nonempty_string(environment.get("os"), "host OS/kernel identity")
+    torch_identity = environment.get("torch")
+    if not isinstance(torch_identity, Mapping):
+        raise ValueError("DGX measurement target lacks PyTorch runtime identity")
+    torch_version = _nonempty_string(torch_identity.get("version"), "PyTorch version")
+    compiled_cuda = _nonempty_string(torch_identity.get("compiled_cuda"), "compiled CUDA version")
+
     return {
         "architecture": architecture,
         "gpu_name": device["name"],
+        "gpu_uuid": gpu_uuid,
         "device_count": device_count,
         "compute_capability": list(device["compute_capability"]),
         "unified_memory_bytes": host_total,
         "host_device_memory_equal": True,
+        "driver_version": driver_version,
+        "cuda_runtime_version": runtime_version,
+        "torch_version": torch_version,
+        "torch_compiled_cuda": compiled_cuda,
+        "os_kernel": os_identity,
     }

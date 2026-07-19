@@ -239,6 +239,10 @@ def test_pilot_telemetry_covers_checkpoint_verification_and_sampling(monkeypatch
             self.active = True
             events.append("telemetry_start")
 
+        def wait_for_initial_sample(self):
+            assert self.active
+            events.append("telemetry_ready")
+
         def stop(self):
             assert self.active
             events.append("telemetry_stop")
@@ -255,6 +259,7 @@ def test_pilot_telemetry_covers_checkpoint_verification_and_sampling(monkeypatch
             return []
 
     def prepare(_cfg, run_dir):
+        events.append("prepare_trainer")
         (run_dir / "resolved_config.yaml").write_text("profile: fixture\n", encoding="utf-8")
         (run_dir / "run_manifest.json").write_text("{}\n", encoding="utf-8")
         checkpoints = run_dir / "checkpoints"
@@ -302,6 +307,8 @@ def test_pilot_telemetry_covers_checkpoint_verification_and_sampling(monkeypatch
     assert MEASURE.main(argv) == 0
     assert events == [
         "telemetry_start",
+        "telemetry_ready",
+        "prepare_trainer",
         "fit",
         "checkpoint_verify",
         "sample",

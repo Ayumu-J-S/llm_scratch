@@ -296,6 +296,20 @@ def test_selected_entry_requires_a_passing_summary_for_current_commit(monkeypatc
     }
     matrix_plan["plan_id"] = RUNNER._canonical_sha256(matrix_plan)
     (tmp_path / "plan.json").write_text(json.dumps(matrix_plan), encoding="utf-8")
+    target_hardware = {
+        "architecture": "aarch64",
+        "gpu_name": "NVIDIA GB10",
+        "gpu_uuid": "GPU-fixture-uuid",
+        "device_count": 1,
+        "compute_capability": [12, 1],
+        "unified_memory_bytes": 130_596_048_896,
+        "host_device_memory_equal": True,
+        "driver_version": "580.159.03",
+        "cuda_runtime_version": 13030,
+        "torch_version": "2.13.0",
+        "torch_compiled_cuda": "13.3",
+        "os_kernel": "Linux-6.17.0-1021-nvidia-aarch64-with-glibc2.39",
+    }
     summary = {
         "schema_version": 3,
         "verdict": "PASS",
@@ -303,6 +317,7 @@ def test_selected_entry_requires_a_passing_summary_for_current_commit(monkeypatc
         "image_id": IMAGE,
         "plan_id": matrix_plan["plan_id"],
         "selection_rule": cfg["selection"],
+        "measurement_conditions": {"target_hardware": target_hardware},
         "selected": {
             **selected,
             "conservative_tokens_per_second": 9.0,
@@ -319,6 +334,7 @@ def test_selected_entry_requires_a_passing_summary_for_current_commit(monkeypatc
     summary["git_commit"] = commit
     summary_path.write_text(json.dumps(summary), encoding="utf-8")
     assert _selected_entry(cfg, plan, image_id=IMAGE) == selected
+    assert cfg["matrix_summary_identity"]["target_hardware"] == target_hardware
 
     summary["plan_id"] = "f" * 64
     summary_path.write_text(json.dumps(summary), encoding="utf-8")

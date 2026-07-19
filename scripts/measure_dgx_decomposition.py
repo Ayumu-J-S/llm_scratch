@@ -334,6 +334,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         record["telemetry_started_monotonic_seconds"] = time.monotonic()
         sampler.start()
+        sampler.wait_for_initial_sample()
         if args.role == "model-only":
             rows = _model_only(
                 cfg, output_dir, args.warmup_optimizer_steps, args.measured_optimizer_steps
