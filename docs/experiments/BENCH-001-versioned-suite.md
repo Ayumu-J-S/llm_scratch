@@ -107,6 +107,18 @@
 | 84 | Repair | Complete | Normalized object keys now enter the same bounded decoded-value work queue as normalized string values. The scan, normalization, and JSON-object revisions were advanced so prior false-clean cache evidence cannot be reused |
 | 85 | Focused validation | PASS | Direct all-selected coverage detects 128/128 JCommonsenseQA and GSM8K records serialized as valid JSON object keys, and a complete-scan regression verifies contaminated report and cache evidence by exact training document ID. The broader benchmark suite passes 41 tests; scoped Ruff and format checks pass |
 | 86 | Full validation | PASS | Official network-isolated CPU gate passes 495 tests with 1 skipped, repository Ruff, resolved smoke Hydra preflight, lock-drift rejection, and disabled/offline process-tree smoke. No GPU, network dataset access, full-corpus scan, or large artifact was used; exact-head re-review remains pending |
+| 87 | Exact-head independent `/review` | FAIL | Formal review of clean head `a2f0a69` reproduced that one unterminated quote before a reordered benchmark JSON record kept the object extractor in string state. Short JCommonsenseQA fields then lacked a 48-codepoint fallback, allowing the complete scan to publish false-clean evidence |
+| 88 | Repair | Complete | Leaf-object extraction now runs two bounded constant-state lexical interpretations and deduplicates physical ranges, so an unmatched prose quote cannot hide a later valid object. Scan, normalization, and JSON-object identities were advanced to reject prior false-clean cache evidence |
+| 89 | Focused validation | PASS | Direct all-selected coverage detects 128/128 JCommonsenseQA and GSM8K reordered/ASCII-NFD records after an unmatched quote, and a complete-scan regression verifies contaminated cached evidence by exact document ID. All 42 benchmark tests plus scoped Ruff and format checks pass |
+| 90 | Full validation | PASS | Official network-isolated CPU gate passes 496 tests with 1 skipped, repository Ruff, resolved smoke Hydra preflight, lock-drift rejection, and disabled/offline process-tree smoke. No GPU, network dataset access, full-corpus scan, or large artifact was used |
+| 91 | Exact-head independent `/review` | FAIL | Formal review of clean head `282173f` reran the full 496-test gate (1 skipped), then found two P1 blockers: installed benchmark console entrypoints could not resolve the canonical Hydra config, and selected JCommonsenseQA mappings with extra provenance fields could publish cached false-clean scan evidence (124/128 reproduced) |
+| 92 | Repair | Complete | Benchmark and guarded-final decorators now resolve the repository's single canonical config directory explicitly. Structured matching retains bounded exact-object identities and additionally projects every normalized candidate mapping onto each pinned task schema, so extra scalar or nested provenance fields cannot hide an otherwise complete selected record. Leaf and enclosing root candidates are recovered without parsing hostile over-depth envelopes; all scan/cache identities were advanced |
+| 93 | Focused and canonical validation | PASS | Both installed entrypoints compose from outside the repository. Direct all-selected coverage detects 128/128 metadata-enriched JCommonsenseQA and GSM8K mappings, including nested metadata and ASCII-escaped NFD values; a complete-scan regression proves contaminated cached evidence by exact document/example identity. Fifteen focused adversarial tests pass, and the pinned canonical sources independently detect 128/128 enriched records for both tasks |
+| 94 | Full validation | PASS | Official network-isolated CPU gate passes 499 tests with 1 skipped plus repository Ruff, resolved Hydra preflight, lock-drift rejection, and disabled/offline process-tree smoke. The broader benchmark/generation/config/reproducibility/tokenizer selection passes 143 tests. No GPU, online W&B, full-corpus scan, or large artifact was used; exact-head CI and independent re-review remain pending |
+| 95 | Exact-head independent `/review` | FAIL | Formal review of clean head `d9f6271` reproduced that a selected mapping containing nested provenance disappears when it is itself inside an over-depth object envelope: closing the provenance object replaced the leaf candidate, while the root envelope could not be parsed. All 128 selected JCommonsenseQA records missed under 33 wrapper layers, permitting false-clean cached evidence |
+| 96 | Repair | Complete | The bounded lexical extractor now emits every completed object on close, preserving intermediate mappings without parsing an over-depth envelope. Schema projection normalizes only benchmark-owned fields, so unrelated metadata-key normalization collisions cannot hide an otherwise complete selected record. Scan, normalization, and JSON-object identities were advanced |
+| 97 | Focused and canonical validation | PASS | The reviewer reproduction and the stronger metadata-collision variant report zero misses across all 128 canonical examples in both tasks under 40 object layers. The broader benchmark/generation/config/reproducibility/tokenizer selection passes 130 tests; full validation and exact-head re-review remain pending |
+| 98 | Full validation | PASS | Official network-isolated CPU gate passes 500 tests with 1 skipped plus repository Ruff, resolved Hydra preflight, lock-drift rejection, and disabled/offline process-tree smoke. No GPU, online W&B, full-corpus scan, or large artifact was used; exact-head CI and independent re-review remain pending |
 
 ## Resolved protocol
 
@@ -122,7 +134,8 @@
   the checkpoint-owned evaluation precision, and the dataset repository's
   `####` answer regex.
 - Final acknowledgement: `BENCHMARK_FINAL_ACK=BENCH-001-suite-v1`; checked
-  outside Hydra.
+  outside Hydra. Both installed benchmark entrypoints resolve the same canonical
+  repository Hydra directory independent of the caller's working directory.
 - Result publication: the default path under `outputs/benchmark-results` is
   `<access>-<evaluation_identity_sha256>.json`; results are exclusive and are
   never replaced, so an exact rerun uses a fresh configured result root/path.
@@ -133,18 +146,19 @@
   closed, and the complete applied policy is hashed into result identity.
 - Contamination: complete checkpoint-owned train selections, exact/normalized
   whole-document identity, source-faithful record identity, text-normalized
-  canonical JSON-object identity across key-order/whitespace variants, and
-  normalized 48-codepoint shingles. Decoded JSON string values are recursively
+  canonical JSON-object identity across key-order/whitespace variants, schema
+  projection from metadata-enriched mappings, and normalized 48-codepoint
+  shingles. Decoded JSON string values are recursively
   rescanned under fixed total-byte, node, structural-depth, and decoded-string
   limits, including nested object/array, double-serialized, and quoted-prose
   wrappers. Malformed or parser-overdepth candidates are bounded non-matches;
   exhaustion of any work limit fails the complete scan closed with source and
   document identity and cannot publish reusable complete evidence. A lexical
   container-depth preflight makes parser-overdepth behavior independent of the
-  Python runtime's recursion threshold. A constant-memory leaf-object extractor
-  and an analogous complete-string-literal extractor still recover safe
-  innermost records from arbitrarily deep object, array, or mixed wrappers
-  without parsing the over-depth envelope. Physical wrapper depth does not
+  Python runtime's recursion threshold. A document-size-bounded completed-object
+  extractor and a constant-state complete-string-literal extractor still recover
+  safe innermost and intermediate enriched mappings from object, array, or mixed
+  wrappers without parsing an over-depth envelope. Physical wrapper depth does not
   consume logical decoded-string depth, while the shared work budgets still
   fail the whole document scan closed.
 
@@ -164,7 +178,7 @@
 
 ## Current conclusion
 
-All twenty-one failed review/audit cycles remain visible. Their thirty-nine findings are
+All twenty-four failed review/audit cycles remain visible. Their forty-three findings are
 repaired without weakening the fixed protocol or complete contamination gate:
 cheap context incompatibility precedes scanning, both tasks honor checkpoint
 precision, external records are pinned, evaluator/runtime and dirty source
@@ -184,16 +198,17 @@ producer paths, and the full optimizer-bearing load is reclaimed before the
 suite and corpus scan. Selected examples now retain and hash the pinned source
 record representation, while text normalization composes with a
 structure-normalized JSON identity to detect BOM, newline, Unicode,
-key-order, whitespace, embedded wrapper, and ASCII-escaped decoded-NFD variants.
+key-order, whitespace, embedded wrapper, ASCII-escaped decoded-NFD variants,
+and complete selected mappings augmented with scalar or nested provenance.
 Decoded JSON strings are recursively inspected through object, array,
 double-serialized, and quoted-prose wrappers under strict per-document
 byte/node/depth/string caps; normalized-key collisions and parser recursion are
 non-matches rather than scan crashes, while actual traversal-budget exhaustion
 is an explicit incomplete-scan error that cannot become a cached PASS. Lexical
 container-depth validation prevents Python-version-specific parser recursion
-behavior from changing that distinction, while constant-memory leaf extraction
-prevents deep enclosing objects or arrays from hiding a safe innermost benchmark
-record or serialized record string;
+behavior from changing that distinction, while the bounded completed-object
+extractor prevents deep enclosing objects or arrays from hiding a safe innermost
+or intermediate benchmark record, enriched mapping, or serialized record string;
 canonical acceptance covers every selected development record in both tasks.
 External comparisons separately attest the compiled prompt and scorer hashes,
 and generation rejects non-finite logits before any GSM8K token or score is
