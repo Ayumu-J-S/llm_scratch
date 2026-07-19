@@ -135,6 +135,10 @@
 | 112 | Repair | Complete | Object extraction now runs a fixed five linear hypotheses: all three JSON string-automaton states plus both escape-agnostic malformed-prefix parities, switching to exact escape semantics as soon as an object opens and deduplicating physical ranges. External disclosures require non-whitespace text. Scan, normalization, and JSON-object identities were advanced |
 | 113 | Focused and canonical validation | PASS | Direct, recursive, all-selected, and complete-scan escaped-prefix regressions plus the external-disclosure regression pass. Pinned canonical development acceptance detects 128/128 direct and 128/128 recursively wrapped escaped-prefix records in each task; scoped Ruff and diff checks pass. Full validation and exact-head re-review remain pending |
 | 114 | Full validation | PASS | Official network-isolated CPU gate passes 507 tests with 1 skipped plus repository Ruff, resolved Hydra preflight, lock-drift rejection, and disabled/offline process-tree smoke. The broader BENCH/generation/config/reproducibility/tokenizer selection passes 151 tests. No GPU, online W&B, full-corpus scan, or large artifact was used; exact-head re-review remains pending |
+| 115 | Exact-head independent `/review` | FAIL | Formal review of clean head `8a464ea` independently reran the full 507-test gate (1 skipped) and found two integrity gaps. Malformed-prefix escape-agnostic hypotheses switched to exact escape handling after an outer object opened, so an escaped unterminated string could still hide a later selected input and permit cached false-clean evidence. External comparisons also accepted whitespace-only subject names |
+| 116 | Repair | Complete | The two escape-agnostic linear hypotheses now remain active through incomplete outer objects, while every emitted candidate must still parse as exact JSON before matching. Direct and recursively decoded selected-input coverage exercises that composition, and external subject names require non-whitespace text. Scan, normalization, and JSON-object identities were advanced |
+| 117 | Focused and canonical validation | PASS | The reviewer reproduction detects both complete and input-only selected mappings. Direct, recursive, all-selected, complete-scan, and whitespace-name regressions pass; pinned canonical development acceptance detects 128/128 direct and 128/128 recursively wrapped malformed-outer-object inputs in both tasks. The broader BENCH/generation/config/reproducibility/tokenizer selection passes 159 tests; scoped Ruff, format, and diff checks pass |
+| 118 | Full validation | PASS | Official network-isolated CPU gate passes 509 tests with 1 skipped plus repository Ruff, resolved Hydra preflight, lock-drift rejection, and disabled/offline process-tree smoke. No GPU, online W&B, full-corpus scan, or large artifact was used; exact-head CI and independent re-review remain pending |
 
 ## Resolved protocol
 
@@ -196,7 +200,7 @@
 
 ## Current conclusion
 
-All twenty-eight failed review/audit cycles remain visible. Their fifty findings are
+All twenty-nine failed review/audit cycles remain visible. Their fifty-two findings are
 repaired without weakening the fixed protocol or complete contamination gate:
 cheap context incompatibility precedes scanning, both tasks honor checkpoint
 precision, external records are pinned, evaluator/runtime and dirty source
@@ -221,7 +225,8 @@ complete selected mappings augmented with scalar or nested provenance, and
 unlabeled question/input mappings whose answer field is absent or changed,
 including the exact prompt-bearing JCommonsenseQA mapping without source-only
 `q_id` metadata, even when later duplicate JSON keys contain benign values or
-an escaped unmatched prose quote precedes the record directly or recursively.
+an escaped unmatched prose quote precedes the record directly, recursively, or
+inside an already-open malformed object.
 Decoded JSON strings are recursively inspected through object, array,
 double-serialized, and quoted-prose wrappers under strict per-document
 byte/node/depth/string caps; normalized-key collisions and parser recursion are

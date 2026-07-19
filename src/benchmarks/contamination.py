@@ -29,12 +29,12 @@ from runtime.reproducibility import sha256_file
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 SHINGLE_CODEPOINTS = 48
-SCAN_REVISION = "BENCH-001-contamination-v21"
-NORMALIZATION_REVISION = "normalize-text-identity-nfc-strip-plus-json-object-v19"
+SCAN_REVISION = "BENCH-001-contamination-v22"
+NORMALIZATION_REVISION = "normalize-text-identity-nfc-strip-plus-json-object-v20"
 SCAN_INDEX_SCHEMA_VERSION = 2
 MATCHER_REVISION = "collision-verified-rolling-hash-codepoint-v1"
 JSON_OBJECT_NORMALIZATION_REVISION = (
-    "bounded-all-object-string-input-projection-json-nfc-sha256-v18"
+    "bounded-all-object-string-input-projection-json-nfc-sha256-v19"
 )
 PRODUCER_IDENTITY_REVISION = "contamination-producer-v1"
 PRODUCER_SOURCE_SCOPE_REVISION = "src-python-pyproject-lock-v1"
@@ -1082,10 +1082,12 @@ def _embedded_json_object_ranges(
     # JSON string scanning has three states: outside a string, inside a string,
     # and inside a string immediately after an escape. Malformed prose has no
     # authoritative string grammar, so two additional prefix-only hypotheses
-    # treat backslashes literally. Once an object opens, every pass switches to
-    # exact JSON escape semantics. The fixed five passes keep work linear while
-    # preventing an escaped unmatched quote from hiding the first object.
-    for initial_in_string, initial_escaped, prefix_honors_escapes in (
+    # treat backslashes literally for the complete pass. Keeping those malformed
+    # hypotheses active inside an incomplete outer object lets a later valid
+    # nested object restart lexical recovery. Every yielded slice still has to
+    # parse as exact JSON before it can match. The fixed five passes keep work
+    # linear while preventing an escaped unmatched quote from hiding any object.
+    for initial_in_string, initial_escaped, honors_escapes in (
         (False, False, True),
         (True, False, True),
         (True, True, True),
@@ -1096,7 +1098,7 @@ def _embedded_json_object_ranges(
             text,
             initial_in_string=initial_in_string,
             initial_escaped=initial_escaped,
-            prefix_honors_escapes=prefix_honors_escapes,
+            honors_escapes=honors_escapes,
         ):
             identity = (start, end)
             if identity in observed:
@@ -1110,7 +1112,7 @@ def _json_object_candidate_ranges(
     *,
     initial_in_string: bool,
     initial_escaped: bool,
-    prefix_honors_escapes: bool,
+    honors_escapes: bool,
 ) -> Iterable[tuple[int, int]]:
     """Extract every completed object with one bounded lexical interpretation.
 
@@ -1127,9 +1129,8 @@ def _json_object_candidate_ranges(
         if in_string:
             if escaped:
                 escaped = False
-            elif character == "\\":
-                if object_starts or prefix_honors_escapes:
-                    escaped = True
+            elif character == "\\" and honors_escapes:
+                escaped = True
             elif character == '"':
                 in_string = False
             elif character in "\r\n":

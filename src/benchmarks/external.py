@@ -69,7 +69,7 @@ def write_external_comparison(
     subject = _mapping(payload["subject"], "subject")
     if set(subject) != _SUBJECT_FIELDS:
         raise ExternalComparisonError("external subject disclosure is incomplete")
-    if not isinstance(subject["name"], str) or not subject["name"]:
+    if not isinstance(subject["name"], str) or not subject["name"].strip():
         raise ExternalComparisonError("external subject name must be non-empty")
     if (
         isinstance(subject["parameter_count"], bool)
