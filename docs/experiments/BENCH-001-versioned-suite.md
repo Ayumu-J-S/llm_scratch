@@ -99,6 +99,10 @@
 | 76 | Repair | Complete | Applied a fixed policy before checkpoint loading: seed 0, strict deterministic algorithms, required pre-initialization cuBLAS workspace, math-only SDPA, deterministic/non-autotuned cuDNN, highest FP32 matmul precision, and TF32 off. The evaluator verifies the observed backend state, fails closed if CUDA was initialized under a conflicting workspace policy, and binds the exact policy/revision into evaluation identity |
 | 77 | Focused validation | PASS | Four determinism and fixture-identity regressions plus scoped Ruff/format pass. Tests prove the policy precedes checkpoint loading, backend state is strict and observable, conflicting initialized-CUDA state fails closed, and identical fixture results retain the complete fixed policy in their hashed identity; full validation and exact-head re-review remain pending |
 | 78 | Full validation | PASS | Official network-isolated CPU gate passes 493 tests with 1 skipped, repository Ruff, resolved smoke Hydra preflight, lock-drift rejection, and disabled/offline process-tree smoke. The broader BENCH/generation/config/reproducibility selection passes 89 tests; changed-file format and diff checks pass. No GPU, network dataset access, full-corpus scan, or large artifact was used; 426 GB remained free |
+| 79 | Exact-head independent `/review` | FAIL | Formal review of clean head `7b60ab9` found that the scanner skipped every string literal inside a balanced object range even when the enclosing object could not be decoded. A reordered, ASCII-escaped NFD selected record inside a malformed object could therefore produce and cache false-clean complete-scan evidence |
+| 80 | Repair | Complete | String literals are suppressed only inside object ranges that decoded successfully. Literals inside malformed or over-depth candidates remain independently bounded and inspectable, while successfully decoded objects retain the existing deduplicated recursive traversal |
+| 81 | Focused validation | PASS | A full-scan regression reproduces the malformed balanced wrapper, detects the serialized selected record by training document ID, and verifies that the cached report is contaminated. The deep object/array/mixed wrapper controls and scoped Ruff/diff gates also pass; 90 focused tests pass |
+| 82 | Full validation | PASS | Official network-isolated CPU gate passes 494 tests with 1 skipped, repository Ruff, resolved smoke Hydra preflight, lock-drift rejection, and disabled/offline process-tree smoke. The scan, normalization, and JSON-object revisions were advanced so prior false-clean cache evidence is ineligible for reuse; exact-head re-review remains pending |
 
 ## Resolved protocol
 
@@ -156,7 +160,7 @@
 
 ## Current conclusion
 
-All nineteen failed review/audit cycles remain visible. Their thirty-seven findings are
+All twenty failed review/audit cycles remain visible. Their thirty-eight findings are
 repaired without weakening the fixed protocol or complete contamination gate:
 cheap context incompatibility precedes scanning, both tasks honor checkpoint
 precision, external records are pinned, evaluator/runtime and dirty source

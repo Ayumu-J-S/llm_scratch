@@ -384,10 +384,10 @@ def test_injected_contamination_reports_source_and_document_id(monkeypatch, tmp_
     index = json.loads(index_files[0].read_text(encoding="utf-8"))
     assert index["index_identity_sha256"] == evidence["scan_index_identity_sha256"]
     assert index["index_identity"]["normalization_revision"] == (
-        "normalize-text-identity-nfc-strip-plus-json-object-v10"
+        "normalize-text-identity-nfc-strip-plus-json-object-v11"
     )
     assert index["index_identity"]["json_object_normalization_revision"] == (
-        "constant-memory-leaf-object-string-fail-closed-json-nfc-sha256-v9"
+        "constant-memory-leaf-object-string-fail-closed-json-nfc-sha256-v10"
     )
     assert index["index_identity"]["matcher_revision"] == (
         "collision-verified-rolling-hash-codepoint-v1"
@@ -751,6 +751,57 @@ def test_full_scan_cannot_cache_clean_evidence_for_overdepth_wrapped_record(
             ]
         ),
     )
+    evidence = scan_checkpoint_training_data(
+        checkpoint_config,
+        suite,
+        fallback_cache=BoundedShardCache(tmp_path / "fallback", max_size_bytes=10_000_000),
+    )
+
+    assert evidence["scan_complete"] is True
+    assert evidence["contaminated"] is True
+    assert any(match["training_document_id"] == document_id for match in evidence["matches"])
+    index_files = list((tmp_path / "training-cache/contamination-scans").glob("*.json"))
+    assert len(index_files) == 1
+    cached = json.loads(index_files[0].read_text(encoding="utf-8"))
+    assert cached["report"]["contaminated"] is True
+    assert cached["report"]["matches"]
+
+
+def test_full_scan_detects_serialized_record_inside_malformed_balanced_object(
+    monkeypatch,
+    tmp_path: Path,
+):
+    registry, fingerprint = _registry(tmp_path)
+    _, checkpoint_config = _pretraining_checkpoint(tmp_path)
+    suite = load_suite(
+        registry,
+        expected_fingerprint=fingerprint,
+        access="dev",
+        cache=BoundedShardCache(tmp_path / "benchmark-cache", max_size_bytes=10_000_000),
+        timeout_seconds=1.0,
+    )
+    example = next(task for task in suite.tasks if task.name == "jcommonsenseqa").examples[0]
+    serialized_record = json.dumps(_structured_adversarial_record(example), ensure_ascii=True)
+    text = '{"payload":' + serialized_record + ", trailing}"
+    document_id = "f" * 64
+
+    monkeypatch.setattr(
+        contamination_scans,
+        "ManifestTextSource",
+        lambda *_args, **_kwargs: iter(
+            [
+                RawDocument(
+                    text=text,
+                    metadata={
+                        "document_id": document_id,
+                        "content_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+                        "upstream_id": "malformed-balanced-wrapper",
+                    },
+                )
+            ]
+        ),
+    )
+
     evidence = scan_checkpoint_training_data(
         checkpoint_config,
         suite,
