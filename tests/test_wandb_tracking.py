@@ -370,7 +370,7 @@ def test_wandb_failure_evidence_redacts_credentials(tmp_path: Path, monkeypatch)
     class RejectingWandb(FakeWandb):
         def login(self, **kwargs):
             self.login_calls.append(kwargs)
-            raise RuntimeError(f"authentication rejected key={secret}")
+            raise RuntimeError(f"authentication rejected Authorization: Bearer {secret}")
 
     monkeypatch.setenv("WANDB_API_KEY", secret)
     tracker = _tracker(tmp_path, _config(), RejectingWandb())

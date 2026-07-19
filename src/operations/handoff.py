@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -623,6 +624,12 @@ def _wandb_evidence(
         recorded_at = record.get("recorded_at_utc")
         if not isinstance(recorded_at, str) or not recorded_at:
             raise HandoffValidationError("W&B evidence record lacks recorded_at_utc")
+        try:
+            recorded_timestamp = datetime.fromisoformat(recorded_at.replace("Z", "+00:00"))
+        except ValueError as error:
+            raise HandoffValidationError("W&B evidence recorded_at_utc is invalid") from error
+        if recorded_timestamp.tzinfo is None or recorded_timestamp.utcoffset() != timedelta(0):
+            raise HandoffValidationError("W&B evidence recorded_at_utc must be UTC")
         if (
             not isinstance(action_name, str)
             or action_name not in _WANDB_ACTION_OUTCOMES
@@ -637,13 +644,15 @@ def _wandb_evidence(
             raise HandoffValidationError(
                 f"W&B evidence mode {record_mode!r} differs from preflight mode {mode!r}"
             )
+        if action_name == "init" and record_mode != mode:
+            raise HandoffValidationError("W&B initialization evidence lacks its configured mode")
         outcomes.append({"action": action_name, "outcome": record_outcome})
         if action_name == "init":
             initializations.append(
                 {
-                    "mode": record.get("mode", mode),
-                    "project": record.get("project", configured.get("project")),
-                    "entity": record.get("entity", configured.get("entity")),
+                    "mode": record_mode,
+                    "project": record.get("project"),
+                    "entity": record.get("entity"),
                     "run_id": record.get("run_id"),
                     "run_url": record.get("run_url"),
                     "outcome": record_outcome,
@@ -683,8 +692,27 @@ def _wandb_evidence(
             raise HandoffValidationError(f"unsupported preflight W&B mode: {mode}")
     if mode == "online" and outcome == "succeeded":
         succeeded = [item for item in initializations if item.get("outcome") == "succeeded"]
-        if any(not item.get("run_id") or not item.get("run_url") for item in succeeded):
-            raise HandoffValidationError("successful online W&B initialization lacks run ID/URL")
+        if any(
+            item.get("project") != configured.get("project")
+            or item.get("entity") != configured.get("entity")
+            or not item.get("run_id")
+            or not item.get("run_url")
+            for item in succeeded
+        ):
+            raise HandoffValidationError(
+                "successful online W&B initialization lacks configured identity or run ID/URL"
+            )
+    if mode == "offline" and outcome == "succeeded":
+        succeeded = [item for item in initializations if item.get("outcome") == "succeeded"]
+        if any(
+            item.get("project") != configured.get("project")
+            or item.get("entity") != configured.get("entity")
+            or not item.get("run_id")
+            for item in succeeded
+        ):
+            raise HandoffValidationError(
+                "successful offline W&B initialization lacks configured identity or run ID"
+            )
     return {
         "status": "recorded" if records else "not_executed",
         "configured": dict(configured),

@@ -1611,7 +1611,7 @@ class Trainer:
     def _restore_checkpoint(self, resume_path: str | Path) -> None:
         resumed = self.checkpoints.load_resume(resume_path)
         state = resumed.payload["state"]
-        require_full_resume_state(state)
+        require_full_resume_state(state, checkpoint_kind=str(resumed.payload["kind"]))
         precision = state["precision"]
         if not isinstance(precision, dict) or precision.get("mode") != self.precision:
             raise CheckpointCompatibilityError("checkpoint precision mode differs from this run")

@@ -74,7 +74,10 @@ def run_preflight(
                     "resume Hydra config differs from checkpoint experiment identity"
                 )
             if action == "resume":
-                require_full_resume_state(checkpoint.payload["state"])
+                require_full_resume_state(
+                    checkpoint.payload["state"],
+                    checkpoint_kind=str(checkpoint.payload["kind"]),
+                )
             authority_cfg = checkpoint_cfg
             checks["checkpoint"] = {
                 "status": "passed",
@@ -751,12 +754,30 @@ def _container_mount_check(
                 if requested.is_absolute()
                 else (checkpoint_path.expanduser().resolve().parent.parent / requested).resolve()
             )
-            add(
-                prior_measurement,
-                read_only=True,
-                purpose="resume_measurement_evidence",
-                require_directory=False,
+            operational_output = operational_plain.get("measurement", {})
+            current_requested = (
+                Path(str(operational_output.get("output_path"))).expanduser()
+                if isinstance(operational_output, Mapping) and operational_output.get("output_path")
+                else None
             )
+            if (
+                current_requested is not None
+                and current_requested.is_absolute()
+                and current_requested.resolve() == prior_measurement
+            ):
+                add(
+                    prior_measurement.parent,
+                    read_only=False,
+                    purpose="resume_measurement_evidence_and_output",
+                    require_directory=True,
+                )
+            else:
+                add(
+                    prior_measurement,
+                    read_only=True,
+                    purpose="resume_measurement_evidence",
+                    require_directory=False,
+                )
 
     mounts = sorted(
         records.values(),

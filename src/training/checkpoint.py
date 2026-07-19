@@ -12,6 +12,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import math
 import os
 import random
 import re
@@ -69,7 +70,9 @@ def require_exact_stream_resume_state(state: Mapping[str, Any]) -> None:
         )
 
 
-def require_full_resume_state(state: Mapping[str, Any]) -> None:
+def require_full_resume_state(
+    state: Mapping[str, Any], *, checkpoint_kind: str | None = None
+) -> None:
     """Reject structurally incomplete state before resume constructs training."""
 
     missing = FULL_RESUME_STATE_ENTRIES.difference(state)
@@ -107,6 +110,7 @@ def require_full_resume_state(state: Mapping[str, Any]) -> None:
         or target_tokens < 0
         or isinstance(elapsed_seconds, bool)
         or not isinstance(elapsed_seconds, (int, float))
+        or not math.isfinite(float(elapsed_seconds))
         or elapsed_seconds < 0
     ):
         raise CheckpointCompatibilityError("checkpoint counters are invalid")
@@ -137,6 +141,115 @@ def require_full_resume_state(state: Mapping[str, Any]) -> None:
         or (not enabled and boundary is not None)
     ):
         raise CheckpointCompatibilityError("checkpoint measurement evidence state is invalid")
+    if enabled:
+        _require_resume_measurement_boundary(
+            boundary,
+            evidence_id=str(evidence_id),
+            checkpoint_kind=checkpoint_kind,
+            counters=counters,
+        )
+    event_state = state["event_state"]
+    token_boundaries = event_state.get("last_token_event_boundary", {})
+    if not isinstance(token_boundaries, Mapping):
+        raise CheckpointCompatibilityError("checkpoint token-event state is invalid")
+    try:
+        for value in token_boundaries.values():
+            int(value)
+    except (TypeError, ValueError, OverflowError) as error:
+        raise CheckpointCompatibilityError("checkpoint token-event state is invalid") from error
+    best = event_state.get("best_validation_loss")
+    best_step = event_state.get("best_checkpoint_step")
+    if best is not None:
+        try:
+            float(best)
+        except (TypeError, ValueError, OverflowError) as error:
+            raise CheckpointCompatibilityError(
+                "checkpoint best validation score is invalid"
+            ) from error
+        if best_step is None:
+            raise CheckpointCompatibilityError(
+                "checkpoint with a best validation score is missing its checkpoint step"
+            )
+    if best_step is not None and (
+        isinstance(best_step, bool) or not isinstance(best_step, int) or best_step < 0
+    ):
+        raise CheckpointCompatibilityError("checkpoint best-checkpoint step is invalid")
+    configured_training = resolved_config.get("training", {})
+    if not isinstance(configured_training, Mapping) or precision["mode"] != configured_training.get(
+        "precision"
+    ):
+        raise CheckpointCompatibilityError("checkpoint precision mode differs from resolved config")
+
+
+def _require_resume_measurement_boundary(
+    value: Any,
+    *,
+    evidence_id: str,
+    checkpoint_kind: str | None,
+    counters: Mapping[str, Any],
+) -> None:
+    required = {
+        "boundary_index",
+        "boundary_id",
+        "evidence_id",
+        "segment_index",
+        "kind",
+        "counters",
+    }
+    if not isinstance(value, Mapping) or set(value) != required:
+        raise CheckpointCompatibilityError("checkpoint measurement boundary binding is invalid")
+    boundary_index = value["boundary_index"]
+    boundary_id = value["boundary_id"]
+    segment_index = value["segment_index"]
+    kind = value["kind"]
+    if (
+        isinstance(boundary_index, bool)
+        or not isinstance(boundary_index, int)
+        or boundary_index < 0
+        or not isinstance(boundary_id, str)
+        or not boundary_id
+        or value["evidence_id"] != evidence_id
+        or isinstance(segment_index, bool)
+        or not isinstance(segment_index, int)
+        or segment_index < 0
+        or kind not in {"recovery", "best", "final", "milestone"}
+    ):
+        raise CheckpointCompatibilityError("checkpoint measurement boundary binding is invalid")
+    if checkpoint_kind is not None and kind != checkpoint_kind:
+        raise CheckpointCompatibilityError(
+            "checkpoint kind differs from its measurement boundary binding"
+        )
+    boundary_counters = value["counters"]
+    if not isinstance(boundary_counters, Mapping):
+        raise CheckpointCompatibilityError("checkpoint measurement boundary counters are invalid")
+    normalized = {
+        "optimizer_step": counters["optimizer_step"],
+        "target_tokens": counters["target_tokens"],
+        "elapsed_seconds": float(counters["elapsed_seconds"]),
+    }
+    observed = {
+        "optimizer_step": boundary_counters.get("optimizer_step"),
+        "target_tokens": boundary_counters.get("target_tokens"),
+        "elapsed_seconds": boundary_counters.get("elapsed_seconds"),
+    }
+    elapsed = observed["elapsed_seconds"]
+    if (
+        isinstance(observed["optimizer_step"], bool)
+        or not isinstance(observed["optimizer_step"], int)
+        or observed["optimizer_step"] < 0
+        or isinstance(observed["target_tokens"], bool)
+        or not isinstance(observed["target_tokens"], int)
+        or observed["target_tokens"] < 0
+        or isinstance(elapsed, bool)
+        or not isinstance(elapsed, (int, float))
+        or not math.isfinite(float(elapsed))
+    ):
+        raise CheckpointCompatibilityError("checkpoint measurement boundary counters are invalid")
+    observed["elapsed_seconds"] = float(elapsed)
+    if observed != normalized:
+        raise CheckpointCompatibilityError(
+            "checkpoint counters differ from measurement boundary binding"
+        )
 
 
 @dataclass(frozen=True)

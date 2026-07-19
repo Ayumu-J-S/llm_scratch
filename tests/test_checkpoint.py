@@ -17,6 +17,7 @@ from training.checkpoint import (
     CheckpointVerificationError,
     build_checkpoint_identity,
     require_exact_stream_resume_state,
+    require_full_resume_state,
 )
 from training.optimization import WarmupCosineScheduler
 from training.trainer import Trainer
@@ -610,6 +611,27 @@ def test_incompatible_identity_rejects_before_model_or_optimizer_state_is_applie
 def test_resume_without_a_stream_cursor_is_rejected_before_training():
     with pytest.raises(CheckpointCompatibilityError, match="cursor-aware streaming"):
         require_exact_stream_resume_state({"stream_cursor": None})
+
+
+def test_full_resume_state_rejects_invalid_token_event_boundary(tmp_path: Path):
+    state = _trainer(tmp_path / "checkpoint")._checkpoint_state()
+    state["event_state"]["last_token_event_boundary"] = {"validation": "not-an-int"}
+
+    with pytest.raises(CheckpointCompatibilityError, match="token-event"):
+        require_full_resume_state(state, checkpoint_kind="recovery")
+
+
+def test_full_resume_state_rejects_empty_enabled_measurement_boundary(tmp_path: Path):
+    state = _trainer(tmp_path / "checkpoint")._checkpoint_state()
+    state["resolved_config"]["measurement"] = {"enabled": True}
+    state["measurement_evidence"] = {
+        "enabled": True,
+        "evidence_id": "measurement-chain",
+        "checkpoint_boundary": {},
+    }
+
+    with pytest.raises(CheckpointCompatibilityError, match="boundary binding"):
+        require_full_resume_state(state, checkpoint_kind="recovery")
 
 
 def test_resume_and_measurement_are_operational_but_model_config_remains_critical(

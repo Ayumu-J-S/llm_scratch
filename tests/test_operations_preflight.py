@@ -649,6 +649,38 @@ def test_resume_container_mounts_checkpoint_bound_measurement_evidence(tmp_path)
     assert "resume_measurement_evidence" in mounts[str(measurement.resolve())]["purposes"]
 
 
+def test_resume_container_keeps_shared_absolute_measurement_path_writable(tmp_path):
+    run_root = tmp_path / "current" / "runs"
+    run_root.mkdir(parents=True)
+    checkpoint = tmp_path / "prior" / "checkpoints" / "recovery.pt"
+    checkpoint.parent.mkdir(parents=True)
+    checkpoint.write_text("fixture", encoding="utf-8")
+    measurement = tmp_path / "external-measurement" / "measurement.json"
+    measurement.parent.mkdir()
+    measurement.write_text("{}", encoding="utf-8")
+    plain = OmegaConf.to_container(_cfg(), resolve=True)
+    plain["measurement"]["enabled"] = True
+    plain["measurement"]["output_path"] = str(measurement)
+
+    result = _container_mount_check(
+        OmegaConf.create(plain),
+        root_dir=ROOT_DIR,
+        run_root=run_root,
+        executor="container",
+        checkpoint_path=checkpoint,
+        manifests={"data_manifests": []},
+        cache={"caches": []},
+        action="resume",
+    )
+
+    mounts = {record["source"]: record for record in result["mounts"]}
+    assert str(measurement.resolve()) not in mounts
+    parent = mounts[str(measurement.parent.resolve())]
+    assert parent["read_only"] is False
+    assert "measurement_output" in parent["purposes"]
+    assert "resume_measurement_evidence_and_output" in parent["purposes"]
+
+
 def test_container_mount_plan_uses_current_wandb_configuration(tmp_path):
     run_root = tmp_path / "runs"
     run_root.mkdir()

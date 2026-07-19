@@ -1020,6 +1020,49 @@ def test_handoff_accepts_failed_online_wandb_initialization(tmp_path):
     assert result["initializations"][0]["outcome"] == "failed"
 
 
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        ({"recorded_at_utc": "not-a-time"}, "recorded_at_utc is invalid"),
+        ({"project": "wrong-project"}, "configured identity"),
+        ({"entity": "wrong-entity"}, "configured identity"),
+    ],
+)
+def test_handoff_rejects_unbound_successful_wandb_initialization(tmp_path, mutation, message):
+    attempt = _attempt(tmp_path)
+    evidence = attempt.path / "work" / "wandb_events.jsonl"
+    evidence.parent.mkdir(parents=True)
+    record = {
+        "schema_version": 1,
+        "recorded_at_utc": "2026-07-19T00:00:00+00:00",
+        "action": "init",
+        "outcome": "succeeded",
+        "mode": "online",
+        "project": "expected-project",
+        "entity": "expected-entity",
+        "run_id": "run-id",
+        "run_url": "https://wandb.example/run-id",
+        **mutation,
+    }
+    evidence.write_text(json.dumps(record) + "\n", encoding="utf-8")
+
+    with pytest.raises(HandoffValidationError, match=message):
+        _wandb_evidence(
+            attempt,
+            preflight={
+                "checks": {
+                    "wandb": {
+                        "mode": "online",
+                        "project": "expected-project",
+                        "entity": "expected-entity",
+                    }
+                }
+            },
+            action="train",
+            outcome="succeeded",
+        )
+
+
 def test_malformed_terminal_container_inspect_still_force_removes_exact_id(tmp_path, monkeypatch):
     attempt = _attempt(tmp_path)
     container_id = "a" * 64

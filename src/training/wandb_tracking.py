@@ -51,7 +51,7 @@ DATA_REFERENCE_FIELDS = {
 
 _CREDENTIAL_ASSIGNMENT = re.compile(
     r"(?i)\b(api[_-]?key|access[_-]?token|authorization|password|passwd|secret|token|key)"
-    r"(\s*[:=]\s*)(?:\"[^\"]*\"|'[^']*'|[^\s,;]+)"
+    r"(\s*[:=]\s*)(?:bearer\s+)?(?:\"[^\"]*\"|'[^']*'|[^\s,;]+)"
 )
 _BEARER_CREDENTIAL = re.compile(r"(?i)\bbearer\s+[^\s,;]+")
 
