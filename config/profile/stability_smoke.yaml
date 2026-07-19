@@ -67,4 +67,4 @@ training:
     min_lr_ratio: 0.1
 
 wandb:
-  enabled: false
+  mode: disabled

@@ -15,11 +15,12 @@ evaluation:
   # may opt into CPU explicitly with evaluation.device=cpu.
   device: cuda
   wandb:
-    enabled: false
+    mode: disabled
     project: llm-scratch
     entity: sunday-research
     name: null
-    mode: online
+    init_timeout_seconds: 10
+    finish_timeout_seconds: 30
 
 runtime:
   device: ${evaluation.device}

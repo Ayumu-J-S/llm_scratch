@@ -139,7 +139,7 @@ def _plain(value: Any) -> Any:
 
 
 def _experiment_identity_config(cfg: Mapping[str, Any]) -> dict[str, Any]:
-    """Remove operational controls that do not define the training experiment."""
+    """Exclude operational recovery, measurement, and W&B controls from identity."""
 
     normalized = _plain(cfg)
     if not isinstance(normalized, dict):
@@ -150,6 +150,7 @@ def _experiment_identity_config(cfg: Mapping[str, Any]) -> dict[str, Any]:
         normalized_artifacts = dict(artifacts)
         normalized_artifacts.pop("resume_path", None)
         normalized["artifacts"] = normalized_artifacts
+    normalized.pop("wandb", None)
     return normalized
 
 
@@ -316,7 +317,7 @@ def write_run_manifest(
         "config": {"path": config_path.name, "sha256": config_hash},
         "experiment_identity": {
             "config_sha256": identity_payload["config_sha256"],
-            "operational_exclusions": ["artifacts.resume_path", "measurement"],
+            "operational_exclusions": ["artifacts.resume_path", "measurement", "wandb"],
         },
         "lock": {"path": "uv.lock", "sha256": lock_hash},
         "seed": int(cfg.get("reproducibility", {}).get("seed", 0)),

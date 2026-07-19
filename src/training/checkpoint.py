@@ -195,7 +195,7 @@ def build_checkpoint_identity(
 
 
 def checkpoint_config_sha256(cfg: DictConfig | Mapping[str, Any]) -> str:
-    """Hash experiment-affecting config, excluding operational controls."""
+    """Hash training identity while excluding operational evidence controls."""
 
     config = _plain_config(cfg)
     config.pop("measurement", None)
@@ -204,6 +204,7 @@ def checkpoint_config_sha256(cfg: DictConfig | Mapping[str, Any]) -> str:
         artifacts = copy.deepcopy(artifacts)
         artifacts.pop("resume_path", None)
         config["artifacts"] = artifacts
+    config.pop("wandb", None)
     return _sha256_json(config)
 
 
@@ -548,6 +549,8 @@ def load_checkpoint_for_generation(path: str | Path) -> LoadedCheckpoint:
                 "size_bytes": size_bytes,
                 "device": stat.st_dev,
                 "inode": stat.st_ino,
+                "mtime_ns": stat.st_mtime_ns,
+                "ctime_ns": stat.st_ctime_ns,
             }
             handle.seek(0)
             try:
@@ -557,7 +560,17 @@ def load_checkpoint_for_generation(path: str | Path) -> LoadedCheckpoint:
                     f"unable to read checkpoint {checkpoint_path}: {error}"
                 ) from error
             final_stat = os.fstat(handle.fileno())
-            if final_stat.st_size != stat.st_size or final_stat.st_mtime_ns != stat.st_mtime_ns:
+            if (
+                final_stat.st_dev,
+                final_stat.st_ino,
+                final_stat.st_size,
+                final_stat.st_mtime_ns,
+            ) != (
+                stat.st_dev,
+                stat.st_ino,
+                stat.st_size,
+                stat.st_mtime_ns,
+            ):
                 raise CheckpointVerificationError(
                     f"checkpoint {checkpoint_path} changed while it was loaded"
                 )

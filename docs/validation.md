@@ -74,7 +74,6 @@ uv run llm-scratch-evaluate \
   profile=evaluation \
   evaluation.checkpoint_path=/absolute/path/to/milestone.pt \
   evaluation.device=cuda \
-  evaluation.wandb.enabled=true \
   evaluation.wandb.mode=online
 ```
 

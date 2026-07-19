@@ -1,0 +1,295 @@
+# Evidence-safe Weights & Biases
+
+W&B is an optional experiment view, not the owner of training state. The local
+run manifest, resolved Hydra config, `metrics.jsonl`, checkpoints, and
+`wandb_events.jsonl` remain available when W&B is disabled, offline, out of
+quota, unreachable, or rejects an operation.
+
+## Modes and scalar logging
+
+The Hydra default is `wandb.mode=disabled`. `offline` writes a local W&B run
+without cloud synchronization, and `online` requires a verified login before
+initialization. These are the SDK's supported run modes; an online login is
+forced and verified so a failed authentication cannot silently turn a claimed
+online run into an offline one. See the official [mode
+behavior](https://docs.wandb.ai/support/models/articles/what-is-the-difference-between-wandbinit),
+[`wandb.init`](https://docs.wandb.ai/models/ref/python/functions/init), and
+[`wandb.login`](https://docs.wandb.ai/models/ref/python/functions/login)
+references.
+
+Login, complete run initialization, and entity verification run behind
+tracker-owned wall-clock boundaries using `wandb.init_timeout_seconds`. These
+outer boundaries are intentional: SDK settings and operation-specific timeouts
+do not bound every setup, service, or credential-verification path. A timeout
+fails closed without starting an offline run or delaying local training
+indefinitely. A run that finishes initializing after the caller deadline is
+finished on the late worker. Standalone evaluation uses the same boundaries
+after committing its local result.
+
+```bash
+# Local repository evidence only
+uv run python src/train.py profile=pretrain_streaming wandb.mode=disabled
+
+# Network-free W&B files plus the same local repository evidence
+uv run python src/train.py profile=pretrain_streaming wandb.mode=offline
+
+# Online compact metrics; artifact uploads still default to none
+uv run python src/train.py profile=pretrain_streaming wandb.mode=online
+```
+
+### Verified online visibility smoke
+
+The live three-step CPU smoke
+[`wb001-online-smoke-20260719`](https://wandb.ai/sunday-research/llm-scratch/runs/fcblar36)
+finished successfully on 2026-07-19 as run `fcblar36`. W&B shows three history
+rows and zero model artifacts; model watch was disabled and artifact policy was
+`none`. This proves current authentication, online initialization, compact
+scalar visibility, and clean no-artifact completion. It is not the `RUN-001`
+real baseline and does not validate artifact quota, retention, or upload.
+
+Scalar logs occur only at the trainer's configured training-log and validation
+boundaries; W&B adds no independent cadence. A training boundary emits one
+compact dictionary containing step, target tokens, elapsed time, training
+NLL/perplexity, target throughput, RSS/peak RSS, PyTorch peak
+allocated/reserved memory on CUDA, gradient norm, clipping, non-finite count,
+learning rate, and any validation result produced at that same step. The CUDA
+system fields are monotonic run-level peaks even when explicit benchmark
+measurement resets PyTorch's interval counters before each step; the
+measurement artifact keeps its separate per-step interval peaks. When a
+validation boundary does not coincide with a scheduled training log, its
+compact aggregate and per-corpus scalars are emitted at that exact validation
+step instead of being attributed to a later step. W&B documents that each
+`Run.log` call normally advances the run step ([logging
+reference](https://docs.wandb.ai/models/track/log)).
+
+Scalar SDK calls run on one persistent tracker-owned worker. The training
+thread waits at most `wandb.log_timeout_seconds` (default 5 seconds) for each
+call. A timeout, SDK exception, or full one-item queue opens a circuit breaker,
+records local failure evidence, and suppresses later W&B scalar calls without
+stopping local training, metrics, or checkpoints. This bounds the external SDK
+boundary without creating a thread per log event.
+
+Compact summary updates use the same timeout and their own circuit breaker.
+Training startup, finalization, artifact decisions, and standalone evaluation
+therefore cannot wait indefinitely on `Summary.update`. When step/token logging
+cadences are both unset, the epoch boundary reports the token-weighted epoch NLL
+and perplexity rather than relabeling the final optimizer update as the epoch.
+Final summary publication also refreshes throughput, RSS, and run-level CUDA
+peaks, so a stop horizon between scheduled history rows cannot leave the final
+system evidence stale.
+
+The pull-request offline smoke applies a required Linux seccomp rule before the
+training command starts. It denies non-Unix socket creation for the complete
+process tree, including the native W&B service, while allowing the Unix sockets
+needed for local SDK IPC. A native-syscall probe after exec and in a descendant
+proves inheritance before each disabled/offline arm. Missing or unloadable
+`libseccomp.so.2` is an explicit smoke failure; there is no Python-only fallback.
+
+`wandb.watch.enabled=false` is the default. When explicitly enabled, its hook
+type and frequency are configured under `wandb.watch`, and bounded hook
+installation/removal calls use the scalar/finish timeouts. The tracker records
+the watched model before asking the SDK to install hooks; if installation
+partially fails or times out, it requests global unwatch cleanup immediately
+and again after a late installation returns. Normal model-specific unwatch also
+falls back to bounded global cleanup on failure. Hook bookkeeping is cleared
+only after successful cleanup. The default watch interval is 1,000 batches,
+matching the SDK's documented default and avoiding the failed R2's excessive
+100-batch histogram volume. Model watching can add gradient/parameter
+collection work independent of ordinary scalar logging; see the official
+[PyTorch integration](https://docs.wandb.ai/models/integrations/pytorch).
+When watch is enabled, W&B's own autograd/forward hooks compute histograms and
+publish them to the local SDK backend from the model hot path; those hook-owned
+records do not pass through the tracker's scalar worker. This is an explicit
+opt-in overhead limitation, not a claim that watch-generated work is
+caller-timeout bounded.
+
+The W&B run config contains the resolved training configuration except that
+dataset values are reduced to manifest and external-reference metadata. Inline
+documents or iterables are never passed to W&B. Compact summary lineage records
+the experiment, Git, config, lock, tokenizer, and ordered data fingerprints.
+
+## Artifact policy and quota preflight
+
+Model artifact policy is one of `none|best|final|milestone` and defaults to
+`none`. W&B receives a strict inference/model package derived from the selected
+checkpoint, never the resumable checkpoint itself. The package contains only
+model tensors, an allowlisted `SimpleDecoderTransformer` architecture,
+canonical-tokenizer references, source-checkpoint lineage, and optimizer-step/
+target-token counters. Optimizer, scheduler, precision, RNG, stream cursor,
+measurement, full resolved config, and arbitrary state fields are excluded.
+The loader rejects extra/missing schema keys and reconstructs the canonical
+tokenizer plus model with a strict state-dict load before upload. Local full
+checkpoints remain the only resume authority; a downloaded W&B model package
+cannot resume training.
+
+Recovery checkpoints are never upload candidates. Smoke, CI, stability
+smoke, and memorization profiles are denied by code even if an override selects
+an artifact policy. A candidate must pass all of these gates:
+
+1. The configured policy matches the checkpoint reason.
+2. The selected file is a verified repository checkpoint whose internal kind,
+   run identity, and optimizer step match the requested artifact reason.
+3. The run is online after `wandb.login(force=True, verify=True)` succeeded.
+4. The public `wandb.Api().viewer` identity can verify the configured user or
+   team entity.
+5. A fresh operator-supplied usage snapshot names that same entity and records
+   visible plan, storage usage/limit, and retention behavior.
+6. Across the tracker lifetime, the maximum observed `used_bytes`, bytes
+   reserved for every earlier accepted candidate, the full selected checkpoint
+   size as a conservative pre-staging upper bound, and configured safety
+   reserve fit beneath the minimum observed `limit_bytes`.
+7. The checkpoint SHA-256 has not already uploaded or been reserved in this
+   run.
+8. The staged model package is independently hashed and measured, is no larger
+   than its reservation, remains byte-identical through immutable SDK staging,
+   and is distinct from the source-checkpoint physical identity.
+9. The asynchronous artifact reaches `COMMITTED` within the configured timeout.
+
+After cross-directory resume, a `best` policy reuses only a verified prior
+`best.pt` whose kind, run identity, optimizer step, best step, and best score
+match restored event state. If that retained file is missing or unusable, the
+trainer still submits the expected path to artifact admission so the local
+decision is explicitly blocked rather than silently skipped.
+
+The tracker reserves the conservative source-checkpoint bytes under one lock
+before model-package construction or cloud submission,
+so serial or concurrent milestones cannot each spend the same visible
+headroom. A reservation is retained when submission or completion is ambiguous;
+operator review is required rather than assuming the service stored nothing.
+If artifact construction or local file preparation demonstrably fails before
+any upload request, the reservation is rolled back so the same checkpoint can
+be retried without phantom quota use. SDK artifact construction/file staging
+and cloud submission/completion each have a caller wall-clock
+`upload_timeout_seconds` boundary; only an ambiguous cloud submission retains
+the conservative reservation.
+Snapshot refreshes can only tighten the tracker ledger: lower observed usage or
+a higher observed limit never relaxes a prior stricter observation.
+
+The public Python API documents run/artifact access but no supported current
+storage-usage/quota endpoint. Current usage is instead visible in the Billing
+page and downloadable CSV, so the repository deliberately does not use private
+GraphQL, infer a quota from a plan name, or hard-code changing service limits.
+See the [public API overview](https://docs.wandb.ai/models/ref/python/public-api),
+[Billing usage UI/CSV](https://docs.wandb.ai/platform/app/settings-page/billing-settings),
+and current [pricing/storage](https://wandb.ai/site/pricing/).
+
+Capture the visible values immediately before an intended upload in an
+operator-managed JSON file:
+
+```json
+{
+  "schema_version": 1,
+  "captured_at_utc": "2026-07-13T16:00:00+00:00",
+  "entity": "sunday-research",
+  "plan": "value displayed in W&B Billing",
+  "used_bytes": 123456789,
+  "limit_bytes": 1000000000,
+  "retention": "value displayed in W&B Billing",
+  "source": "W&B Billing UI or downloaded usage CSV"
+}
+```
+
+Then select one reason and safety reserve:
+
+```bash
+uv run python src/train.py profile=pretrain_streaming \
+  wandb.mode=online \
+  wandb.log_timeout_seconds=5 \
+  wandb.artifact.policy=final \
+  wandb.artifact.usage_snapshot_path=/operator/wandb-usage.json \
+  wandb.artifact.max_usage_age_seconds=900 \
+  wandb.artifact.reserve_bytes=250000000 \
+  wandb.artifact.upload_timeout_seconds=600
+```
+
+`Artifact.add_file` receives only the verified model-only staging file under
+the internal name `model.pt`; it never receives the selected local checkpoint.
+The unique staging file remains immutable until W&B reports `COMMITTED`, then
+is removed on a best-effort basis. A local unlink failure is recorded as a
+separate `artifact_cleanup` event and cannot relabel a committed upload or
+request an unsafe retry. Source-checkpoint SHA/size and model-package SHA/size are recorded
+separately. These inference artifacts are not checkpoint backup. See the official [artifact
+reference](https://docs.wandb.ai/models/ref/python/experiments/artifact) and
+[run artifact methods](https://docs.wandb.ai/models/ref/python/experiments/run).
+
+Every decision records policy, reason, source-checkpoint SHA-256/bytes and
+model-package SHA-256/bytes when available, plus the
+candidate reaches identity preflight, auth result, usage/limit/retention,
+effective maximum observed usage, tracker-reserved bytes, effective minimum
+limit, configured safety reserve, projected bytes, upload outcome, and retry
+disposition in `checkpoints/wandb_events.jsonl`. Missing login, unknown or stale
+usage, wrong entity, insufficient headroom, network failure, or a non-committed
+upload blocks only W&B. The local checkpoint and metrics remain intact. W&B's
+own network-loss behavior is described in its [connectivity
+documentation](https://docs.wandb.ai/support/models/articles/what-happens-if-internet-connection-is-l),
+but local completion never depends on that external behavior.
+
+## WB-001 target-hardware protocol
+
+The retained historical DGX R2 comparison is Attempt 9 at exact commit
+`e507a3447ab0895960530cdb207ca0702ec41f85` in pinned image
+`sha256:23a1bee69fe189e77105cdddeee9aeff6ef0763d58a691625fbfcab64efd1887`.
+All arms use the same resolved config, seed, pinned data/cache, depth-26 model,
+sequence length 64, CUDA/BF16 recipe, validation/checkpoint settings, 260
+optimizer steps, 26 warm-up steps, batch size 2, accumulation 4, 1,040
+backward batches, 133,120 target tokens, 10-step scalar cadence, and the
+declared 5-second scalar SDK timeout. Three Latin-square repetitions compare:
+
+- W&B disabled;
+- W&B offline with watch off; and
+- W&B offline with watch on.
+
+The protocol retains per-step phase timing, target tokens/s, median/p95/max
+step time, data wait, RSS/peak RSS, PyTorch peak allocated/reserved memory,
+loss, gradient norm, W&B directory bytes, sampler coverage, validation identity,
+and normalized checkpoint identities. It compares medians and spreads, not a
+best run. Any model, normalized resume, cursor, or trajectory digest difference
+is a failure; physical checkpoint file SHA-256 values may differ because each
+arm records arm-local operational metadata. A median throughput regression of
+5% or more is an investigation note; 10% or more fails. Watch remains off by
+default.
+
+`docs/experiments/evidence/run_wb001_dgx.sh` executes the fixed network-isolated
+matrix after priming the shared cache. The current
+`docs/experiments/evidence/verify_wb001_dgx.py` consumes fresh schema-v3
+measurement segments and includes post-warm-up scheduled scalar-log pauses in
+the primary wall-time and target-throughput denominator without diluting the
+compute-only data-wait fraction.
+
+The historical Attempt 9 verifier reported all 168 applicable dynamically
+emitted gates passing. Per-arm
+data wait was 6.3273–8.1949%; the paired median changes were 1.913997% for
+offline/watch-off versus disabled, 2.224572% for offline/watch-on versus
+disabled, and 2.632986% for watch-on versus offline/watch-off. Every median is
+below the 5% investigation threshold, every paired value is below 10%, and the
+nine warnings are exactly one predeclared 5–10% data-wait investigation per
+arm, so the R2 result is `PASS WITH NOTE`. The dynamic gate total is two lower
+than Attempt 8's 170 because the verifier emits its two aggregate investigation
+gates only when a paired median is at least 5%; neither is applicable here.
+The durable historical summary is
+`docs/experiments/evidence/WB-001-dgx-r9-pass-with-note.json`. Exact-head review
+later found that its throughput denominator ended before scheduled W&B scalar
+logging. The figures and original `PASS WITH NOTE` are retained for audit
+history but are withdrawn as current overhead acceptance evidence; no corrected
+exact-repair-head DGX matrix was run in this cycle. Attempt 8 and all failed or
+aborted earlier attempts likewise remain in the experiment record.
+
+The independent re-review of exact clean
+implementation/evidence head `5a0a7437e9f94fe56f0ed2dd4cad622cd9d9e25e`
+returned `PASS WITH NOTE` and closed all six findings from the retained prior
+`FAIL`. It independently confirmed the byte-identical Attempt 9 summary and
+159 required plus nine data-wait-note gates with zero failures. The remaining
+historical implementation notes were bounded: quota reservations are conservative within
+one tracker lifetime rather than account-global across multiple processes, and
+a permanently stuck daemon SDK worker may live until process exit while local
+training and tracker shutdown remain bounded.
+
+An optional online scalar arm and one selected artifact may run only when a
+human/operator supplies credentials and a fresh usage snapshot with headroom.
+It is not required for the network-free implementation proof and must not
+upload raw data or recovery checkpoints. Attempt 9 used network isolation and
+artifact policy `none`; it does not validate online authentication, live quota
+accounting, retention, artifact upload, or other cloud behavior. Its historical
+performance comparison is no longer cited as acceptance because scheduled
+scalar pauses were excluded. A future exact-head matrix may use the corrected
+schema-v3 verifier; no cross-attempt or long-run R3 claim is made here.

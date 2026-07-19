@@ -37,7 +37,7 @@ this proof run small:
 uv run python src/train.py data.mode=streaming training.epochs=1 \
   training.sequence_length=8 training.batch_size=1 \
   model.embed_size=16 model.num_heads=2 model.num_layers=1 model.dropout=0 \
-  wandb.enabled=false artifacts.checkpoints_dir=/tmp/data002-stream-checkpoints
+  wandb.mode=disabled artifacts.checkpoints_dir=/tmp/data002-stream-checkpoints
 ```
 
 `src/train.py` builds streaming train and validation loaders from `data.streaming.train` and `data.streaming.validation`, adds the canonical tokenizer config, packs token windows, and returns the standard trainer batch contract:

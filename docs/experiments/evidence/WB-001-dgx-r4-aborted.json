@@ -1,0 +1,15 @@
+{
+  "failures": [
+    "verification_exception"
+  ],
+  "image_id": "sha256:23a1bee69fe189e77105cdddeee9aeff6ef0763d58a691625fbfcab64efd1887",
+  "measured_commit": "e9dd9e37319a8b6ba631e038c189d82d6483e187",
+  "review_size": "R2",
+  "schema_version": 1,
+  "ticket": "WB-001",
+  "verdict": "FAIL",
+  "verification_error": {
+    "message": "[Errno 2] No such file or directory: '/tmp/wb001-r4-e9dd9e37319a8b6ba631e038c189d82d6483e187/r1-p2-offline-off/conditions.env'",
+    "type": "FileNotFoundError"
+  }
+}

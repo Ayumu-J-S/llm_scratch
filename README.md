@@ -58,7 +58,7 @@ The equivalent importable console commands are available after `make sync`:
 
 ```bash
 uv run llm-scratch-config-check profile=pretrain_streaming
-uv run llm-scratch-train profile=smoke_overfit runtime.device=cpu training.epochs=1 training.batch_size=2 wandb.enabled=false
+uv run llm-scratch-train profile=smoke_overfit runtime.device=cpu training.epochs=1 training.batch_size=2 wandb.mode=disabled
 uv run llm-scratch-evaluate profile=evaluation evaluation.checkpoint_path=/absolute/path/to/milestone.pt evaluation.device=cuda
 ```
 
@@ -85,9 +85,11 @@ make ci-cpu
 remaining lint, unit, Hydra-composition, lock-drift, and smoke steps use the
 existing environment with `uv --no-sync` and offline environment settings. The
 smoke uses only committed manifest/tokenizer inputs, removes common W&B,
-Hugging Face, and AWS credential variables in its child process, and blocks
-Python network sockets. It is a small CPU wiring check, not a quality or
-performance run.
+Hugging Face, and AWS credential variables in its child process. A required
+Linux seccomp filter blocks non-Unix socket creation for the training process
+and every descendant, including the native W&B service, while preserving local
+Unix-socket IPC; the smoke fails if that isolation cannot be installed. It is a
+small CPU wiring check, not a quality or performance run.
 
 The public Hugging Face integration test is intentionally not a pull-request
 check; it runs only from the manually dispatched or weekly scheduled `Network
@@ -113,10 +115,11 @@ uv run python src/train.py profile=pretrain_streaming \
   artifacts.resume_path=recovery-step-000000001000.pt
 ```
 
-`artifacts.resume_path` and the complete top-level `measurement` section are
-operational controls, not experiment changes. Both remain in the byte-exact
-resolved-config evidence, while run/checkpoint experiment identity excludes
-them so enabling timing or changing its output path cannot invalidate resume.
+`artifacts.resume_path` and the complete top-level `measurement` and `wandb`
+sections are operational controls, not experiment changes. They remain in the
+byte-exact resolved-config evidence, while run/checkpoint experiment identity
+excludes them so enabling timing, changing its output path, or changing
+observability cannot invalidate resume.
 Standalone evaluator-run identity still records and hashes its full resolved
 evaluation config, including `measurement`; the exclusion applies only to the
 training experiment/checkpoint identity.
@@ -157,10 +160,14 @@ for both train and validation:
   `validation/*` or selects a best held-out-validation checkpoint
 - real streaming profiles score fresh fixed held-out windows through the same
   token-weighted implementation used by standalone checkpoint evaluation
-- when W&B is enabled, training automatically enables W&B model watching with default settings so gradient panels can be collected
-- this does not add a custom scalar grad-norm line, and short runs may still show little or no gradient data with W&B's default watch behavior
+- W&B is disabled and model watching is off by default; offline or online
+  tracking and optional watch hooks require explicit Hydra overrides
+- compact scheduled scalars include the trainer's measured gradient norm;
+  optional W&B watch hooks are a separate, potentially costly diagnostic
 - local recovery, best, final, and milestone checkpoints remain complete and
-  usable with W&B disabled; CKPT-001 does not define W&B upload/retention policy
+  usable with W&B disabled; WB-001 permits only a strict model-only inference
+  package derived from an explicitly selected best, final, or milestone after
+  every safety gate passes—the resumable checkpoint itself is never uploaded
 
 At inference time, the model predicts one tokenizer token at a time, not one
 whole word at a time. The canonical vocabulary has 50,570 IDs; BOS is 1, PAD is
@@ -173,17 +180,22 @@ You can override runtime values with Hydra arguments, for example:
 uv run python src/train.py profile=pretrain_streaming training.epochs=10 training.batch_size=2
 ```
 
-W&B is enabled by default. After syncing dependencies and authenticating with W&B, you can run:
+W&B is disabled by default, so the ordinary command retains only authoritative
+local evidence:
 
 ```bash
 uv run python src/train.py
 ```
 
+See `docs/wandb.md` for offline/online modes, compact scalar boundaries, watch
+costs, and the authenticated usage/size policy required before any selected
+model artifact can upload.
+
 Useful overrides:
 
 ```bash
 uv run python src/train.py wandb.mode=offline
-uv run python src/train.py wandb.enabled=false
+uv run python src/train.py wandb.mode=disabled
 uv run python src/train.py training.optimizer._target_=torch.optim.SGD training.optimizer.lr=0.1 training.optimizer.momentum=0.9
 uv run python src/train.py training.scheduler.enabled=true training.scheduler._target_=torch.optim.lr_scheduler.CosineAnnealingLR training.scheduler.T_max=10
 ```

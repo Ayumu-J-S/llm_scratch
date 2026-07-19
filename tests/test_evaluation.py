@@ -5,6 +5,8 @@ import hashlib
 import json
 import os
 import runpy
+import threading
+import time
 from contextlib import nullcontext
 from dataclasses import replace
 from pathlib import Path
@@ -134,7 +136,7 @@ def _streaming_checkpoint_config(*, split_field: str = "sources"):
         config.training.precision = "fp32"
         config.training.gradient_accumulation_steps = 1
         config.training.max_grad_norm = None
-        config.wandb.enabled = False
+        config.wandb.mode = "disabled"
         config.data.streaming.cache = {
             "dir": "data/stream_loader_cache",
             "max_size_bytes": 4096,
@@ -457,7 +459,7 @@ def test_training_metrics_preserve_overflow_and_reconstruct_standalone_parity(tm
                 "milestone_every_n_steps": None,
                 "scheduler": {"interval": "step"},
             },
-            "wandb": {"enabled": False},
+            "wandb": {"mode": "disabled"},
         }
     )
     trainer_model = FixedLogitModel([0.0, 1.0])
@@ -472,22 +474,19 @@ def test_training_metrics_preserve_overflow_and_reconstruct_standalone_parity(tm
         device=torch.device("cpu"),
     )
 
-    class RecordingRun:
-        def __init__(self):
-            self.records = []
-
-        def log(self, record):
-            self.records.append(json.loads(json.dumps(record, allow_nan=False)))
-
-    run = RecordingRun()
-    trainer.run = run
-    trainer._record_validation_metrics(result)
+    compact_record = trainer._record_validation_metrics(result)
 
     local_record = json.loads((tmp_path / "metrics.jsonl").read_text(encoding="utf-8"))
     assert local_record["validation/perplexity"] is None
     assert local_record["validation/perplexity_overflow"] is True
     assert local_record["validation/scorer_revision"] == result.scorer_revision
-    assert run.records == [local_record]
+    assert compact_record["validation/perplexity"] is None
+    assert compact_record["validation/perplexity_overflow"] is True
+    assert all(
+        compact_record[f"validation/corpus/{name}/perplexity"] is None
+        and compact_record[f"validation/corpus/{name}/perplexity_overflow"] is True
+        for name in ("en", "ja")
+    )
     assert all(
         score["perplexity"] is None and score["perplexity_overflow"] is True
         for score in local_record["validation/by_corpus"].values()
@@ -558,7 +557,7 @@ def test_trainer_memorization_metrics_have_no_validation_namespace(tmp_path):
                 "milestone_every_n_steps": None,
                 "scheduler": {"interval": "step"},
             },
-            "wandb": {"enabled": False},
+            "wandb": {"mode": "disabled"},
         }
     )
     trainer = Trainer(
@@ -769,7 +768,6 @@ def test_standalone_wandb_summary_records_compact_identities_and_local_hash(tmp_
         evaluation_config.evaluation.checkpoint_path = str(checkpoint)
         evaluation_config.evaluation.output_path = str(output_path)
         evaluation_config.evaluation.device = "cpu"
-        evaluation_config.evaluation.wandb.enabled = True
         evaluation_config.evaluation.wandb.mode = "offline"
 
     result_path = evaluate_module.evaluate_checkpoint(evaluation_config)
@@ -793,6 +791,83 @@ def test_standalone_wandb_summary_records_compact_identities_and_local_hash(tmp_
         "sha256": hashlib.sha256(local_bytes).hexdigest(),
         "size_bytes": len(local_bytes),
     }
+
+
+def test_standalone_wandb_summary_is_wall_clock_bounded(monkeypatch):
+    release = threading.Event()
+
+    class Summary:
+        def update(self, values):
+            release.wait(1.0)
+
+    class Run:
+        def __init__(self):
+            self.summary = Summary()
+            self.finished = False
+
+        def finish(self):
+            self.finished = True
+
+    run = Run()
+    monkeypatch.setattr(evaluate_module.wandb, "init", lambda **kwargs: run)
+    config = _compose("profile=evaluation")
+    with open_dict(config):
+        config.evaluation.wandb.mode = "offline"
+        config.evaluation.wandb.init_timeout_seconds = 0.01
+    result = _scorer().score(FixedLogitModel([0.0, 1.0]), lambda: [_batch([[0, 1]])])
+
+    started = time.monotonic()
+    evaluate_module._maybe_log_wandb(
+        config.evaluation,
+        result,
+        checkpoint_kind="milestone",
+        local_result_identity={"sha256": "fixture"},
+    )
+    elapsed = time.monotonic() - started
+    release.set()
+
+    assert elapsed < 0.2
+    assert run.finished is True
+
+
+def test_standalone_wandb_initialization_is_wall_clock_bounded(monkeypatch):
+    release = threading.Event()
+
+    class Run:
+        def __init__(self):
+            self.finished = False
+
+        def finish(self):
+            self.finished = True
+
+    run = Run()
+
+    def blocking_init(**kwargs):
+        release.wait(1.0)
+        return run
+
+    monkeypatch.setattr(evaluate_module.wandb, "init", blocking_init)
+    config = _compose("profile=evaluation")
+    with open_dict(config):
+        config.evaluation.wandb.mode = "offline"
+        config.evaluation.wandb.init_timeout_seconds = 0.01
+    result = _scorer().score(FixedLogitModel([0.0, 1.0]), lambda: [_batch([[0, 1]])])
+    started = time.monotonic()
+
+    evaluate_module._maybe_log_wandb(
+        config.evaluation,
+        result,
+        checkpoint_kind="milestone",
+        local_result_identity={"sha256": "fixture"},
+    )
+    elapsed = time.monotonic() - started
+    release.set()
+    deadline = time.monotonic() + 1.0
+    while not run.finished and time.monotonic() < deadline:
+        time.sleep(0.001)
+
+    assert elapsed < 0.2
+    assert run.finished is True
 
 
 def test_standalone_preflight_rejects_cpu_for_bf16_checkpoint(tmp_path, monkeypatch):
@@ -841,6 +916,27 @@ def test_standalone_preflight_rejects_cpu_for_bf16_checkpoint(tmp_path, monkeypa
     ):
         evaluate_module.evaluate_checkpoint(evaluation_config)
     assert not (tmp_path / "must-not-exist.json").exists()
+
+
+def test_standalone_wandb_failure_cannot_erase_or_fail_local_result(tmp_path, monkeypatch):
+    checkpoint, *_ = _milestone_checkpoint(tmp_path / "checkpoints")
+
+    def fail_init(**kwargs):
+        raise RuntimeError("simulated W&B outage")
+
+    monkeypatch.setattr(evaluate_module.wandb, "init", fail_init)
+    evaluation_config = _compose("profile=evaluation")
+    output_path = tmp_path / "wandb-failure-local-result.json"
+    with open_dict(evaluation_config):
+        evaluation_config.evaluation.checkpoint_path = str(checkpoint)
+        evaluation_config.evaluation.output_path = str(output_path)
+        evaluation_config.evaluation.device = "cpu"
+        evaluation_config.evaluation.wandb.mode = "offline"
+
+    result_path = evaluate_module.evaluate_checkpoint(evaluation_config)
+
+    assert result_path == output_path
+    assert json.loads(result_path.read_text(encoding="utf-8"))["result"]["scorer_revision"]
 
 
 def test_checkpoint_resolved_config_tampering_is_rejected_before_evaluation(tmp_path):

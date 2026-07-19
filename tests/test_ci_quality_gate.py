@@ -4,6 +4,8 @@ import importlib.util
 import os
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -40,7 +42,9 @@ def test_network_integration_is_not_a_pull_request_trigger():
     assert "RUN_HF_DATASET_INTEGRATION" in workflow
 
 
-def test_offline_smoke_environment_removes_credentials_and_loads_socket_guard(tmp_path, monkeypatch):
+def test_offline_smoke_environment_removes_credentials_and_loads_socket_guard(
+    tmp_path, monkeypatch
+):
     module = load_offline_smoke()
     monkeypatch.setenv("WANDB_API_KEY", "should-not-reach-smoke")
     monkeypatch.setenv("HF_TOKEN", "should-not-reach-smoke")
@@ -57,3 +61,24 @@ def test_offline_smoke_environment_removes_credentials_and_loads_socket_guard(tm
     assert environment["WANDB_MODE"] == "disabled"
     assert environment["PYTHONPATH"].split(os.pathsep, 1)[0] == str(tmp_path)
     assert "_guarded_connect" in module.NETWORK_GUARD
+    assert "_guarded_connect_ex" in module.NETWORK_GUARD
+    assert "_guarded_sendto" in module.NETWORK_GUARD
+
+
+def test_offline_smoke_blocks_native_network_sockets_across_process_tree(tmp_path):
+    module = load_offline_smoke()
+    environment = module.offline_environment(tmp_path, wandb_mode="offline")
+
+    module.verify_process_tree_network_guard(environment)
+
+
+def test_offline_smoke_refuses_python_only_fallback_when_seccomp_is_missing(monkeypatch):
+    module = load_offline_smoke()
+
+    def missing_library(*_args, **_kwargs):
+        raise OSError("missing")
+
+    monkeypatch.setattr(module.ctypes, "CDLL", missing_library)
+
+    with pytest.raises(RuntimeError, match="requires libseccomp"):
+        module.install_process_tree_network_guard()

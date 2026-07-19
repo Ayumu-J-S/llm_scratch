@@ -10,7 +10,6 @@ import pytest
 import torch
 from omegaconf import OmegaConf
 
-import training.trainer as trainer_module
 import training.optimization as optimization_module
 from training.optimization import WarmupCosineScheduler
 from training.trainer import Trainer
@@ -93,6 +92,30 @@ class NonFiniteValidationModel(FixedLogitModel):
         return logits.expand(*inputs.shape, -1)
 
 
+class RecordingWandbTracker:
+    def __init__(self) -> None:
+        self.logs = []
+        self.summaries = []
+
+    def reset_local_evidence(self) -> None:
+        pass
+
+    def start(self, model) -> None:
+        pass
+
+    def log(self, values) -> None:
+        self.logs.append(dict(values))
+
+    def update_summary(self, values) -> None:
+        self.summaries.append(dict(values))
+
+    def consider_artifact(self, **kwargs):
+        raise AssertionError("artifact policy none must not select an upload")
+
+    def finish(self) -> None:
+        pass
+
+
 def _trainer(
     tmp_path: Path,
     batches,
@@ -116,7 +139,21 @@ def _trainer(
                 "scheduler": {"interval": "epoch"},
                 **training_overrides,
             },
-            "wandb": {"enabled": False},
+            "wandb": {
+                "mode": "disabled",
+                "project": "llm-scratch",
+                "entity": "test-entity",
+                "name": None,
+                "init_timeout_seconds": 1,
+                "watch": {"enabled": False, "log": "gradients", "log_freq": 100},
+                "artifact": {
+                    "policy": "none",
+                    "usage_snapshot_path": None,
+                    "max_usage_age_seconds": 900,
+                    "reserve_bytes": 0,
+                    "upload_timeout_seconds": 600,
+                },
+            },
             "measurement": measurement or {"enabled": False},
         }
     )
@@ -165,7 +202,21 @@ def _recipe_trainer(
                 "scheduler": {"interval": "step"},
                 **training_overrides,
             },
-            "wandb": {"enabled": False},
+            "wandb": {
+                "mode": "disabled",
+                "project": "llm-scratch",
+                "entity": "test-entity",
+                "name": None,
+                "init_timeout_seconds": 1,
+                "watch": {"enabled": False, "log": "gradients", "log_freq": 100},
+                "artifact": {
+                    "policy": "none",
+                    "usage_snapshot_path": None,
+                    "max_usage_age_seconds": 900,
+                    "reserve_bytes": 0,
+                    "upload_timeout_seconds": 600,
+                },
+            },
         }
     )
     return Trainer(
@@ -195,6 +246,211 @@ def test_partial_batch_metric_is_token_weighted(tmp_path: Path):
     assert trainer.target_tokens == 4
     assert "timing" not in step_record
     assert not (tmp_path / "measurement.json").exists()
+
+
+def test_wandb_uses_training_log_cadence_and_compact_scalar_schema(tmp_path: Path):
+    trainer = _trainer(
+        tmp_path,
+        [_batch([[0, 1]]) for _ in range(3)],
+        max_steps=3,
+        log_every_n_steps=2,
+        validation_every_n_steps=2,
+    )
+    tracking = RecordingWandbTracker()
+    trainer.wandb = tracking
+
+    trainer.fit()
+
+    assert len(tracking.logs) == 1
+    logged = tracking.logs[0]
+    assert logged["optimizer_step"] == 2
+    assert logged["target_tokens"] == 4
+    assert logged["train/nll"] > 0
+    assert logged["train/perplexity"] > 0
+    assert logged["optimizer/gradient_norm"] >= 0
+    assert logged["optimizer/gradient_clipped"] in {0, 1}
+    assert logged["optimizer/nonfinite_count"] == 0
+    assert logged["optimizer/lr"] == 0.0
+    assert logged["throughput/target_tokens_per_second"] > 0
+    assert logged["system/rss_bytes"] > 0
+    assert logged["validation/nll"] > 0
+    assert any(key.startswith("validation/corpus/") for key in logged)
+
+
+def test_wandb_final_summary_refreshes_system_scalars_after_last_log_boundary(
+    tmp_path: Path,
+    monkeypatch,
+):
+    trainer = _trainer(
+        tmp_path,
+        [_batch([[0, 1]]) for _ in range(3)],
+        max_steps=3,
+        log_every_n_steps=2,
+        validation_every_n_steps=99,
+    )
+    tracking = RecordingWandbTracker()
+    trainer.wandb = tracking
+    system_sample = 0
+
+    def system_scalars():
+        nonlocal system_sample
+        system_sample += 1
+        return {
+            "throughput/target_tokens_per_second": float(system_sample),
+            "system/rss_bytes": system_sample,
+        }
+
+    monkeypatch.setattr(trainer, "_system_wandb_scalars", system_scalars)
+
+    trainer.fit()
+
+    assert tracking.logs[0]["optimizer_step"] == 2
+    assert tracking.logs[0]["system/rss_bytes"] == 1
+    assert tracking.summaries[-1]["run/final_optimizer_step"] == 3
+    assert tracking.summaries[-1]["system/rss_bytes"] == 2
+    assert tracking.summaries[-1]["throughput/target_tokens_per_second"] == 2.0
+
+
+def test_wandb_cuda_peaks_remain_run_level_across_measurement_intervals(
+    tmp_path: Path,
+    monkeypatch,
+):
+    trainer = _trainer(tmp_path, [_batch([[0, 1]])])
+    trainer.device = torch.device("cuda")
+    allocated = iter((100, 300, 200))
+    reserved = iter((400, 250, 500))
+    monkeypatch.setattr(torch.cuda, "max_memory_allocated", lambda _device: next(allocated))
+    monkeypatch.setattr(torch.cuda, "max_memory_reserved", lambda _device: next(reserved))
+
+    assert trainer._capture_cuda_run_peaks() == (100, 400)
+    assert trainer._capture_cuda_run_peaks() == (300, 250)
+    scalars = trainer._system_wandb_scalars()
+
+    assert scalars["system/cuda_peak_allocated_bytes"] == 300
+    assert scalars["system/cuda_peak_reserved_bytes"] == 500
+
+
+def test_wandb_logs_validation_at_its_exact_boundary_when_cadences_differ(tmp_path: Path):
+    trainer = _trainer(
+        tmp_path,
+        [_batch([[0, 1]]) for _ in range(4)],
+        max_steps=4,
+        log_every_n_steps=3,
+        validation_every_n_steps=2,
+    )
+    tracking = RecordingWandbTracker()
+    trainer.wandb = tracking
+
+    trainer.fit()
+
+    assert [(row["event"], row["optimizer_step"]) for row in tracking.logs] == [
+        ("validation_log", 2),
+        ("log", 3),
+        ("validation_log", 4),
+    ]
+    first_validation, training_log, second_validation = tracking.logs
+    assert first_validation["target_tokens"] == 4
+    assert first_validation["validation/nll"] > 0
+    assert "train/nll" not in first_validation
+    assert training_log["target_tokens"] == 6
+    assert training_log["train/nll"] > 0
+    assert not any(key.startswith(("validation/", "memorization/")) for key in training_log)
+    assert second_validation["target_tokens"] == 8
+    assert second_validation["validation/nll"] > 0
+    assert "train/nll" not in second_validation
+
+
+def test_wandb_logs_epoch_end_validation_after_a_same_step_training_log(tmp_path: Path):
+    trainer = _trainer(
+        tmp_path,
+        [_batch([[0, 1]]) for _ in range(3)],
+        max_steps=3,
+        log_every_n_steps=1,
+        validation_every_n_steps=None,
+    )
+    tracking = RecordingWandbTracker()
+    trainer.wandb = tracking
+
+    trainer.fit()
+
+    assert [(row["event"], row["optimizer_step"]) for row in tracking.logs] == [
+        ("log", 1),
+        ("log", 2),
+        ("log", 3),
+        ("validation_log", 3),
+    ]
+    assert not any(
+        key.startswith(("validation/", "memorization/")) for row in tracking.logs[:3] for key in row
+    )
+    final_validation = tracking.logs[-1]
+    assert final_validation["validation/nll"] > 0
+    assert "train/nll" not in final_validation
+
+
+def test_wandb_does_not_repeat_last_step_validation_in_the_epoch_log(tmp_path: Path):
+    trainer = _trainer(
+        tmp_path,
+        [_batch([[0, 1]]) for _ in range(3)],
+        max_steps=3,
+        log_every_n_steps=None,
+        validation_every_n_steps=3,
+    )
+    tracking = RecordingWandbTracker()
+    trainer.wandb = tracking
+
+    trainer.fit()
+
+    assert [(row["event"], row["optimizer_step"]) for row in tracking.logs] == [
+        ("validation_log", 3),
+        ("log", 3),
+    ]
+    assert tracking.logs[0]["validation/nll"] > 0
+    assert not any(key.startswith(("validation/", "memorization/")) for key in tracking.logs[1])
+
+
+def test_wandb_epoch_only_log_uses_token_weighted_epoch_aggregate(tmp_path: Path):
+    trainer = _trainer(
+        tmp_path,
+        [_batch([[3, 3]]), _batch([[0, 0]])],
+        max_steps=2,
+        log_every_n_steps=None,
+        validation_every_n_steps=99,
+    )
+    tracking = RecordingWandbTracker()
+    trainer.wandb = tracking
+
+    trainer.fit()
+
+    epoch = next(row for row in trainer.metrics if row["event"] == "epoch_summary")
+    last_step = [row for row in trainer.metrics if row["event"] == "step"][-1]
+    assert len(tracking.logs) == 1
+    assert tracking.logs[0]["train/nll"] == pytest.approx(epoch["train/loss"])
+    assert tracking.logs[0]["train/perplexity"] == pytest.approx(epoch["train/perplexity"])
+    assert tracking.logs[0]["train/nll"] != pytest.approx(last_step["train/loss_step"])
+
+
+def test_wandb_logs_reduce_on_plateau_validation_at_the_epoch_boundary(tmp_path: Path):
+    trainer = _trainer(
+        tmp_path,
+        [_batch([[0, 1]]) for _ in range(2)],
+        max_steps=2,
+        log_every_n_steps=1,
+        validation_every_n_steps=3,
+    )
+    trainer.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(trainer.optimizer)
+    trainer.scheduler_interval = "epoch"
+    tracking = RecordingWandbTracker()
+    trainer.wandb = tracking
+
+    trainer.fit()
+
+    assert [(row["event"], row["optimizer_step"]) for row in tracking.logs] == [
+        ("log", 1),
+        ("log", 2),
+        ("validation_log", 2),
+    ]
+    assert tracking.logs[-1]["validation/nll"] > 0
+    assert "train/nll" not in tracking.logs[-1]
 
 
 def test_benchmark_measurement_is_explicit_and_flushed_once(tmp_path: Path):
@@ -435,6 +691,29 @@ def test_nonfinite_gradient_records_context_before_counters_advance(tmp_path: Pa
     assert failure["batch_index"] == 1
 
 
+def test_nonfinite_failure_emits_compact_wandb_stability_event(tmp_path: Path):
+    trainer = _trainer(tmp_path, [_batch([[0, 1]])])
+    trainer.model = NaNGradientModel()
+    trainer.optimizer = torch.optim.SGD(trainer.model.parameters(), lr=0.0)
+    tracking = RecordingWandbTracker()
+    trainer.wandb = tracking
+
+    with pytest.raises(FloatingPointError, match="non-finite gradients"):
+        trainer.fit()
+
+    assert tracking.logs == [
+        {
+            "event": "nonfinite",
+            "optimizer_step": 0,
+            "target_tokens": 0,
+            "elapsed_seconds": trainer.elapsed_seconds,
+            "optimizer/nonfinite_count": 1,
+            "stability/nonfinite_kind": "gradients",
+            "stability/batch_index": 1,
+        }
+    ]
+
+
 def test_nonfinite_validation_records_context_and_stops(tmp_path: Path):
     trainer = _trainer(tmp_path, [_batch([[0, 1]])])
     trainer.model = NonFiniteValidationModel()
@@ -470,20 +749,26 @@ def test_reused_checkpoint_dir_truncates_metrics_per_run(tmp_path: Path):
     assert len(second_lines) < len(first_lines)
 
 
-def test_wandb_init_failure_preserves_previous_metrics(tmp_path: Path, monkeypatch):
+def test_wandb_init_failure_is_local_evidence_and_training_continues(tmp_path: Path, monkeypatch):
     metrics_path = tmp_path / "metrics.jsonl"
     previous = '{"optimizer_step": 99, "event": "previous-run"}\n'
     metrics_path.write_text(previous, encoding="utf-8")
     trainer = _trainer(tmp_path, [_batch([[0, 1]])])
-    trainer.cfg.wandb.enabled = True
+    trainer.cfg.wandb.mode = "offline"
 
     def fail_wandb_init(**kwargs):
         raise RuntimeError("simulated W&B initialization failure")
 
-    monkeypatch.setattr(trainer_module.wandb, "init", fail_wandb_init)
-    with pytest.raises(RuntimeError, match="W&B initialization failure"):
-        trainer.fit()
-    assert metrics_path.read_text(encoding="utf-8") == previous
+    monkeypatch.setattr(trainer.wandb.wandb, "init", fail_wandb_init)
+    trainer.fit()
+
+    assert "previous-run" not in metrics_path.read_text(encoding="utf-8")
+    events = [
+        json.loads(line)
+        for line in (tmp_path / "wandb_events.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+    assert any(event["action"] == "init" and event["outcome"] == "failed" for event in events)
+    assert (tmp_path / "final.pt").is_file()
 
 
 def test_accumulation_matches_one_combined_batch_with_dropout_disabled(tmp_path: Path):

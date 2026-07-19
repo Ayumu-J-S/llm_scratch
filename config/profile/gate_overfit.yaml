@@ -89,4 +89,4 @@ artifacts:
   resume_path: null
 
 wandb:
-  enabled: false
+  mode: disabled

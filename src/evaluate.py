@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import tempfile
 from collections.abc import Mapping
@@ -12,6 +13,7 @@ from typing import Any
 import hydra
 import wandb
 from hydra.core.hydra_config import HydraConfig
+from loguru import logger
 from omegaconf import DictConfig, OmegaConf
 
 from data.identity import canonical_json_bytes
@@ -34,6 +36,7 @@ from training.checkpoint import (
     configured_manifest_fingerprints,
     load_checkpoint_for_generation,
 )
+from training.wandb_tracking import call_bounded, finish_run_bounded
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -251,40 +254,89 @@ def _maybe_log_wandb(
     local_result_identity: Mapping[str, Any],
 ) -> None:
     wandb_cfg = evaluation_cfg.get("wandb", {}) or {}
-    if not wandb_cfg.get("enabled", False):
+    mode = str(wandb_cfg.get("mode", "disabled"))
+    if mode == "disabled":
         return
-    run = wandb.init(
-        project=wandb_cfg.get("project"),
-        entity=wandb_cfg.get("entity"),
-        name=wandb_cfg.get("name"),
-        mode=wandb_cfg.get("mode", "online"),
-    )
+    run = None
     try:
-        run.summary.update(
-            {
-                "evaluation/namespace": result.namespace,
-                "evaluation/nll": result.nll,
-                "evaluation/perplexity": result.perplexity,
-                "evaluation/target_tokens": result.target_tokens,
-                "evaluation/evaluated_windows": result.evaluated_windows,
-                "evaluation/evaluated_window_sha256": result.evaluated_window_sha256,
-                "evaluation/evaluated_token_sha256": result.evaluated_token_sha256,
-                "evaluation/pause_seconds": result.pause_seconds,
-                "evaluation/scorer_identity": {"revision": result.scorer_revision},
-                "evaluation/checkpoint_identity": {
-                    "kind": checkpoint_kind,
-                    "logical": result.logical_checkpoint_identity,
-                    "physical": result.physical_checkpoint_identity,
-                },
-                "evaluation/manifest_identity": result.manifest_identity,
-                "evaluation/local_result_identity": dict(local_result_identity),
-                "evaluation/by_corpus": {
-                    name: score.as_dict() for name, score in sorted(result.by_corpus.items())
-                },
-            }
+        init_timeout = float(wandb_cfg.get("init_timeout_seconds", 10.0))
+        if mode == "online":
+            login_succeeded = call_bounded(
+                lambda: wandb.login(
+                    force=True,
+                    verify=True,
+                    timeout=max(1, math.ceil(init_timeout)),
+                ),
+                timeout_seconds=init_timeout,
+                operation="W&B evaluation login verification",
+            )
+            if not login_succeeded:
+                raise RuntimeError("verified W&B login did not succeed")
+        finish_timeout = float(wandb_cfg.get("finish_timeout_seconds", 30.0))
+        run = call_bounded(
+            lambda: wandb.init(
+                project=wandb_cfg.get("project"),
+                entity=wandb_cfg.get("entity"),
+                name=wandb_cfg.get("name"),
+                mode=mode,
+                settings=wandb.Settings(init_timeout=init_timeout),
+            ),
+            timeout_seconds=init_timeout,
+            operation="W&B evaluation initialization",
+            on_late_result=lambda late_run: (
+                finish_run_bounded(
+                    late_run,
+                    timeout_seconds=finish_timeout,
+                )
+                if late_run is not None
+                else None
+            ),
+        )
+        if run is None:
+            raise RuntimeError("wandb.init returned no run")
+        summary = {
+            "evaluation/namespace": result.namespace,
+            "evaluation/nll": result.nll,
+            "evaluation/perplexity": result.perplexity,
+            "evaluation/target_tokens": result.target_tokens,
+            "evaluation/evaluated_windows": result.evaluated_windows,
+            "evaluation/evaluated_window_sha256": result.evaluated_window_sha256,
+            "evaluation/evaluated_token_sha256": result.evaluated_token_sha256,
+            "evaluation/pause_seconds": result.pause_seconds,
+            "evaluation/scorer_identity": {"revision": result.scorer_revision},
+            "evaluation/checkpoint_identity": {
+                "kind": checkpoint_kind,
+                "logical": result.logical_checkpoint_identity,
+                "physical": result.physical_checkpoint_identity,
+            },
+            "evaluation/manifest_identity": result.manifest_identity,
+            "evaluation/local_result_identity": dict(local_result_identity),
+            "evaluation/by_corpus": {
+                name: score.as_dict() for name, score in sorted(result.by_corpus.items())
+            },
+        }
+        call_bounded(
+            lambda: run.summary.update(summary),
+            timeout_seconds=init_timeout,
+            operation="W&B evaluation summary update",
+        )
+    except Exception as error:
+        logger.warning(
+            "Standalone W&B evaluation logging failed after local result commit: {}",
+            error,
         )
     finally:
-        run.finish()
+        if run is not None:
+            try:
+                finish_run_bounded(
+                    run,
+                    timeout_seconds=float(wandb_cfg.get("finish_timeout_seconds", 30.0)),
+                )
+            except Exception as error:
+                logger.warning(
+                    "Standalone W&B evaluation finish failed after local result commit: {}",
+                    error,
+                )
 
 
 @hydra.main(version_base=None, config_path="../config", config_name="train")

@@ -124,9 +124,34 @@ _TRAINING = {
 }
 _MODEL = {"embed_size", "num_heads", "num_layers", "dropout"}
 _ARTIFACTS = {"checkpoints_dir", "keep_last_n", "resume_path"}
-_WANDB = {"enabled", "project", "entity", "name", "mode", "log_model_every_n_epoch"}
+_WANDB = {
+    "mode",
+    "project",
+    "entity",
+    "name",
+    "init_timeout_seconds",
+    "log_timeout_seconds",
+    "finish_timeout_seconds",
+    "watch",
+    "artifact",
+}
+_WANDB_WATCH = {"enabled", "log", "log_freq"}
+_WANDB_ARTIFACT = {
+    "policy",
+    "usage_snapshot_path",
+    "max_usage_age_seconds",
+    "reserve_bytes",
+    "upload_timeout_seconds",
+}
 _EVALUATION = {"checkpoint_path", "output_path", "device", "wandb"}
-_EVALUATION_WANDB = {"enabled", "project", "entity", "name", "mode"}
+_EVALUATION_WANDB = {
+    "project",
+    "entity",
+    "name",
+    "mode",
+    "init_timeout_seconds",
+    "finish_timeout_seconds",
+}
 _MEASUREMENT = {"enabled", "warmup_optimizer_steps", "cuda_events", "output_path"}
 
 
@@ -264,12 +289,18 @@ def validate_evaluation_config(config: Mapping[str, Any] | DictConfig) -> dict[s
     if not isinstance(wandb_config, Mapping):
         raise ConfigPreflightError("evaluation.wandb must be a mapping")
     _check_keys(wandb_config, _EVALUATION_WANDB, "evaluation.wandb")
-    enabled = wandb_config.get("enabled", False)
-    if not isinstance(enabled, bool):
-        raise ConfigPreflightError("evaluation.wandb.enabled must be boolean")
-    mode = wandb_config.get("mode", "online")
-    if mode not in {"online", "offline"}:
-        raise ConfigPreflightError("evaluation.wandb.mode must be either 'online' or 'offline'")
+    mode = wandb_config.get("mode", "disabled")
+    if mode not in {"disabled", "online", "offline"}:
+        raise ConfigPreflightError("evaluation.wandb.mode must be disabled, online, or offline")
+    for key, default in (("init_timeout_seconds", 10.0), ("finish_timeout_seconds", 30.0)):
+        timeout = wandb_config.get(key, default)
+        if (
+            isinstance(timeout, bool)
+            or not isinstance(timeout, (int, float))
+            or not math.isfinite(float(timeout))
+            or float(timeout) <= 0
+        ):
+            raise ConfigPreflightError(f"evaluation.wandb.{key} must be positive")
     validate_measurement_config(cfg.get("measurement", {}))
     return cfg
 
@@ -321,6 +352,105 @@ def validate_training_config(config: Mapping[str, Any] | DictConfig) -> dict[str
         raise ConfigPreflightError("reproducibility.seed must be a non-negative integer")
 
     validate_measurement_config(cfg.get("measurement", {}))
+
+    wandb_config = _plain(cfg.get("wandb", {}))
+    _required(
+        wandb_config,
+        (
+            "mode",
+            "project",
+            "entity",
+            "init_timeout_seconds",
+            "log_timeout_seconds",
+            "finish_timeout_seconds",
+            "watch",
+            "artifact",
+        ),
+        "wandb",
+    )
+    if wandb_config["mode"] not in {"disabled", "offline", "online"}:
+        raise ConfigPreflightError("wandb.mode must be disabled, offline, or online")
+    for key in ("project", "entity"):
+        if not isinstance(wandb_config[key], str) or not wandb_config[key].strip():
+            raise ConfigPreflightError(f"wandb.{key} must be a non-empty string")
+    name = wandb_config.get("name")
+    if name is not None and (not isinstance(name, str) or not name.strip()):
+        raise ConfigPreflightError("wandb.name must be null or a non-empty string")
+    init_timeout = wandb_config.get("init_timeout_seconds")
+    if (
+        isinstance(init_timeout, bool)
+        or not isinstance(init_timeout, (int, float))
+        or not math.isfinite(float(init_timeout))
+        or float(init_timeout) <= 0
+    ):
+        raise ConfigPreflightError("wandb.init_timeout_seconds must be positive")
+    log_timeout = wandb_config.get("log_timeout_seconds")
+    if (
+        isinstance(log_timeout, bool)
+        or not isinstance(log_timeout, (int, float))
+        or not math.isfinite(float(log_timeout))
+        or float(log_timeout) <= 0
+    ):
+        raise ConfigPreflightError("wandb.log_timeout_seconds must be positive")
+    finish_timeout = wandb_config.get("finish_timeout_seconds")
+    if (
+        isinstance(finish_timeout, bool)
+        or not isinstance(finish_timeout, (int, float))
+        or not math.isfinite(float(finish_timeout))
+        or float(finish_timeout) <= 0
+    ):
+        raise ConfigPreflightError("wandb.finish_timeout_seconds must be positive")
+    watch = wandb_config["watch"]
+    if not isinstance(watch, Mapping):
+        raise ConfigPreflightError("wandb.watch must be a mapping")
+    _check_keys(watch, _WANDB_WATCH, "wandb.watch")
+    _required(watch, ("enabled", "log", "log_freq"), "wandb.watch")
+    if not isinstance(watch["enabled"], bool):
+        raise ConfigPreflightError("wandb.watch.enabled must be boolean")
+    if watch["log"] not in {"gradients", "parameters", "all"}:
+        raise ConfigPreflightError("wandb.watch.log must be gradients, parameters, or all")
+    if (
+        isinstance(watch["log_freq"], bool)
+        or not isinstance(watch["log_freq"], int)
+        or watch["log_freq"] < 1
+    ):
+        raise ConfigPreflightError("wandb.watch.log_freq must be positive")
+    artifact = wandb_config["artifact"]
+    if not isinstance(artifact, Mapping):
+        raise ConfigPreflightError("wandb.artifact must be a mapping")
+    _check_keys(artifact, _WANDB_ARTIFACT, "wandb.artifact")
+    _required(
+        artifact,
+        ("policy", "max_usage_age_seconds", "reserve_bytes", "upload_timeout_seconds"),
+        "wandb.artifact",
+    )
+    if artifact["policy"] not in {"none", "best", "final", "milestone"}:
+        raise ConfigPreflightError("wandb.artifact.policy must be none, best, final, or milestone")
+    usage_snapshot_path = artifact.get("usage_snapshot_path")
+    if usage_snapshot_path is not None and (
+        not isinstance(usage_snapshot_path, str) or not usage_snapshot_path.strip()
+    ):
+        raise ConfigPreflightError(
+            "wandb.artifact.usage_snapshot_path must be null or a non-empty path"
+        )
+    max_age = artifact["max_usage_age_seconds"]
+    if (
+        isinstance(max_age, bool)
+        or not isinstance(max_age, (int, float))
+        or not math.isfinite(float(max_age))
+        or float(max_age) <= 0
+    ):
+        raise ConfigPreflightError("wandb.artifact.max_usage_age_seconds must be positive")
+    reserve = artifact["reserve_bytes"]
+    if isinstance(reserve, bool) or not isinstance(reserve, int) or reserve < 0:
+        raise ConfigPreflightError("wandb.artifact.reserve_bytes must be non-negative")
+    upload_timeout = artifact["upload_timeout_seconds"]
+    if (
+        isinstance(upload_timeout, bool)
+        or not isinstance(upload_timeout, int)
+        or upload_timeout < 1
+    ):
+        raise ConfigPreflightError("wandb.artifact.upload_timeout_seconds must be positive")
 
     profile = _plain(cfg["profile"])
     _required(profile, ("name",), "profile")

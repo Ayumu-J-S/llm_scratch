@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "ticket": "WB-001",
+  "verdict": "FAIL",
+  "performance_claim": null,
+  "image_id": "sha256:23a1bee69fe189e77105cdddeee9aeff6ef0763d58a691625fbfcab64efd1887",
+  "attempts": [
+    {
+      "attempt": 10,
+      "measured_commit": "b8bf1bdad474dda1d276b31a66c9a6f5e78a594a",
+      "failure_stage": "cache_prime",
+      "completed_arms": [],
+      "failure": "The linked worktree's .git file referenced metadata outside the read-only container mount, so the run-manifest git status check failed closed with exit 128 before training comparison arms began.",
+      "retained_raw_evidence": "/tmp/wb001-r10-b8bf1bd-evidence",
+      "hashes": {
+        "matrix_env": "9b5ca65060d65868d76840aaffd19004f8b6cc85aaac482dc20e5f012d23934a",
+        "cache_prime_conditions": "3aab3fdbdcbd32e0fac05917061be66743ab228a56cfc4efca1386d931840f23",
+        "cache_prime_stderr": "245cd960a73af650bfad6afb718dc9fd158c71e2d58a885b6abbaaf25c05916d"
+      }
+    },
+    {
+      "attempt": 11,
+      "measured_commit": "b8bf1bdad474dda1d276b31a66c9a6f5e78a594a",
+      "failure_stage": "post_arm_inventory",
+      "completed_arms": [
+        {
+          "run_id": "r1-p1-disabled",
+          "exit_code": 0,
+          "cache_unchanged": true,
+          "measurement_sha256": "251157f58eac14b270b1257f84cbc14c29d40200c8b30964df9fd7c5144432d4"
+        }
+      ],
+      "failure": "The container-created measurement artifact was mode 0600 and owned by root, so the host-side immutable inventory failed closed with permission denied after the first arm. The partial arm is not reused as acceptance evidence.",
+      "retained_raw_evidence": "/tmp/wb001-r11-b8bf1bd-evidence",
+      "hashes": {
+        "matrix_env": "b4567d8606206d9333cd40367095cd7666f2b6fb28c6baed3feeb3c844af1eb2",
+        "cache_prime_conditions": "912c6d0e097d167f91347ef44f72e8916667ca2533da1a4827e2b4322a526f4b",
+        "arm_conditions": "149ebde5ab43e328eabcbb8be5c35dda0fb7179f637335e2ee5e7bdf423e275e",
+        "partial_arm_inventory": "419f8f152758c62ea241885c415bc1887c53b667590fad1b23f47d4003cea470"
+      }
+    }
+  ]
+}

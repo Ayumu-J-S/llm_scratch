@@ -33,7 +33,7 @@ train:
 	uv run python src/train.py
 
 smoke:
-	uv run python src/train.py profile=smoke_overfit runtime.device=cpu training.epochs=1 training.batch_size=2 wandb.enabled=false
+	uv run python src/train.py profile=smoke_overfit runtime.device=cpu training.epochs=1 training.batch_size=2 wandb.mode=disabled
 
 pretrain-streaming:
 	uv run python src/train.py profile=pretrain_streaming

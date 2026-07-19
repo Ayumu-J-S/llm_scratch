@@ -80,12 +80,24 @@ measurement:
   output_path: null
 
 wandb:
-  enabled: true
+  # Local metrics/manifests/checkpoints remain authoritative in every mode.
+  mode: disabled  # disabled | offline | online
   project: llm-scratch
   entity: sunday-research
   name: null
-  mode: online
-  log_model_every_n_epoch: null
+  init_timeout_seconds: 10
+  log_timeout_seconds: 5
+  finish_timeout_seconds: 30
+  watch:
+    enabled: false
+    log: gradients
+    log_freq: 1000
+  artifact:
+    policy: none  # none | best | final | milestone
+    usage_snapshot_path: null
+    max_usage_age_seconds: 900
+    reserve_bytes: 0
+    upload_timeout_seconds: 600
 
 hydra:
   run:
