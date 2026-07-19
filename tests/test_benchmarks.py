@@ -379,10 +379,10 @@ def test_injected_contamination_reports_source_and_document_id(monkeypatch, tmp_
     index = json.loads(index_files[0].read_text(encoding="utf-8"))
     assert index["index_identity_sha256"] == evidence["scan_index_identity_sha256"]
     assert index["index_identity"]["normalization_revision"] == (
-        "normalize-text-identity-nfc-strip-plus-json-object-v7"
+        "normalize-text-identity-nfc-strip-plus-json-object-v8"
     )
     assert index["index_identity"]["json_object_normalization_revision"] == (
-        "fail-closed-bounded-recursive-decoded-json-string-nfc-object-sha256-v6"
+        "lexical-depth-fail-closed-recursive-decoded-json-nfc-object-sha256-v7"
     )
     assert index["index_identity"]["matcher_revision"] == (
         "collision-verified-rolling-hash-codepoint-v1"
@@ -599,8 +599,7 @@ def test_decoded_json_traversal_enforces_each_exact_boundary():
         identities(total_bytes=candidate_bytes - 1)
     with pytest.raises(_JsonTraversalLimitExceeded, match="nodes"):
         identities(nodes=3)
-    with pytest.raises(_JsonTraversalLimitExceeded, match="depth"):
-        identities(depth=1)
+    assert identities(depth=1) == []
     with pytest.raises(_JsonTraversalLimitExceeded, match="decoded_strings"):
         identities(decoded_strings=1)
 
@@ -635,7 +634,8 @@ def test_decoded_json_rejects_recursive_normalized_key_collisions():
 
 
 def test_hostile_json_depth_is_a_non_match_and_later_record_still_scans():
-    hostile = '{"payload":' + "[" * 1_200 + '"x"' + "]" * 1_200 + "}"
+    hostile_array = '{"payload":' + "[" * 1_200 + '"x"' + "]" * 1_200 + "}"
+    hostile_object = '{"payload":' * 1_200 + '"x"' + "}" * 1_200
     valid_record = {"key": "later"}
     serialized = json.dumps(
         valid_record,
@@ -644,7 +644,8 @@ def test_hostile_json_depth_is_a_non_match_and_later_record_still_scans():
         separators=(",", ":"),
     )
 
-    assert list(_canonical_json_objects(hostile + "\n" + serialized)) == [serialized]
+    for hostile in (hostile_array, hostile_object):
+        assert list(_canonical_json_objects(hostile + "\n" + serialized)) == [serialized]
 
 
 def _decoded_string_budget_document(example: BenchmarkExample, *, prefixes: int) -> str:

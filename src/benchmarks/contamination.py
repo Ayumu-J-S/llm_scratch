@@ -27,12 +27,12 @@ from runtime.reproducibility import sha256_file
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 SHINGLE_CODEPOINTS = 48
-SCAN_REVISION = "BENCH-001-contamination-v9"
-NORMALIZATION_REVISION = "normalize-text-identity-nfc-strip-plus-json-object-v7"
+SCAN_REVISION = "BENCH-001-contamination-v10"
+NORMALIZATION_REVISION = "normalize-text-identity-nfc-strip-plus-json-object-v8"
 SCAN_INDEX_SCHEMA_VERSION = 2
 MATCHER_REVISION = "collision-verified-rolling-hash-codepoint-v1"
 JSON_OBJECT_NORMALIZATION_REVISION = (
-    "fail-closed-bounded-recursive-decoded-json-string-nfc-object-sha256-v6"
+    "lexical-depth-fail-closed-recursive-decoded-json-nfc-object-sha256-v7"
 )
 PRODUCER_IDENTITY_REVISION = "contamination-producer-v1"
 PRODUCER_SOURCE_SCOPE_REVISION = "src-python-pyproject-lock-v1"
@@ -729,6 +729,13 @@ def _decode_json_candidate(
     """Decode and normalize one JSON candidate without allowing parser failures to escape."""
 
     try:
+        if depth > budget.limits.depth:
+            raise _JsonTraversalLimitExceeded("depth")
+        if not _json_structure_within_depth(
+            text,
+            max_depth=budget.limits.depth - depth,
+        ):
+            return None
         budget.claim_parse(text, depth=depth)
         value = json.loads(text)
         decoded_values: list[tuple[str, int]] = []
@@ -748,6 +755,34 @@ def _decode_json_candidate(
         OverflowError,
     ):
         return None
+
+
+def _json_structure_within_depth(text: str, *, max_depth: int) -> bool:
+    """Reject over-depth JSON containers before version-dependent parser recursion."""
+
+    container_depth = 0
+    in_string = False
+    escaped = False
+    for character in text:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif character == '"':
+                in_string = False
+            elif character in "\r\n":
+                return False
+            continue
+        if character == '"':
+            in_string = True
+        elif character in "{[":
+            container_depth += 1
+            if container_depth > max_depth:
+                return False
+        elif character in "}]":
+            container_depth = max(0, container_depth - 1)
+    return True
 
 
 def _canonical_mappings(value: Any) -> Iterable[str]:

@@ -83,8 +83,12 @@
 | 60 | Full validation | PASS | Official CPU gate: 483 passed, 1 skipped; repository Ruff, resolved Hydra preflight, lock-drift detection, and disabled/offline process-tree-isolated smoke pass. Validation reused only the existing 4.2 MB benchmark cache with 426 GB free and did not launch a full training-corpus scan |
 | 61 | Supplemental exact-head re-audit | FAIL | Audit of clean head `cf67dcc` passed 127 focused tests and Ruff, then showed that one shared decoded-JSON budget could be exhausted by 4,095 tiny prefix objects in a 41.4 KB document. The later selected record became a silent non-match while the worker still reported `scan_complete=true`; byte, node, and decoded-string small-cap variants reproduced the same integrity failure |
 | 62 | Repair | Complete | Distinguished traversal-budget exhaustion from malformed/deep JSON non-matches. Byte, node, decoded-string, decode-depth, and candidate-count exhaustion now propagates as a source/document-scoped `ContaminationScanError` without raw text; the scan worker cannot construct a complete report or publish/cache an index. Bumped all scan/normalization/cache identities |
-| 63 | Focused and canonical validation | PASS | 81 benchmark/generation/config/reproducibility tests plus Ruff pass. The exact 4,095-prefix default reproduction fails closed with document diagnostics, 4,000 prefixes detects the target, each explicit cap fails closed, and the worker writes no index before a successful bounded rerun. Pinned canonical development acceptance remains 128/128 for both tasks across double-serialized, nested object/array, quoted-prose, and additional escaped-prose modes |
+| 63 | Focused and canonical validation | PASS | 81 benchmark/generation/config/reproducibility tests plus Ruff pass. The exact 4,095-prefix default reproduction fails closed with document diagnostics, 4,000 prefixes detects the target, byte/node/string/decode-depth exhaustion fails closed, structural overdepth is a bounded non-match, and the worker writes no index before a successful bounded rerun. Pinned canonical development acceptance remains 128/128 for both tasks across double-serialized, nested object/array, quoted-prose, and additional escaped-prose modes |
 | 64 | Full validation | PASS | Official CPU gate: 485 passed, 1 skipped; repository Ruff, resolved Hydra preflight, lock-drift detection, and disabled/offline process-tree-isolated smoke pass. Free disk remained 426 GB and no full training-corpus scan was launched |
+| 65 | Supplemental exact-head re-audit | PASS | Clean head `18bf6d5` preserved the 4,095-prefix fail-closed result, 4,000-prefix detection control, sanitized byte/node/string diagnostics, no report/index/stale-cache reuse, 128/128 wrapper detection, and deep-candidate handling; 81 focused tests, Ruff, and diff checks passed with no finding |
+| 66 | Exact-head GitHub validation | FAIL | Python 3.12 parsed the 1,200-level array candidate that Python 3.11 rejected with `RecursionError`; bounded normalization then surfaced a depth-exhaustion exception instead of treating the over-depth candidate as a non-match. Pytest failed 1 of 485 tests and correctly skipped downstream workflow steps |
+| 67 | Repair | Complete | Added a quote/escape-aware lexical object-and-array depth preflight before `json.loads`, making over-depth candidate behavior independent of Python parser recursion limits; bumped the scanner, normalizer, and cache identities. Genuine byte/node/string/decode-depth work exhaustion remains fail-closed |
+| 68 | Focused and full validation | PASS | Both 1,200-level array and object candidates are bounded non-matches followed by a detected valid record. The focused gate passes 81 tests; the local official CPU gate passes 485 tests with 1 skipped plus Ruff, Hydra, lock-drift, and disabled/offline process-tree smoke. Exact-head Python 3.12 GitHub validation remains pending on the new immutable commit |
 
 ## Resolved protocol
 
@@ -112,7 +116,9 @@
   limits, including nested object/array, double-serialized, and quoted-prose
   wrappers. Malformed or parser-overdepth candidates are bounded non-matches;
   exhaustion of any work limit fails the complete scan closed with source and
-  document identity and cannot publish reusable complete evidence.
+  document identity and cannot publish reusable complete evidence. A lexical
+  container-depth preflight makes parser-overdepth behavior independent of the
+  Python runtime's recursion threshold.
 
 ## Review selection
 
@@ -155,7 +161,9 @@ Decoded JSON strings are recursively inspected through object, array,
 double-serialized, and quoted-prose wrappers under strict per-document
 byte/node/depth/string caps; normalized-key collisions and parser recursion are
 non-matches rather than scan crashes, while actual traversal-budget exhaustion
-is an explicit incomplete-scan error that cannot become a cached PASS;
+is an explicit incomplete-scan error that cannot become a cached PASS. Lexical
+container-depth validation prevents Python-version-specific parser recursion
+behavior from changing that distinction;
 canonical acceptance covers every selected development record in both tasks.
 External comparisons separately attest the compiled prompt and scorer hashes,
 and generation rejects non-finite logits before any GSM8K token or score is
