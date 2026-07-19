@@ -355,12 +355,55 @@ Failed cycles are retained and must not be rewritten as passing cycles.
 
 ## Independent re-review
 
-- Commit reviewed: pending cycle-17 target-integration successor.
-- Prior findings disposition: cycle-1 through cycle-6 repairs implemented;
-  exact-head re-review pending.
-- New findings: pending.
-- Verdict: pending.
-- Evidence: pending.
+### Review cycle 7 — formal re-review of `5f90984`
+
+- Commit reviewed: `5f909846a833d063005c470660a36bf97f79e2aa` against
+  BENCH target `c31e96ed9dff530388c663c26d2bed2c2ecdd6ee`.
+- Selected `CHECK.md` sections: applicable 7, 8, and 9.1; real DGX generation,
+  human ratings, performance, and quality conclusions remained N/A.
+- Ticket acceptance result: `FAIL` because three evidence-integrity paths did
+  not yet bind or preserve the exact artifacts they claimed.
+- Philosophy alignment: the fixed protocol and private evidence structure held,
+  but immutable, fail-closed evidence requires these checks before reuse or
+  mutation.
+- Complexity / change-surface result: each repair belongs at an existing
+  identity, run-preparation, or import boundary.
+- ML-system result: `FAIL`; a false-clean scan cache or overwritten lineage
+  evidence could invalidate checkpoint comparison claims.
+- Verdict: `FAIL` because two P1 findings and one P2 finding remained.
+- Independent validation evidence: 533 tests passed with one skip before the
+  verdict.
+
+#### Findings
+
+| Severity | Area | What was wrong | Required action |
+| --- | --- | --- | --- |
+| P1 | contamination cache | The cache could hash current source while executing already-imported older code, or publish after producer identity drift | Bind loaded source identity and verify the producer identity again before cache reuse or publication |
+| P1 | resume evidence | A resume with foreign lineage could overwrite `resolved_config.yaml` before the manifest writer rejected it | Compare the checkpoint lineage with any existing run manifest before the first run-directory evidence write |
+| P2 | public bundle checksum | Import hashed canonical reserialization instead of the exact published bytes authenticated by the private mapping | Read, parse, and hash one exact public-bundle byte buffer |
+
+## Failed-review handoff — cycle 7
+
+- Reproduction: change producer source after import; resume into an occupied run
+  with a foreign verified checkpoint; or semantically reformat the published
+  public JSON before score import.
+- Constraints preserved: complete prompt scanning, exact run lineage, fixed
+  HUMAN protocol, 100 GB free, and no real generation/rating/GPU work.
+- Repair request: close all three evidence boundaries, add focused regressions,
+  rerun the CPU gate, and independently review the exact target-integrated head.
+
+## Repair cycle 7
+
+- Finding addressed: all three cycle-7 findings.
+- Change made: `5c5b44a` records the source snapshot loaded by the producer and
+  requires stable producer identity before cache reuse/publication; validates
+  existing run lineage before seeding or config persistence; and hashes the
+  exact bytes parsed as the public bundle.
+- Validation rerun: the three new regressions and existing tamper test pass;
+  the broader affected reproducibility/HUMAN gate passes 46 tests and Ruff.
+  About 456 GB remained free.
+- Remaining risk: BENCH advanced again during repair. Final target integration,
+  the complete CPU gate, and independent exact-head re-review remain pending.
 
 ## Merge authority and guarded audit
 
