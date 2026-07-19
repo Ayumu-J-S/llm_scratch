@@ -171,7 +171,7 @@ Updated 2026-07-18 against `origin/main` at `f33f95a`:
 
 | Order | Ticket | Priority | State | Depends on | Outcome |
 | ---: | --- | --- | --- | --- | --- |
-| 0 | PROV-001 | P0 | Done | — | Observable Codex model provenance for every implementation/review phase |
+| 0 | PROV-001 | P0 | Done | — | Historical provenance capture; active requirement retired |
 | 1 | DATA-001 | P0 | Done | — | Correct packed causal transitions |
 | 2 | TOK-001 | P0 | Done | — | One selected, pinned tokenizer used end to end |
 | 3 | DATA-002 | P0 | Done | — | Immutable manifests and disjoint split contract |
@@ -228,28 +228,18 @@ work.
 
 ## Ticket details
 
-### PROV-001 — Make Codex model provenance visible
+### PROV-001 — Historical agent-runtime provenance capture (retired)
 
-- **Goal:** Make the Codex product/model family, exact model identifier, and
-  reasoning mode auditable without inferring hidden runtime values.
-- **In scope:** A stdlib capture command, a versioned requested-vs-actual JSON
-  schema, redaction-safe provenance documentation, model-run template/workflow
-  guidance, and focused tests.
-- **Out of scope:** Runtime model selection or discovery, prompts, hidden
-  chain-of-thought, token counts, secrets, historical record rewrites, or ML
-  training behavior.
-- **Acceptance criteria:**
-  - Requested/config-default values are separate from values explicitly shown by
-    the active runtime.
-  - Exact model ID and reasoning mode are `not exposed by runtime` with an
-    unavailable reason when the runtime does not display them; no family-to-ID
-    or marketing-name inference is allowed.
-  - Capture records safe UTC/Git/CLI context and never emits prompts, hidden
-    chain-of-thought, token counts, secrets, or raw thread IDs.
-  - Focused and repository tests plus lint pass, and the PR links the complete
-    model-run record and execution trail.
-- **Validation:** Focused provenance tests, full repository tests, Ruff, and a
-  CLI JSON smoke capture. No training run is required.
+- **Historical outcome:** PR [#17](https://github.com/Ayumu-J-S/llm_scratch/pull/17)
+  added a redaction-safe capture utility, schema, documentation, and tests for
+  agent-runtime provenance.
+- **Retirement note (2026-07-19):** The repository no longer selects or records
+  agent runtime identity or reasoning settings. Active work preserves
+  implementation context, `/review` findings, repairs, outcomes, and evidence
+  directly in the pull request. Existing records remain unchanged as historical
+  evidence, and the capture utility is not an active workflow requirement.
+- **State:** `Done (retired)`. This historical ticket has no dependency role and
+  creates no acceptance gate for current roadmap work.
 
 ### ENV-001 — Make the runtime CUDA-capable on DGX Spark
 

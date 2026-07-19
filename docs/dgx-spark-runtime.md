@@ -11,8 +11,8 @@ The recorded linux/arm64 child manifest is
 `sha256:dcae8df08ef61b019b8eb109113428cba4ef0e37484c6e722406150dd5ada759`.
 NVIDIA documents Docker GPU access on DGX Spark and delivers current framework
 support through NGC containers. The selected release contains PyTorch
-2.13.0a0+8145d630e8 and CUDA 13.3.0; check the committed model-run record for
-source links and the exact machine evidence.
+2.13.0a0+8145d630e8 and CUDA 13.3.0; [PR #15](https://github.com/Ayumu-J-S/llm_scratch/pull/15)
+and the commands below preserve the source links and exact machine evidence.
 
 ## Build from pinned inputs
 

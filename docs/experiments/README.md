@@ -2,8 +2,8 @@
 
 Every experiment uses one roadmap ticket, one focused branch, and one explicit
 hypothesis. Name branches `codex/<ticket-lower>-<slug>`, for example
-`codex/exp-001-review-record`. Give both the experiment and model-run records
-the matching `<TICKET>-<slug>.md` basename. If the question changes, stop and open a new
+`codex/exp-001-review-record`. Give the experiment record the matching
+`<TICKET>-<slug>.md` basename. If the question changes, stop and open a new
 ticket/branch/record rather than growing the original experiment in place.
 
 ## Current research state
@@ -20,18 +20,17 @@ The baseline statement above is deliberately stronger than "the code runs."
 Change it only when merged evidence satisfies the roadmap readiness gates and
 identifies the baseline commit and run.
 
-## Two records with different purposes
+## Experiment evidence and review evidence
 
 `docs/experiments/<ticket>-<slug>.md` is the scientific and operational record.
 It declares the hypothesis and budget before a run, then preserves every
 attempt's resolved configuration, identities, measurements, failures, evidence,
 comparison, and conclusion.
 
-`docs/model-runs/<ticket>-<slug>.md` is model-execution provenance for the code
-and documentation change. It records which implementation and independent
-review models were invoked, their exposed reasoning modes, outcomes, repair
-cycles, and review verdict. It does not replace experiment evidence; the two
-records cross-link when a PR contains a consequential run.
+The pull request is the implementation and review handoff. It preserves the
+change rationale, `/review` findings, repair cycles, validation, risks, and
+final verdict. It does not replace experiment evidence; the PR and experiment
+record cross-link when a change contains a consequential run.
 
 ## Fresh-agent read path
 
@@ -42,8 +41,7 @@ A fresh agent should read, in order:
    and next Ready question.
 3. This file for the record contract and current baseline pointer.
 4. The selected file in `docs/experiments/` for run evidence.
-5. The linked file in `docs/model-runs/` for implementation/review provenance.
-6. The draft PR for the live diff, validation, unresolved uncertainty, and the
+5. The draft PR for the live diff, review findings, validation, unresolved uncertainty, and the
    human decision requested.
 
 Copy `TEMPLATE.md` before doing consequential work. Fill predeclared fields

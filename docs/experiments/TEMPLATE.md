@@ -7,7 +7,7 @@
 - Status: planned / running / concluded
 - Started (UTC):
 - Last updated (UTC):
-- Model-run provenance: `docs/model-runs/<ticket>-<slug>.md`
+- Review evidence: draft PR body/comments
 
 ## Predeclared question and decision rule
 

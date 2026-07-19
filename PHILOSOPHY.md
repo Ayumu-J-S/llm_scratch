@@ -253,8 +253,8 @@ Autonomy includes responsibility. An agent must:
 Agents may create branches, commit, push, and open pull requests. Human review
 and merge is the default. A human may explicitly authorize an agent to merge one
 named pull request or a bounded ticket or goal series. The authorization must
-identify that scope and be recorded in both the pull request and model-run
-record; it cannot be inferred from tool access or a general desire for autonomy.
+identify that scope and be recorded in the pull request; it cannot be inferred
+from tool access or a general desire for autonomy.
 The most recent human instruction controls, and ambiguity or revocation restores
 the human-merge default.
 
@@ -275,8 +275,8 @@ below is satisfied for the exact head commit:
   because the current status list is empty;
 - the pull request is up to date with its target branch, conflict-free, and
   reported mergeable;
-- the model-run record, ledger, pull-request execution trail, validation
-  evidence, risks, and authorization evidence are complete and agree; and
+- the pull-request implementation and review trail, validation evidence, risks,
+  and authorization evidence are complete and agree; and
 - the merging agent performs and records a final audit of these gates in the PR
   at the exact reviewed head, without creating a new unreviewed commit; and
 - immediately before invoking merge, the merging agent re-fetches authorization,

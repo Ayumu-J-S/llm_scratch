@@ -14,17 +14,16 @@
 - Out of scope:
 - Baseline commit/run:
 
-## Model execution trail — required
+## Implementation, review, and repair trail — required
 
-- Detailed record: `docs/model-runs/<ticket>-<slug>.md`
+Never delete a failed or blocked cycle.
 
-| Cycle | Phase | Exact model identifier | Reasoning mode | Outcome | Important finding or change |
+| Cycle | Phase | Input commit/context | Outcome | Important finding or change | Evidence |
 | ---: | --- | --- | --- | --- | --- |
 
-- [ ] Every implementation, review, repair, and re-review model is listed.
-- [ ] Model IDs and modes are copied from the runtime, not inferred. Unavailable values say `not exposed by runtime`.
-- [ ] Failed cycles and their handoffs remain in the detailed record.
-- [ ] `docs/model-runs/README.md` summary and aggregate counts are updated.
+- [ ] Every implementation, review, repair, and re-review cycle is listed.
+- [ ] Failed cycles and their handoffs remain visible.
+- [ ] The latest review covers the exact proposed head.
 
 ## Implementation
 
@@ -42,7 +41,6 @@ For every consequential attempt, including negative and aborted attempts:
 
 ## Post-implementation review — required
 
-- Review model / mode:
 - Commit reviewed:
 - Relevant `PHILOSOPHY.md` principles:
 - Selected `CHECK.md` sections:
@@ -50,26 +48,25 @@ For every consequential attempt, including negative and aborted attempts:
 - Ticket acceptance result:
 - Complexity / change-surface result:
 - ML-system result:
-- Final verdict: `PASS` / `PASS WITH NOTE` / `FAIL`
+- Final verdict: `PASS` / `PASS WITH NOTE` / `FAIL` / `blocked`
 
 ## Review failures and repairs
 
 For every failed review, state:
 
-- what was wrong and where
-- evidence or reproduction path
-- implementation model that produced it
-- repair model selected and why
-- context handed to the repair model
-- resulting change
-- independent re-review model and verdict
+- what was wrong and where;
+- evidence or reproduction path;
+- context handed to the repair pass;
+- resulting change; and
+- re-review verdict and evidence.
 
 Write `N/A — first review passed` only when no repair cycle occurred.
 
 ## Validation and evidence
 
-The `CHECK.md` review does not automatically require new generic tests. List the ticket-required checks,
-real ML-system observations, measurements, and any tests that were actually necessary.
+The `CHECK.md` review does not automatically require new generic tests. List
+the ticket-required checks, real ML-system observations, measurements, and any
+tests that were actually necessary.
 
 - Commands:
 - Acceptance evidence:
@@ -86,7 +83,7 @@ real ML-system observations, measurements, and any tests that were actually nece
 - Human decision requested:
 - Exactly one next question or step:
 
-- [ ] The PR is not marked ready while the latest model review is `FAIL`.
+- [ ] The PR is not marked ready while the latest review is `FAIL` or `blocked`.
 
 ## Merge authority and final audit — required
 
@@ -94,8 +91,8 @@ real ML-system observations, measurements, and any tests that were actually nece
 - Human authorization: exact instruction, scope, date/context, or `N/A — human merge`
 - Authorization covers this named PR or bounded ticket/goal series: yes / no / N/A
 - Exact reviewed head SHA:
-- Latest independent verdict / model / mode:
-- Actionable findings repaired and independently re-reviewed:
+- Latest review verdict:
+- Actionable findings repaired and re-reviewed:
 - Blocking review decision / outstanding `CHANGES_REQUESTED` evidence:
 - Newer human objections since authorization/review: none / details
 - Human review dismissed by an agent: no / yes (yes blocks self-merge)
@@ -107,7 +104,7 @@ real ML-system observations, measurements, and any tests that were actually nece
 - No-check evidence when both inventories are empty: evidence / N/A
 - Target branch and current base SHA:
 - Up-to-date, conflict-free, and mergeable evidence:
-- Model-run record, ledger, PR trail, evidence, and risks agree:
+- PR trail, validation evidence, risks, and authorization agree:
 - Prohibited self-merge categories reviewed: clear / blocked (state why)
 - Admin, protection bypass, force merge, or disabled checks required: no / yes
 - Final audit recorded at (PR body/comment URL or `pending human merge`):
@@ -119,4 +116,3 @@ real ML-system observations, measurements, and any tests that were actually nece
 - [ ] No human review was dismissed by an agent to clear a merge gate.
 - [ ] No absent, pending, skipped, cancelled, failed, or otherwise non-successful expected check was waived.
 - [ ] The final audit did not create an unreviewed head commit.
-- [ ] This is not the bootstrap PR that introduces guarded self-merge.
