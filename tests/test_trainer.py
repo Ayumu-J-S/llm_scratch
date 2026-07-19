@@ -214,7 +214,7 @@ def test_benchmark_measurement_is_explicit_and_flushed_once(tmp_path: Path):
     trainer.fit()
 
     payload = json.loads((tmp_path / "timing.json").read_text(encoding="utf-8"))
-    assert payload["schema_version"] == 2
+    assert payload["schema_version"] == 3
     assert payload["complete"] is True
     assert len(payload["segments"]) == 1
     segment = payload["segments"][0]

@@ -239,7 +239,7 @@ def test_measurement_evidence_preserves_verified_segments_across_resume(tmp_path
     resumed.fit()
 
     payload = json.loads(resumed_path.read_text(encoding="utf-8"))
-    assert payload["schema_version"] == 2
+    assert payload["schema_version"] == 3
     assert payload["complete"] is True
     assert payload["segments"][0] == first_segment
     assert len(payload["segments"]) == 2
@@ -258,6 +258,186 @@ def test_measurement_evidence_preserves_verified_segments_across_resume(tmp_path
     ]
     assert suffix_steps == [4, 5, 6]
     assert json.loads(first_path.read_text(encoding="utf-8")) == first_payload
+
+
+@pytest.mark.parametrize(
+    ("save_method", "kind"),
+    [
+        ("_save_checkpoint", "recovery"),
+        ("_save_best_checkpoint", "best"),
+        ("_save_final_checkpoint", "final"),
+        ("_save_milestone_checkpoint", "milestone"),
+    ],
+)
+def test_every_checkpoint_kind_embeds_a_durable_measurement_boundary_before_metrics(
+    tmp_path: Path, save_method: str, kind: str
+):
+    checkpoint_dir = tmp_path / kind / "checkpoints"
+    measurement_path = tmp_path / kind / "measurement.json"
+    measurement = {
+        "enabled": True,
+        "warmup_optimizer_steps": 0,
+        "cuda_events": False,
+        "output_path": str(measurement_path),
+    }
+    _seed_all()
+    trainer = _trainer(checkpoint_dir, measurement=measurement)
+    trainer.optimizer_step = 1
+    trainer.target_tokens = 2
+    trainer.train_loader.dataset.position = 1
+    trainer._initialize_measurements()
+
+    checkpoint_path = getattr(trainer, save_method)()
+
+    artifact = json.loads(measurement_path.read_text(encoding="utf-8"))
+    boundary = artifact["checkpoint_boundaries"][-1]
+    assert boundary["kind"] == kind
+    assert boundary["status"] == "committed"
+    assert boundary["counters"] == trainer.counters
+    assert artifact["segments"][0]["rows"] == []
+    checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+    assert checkpoint["kind"] == kind
+    assert checkpoint["state"]["measurement_evidence"]["checkpoint_boundary"] == {
+        key: boundary[key]
+        for key in (
+            "boundary_index",
+            "boundary_id",
+            "evidence_id",
+            "segment_index",
+            "kind",
+            "counters",
+        )
+    }
+
+    _seed_all()
+    resumed = _trainer(
+        checkpoint_dir,
+        resume_path=checkpoint_path,
+        measurement=measurement,
+    )
+    resumed._initialize_measurements()
+    assert resumed.optimizer_step == 1
+
+
+def test_pending_boundary_with_matching_verified_checkpoint_survives_hard_interruption(
+    tmp_path: Path, monkeypatch
+):
+    checkpoint_dir = tmp_path / "checkpoints"
+    measurement_path = tmp_path / "measurement.json"
+    measurement = {
+        "enabled": True,
+        "warmup_optimizer_steps": 0,
+        "cuda_events": False,
+        "output_path": str(measurement_path),
+    }
+    _seed_all()
+    interrupted = _trainer(checkpoint_dir, measurement=measurement)
+    interrupted.optimizer_step = 3
+    interrupted.target_tokens = 6
+    interrupted.train_loader.dataset.position = 3
+    interrupted._initialize_measurements()
+    original_flush = interrupted._flush_measurements
+    flush_calls = 0
+
+    def interrupt_after_verified_save() -> None:
+        nonlocal flush_calls
+        flush_calls += 1
+        if flush_calls == 2:
+            raise InterruptedRun("hard interruption before boundary promotion")
+        original_flush()
+
+    monkeypatch.setattr(interrupted, "_flush_measurements", interrupt_after_verified_save)
+    with pytest.raises(InterruptedRun, match="boundary promotion"):
+        interrupted._save_checkpoint()
+
+    artifact = json.loads(measurement_path.read_text(encoding="utf-8"))
+    assert artifact["checkpoint_boundaries"][-1]["status"] == "pending"
+    checkpoint_path = checkpoint_dir / "recovery-step-000000000003.pt"
+    assert checkpoint_path.is_file()
+
+    _seed_all()
+    resumed = _trainer(checkpoint_dir, resume_path="latest", measurement=measurement)
+    resumed._initialize_measurements()
+    assert resumed.optimizer_step == 3
+
+
+def test_resume_rejects_checkpoint_payload_kind_that_differs_from_boundary(tmp_path: Path):
+    checkpoint_dir = tmp_path / "checkpoints"
+    measurement_path = tmp_path / "measurement.json"
+    measurement = {
+        "enabled": True,
+        "warmup_optimizer_steps": 0,
+        "cuda_events": False,
+        "output_path": str(measurement_path),
+    }
+    _seed_all()
+    trainer = _trainer(checkpoint_dir, measurement=measurement)
+    trainer.optimizer_step = 1
+    trainer.target_tokens = 2
+    trainer.train_loader.dataset.position = 1
+    trainer._initialize_measurements()
+    checkpoint_path = trainer._save_checkpoint()
+    checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+    checkpoint["kind"] = "milestone"
+    torch.save(checkpoint, checkpoint_path)
+
+    _seed_all()
+    with pytest.raises(CheckpointCompatibilityError, match="checkpoint kind differs"):
+        _trainer(checkpoint_dir, resume_path=checkpoint_path, measurement=measurement)
+
+
+def test_failed_checkpoint_save_leaves_no_accepted_boundary_and_older_resume_works(
+    tmp_path: Path, monkeypatch
+):
+    checkpoint_dir = tmp_path / "checkpoints"
+    measurement_path = tmp_path / "measurement.json"
+    measurement = {
+        "enabled": True,
+        "warmup_optimizer_steps": 0,
+        "cuda_events": False,
+        "output_path": str(measurement_path),
+    }
+    _seed_all()
+    trainer = _trainer(checkpoint_dir, measurement=measurement)
+    trainer.optimizer_step = 1
+    trainer.target_tokens = 2
+    trainer.train_loader.dataset.position = 1
+    trainer._initialize_measurements()
+    older = trainer._save_checkpoint()
+    trainer.optimizer_step = 2
+    trainer.target_tokens = 4
+    trainer.train_loader.dataset.position = 2
+
+    monkeypatch.setattr(
+        trainer.checkpoints,
+        "save_recovery",
+        lambda _state: (_ for _ in ()).throw(OSError("injected checkpoint write failure")),
+    )
+    with pytest.raises(OSError, match="injected checkpoint write failure"):
+        trainer._save_checkpoint()
+
+    artifact = json.loads(measurement_path.read_text(encoding="utf-8"))
+    assert [boundary["status"] for boundary in artifact["checkpoint_boundaries"]] == [
+        "committed",
+        "failed",
+    ]
+    assert artifact["checkpoint_boundaries"][-1]["checkpoint_path"] is None
+    assert list(checkpoint_dir.glob("recovery-step-*.pt")) == [older]
+
+    _seed_all()
+    resumed = _trainer(checkpoint_dir, resume_path="latest", measurement=measurement)
+    resumed.fit()
+    assert resumed.optimizer_step == 6
+    resumed_artifact = json.loads(measurement_path.read_text(encoding="utf-8"))
+    older_boundary_id = resumed_artifact["checkpoint_boundaries"][0]["boundary_id"]
+    assert resumed_artifact["segments"][0]["end_counters"]["optimizer_step"] == 2
+    assert resumed_artifact["segments"][1]["start_counters"]["optimizer_step"] == 1
+    assert resumed_artifact["segments"][1]["parent_boundary_id"] == older_boundary_id
+
+    _seed_all()
+    second_resume = _trainer(checkpoint_dir, resume_path="latest", measurement=measurement)
+    second_resume._initialize_measurements()
+    assert second_resume.optimizer_step == 6
 
 
 @pytest.mark.parametrize("mismatch", ["identity", "evidence_chain", "resume_boundary"])
@@ -293,12 +473,12 @@ def test_resume_rejects_mismatched_prior_measurement_evidence_before_training(
         payload["measurement_evidence_id"] = "unrelated-evidence-chain"
         expected_error = "chain identity"
     else:
-        checkpoint_row = next(
-            row
-            for row in payload["segments"][0]["rows"]
-            if row["event"] == "checkpoint" and row["optimizer_step"] == 3
+        checkpoint_boundary = next(
+            boundary
+            for boundary in payload["checkpoint_boundaries"]
+            if boundary["kind"] == "recovery" and boundary["counters"]["optimizer_step"] == 3
         )
-        checkpoint_row["event"] = "scheduled_log"
+        checkpoint_boundary["kind"] = "milestone"
         expected_error = "resume boundary"
     measurement_path.write_text(json.dumps(payload), encoding="utf-8")
 
