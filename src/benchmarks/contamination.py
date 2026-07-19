@@ -27,12 +27,12 @@ from runtime.reproducibility import sha256_file
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 SHINGLE_CODEPOINTS = 48
-SCAN_REVISION = "BENCH-001-contamination-v10"
-NORMALIZATION_REVISION = "normalize-text-identity-nfc-strip-plus-json-object-v8"
+SCAN_REVISION = "BENCH-001-contamination-v11"
+NORMALIZATION_REVISION = "normalize-text-identity-nfc-strip-plus-json-object-v9"
 SCAN_INDEX_SCHEMA_VERSION = 2
 MATCHER_REVISION = "collision-verified-rolling-hash-codepoint-v1"
 JSON_OBJECT_NORMALIZATION_REVISION = (
-    "lexical-depth-fail-closed-recursive-decoded-json-nfc-object-sha256-v7"
+    "constant-memory-leaf-fail-closed-decoded-json-nfc-object-sha256-v8"
 )
 PRODUCER_IDENTITY_REVISION = "contamination-producer-v1"
 PRODUCER_SOURCE_SCOPE_REVISION = "src-python-pyproject-lock-v1"
@@ -824,10 +824,7 @@ def _canonical_json_objects(
         if decode_depth >= budget.limits.depth and _may_contain_json(candidate_text):
             raise _JsonTraversalLimitExceeded("depth")
         object_ranges: list[tuple[int, int]] = []
-        for start, end, structural_depth in _embedded_json_object_ranges(
-            candidate_text,
-            max_depth=budget.limits.depth - decode_depth,
-        ):
+        for start, end, structural_depth in _embedded_json_object_ranges(candidate_text):
             if len(object_ranges) >= budget.limits.nodes:
                 raise _JsonTraversalLimitExceeded("nodes")
             object_ranges.append((start, end))
@@ -909,47 +906,15 @@ def _may_contain_json(text: str) -> bool:
 
 def _embedded_json_object_ranges(
     text: str,
-    *,
-    max_depth: int,
 ) -> Iterable[tuple[int, int, int]]:
-    """Yield disjoint innermost balanced object ranges outside JSON strings."""
+    """Yield disjoint leaf objects with constant state, regardless of wrapper depth."""
 
-    if max_depth < 1:
-        return
-    starts: list[int] = []
-    has_nested_object: list[bool] = []
-    overflow_depth = 0
+    object_depth = 0
+    leaf_start: int | None = None
+    leaf_depth = 0
     in_string = False
     escaped = False
     for index, character in enumerate(text):
-        if overflow_depth:
-            if in_string:
-                if escaped:
-                    escaped = False
-                elif character == "\\":
-                    escaped = True
-                elif character == '"':
-                    in_string = False
-                elif character in "\r\n":
-                    in_string = False
-                    escaped = False
-            elif character == '"':
-                in_string = True
-            elif character == "{":
-                overflow_depth += 1
-            elif character == "}":
-                overflow_depth -= 1
-                if overflow_depth == 0:
-                    in_string = False
-                    escaped = False
-            continue
-        if not starts:
-            if character == "{":
-                starts.append(index)
-                has_nested_object.append(False)
-                in_string = False
-                escaped = False
-            continue
         if in_string:
             if escaped:
                 escaped = False
@@ -958,28 +923,27 @@ def _embedded_json_object_ranges(
             elif character == '"':
                 in_string = False
             elif character in "\r\n":
-                starts.clear()
-                has_nested_object.clear()
+                object_depth = 0
+                leaf_start = None
+                leaf_depth = 0
                 in_string = False
                 escaped = False
             continue
         if character == '"':
             in_string = True
         elif character == "{":
-            if len(starts) >= max_depth:
-                overflow_depth = len(starts) + 1
-                starts.clear()
-                has_nested_object.clear()
-                continue
-            has_nested_object[-1] = True
-            starts.append(index)
-            has_nested_object.append(False)
+            object_depth += 1
+            leaf_start = index
+            leaf_depth = object_depth
         elif character == "}":
-            start = starts.pop()
-            nested = has_nested_object.pop()
-            if not nested:
-                yield start, index + 1, len(starts)
-            if not starts:
+            if object_depth == 0:
+                continue
+            if leaf_start is not None and object_depth == leaf_depth:
+                yield leaf_start, index + 1, 0
+                leaf_start = None
+                leaf_depth = 0
+            object_depth -= 1
+            if object_depth == 0:
                 in_string = False
                 escaped = False
 

@@ -89,6 +89,9 @@
 | 66 | Exact-head GitHub validation | FAIL | Python 3.12 parsed the 1,200-level array candidate that Python 3.11 rejected with `RecursionError`; bounded normalization then surfaced a depth-exhaustion exception instead of treating the over-depth candidate as a non-match. Pytest failed 1 of 485 tests and correctly skipped downstream workflow steps |
 | 67 | Repair | Complete | Added a quote/escape-aware lexical object-and-array depth preflight before `json.loads`, making over-depth candidate behavior independent of Python parser recursion limits; bumped the scanner, normalizer, and cache identities. Genuine byte/node/string/decode-depth work exhaustion remains fail-closed |
 | 68 | Focused and full validation | PASS | Both 1,200-level array and object candidates are bounded non-matches followed by a detected valid record. The focused gate passes 81 tests; the local official CPU gate passes 485 tests with 1 skipped plus Ruff, Hydra, lock-drift, and disabled/offline process-tree smoke. Exact-head Python 3.12 GitHub validation remains pending on the new immutable commit |
+| 69 | Supplemental exact-head re-audit | FAIL | Audit of `4c99976` showed that 32 enclosing object wrappers cleared the bounded extractor stack and ignored the selected innermost record. The full scan then published and cached `scan_complete=true`, `contaminated=false`; 31 wrappers detected the target, and deep array wrappers were unaffected |
+| 70 | Repair | Complete | Replaced the object-start stack and overflow-discard branch with a single-pass constant-memory leaf extractor. It tracks only object depth plus the newest candidate start/depth, yielding safe innermost objects at local depth while never parsing an enclosing deep candidate. Bumped all scan/normalizer/cache identities |
+| 71 | Focused, canonical, and full validation | PASS | Direct and full-scan regressions detect the selected record under 40 object, array, and mixed wrapper layers and prove the cached report is contaminated. The 1,200-level array/object and 4,095-prefix controls still pass; 83 focused tests pass. Pinned canonical 40-level object/mixed acceptance is 128/128 for both tasks. The official CPU gate passes 487 tests with 1 skipped plus Ruff, Hydra, lock-drift, and disabled/offline process-tree smoke |
 
 ## Resolved protocol
 
@@ -118,7 +121,9 @@
   exhaustion of any work limit fails the complete scan closed with source and
   document identity and cannot publish reusable complete evidence. A lexical
   container-depth preflight makes parser-overdepth behavior independent of the
-  Python runtime's recursion threshold.
+  Python runtime's recursion threshold. A constant-memory leaf-object extractor
+  still recovers safe innermost records from arbitrarily deep object, array, or
+  mixed wrappers without parsing the over-depth envelope.
 
 ## Review selection
 
@@ -136,7 +141,7 @@
 
 ## Current conclusion
 
-All sixteen failed review/audit cycles remain visible. Their thirty-four findings are
+All seventeen failed review/audit cycles remain visible. Their thirty-five findings are
 repaired without weakening the fixed protocol or complete contamination gate:
 cheap context incompatibility precedes scanning, both tasks honor checkpoint
 precision, external records are pinned, evaluator/runtime and dirty source
@@ -163,7 +168,8 @@ byte/node/depth/string caps; normalized-key collisions and parser recursion are
 non-matches rather than scan crashes, while actual traversal-budget exhaustion
 is an explicit incomplete-scan error that cannot become a cached PASS. Lexical
 container-depth validation prevents Python-version-specific parser recursion
-behavior from changing that distinction;
+behavior from changing that distinction, while constant-memory leaf extraction
+prevents deep enclosing objects from hiding a safe innermost benchmark record;
 canonical acceptance covers every selected development record in both tasks.
 External comparisons separately attest the compiled prompt and scorer hashes,
 and generation rejects non-finite logits before any GSM8K token or score is

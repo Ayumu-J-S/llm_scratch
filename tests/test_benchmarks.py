@@ -379,10 +379,10 @@ def test_injected_contamination_reports_source_and_document_id(monkeypatch, tmp_
     index = json.loads(index_files[0].read_text(encoding="utf-8"))
     assert index["index_identity_sha256"] == evidence["scan_index_identity_sha256"]
     assert index["index_identity"]["normalization_revision"] == (
-        "normalize-text-identity-nfc-strip-plus-json-object-v8"
+        "normalize-text-identity-nfc-strip-plus-json-object-v9"
     )
     assert index["index_identity"]["json_object_normalization_revision"] == (
-        "lexical-depth-fail-closed-recursive-decoded-json-nfc-object-sha256-v7"
+        "constant-memory-leaf-fail-closed-decoded-json-nfc-object-sha256-v8"
     )
     assert index["index_identity"]["matcher_revision"] == (
         "collision-verified-rolling-hash-codepoint-v1"
@@ -645,16 +645,103 @@ def test_hostile_json_depth_is_a_non_match_and_later_record_still_scans():
     )
 
     for hostile in (hostile_array, hostile_object):
-        assert list(_canonical_json_objects(hostile + "\n" + serialized)) == [serialized]
+        assert list(_canonical_json_objects(hostile + "\n" + serialized))[-1] == serialized
 
 
-def _decoded_string_budget_document(example: BenchmarkExample, *, prefixes: int) -> str:
+def _structured_adversarial_record(example: BenchmarkExample) -> str:
     reordered = {
         key: unicodedata.normalize("NFD", value) if isinstance(value, str) else value
         for key, value in reversed(list(example.record.items()))
     }
-    target = json.dumps(reordered, ensure_ascii=True, indent=2)
-    return ('{"n":"x"}\n' * prefixes) + target
+    return json.dumps(reordered, ensure_ascii=True, indent=2)
+
+
+def _decoded_string_budget_document(example: BenchmarkExample, *, prefixes: int) -> str:
+    return ('{"n":"x"}\n' * prefixes) + _structured_adversarial_record(example)
+
+
+def test_selected_record_survives_overdepth_object_array_and_mixed_wrappers(tmp_path: Path):
+    registry, fingerprint = _registry(tmp_path)
+    suite = load_suite(
+        registry,
+        expected_fingerprint=fingerprint,
+        access="dev",
+        cache=BoundedShardCache(tmp_path / "benchmark-cache", max_size_bytes=10_000_000),
+        timeout_seconds=1.0,
+    )
+    probe_index = _build_probe_index(suite)
+    example = next(task for task in suite.tasks if task.name == "jcommonsenseqa").examples[0]
+    target = _structured_adversarial_record(example)
+    wrappers = {
+        "object": '{"wrapper":' * 40 + target + "}" * 40,
+        "array": "[" * 40 + target + "]" * 40,
+        "mixed": '{"wrapper":[' * 40 + target + "]}" * 40,
+    }
+
+    for wrapper_name, text in wrappers.items():
+        matches = _document_matches(
+            text,
+            source_name="fixture_train",
+            document_id=f"deep-{wrapper_name}",
+            upstream_id=None,
+            probe_index=probe_index,
+        )
+        assert any(
+            match["benchmark_example_id"] == example.example_id
+            and match["benchmark_field"] == "canonical_record"
+            and match["match_type"] == "structured_json"
+            for match in matches
+        )
+
+
+def test_full_scan_cannot_cache_clean_evidence_for_overdepth_wrapped_record(
+    monkeypatch,
+    tmp_path: Path,
+):
+    registry, fingerprint = _registry(tmp_path)
+    _, checkpoint_config = _pretraining_checkpoint(tmp_path)
+    suite = load_suite(
+        registry,
+        expected_fingerprint=fingerprint,
+        access="dev",
+        cache=BoundedShardCache(tmp_path / "benchmark-cache", max_size_bytes=10_000_000),
+        timeout_seconds=1.0,
+    )
+    example = next(task for task in suite.tasks if task.name == "jcommonsenseqa").examples[0]
+    target = _structured_adversarial_record(example)
+    text = '{"wrapper":' * 40 + target + "}" * 40
+    document_id = "e" * 64
+
+    monkeypatch.setattr(
+        contamination_scans,
+        "ManifestTextSource",
+        lambda *_args, **_kwargs: iter(
+            [
+                RawDocument(
+                    text=text,
+                    metadata={
+                        "document_id": document_id,
+                        "content_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+                        "upstream_id": "deep-wrapper",
+                    },
+                )
+            ]
+        ),
+    )
+    evidence = scan_checkpoint_training_data(
+        checkpoint_config,
+        suite,
+        fallback_cache=BoundedShardCache(tmp_path / "fallback", max_size_bytes=10_000_000),
+    )
+
+    assert evidence["scan_complete"] is True
+    assert evidence["contaminated"] is True
+    assert any(match["training_document_id"] == document_id for match in evidence["matches"])
+    index_files = list((tmp_path / "training-cache/contamination-scans").glob("*.json"))
+    assert len(index_files) == 1
+    cached = json.loads(index_files[0].read_text(encoding="utf-8"))
+    assert cached["report"]["contaminated"] is True
+    assert cached["report"]["matches"]
 
 
 def test_default_decoded_string_budget_exhaustion_fails_closed(tmp_path: Path):
