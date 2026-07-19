@@ -119,6 +119,10 @@
 | 96 | Repair | Complete | The bounded lexical extractor now emits every completed object on close, preserving intermediate mappings without parsing an over-depth envelope. Schema projection normalizes only benchmark-owned fields, so unrelated metadata-key normalization collisions cannot hide an otherwise complete selected record. Scan, normalization, and JSON-object identities were advanced |
 | 97 | Focused and canonical validation | PASS | The reviewer reproduction and the stronger metadata-collision variant report zero misses across all 128 canonical examples in both tasks under 40 object layers. The broader benchmark/generation/config/reproducibility/tokenizer selection passes 130 tests; full validation and exact-head re-review remain pending |
 | 98 | Full validation | PASS | Official network-isolated CPU gate passes 500 tests with 1 skipped plus repository Ruff, resolved Hydra preflight, lock-drift rejection, and disabled/offline process-tree smoke. No GPU, online W&B, full-corpus scan, or large artifact was used; exact-head CI and independent re-review remain pending |
+| 99 | Exact-head independent `/review` | FAIL | Formal review of clean head `71c0eee` independently reran the 500-test gate (1 skipped), then reproduced that all 128 selected JCommonsenseQA question-and-choice mappings could evade detection when the normal unlabeled input representation omitted `label`; their individual fields are shorter than the 48-codepoint fallback |
+| 100 | Repair | Complete | Structured projection now indexes both the complete source record and the task-specific input-only schema: JCommonsenseQA omits `label`, while GSM8K omits `answer`. Changed or absent answers therefore cannot hide exposure to pinned benchmark inputs. All scan/cache identities were advanced |
+| 101 | Focused and canonical validation | PASS | Reordered, pretty-printed input-only mappings report zero misses across all 128 canonical examples in both tasks. A complete-scan regression verifies that an unlabeled selected JCommonsenseQA input publishes contaminated—not reusable clean—cache evidence. The broader benchmark/generation/config/reproducibility/tokenizer selection passes 131 tests; full validation and exact-head re-review remain pending |
+| 102 | Full validation | PASS | Official network-isolated CPU gate passes 501 tests with 1 skipped plus repository Ruff, resolved Hydra preflight, lock-drift rejection, and disabled/offline process-tree smoke. No GPU, online W&B, full-corpus scan, or large artifact was used; exact-head CI and independent re-review remain pending |
 
 ## Resolved protocol
 
@@ -147,8 +151,9 @@
 - Contamination: complete checkpoint-owned train selections, exact/normalized
   whole-document identity, source-faithful record identity, text-normalized
   canonical JSON-object identity across key-order/whitespace variants, schema
-  projection from metadata-enriched mappings, and normalized 48-codepoint
-  shingles. Decoded JSON string values are recursively
+  projection from metadata-enriched mappings, task-specific input-only
+  projections that exclude answer fields, and normalized 48-codepoint shingles.
+  Decoded JSON string values are recursively
   rescanned under fixed total-byte, node, structural-depth, and decoded-string
   limits, including nested object/array, double-serialized, and quoted-prose
   wrappers. Malformed or parser-overdepth candidates are bounded non-matches;
@@ -178,7 +183,7 @@
 
 ## Current conclusion
 
-All twenty-four failed review/audit cycles remain visible. Their forty-three findings are
+All twenty-five failed review/audit cycles remain visible. Their forty-four findings are
 repaired without weakening the fixed protocol or complete contamination gate:
 cheap context incompatibility precedes scanning, both tasks honor checkpoint
 precision, external records are pinned, evaluator/runtime and dirty source
@@ -199,7 +204,8 @@ suite and corpus scan. Selected examples now retain and hash the pinned source
 record representation, while text normalization composes with a
 structure-normalized JSON identity to detect BOM, newline, Unicode,
 key-order, whitespace, embedded wrapper, ASCII-escaped decoded-NFD variants,
-and complete selected mappings augmented with scalar or nested provenance.
+complete selected mappings augmented with scalar or nested provenance, and
+unlabeled question/input mappings whose answer field is absent or changed.
 Decoded JSON strings are recursively inspected through object, array,
 double-serialized, and quoted-prose wrappers under strict per-document
 byte/node/depth/string caps; normalized-key collisions and parser recursion are
