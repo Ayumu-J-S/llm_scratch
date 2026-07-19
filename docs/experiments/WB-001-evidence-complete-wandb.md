@@ -3,16 +3,14 @@
 - Roadmap ticket: `WB-001`
 - Branch: `codex/wb-001-main-integration`
 - Draft PR: [#46](https://github.com/Ayumu-J-S/llm_scratch/pull/46)
-- Status: exact-head review cycle 26 returned `FAIL` because full-checkpoint
-  artifact upload could expose raw documents serialized in the stream cursor.
-  Cycle 27 replaces it with a strict model-only inference package; cycle-32
-  final validation and supporting re-review pass, while exact-head review
-  remains pending. The complete
-  cycle trail is in live PR #46. R1
-  functional evidence remains supported. Attempt 9's historical
-  `PASS WITH NOTE` and 168-gate result are retained, but its paired-overhead
-  figures are withdrawn from current acceptance because scheduled scalar-log
-  pauses were absent from the throughput denominator.
+- Status: cycle 27 replaced the unsafe full-checkpoint upload with a strict
+  model-only inference package, and cycle-32 validation/supporting re-review
+  passed. Exact-head review cycle 34 then returned `FAIL` solely because the
+  corrected logging path lacked a same-head DGX overhead matrix. Attempts 10
+  and 11 failed closed in the harness and remain retained; Attempt 12 on
+  `86676870b3853997f0479272bc416a26f8f370ab` returns `PASS WITH NOTE` with
+  168/168 applicable gates, zero failures, and only the predeclared 5–10%
+  data-wait investigation notes. A final exact-head re-review remains pending.
 - Started (UTC): 2026-07-13
 - Last updated (UTC): 2026-07-19
 
@@ -691,6 +689,46 @@ native process-tree-isolated disabled/offline smoke arms pass. The supporting
 cleanup re-review returns `PASS` on all three nested-failure regressions. This
 supporting verdict does not replace the mandatory exact-head review.
 
+## Current-main exact-head cycle 34 — FAIL; Attempt 12 R2 repair
+
+Independent review of exact clean head
+`b8bf1bdad474dda1d276b31a66c9a6f5e78a594a` reproduced the full CPU suite at
+444 passed and one skipped, Ruff, and the native process-tree-isolated smoke,
+then returned `FAIL` on one P1 evidence gap: the repaired scalar worker and
+corrected throughput denominator had no same-head DGX disabled/offline/watch
+comparison. CPU test doubles cannot establish the declared GPU hot-path budget.
+
+Attempt 10 failed before comparison arms because a linked-worktree `.git` file
+pointed outside the read-only container mount. Attempt 11 used a self-contained
+clone and completed its first arm, but failed closed while hashing evidence:
+the container-created measurement file was private to root. Neither failed
+attempt contributes a performance conclusion. Their compact retained record is
+`evidence/WB-001-dgx-r10-r11-failed.json`.
+
+The runner now executes training containers under the invoking host UID/GID,
+preserving the measurement artifact's private mode while making it readable by
+the immutable host-side inventory. Attempt 12 ran the predeclared 3×3
+Latin-square matrix from clean exact implementation/runner head
+`86676870b3853997f0479272bc416a26f8f370ab` using pinned image
+`sha256:23a1bee69fe189e77105cdddeee9aeff6ef0763d58a691625fbfcab64efd1887`,
+fixed warm cache/config/work/order, artifact policy `none`, and the repaired
+denominator including scheduled scalar-log pauses.
+
+The strict verifier returns `PASS WITH NOTE`: 168/168 applicable gates pass,
+with zero failures. Paired median regressions are 0.6474% for offline/watch-off
+versus disabled, 1.9751% for offline/watch-on versus disabled, and 0.5451% for
+watch versus offline/watch-off. All are below the 10% failure budget; only one
+watch pair reaches the 5% investigation band (5.6351%), while its median stays
+below 1%. Per-arm data wait is 6.599–8.493%, so all nine declared investigation
+notes remain and none crosses the 10% failure threshold. Trajectory/model/
+resume/cursor/config/data/tokenizer/hardware identities are exact; all runs use
+260 optimizer steps and the verifier's 234-step post-warm-up window. GPU, host,
+and container coverage pass, allocator memory is stable, no swap-I/O run occurs,
+and watch-on arms contain 315 verified histogram series-events while disabled
+and watch-off arms contain none. Recomputing the summary is byte-identical at
+SHA-256 `6d94dededc11eefa19c429f71f57c784b4288811eaf1996c0b7afec7f192e5dd`.
+The retained summary is `evidence/WB-001-dgx-r12-pass-with-note.json`.
+
 ## Conclusion
 
 - Hypothesis result: functional/failure-isolation behavior is supported at R1.
@@ -700,7 +738,8 @@ supporting verdict does not replace the mandatory exact-head review.
 - Evidence-backed conclusion: the implementation can preserve local metrics and
   checkpoints across disabled/offline W&B and tested external failure paths,
   with the cycle-26 privacy and cleanup-evidence findings repaired and locally
-  validated; exact-head review remains pending.
+  validated. Attempt 12 now demonstrates the corrected same-head R2 overhead
+  budget with `PASS WITH NOTE`; final exact-head re-review remains pending.
   The live three-step smoke also confirms authenticated online scalar visibility and
   clean no-artifact completion. Cycle-13
   quota, scalar-boundary, and watch-cleanup history remains useful, while the
@@ -711,5 +750,6 @@ supporting verdict does not replace the mandatory exact-head review.
   no current overhead or cross-attempt performance claim is made. Quota
   reservation is tracker-lifetime, and a stuck daemon SDK worker is
   process-lifetime bounded.
-- Exactly one next step: commit the validated repair and obtain an independent
-  exact-head `PASS` or justified `PASS WITH NOTE`, then use the live PR handoff.
+- Exactly one next step: obtain an independent exact-head `PASS` or justified
+  `PASS WITH NOTE` over the retained Attempt 12 evidence, then use the live PR
+  handoff.
