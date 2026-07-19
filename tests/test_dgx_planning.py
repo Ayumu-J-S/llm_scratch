@@ -206,3 +206,31 @@ def test_swap_growth_is_a_hard_run_gate(tmp_path):
     result = summarize_run(run_dir, config["gates"])
     assert result["gates"]["swap_out"] is False
     assert result["passed"] is False
+
+
+def test_periodic_allocator_peaks_do_not_look_like_monotonic_growth(tmp_path):
+    config = OmegaConf.to_container(compose_dgx(), resolve=True)
+    entry = build_matrix_plan(config)[0]
+    run_dir = _fake_run(tmp_path, entry, 4000)
+    measurement_path = run_dir / "measurement.json"
+    measurement = json.loads(measurement_path.read_text())
+    measured = [
+        row
+        for row in measurement["rows"]
+        if row.get("event") == "optimizer_step" and row.get("warmup") is False
+    ]
+    low = 10_000_000_000
+    high = low + 1_000_000_000
+    for index, row in enumerate(measured):
+        row["pytorch_allocated_bytes"] = high if index % 2 else low
+    _write_json(measurement_path, measurement)
+
+    result = summarize_run(run_dir, config["gates"])
+    assert result["pytorch_allocator_baseline_growth_bytes"] == 0
+    assert result["gates"]["allocator_stable"] is True
+
+    for row in measured[-5:]:
+        row["pytorch_allocated_bytes"] = low + 500_000_000
+    _write_json(measurement_path, measurement)
+    result = summarize_run(run_dir, config["gates"])
+    assert result["gates"]["allocator_stable"] is False
