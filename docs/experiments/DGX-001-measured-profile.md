@@ -85,6 +85,8 @@ used to claim the measured profile is selected.
 | Cycle | Phase | Outcome | Important finding or change | Evidence |
 | ---: | --- | --- | --- | --- |
 | 1 | Implementation | in progress | Thin profiles/runner/summarizer over the canonical trainer and VAL/WB measurement hooks | Focused tests and plan composition |
+| 2 | Target smoke attempt 1 | failed before data/model construction | Container Git rejected the read-only host worktree as dubious ownership; runner needs an ephemeral exact-path safe-directory setting | `/tmp/dgx-001-smoke-eb043b4/run.json` |
+| 3 | Repair | implemented | Pass a container-only `safe.directory` value for the exact mounted worktree; clean status and exact commit remain required | Runner command and repeat target smoke |
 
 Independent `/review` will cover `PHILOSOPHY.md`, DGX-001 acceptance, and the
 applicable `CHECK.md` minimum, comparison, data supply, DGX/UMA, training-health,
