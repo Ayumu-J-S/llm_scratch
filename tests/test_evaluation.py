@@ -199,6 +199,11 @@ def test_known_logits_match_token_weighted_nll_and_perplexity():
 def test_cuda_phase_timing_uses_events_and_one_completion_boundary(monkeypatch):
     calls: list[str] = []
     events = []
+    batches = [
+        _batch([[0, 1]], [["ja", "en"]]),
+        _batch([[1, 0]], [["en", "ja"]]),
+    ]
+    expected = _scorer().score(FixedLogitModel([0.0, 1.0]), lambda: batches)
 
     class FakeEvent:
         def __init__(self, *, enable_timing):
@@ -215,13 +220,25 @@ def test_cuda_phase_timing_uses_events_and_one_completion_boundary(monkeypatch):
             return 3.0 if self.ordinal % 4 == 0 else 7.0
 
     original_to = torch.Tensor.to
+    original_cpu = torch.Tensor.cpu
 
     def fake_to(tensor, *args, **kwargs):
         if args and isinstance(args[0], torch.device) and args[0].type == "cuda":
             return tensor
         return original_to(tensor, *args, **kwargs)
 
+    def guarded_cpu(tensor, *args, **kwargs):
+        assert "synchronize" in calls, "CUDA result materialized before the score boundary"
+        calls.append("cpu")
+        return original_cpu(tensor, *args, **kwargs)
+
     monkeypatch.setattr(torch.Tensor, "to", fake_to)
+    monkeypatch.setattr(torch.Tensor, "cpu", guarded_cpu)
+    monkeypatch.setattr(
+        torch.Tensor,
+        "item",
+        lambda *_args, **_kwargs: pytest.fail("CUDA scoring must not call Tensor.item()"),
+    )
     monkeypatch.setattr(scoring_module, "autocast_context", lambda *_args: nullcontext())
     monkeypatch.setattr(scoring_module.torch.cuda, "Event", FakeEvent)
 
@@ -239,7 +256,7 @@ def test_cuda_phase_timing_uses_events_and_one_completion_boundary(monkeypatch):
 
     result = scorer.score(
         FixedLogitModel([0.0, 1.0]),
-        lambda: [_batch([[0, 1]]), _batch([[1, 0]])],
+        lambda: batches,
     )
 
     assert result.timing["phase_timing_method"] == "cuda_events"
@@ -247,10 +264,17 @@ def test_cuda_phase_timing_uses_events_and_one_completion_boundary(monkeypatch):
     assert result.timing["loss_seconds"] == pytest.approx(0.014)
     assert len(events) == 8
     assert calls.count("synchronize") == 1
+    assert calls.count("cpu") == 2
     synchronize_index = calls.index("synchronize")
     assert all(
         index > synchronize_index for index, call in enumerate(calls) if call.startswith("elapsed:")
     )
+    assert result.evaluated_window_sha256 == expected.evaluated_window_sha256
+    assert result.evaluated_token_sha256 == expected.evaluated_token_sha256
+    assert result.target_tokens == expected.target_tokens
+    assert result.nll == pytest.approx(expected.nll)
+    assert result.by_corpus["ja"].nll == pytest.approx(expected.by_corpus["ja"].nll)
+    assert result.by_corpus["en"].nll == pytest.approx(expected.by_corpus["en"].nll)
 
 
 @pytest.mark.parametrize(
@@ -590,6 +614,9 @@ def test_standalone_milestone_matches_shared_training_time_score(tmp_path, split
     assert len(evaluator_run["git"]["sha"]) == 40
     assert isinstance(evaluator_run["git"]["dirty"], bool)
     assert evaluator_run["resolved_config"]["evaluation"]["checkpoint_path"] == str(checkpoint)
+    assert evaluator_run["resolved_config"]["measurement"] == OmegaConf.to_container(
+        evaluation_config.measurement, resolve=True
+    )
     assert len(evaluator_run["resolved_config_sha256"]) == 64
     assert evaluator_run["lock"]["path"].endswith("uv.lock")
     assert len(evaluator_run["lock"]["sha256"]) == 64

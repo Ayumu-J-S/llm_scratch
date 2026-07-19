@@ -22,7 +22,7 @@ import torch.nn.functional as F
 from training.optimization import autocast_context
 
 
-SCORER_REVISION = "VAL-001-causal-lm-scorer-v2"
+SCORER_REVISION = "VAL-001-causal-lm-scorer-v3"
 _DEFAULT_SOURCE = "aggregate"
 
 
@@ -186,6 +186,9 @@ class CausalLMScorer:
         aggregate_tokens = 0
         corpus_loss: dict[str, float] = {}
         corpus_tokens: dict[str, int] = {}
+        cuda_aggregate_loss: torch.Tensor | None = None
+        cuda_corpus_loss: dict[str, torch.Tensor] = {}
+        cuda_finite_flags: list[torch.Tensor] = []
         window_digest = hashlib.sha256()
         token_digest = hashlib.sha256()
         evaluated_windows = 0
@@ -218,9 +221,32 @@ class CausalLMScorer:
                     if wait_started is not None:
                         timing["data_wait_seconds"] += time.perf_counter() - wait_started
                     batch_index += 1
+                    host_inputs = batch["inputs"]
+                    host_labels = batch["labels"]
+                    (
+                        source_rows,
+                        host_source_masks,
+                        batch_corpus_tokens,
+                        batch_target_tokens,
+                        batch_windows,
+                    ) = _record_host_batch_identity(
+                        host_inputs,
+                        host_labels,
+                        batch.get("target_sources"),
+                        ignore_index=self.ignore_index,
+                        window_digest=window_digest,
+                        token_digest=token_digest,
+                    )
+                    aggregate_tokens += batch_target_tokens
+                    evaluated_windows += batch_windows
+                    for source, count in batch_corpus_tokens.items():
+                        corpus_tokens[source] = corpus_tokens.get(source, 0) + count
                     preparation_started = time.perf_counter() if phase_timing_enabled else None
-                    inputs = batch["inputs"].to(self.device)
-                    labels = batch["labels"].to(self.device)
+                    inputs = host_inputs.to(self.device)
+                    labels = host_labels.to(self.device)
+                    source_masks = {
+                        source: mask.to(self.device) for source, mask in host_source_masks.items()
+                    }
                     if preparation_started is not None:
                         timing["host_device_preparation_seconds"] += (
                             time.perf_counter() - preparation_started
@@ -243,62 +269,47 @@ class CausalLMScorer:
                             reduction="none",
                             ignore_index=self.ignore_index,
                         )
+                    if self.device.type == "cuda":
+                        cuda_finite_flags.append(torch.isfinite(flat_losses).all())
+                        batch_loss_sum = flat_losses.sum()
+                        cuda_aggregate_loss = (
+                            batch_loss_sum
+                            if cuda_aggregate_loss is None
+                            else cuda_aggregate_loss + batch_loss_sum
+                        )
+                        for source, source_mask in source_masks.items():
+                            source_loss_sum = flat_losses[source_mask.reshape(-1)].sum()
+                            cuda_corpus_loss[source] = (
+                                source_loss_sum
+                                if source not in cuda_corpus_loss
+                                else cuda_corpus_loss[source] + source_loss_sum
+                            )
+                    else:
+                        if not torch.isfinite(flat_losses).all():
+                            error = FloatingPointError(
+                                f"non-finite {namespace} loss at validation batch {batch_index}"
+                            )
+                            error.batch_index = batch_index
+                            raise error
+                        batch_losses = flat_losses.detach().reshape(labels.shape).tolist()
+                        host_label_rows = host_labels.detach().tolist()
+                        for row_index, label_row in enumerate(host_label_rows):
+                            sources = source_rows[row_index]
+                            for token_index, (label, loss) in enumerate(
+                                zip(label_row, batch_losses[row_index])
+                            ):
+                                if int(label) == self.ignore_index:
+                                    continue
+                                value = float(loss)
+                                source = sources[token_index]
+                                aggregate_loss += value
+                                corpus_loss[source] = corpus_loss.get(source, 0.0) + value
                     self._end_compute_phase(
                         timing,
                         cuda_phase_events,
                         "loss_seconds",
                         loss_phase,
                     )
-                    if not torch.isfinite(flat_losses).all():
-                        error = FloatingPointError(
-                            f"non-finite {namespace} loss at validation batch {batch_index}"
-                        )
-                        error.batch_index = batch_index
-                        raise error
-
-                    source_rows = _target_source_rows(batch.get("target_sources"), labels)
-                    batch_inputs = inputs.detach().cpu().tolist()
-                    batch_labels = labels.detach().cpu().tolist()
-                    batch_losses = flat_losses.detach().cpu().reshape(labels.shape).tolist()
-                    for row_index, (input_row, label_row) in enumerate(
-                        zip(batch_inputs, batch_labels)
-                    ):
-                        sources = source_rows[row_index]
-                        if len(sources) != len(label_row):
-                            raise ValueError(
-                                "target_sources must be label-aligned with every validation window"
-                            )
-                        for token_index, (label, loss) in enumerate(
-                            zip(label_row, batch_losses[row_index])
-                        ):
-                            if int(label) == self.ignore_index:
-                                continue
-                            if not math.isfinite(float(loss)):
-                                error = FloatingPointError(
-                                    f"non-finite {namespace} loss at validation batch "
-                                    f"{batch_index}, row {row_index}"
-                                )
-                                error.batch_index = batch_index
-                                raise error
-                            source = str(sources[token_index])
-                            if not source:
-                                raise ValueError("every valid validation target needs a source")
-                            value = float(loss)
-                            token_id = int(label)
-                            aggregate_loss += value
-                            aggregate_tokens += 1
-                            corpus_loss[source] = corpus_loss.get(source, 0.0) + value
-                            corpus_tokens[source] = corpus_tokens.get(source, 0) + 1
-                            _update_int(token_digest, token_id)
-                            _update_text(token_digest, source)
-                        _update_window_digest(
-                            window_digest,
-                            input_row,
-                            label_row,
-                            sources,
-                            self.ignore_index,
-                        )
-                        evaluated_windows += 1
         finally:
             close_started = time.perf_counter() if phase_timing_enabled else None
             try:
@@ -323,6 +334,15 @@ class CausalLMScorer:
                 )
         if sum(corpus_tokens.values()) != aggregate_tokens:
             raise RuntimeError("per-corpus validation target counts do not reconcile")
+        cuda_loss_sums: torch.Tensor | None = None
+        cuda_batch_finite: torch.Tensor | None = None
+        if self.device.type == "cuda":
+            if cuda_aggregate_loss is None or not cuda_finite_flags:
+                raise RuntimeError("CUDA validation did not retain its device reductions")
+            cuda_loss_sums = torch.stack(
+                [cuda_aggregate_loss, *(cuda_corpus_loss[source] for source in corpus_tokens)]
+            )
+            cuda_batch_finite = torch.stack(cuda_finite_flags)
         if self.cuda_events:
             # One score-boundary synchronization makes all recorded event
             # durations completion-aware without imposing a barrier per batch.
@@ -331,6 +351,21 @@ class CausalLMScorer:
                 timing[phase_name] = sum(
                     start_event.elapsed_time(end_event) / 1000.0 for start_event, end_event in pairs
                 )
+        if cuda_loss_sums is not None and cuda_batch_finite is not None:
+            finite_flags = cuda_batch_finite.detach().cpu().tolist()
+            for index, finite in enumerate(finite_flags, start=1):
+                if not finite:
+                    error = FloatingPointError(
+                        f"non-finite {namespace} loss at validation batch {index}"
+                    )
+                    error.batch_index = index
+                    raise error
+            loss_sums = cuda_loss_sums.detach().cpu().tolist()
+            aggregate_loss = float(loss_sums[0])
+            corpus_loss = {
+                source: float(loss_sums[index])
+                for index, source in enumerate(corpus_tokens, start=1)
+            }
         aggregate = _make_score(aggregate_loss, aggregate_tokens)
         by_corpus = {
             source: _make_score(corpus_loss[source], corpus_tokens[source])
@@ -492,6 +527,60 @@ def _target_source_rows(value: Any, labels: torch.Tensor) -> list[list[str]]:
             raise ValueError("target_sources must be label-aligned with validation labels")
         result.append([str(source) for source in row])
     return result
+
+
+def _record_host_batch_identity(
+    inputs: torch.Tensor,
+    labels: torch.Tensor,
+    target_sources: Any,
+    *,
+    ignore_index: int,
+    window_digest: "hashlib._Hash",
+    token_digest: "hashlib._Hash",
+) -> tuple[list[list[str]], dict[str, torch.Tensor], dict[str, int], int, int]:
+    """Hash/count one host batch and build source masks without device reads."""
+
+    if inputs.device.type != "cpu" or labels.device.type != "cpu":
+        raise ValueError("evaluation loaders must yield host inputs and labels")
+    input_rows = inputs.detach().tolist()
+    label_rows = labels.detach().tolist()
+    if len(input_rows) != len(label_rows):
+        raise ValueError("evaluation inputs and labels must contain the same number of windows")
+    source_rows = _target_source_rows(target_sources, labels)
+    flat_sources: list[str | None] = []
+    corpus_tokens: dict[str, int] = {}
+    target_tokens = 0
+    for row_index, (input_row, label_row) in enumerate(zip(input_rows, label_rows)):
+        sources = source_rows[row_index]
+        if len(sources) != len(label_row):
+            raise ValueError("target_sources must be label-aligned with every validation window")
+        for token_index, label in enumerate(label_row):
+            if int(label) == ignore_index:
+                flat_sources.append(None)
+                continue
+            source = str(sources[token_index])
+            if not source:
+                raise ValueError("every valid validation target needs a source")
+            flat_sources.append(source)
+            target_tokens += 1
+            corpus_tokens[source] = corpus_tokens.get(source, 0) + 1
+            _update_int(token_digest, int(label))
+            _update_text(token_digest, source)
+        _update_window_digest(
+            window_digest,
+            input_row,
+            label_row,
+            sources,
+            ignore_index,
+        )
+    source_masks = {
+        source: torch.tensor(
+            [observed_source == source for observed_source in flat_sources],
+            dtype=torch.bool,
+        )
+        for source in corpus_tokens
+    }
+    return source_rows, source_masks, corpus_tokens, target_tokens, len(input_rows)
 
 
 def _make_score(loss_sum: float, target_tokens: int) -> CorpusScore:

@@ -252,22 +252,43 @@ def test_resume_without_a_stream_cursor_is_rejected_before_training():
         require_exact_stream_resume_state({"stream_cursor": None})
 
 
-def test_resume_path_is_operational_but_model_config_remains_identity_critical():
+def test_resume_and_measurement_are_operational_but_model_config_remains_critical(
+    tmp_path: Path,
+):
     base = OmegaConf.create(
         {
             "model": {"embed_size": 8},
             "tokenizer": {"name": "fixture"},
             "data": {"mode": "memorization_smoke"},
             "artifacts": {"checkpoints_dir": "checkpoints", "keep_last_n": 2, "resume_path": None},
+            "measurement": {
+                "enabled": False,
+                "warmup_optimizer_steps": 10,
+                "cuda_events": True,
+                "output_path": None,
+            },
         }
     )
     resumed = OmegaConf.create(OmegaConf.to_container(base, resolve=True))
     resumed.artifacts.resume_path = "/tmp/previous/recovery-step-000000000010.pt"
+    measured = OmegaConf.create(OmegaConf.to_container(base, resolve=True))
+    measured.measurement.enabled = True
+    measured.measurement.warmup_optimizer_steps = 3
+    measured.measurement.cuda_events = False
+    measured.measurement.output_path = "/tmp/measurement.json"
     changed_model = OmegaConf.create(OmegaConf.to_container(base, resolve=True))
     changed_model.model.embed_size = 16
 
     assert build_checkpoint_identity(base) == build_checkpoint_identity(resumed)
+    assert build_checkpoint_identity(base) == build_checkpoint_identity(measured)
     assert build_checkpoint_identity(base) != build_checkpoint_identity(changed_model)
+
+    manager = CheckpointManager(tmp_path, keep_last_n=2, identity=build_checkpoint_identity(base))
+    recovery = manager.save_recovery(_state(1))
+    resumed_checkpoint = CheckpointManager(
+        tmp_path, keep_last_n=2, identity=build_checkpoint_identity(measured)
+    ).load_resume(recovery)
+    assert resumed_checkpoint.path == recovery
 
 
 def test_checkpoint_identity_requires_recorded_run_identity_fields(tmp_path: Path):

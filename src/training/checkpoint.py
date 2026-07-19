@@ -195,9 +195,10 @@ def build_checkpoint_identity(
 
 
 def checkpoint_config_sha256(cfg: DictConfig | Mapping[str, Any]) -> str:
-    """Hash a resolved config using the checkpoint identity's one exclusion."""
+    """Hash experiment-affecting config, excluding operational controls."""
 
     config = _plain_config(cfg)
+    config.pop("measurement", None)
     artifacts = config.get("artifacts")
     if isinstance(artifacts, dict):
         artifacts = copy.deepcopy(artifacts)

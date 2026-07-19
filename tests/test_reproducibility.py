@@ -121,15 +121,27 @@ def test_run_manifest_is_self_contained_and_mutation_is_explicit(tmp_path):
         verify_run_manifest(run_dir)
 
 
-def test_resume_path_is_the_only_normalized_run_identity_config_delta(monkeypatch, tmp_path):
+def test_operational_resume_and_measurement_do_not_change_run_identity(monkeypatch, tmp_path):
     config = _manifest_config()
     config["artifacts"] = {
         "checkpoints_dir": "checkpoints",
         "keep_last_n": 2,
         "resume_path": None,
     }
+    config["measurement"] = {
+        "enabled": False,
+        "warmup_optimizer_steps": 10,
+        "cuda_events": True,
+        "output_path": None,
+    }
     resumed = deepcopy(config)
     resumed["artifacts"]["resume_path"] = "/tmp/previous/recovery-step-000000000010.pt"
+    resumed["measurement"] = {
+        "enabled": True,
+        "warmup_optimizer_steps": 3,
+        "cuda_events": False,
+        "output_path": "/tmp/measurement.json",
+    }
     monkeypatch.setattr(
         "runtime.reproducibility._git",
         lambda root: {"sha": "a" * 40, "dirty": False, "status": []},
@@ -140,9 +152,13 @@ def test_resume_path_is_the_only_normalized_run_identity_config_delta(monkeypatc
     resumed_source.mkdir()
     first_resolved = first_source / "resolved_config.yaml"
     resumed_resolved = resumed_source / "resolved_config.yaml"
-    first_resolved.write_text("artifacts:\n  resume_path: null\n", encoding="utf-8")
+    first_resolved.write_text(
+        "artifacts:\n  resume_path: null\nmeasurement:\n  enabled: false\n",
+        encoding="utf-8",
+    )
     resumed_resolved.write_text(
-        "artifacts:\n  resume_path: /tmp/previous/recovery-step-000000000010.pt\n",
+        "artifacts:\n  resume_path: /tmp/previous/recovery-step-000000000010.pt\n"
+        "measurement:\n  enabled: true\n",
         encoding="utf-8",
     )
     first_run = tmp_path / "first-run"
@@ -168,6 +184,11 @@ def test_resume_path_is_the_only_normalized_run_identity_config_delta(monkeypatc
 
     assert first_manifest["config"]["sha256"] != resumed_manifest["config"]["sha256"]
     assert first_manifest["experiment_id"] == resumed_manifest["experiment_id"]
+    assert first_manifest["experiment_identity"] == resumed_manifest["experiment_identity"]
+    assert first_manifest["experiment_identity"]["operational_exclusions"] == [
+        "artifacts.resume_path",
+        "measurement",
+    ]
     assert build_checkpoint_identity(config, run_manifest_path=first_manifest_path) == (
         build_checkpoint_identity(resumed, run_manifest_path=resumed_manifest_path)
     )
