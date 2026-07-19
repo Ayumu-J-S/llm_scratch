@@ -15,7 +15,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         description="Write an isolated aggregate-only same-protocol external comparison."
     )
     parser.add_argument("--input", required=True, help="aggregate comparison JSON")
-    parser.add_argument("--output", required=True, help="separate local output JSON")
+    parser.add_argument(
+        "--output",
+        required=True,
+        help="JSON name/path beneath outputs/external-comparisons",
+    )
     args = parser.parse_args(argv)
     try:
         payload = json.loads(Path(args.input).read_text(encoding="utf-8"))

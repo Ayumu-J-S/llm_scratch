@@ -73,7 +73,7 @@ document in every checkpoint-owned manifest selected as `train`. It records:
 
 - exact whole-document hashes;
 - normalized whole-document hashes using the repository text-identity policy;
-- SHA-256 matches over normalized 48-codepoint shingles;
+- exact matches over normalized 48-codepoint shingles;
 - source name, training document ID, upstream ID, manifest/dataset identity,
   scan counts, byte counts, and a complete scan-order digest.
 
@@ -83,9 +83,13 @@ retained while a contaminated score cannot be mistaken for a valid result.
 The first complete scan may read all pinned training shards and is intentionally
 an index-building operation rather than a training hot-path check. Its atomic
 artifact is keyed by the full suite identity, ordered training manifest
-fingerprints, normalization/scanner revision, and exact scanner/data-loader
-implementation hashes, and carries its own checksum. Later milestones with the
-same corpus and suite reuse that verified report without opening or
+content/fingerprints, normalization/matcher revision, relevant evaluator source
+bytes, `uv.lock`, installed PyArrow, and the producing Python/platform runtime;
+it also carries its own checksum. The first scan uses a collision-verified
+rolling matcher with one constant-work update per corpus codepoint. It does not
+slice, UTF-8 encode, or SHA-256 every corpus window, and its retained matcher
+state is bounded by unique benchmark shingles. Later milestones with the same
+corpus, suite, and producer reuse that verified report without opening or
 materializing the corpus again. A corrupt or mismatched index fails closed.
 
 Generated benchmark source shards use the ignored `outputs/benchmark_cache`
@@ -111,4 +115,7 @@ ineligible for training data or targets. The recorder itself attaches the
 compiled development-suite fingerprint, protocol hash, source hashes,
 selected-example hashes, selector, access level, and fixed 128-example totals;
 callers cannot supply an alternate protocol or partition identity. It does not
-load external weights into the repository checkpoint runner.
+load external weights into the repository checkpoint runner. Records can be
+written only beneath the generated `outputs/external-comparisons` tree with a
+`.json` suffix. Paths outside that tree, symlinks, hardlinks, and nested
+artifact/checkpoint namespaces are rejected before the atomic write.
