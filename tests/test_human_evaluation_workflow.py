@@ -701,6 +701,7 @@ def test_key_permissions_and_training_namespace_isolation(tmp_path: Path):
 
 def test_blinding_key_must_be_outside_repository(tmp_path: Path, monkeypatch):
     repository = tmp_path / "repository"
+    monkeypatch.setattr(workflow, "_REPOSITORY_ROOT", repository.resolve())
     prompt_path = repository / "evaluation" / "human" / "prompts-v1.json"
     prompt_path.parent.mkdir(parents=True)
     prompt_path.write_bytes(PROMPT_SET_PATH.read_bytes())
@@ -758,6 +759,49 @@ def test_blinding_key_must_be_outside_repository(tmp_path: Path, monkeypatch):
         _score(public, "reviewer-two"),
     )
     with pytest.raises(HumanEvaluationError, match="outside the repository"):
+        import_scores(
+            workspace_dir=workspace,
+            blinding_key_path=key,
+            score_paths=score_paths,
+        )
+
+    alternate_prompt = tmp_path / "alternate-protocol" / "evaluation" / "human" / "prompts-v1.json"
+    alternate_prompt.parent.mkdir(parents=True)
+    alternate_prompt.write_bytes(PROMPT_SET_PATH.read_bytes())
+    with pytest.raises(HumanEvaluationError, match="within the evaluator repository"):
+        prepare_evaluation(
+            prompt_set_path=alternate_prompt,
+            workspace_dir=tmp_path / "human-evaluation" / "alternate-prepare",
+            blinding_key_path=key,
+            earlier_checkpoint="earlier",
+            later_checkpoint="later",
+            generation_seed=1,
+        )
+
+    alternate_create_path = tmp_path / "secret" / "alternate-create.key"
+    with pytest.raises(HumanEvaluationError, match="within the evaluator repository"):
+        workflow.run_from_config(
+            {
+                "action": "create_key",
+                "prompt_set_path": str(alternate_prompt),
+                "blinding_key_path": str(alternate_create_path),
+            }
+        )
+    assert not alternate_create_path.exists()
+
+    mapping = json.loads(paths["private_mapping"].read_text(encoding="utf-8"))
+    mapping["payload"]["prompt_set"]["path"] = str(alternate_prompt.resolve())
+    mapping["payload"]["prompt_set"]["sha256"] = hashlib.sha256(
+        alternate_prompt.read_bytes()
+    ).hexdigest()
+    mapping["authentication"]["tag"] = hmac.new(
+        key.read_bytes(),
+        workflow.canonical_json_bytes(mapping["payload"]),
+        hashlib.sha256,
+    ).hexdigest()
+    paths["private_mapping"].write_text(json.dumps(mapping, ensure_ascii=False), encoding="utf-8")
+    paths["private_mapping"].chmod(0o600)
+    with pytest.raises(HumanEvaluationError, match="within the evaluator repository"):
         import_scores(
             workspace_dir=workspace,
             blinding_key_path=key,

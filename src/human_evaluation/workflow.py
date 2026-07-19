@@ -74,6 +74,7 @@ _PUBLIC_ITEM_FIELDS = {"item_id", "language", "prompt", "candidates"}
 _SCORE_FIELDS = {"schema_version", "study_id", "bundle_id", "reviewer_id", "ratings"}
 _RATING_FIELDS = {"item_id", "candidate_a", "candidate_b", "preference", "comment"}
 _DIMENSIONS = tuple(dimension["id"] for dimension in RUBRIC["dimensions"])
+_REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
 
 class HumanEvaluationError(EvaluationSchemaError):
@@ -122,9 +123,9 @@ def prepare_evaluation(
     key_path, key = _read_key(blinding_key_path)
     _require_key_outside_workspace(key_path, workspace)
     prompt_path = Path(prompt_set_path).resolve()
-    prompt_set = load_prompt_set(prompt_path)
     _require_prompt_asset_isolated(prompt_path)
-    _require_key_outside_repository(key_path, prompt_path)
+    prompt_set = load_prompt_set(prompt_path)
+    _require_key_outside_repository(key_path)
 
     candidates = _load_checkpoint_candidates(earlier_checkpoint, later_checkpoint)
     study_id = _blind_id(
@@ -310,7 +311,8 @@ def import_scores(
     mapping = _read_json_object(mapping_path, "private mapping")
     private_payload = _authenticate_private_mapping(mapping, key)
     _validate_private_payload(private_payload, public_bundle)
-    _require_key_outside_repository(key_path, Path(private_payload["prompt_set"]["path"]))
+    _require_prompt_asset_isolated(Path(private_payload["prompt_set"]["path"]))
+    _require_key_outside_repository(key_path)
     expected_public_hash = private_payload.get("public_bundle_sha256")
     if expected_public_hash != hashlib.sha256(_json_bytes(public_bundle)).hexdigest():
         raise HumanEvaluationError("public bundle does not match the authenticated private mapping")
@@ -400,10 +402,11 @@ def run_from_config(config: Mapping[str, Any]) -> dict[str, Any]:
     action = config.get("action")
     key_path = _required_path(config.get("blinding_key_path"), "blinding_key_path")
     if action == "create_key":
-        prompt_path = Path(_required_path(config.get("prompt_set_path"), "prompt_set_path"))
-        _require_key_outside_repository(
-            Path(key_path).expanduser().resolve(), prompt_path.resolve()
-        )
+        prompt_path = Path(
+            _required_path(config.get("prompt_set_path"), "prompt_set_path")
+        ).resolve()
+        _require_prompt_asset_isolated(prompt_path)
+        _require_key_outside_repository(Path(key_path).expanduser().resolve())
         return {"blinding_key": str(create_blinding_key(key_path))}
     workspace = _required_path(config.get("workspace_dir"), "workspace_dir")
     if action == "prepare":
@@ -910,10 +913,17 @@ def _require_isolated_workspace(workspace: Path) -> None:
 
 
 def _require_prompt_asset_isolated(path: Path) -> None:
-    parts = [part.casefold() for part in path.parts]
+    resolved = path.resolve()
+    try:
+        relative = resolved.relative_to(_REPOSITORY_ROOT)
+    except ValueError as error:
+        raise HumanEvaluationError(
+            "prompt set must live within the evaluator repository under evaluation/human"
+        ) from error
+    parts = [part.casefold() for part in relative.parts]
     if len(parts) < 3 or parts[-3:-1] != ["evaluation", "human"]:
         raise HumanEvaluationError(
-            "prompt set must live under evaluation/human, outside training data"
+            "prompt set must live within the evaluator repository under evaluation/human"
         )
     if any(part in _FORBIDDEN_OUTPUT_PARTS for part in parts[:-3]):
         raise HumanEvaluationError("prompt set path overlaps a training/cache namespace")
@@ -987,13 +997,8 @@ def _require_key_outside_workspace(key_path: Path, workspace: Path) -> None:
         )
 
 
-def _require_key_outside_repository(key_path: Path, prompt_path: Path) -> None:
-    try:
-        repository_root = prompt_path.parents[2]
-    except IndexError as error:
-        raise HumanEvaluationError("cannot derive repository root from the prompt asset") from error
-    repository_root = repository_root.resolve()
-    if key_path == repository_root or key_path.is_relative_to(repository_root):
+def _require_key_outside_repository(key_path: Path) -> None:
+    if key_path == _REPOSITORY_ROOT or key_path.is_relative_to(_REPOSITORY_ROOT):
         raise HumanEvaluationError("blinding key must be stored outside the repository")
 
 

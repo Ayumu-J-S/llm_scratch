@@ -24,6 +24,9 @@ models resident on the DGX Spark.
 ## Prepare the study
 
 Keep the HMAC key outside the evaluation workspace and outside the repository.
+The workflow anchors that check to the evaluator checkout itself and accepts
+prompt assets only from that checkout's `evaluation/human` directory; overriding
+the prompt path cannot redefine which repository is protected.
 The command creates it once with exact owner-only `0600` permissions and refuses
 to replace it:
 
