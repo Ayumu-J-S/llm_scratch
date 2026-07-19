@@ -12,7 +12,7 @@ import torch
 from omegaconf import OmegaConf
 
 import benchmark as benchmark_cli
-from benchmarks.contamination import scan_checkpoint_training_data
+from benchmarks.contamination import ContaminationScanError, scan_checkpoint_training_data
 from benchmarks.external import ExternalComparisonError, write_external_comparison
 from benchmarks.runner import BenchmarkContaminationError, run_benchmark
 from benchmarks.scoring import BenchmarkScoringError, score_suite
@@ -295,7 +295,7 @@ def test_final_access_cannot_be_granted_by_hydra(monkeypatch, tmp_path: Path):
         benchmark_cli.final_main()
 
 
-def test_injected_contamination_reports_source_and_document_id(tmp_path: Path):
+def test_injected_contamination_reports_source_and_document_id(monkeypatch, tmp_path: Path):
     registry, fingerprint = _registry(tmp_path, question="小さなモデルを一から学習する。")
     checkpoint, checkpoint_config = _pretraining_checkpoint(tmp_path)
     suite = load_suite(
@@ -324,6 +324,43 @@ def test_injected_contamination_reports_source_and_document_id(tmp_path: Path):
         "816b305c1bb974cb2894e518fe74205acc577d53913eacd01016660c9d3104a0"
     )
     assert match["training_upstream_id"] == "ja-002"
+    index_files = list((tmp_path / "training-cache/contamination-scans").glob("*.json"))
+    assert len(index_files) == 1
+    index = json.loads(index_files[0].read_text(encoding="utf-8"))
+    assert index["index_identity_sha256"] == evidence["scan_index_identity_sha256"]
+    assert index["index_identity"]["normalization_revision"] == (
+        "normalize-text-identity-nfc-strip-v1"
+    )
+    assert index["index_identity"]["suite"] == suite.identity()
+    assert index["index_identity"]["training_sources"] == [
+        {
+            "name": "fixture_train",
+            "manifest_fingerprint": (
+                "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19"
+            ),
+            "selection": "train",
+        }
+    ]
+    monkeypatch.setattr(
+        "benchmarks.contamination.ManifestTextSource",
+        lambda *_args, **_kwargs: pytest.fail(
+            "a completed manifest/suite-bound contamination index must avoid a corpus rescan"
+        ),
+    )
+    reused = scan_checkpoint_training_data(
+        checkpoint_config,
+        suite,
+        fallback_cache=BoundedShardCache(tmp_path / "fallback-2", max_size_bytes=10_000_000),
+    )
+    assert reused == evidence
+    index["report"]["scanned_documents"] += 1
+    index_files[0].write_text(json.dumps(index), encoding="utf-8")
+    with pytest.raises(ContaminationScanError, match="artifact checksum"):
+        scan_checkpoint_training_data(
+            checkpoint_config,
+            suite,
+            fallback_cache=BoundedShardCache(tmp_path / "fallback-3", max_size_bytes=10_000_000),
+        )
     assert checkpoint.is_file()
 
 

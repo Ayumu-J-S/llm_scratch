@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import random
+import stat
 import subprocess
 from pathlib import Path
 from typing import Any, Mapping
@@ -116,12 +118,90 @@ def _git(root_dir: Path) -> dict[str, Any]:
             ) from error
         return result.stdout.strip()
 
+    def run_bytes(*args: str) -> bytes:
+        try:
+            result = subprocess.run(
+                ["git", *args],
+                cwd=root_dir,
+                check=True,
+                capture_output=True,
+                timeout=10,
+            )
+        except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
+            raise ReproducibilityError(
+                f"unable to inspect git repository bytes: git {' '.join(args)}"
+            ) from error
+        return result.stdout
+
     status = run("status", "--porcelain", "--untracked-files=all")
+    sha = run("rev-parse", "HEAD")
+    tracked_diff = run_bytes("diff", "--binary", "--no-ext-diff", "HEAD", "--")
+    untracked = run_bytes("ls-files", "--others", "--exclude-standard", "-z")
+    worktree_digest = hashlib.sha256()
+    _hash_field(worktree_digest, b"revision", b"git-worktree-content-v1")
+    _hash_field(worktree_digest, b"tracked-diff", tracked_diff)
+    for raw_path in sorted(path for path in untracked.split(b"\0") if path):
+        _hash_untracked_path(worktree_digest, root_dir, raw_path)
+    if (
+        run("rev-parse", "HEAD") != sha
+        or run("status", "--porcelain", "--untracked-files=all") != status
+        or run_bytes("diff", "--binary", "--no-ext-diff", "HEAD", "--") != tracked_diff
+        or run_bytes("ls-files", "--others", "--exclude-standard", "-z") != untracked
+    ):
+        raise ReproducibilityError("git worktree changed while its content identity was captured")
     return {
-        "sha": run("rev-parse", "HEAD"),
+        "sha": sha,
         "dirty": bool(status),
         "status": status.splitlines(),
+        "worktree_content_sha256": worktree_digest.hexdigest(),
     }
+
+
+def _hash_field(digest: Any, label: bytes, payload: bytes) -> None:
+    digest.update(len(label).to_bytes(8, "big"))
+    digest.update(label)
+    digest.update(len(payload).to_bytes(8, "big"))
+    digest.update(payload)
+
+
+def _hash_untracked_path(digest: Any, root_dir: Path, raw_path: bytes) -> None:
+    path = root_dir / os.fsdecode(raw_path)
+    try:
+        before = path.lstat()
+    except OSError as error:
+        raise ReproducibilityError(f"unable to hash untracked path: {path}") from error
+    _hash_field(digest, b"untracked-path", raw_path)
+    _hash_field(digest, b"untracked-mode", str(before.st_mode).encode())
+    try:
+        if stat.S_ISLNK(before.st_mode):
+            _hash_field(digest, b"untracked-symlink", os.fsencode(os.readlink(path)))
+        elif stat.S_ISREG(before.st_mode):
+            file_digest = hashlib.sha256()
+            with path.open("rb") as handle:
+                for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                    file_digest.update(chunk)
+            _hash_field(digest, b"untracked-file-sha256", file_digest.digest())
+        else:
+            _hash_field(digest, b"untracked-special", b"")
+        after = path.lstat()
+    except OSError as error:
+        raise ReproducibilityError(f"unable to hash untracked path: {path}") from error
+    observed_before = (
+        before.st_dev,
+        before.st_ino,
+        before.st_mode,
+        before.st_size,
+        before.st_mtime_ns,
+    )
+    observed_after = (
+        after.st_dev,
+        after.st_ino,
+        after.st_mode,
+        after.st_size,
+        after.st_mtime_ns,
+    )
+    if observed_after != observed_before:
+        raise ReproducibilityError(f"untracked path changed while it was hashed: {path}")
 
 
 def collect_git_identity(root_dir: str | Path) -> dict[str, Any]:

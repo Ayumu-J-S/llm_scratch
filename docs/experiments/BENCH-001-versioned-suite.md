@@ -29,7 +29,10 @@
 | 6 | Independent re-review | FAIL | Exact-head review of `6053008` reran 339 tests (1 skipped) successfully, then found that result identity bound the training commit but not the executable evaluator/runtime, and that fixture scoring asserted repeatability rather than pinned golden outputs |
 | 7 | Repair | Complete | Added evaluator Git dirty/commit, dependency-lock, OS/Python/PyTorch/CUDA/device/container identity to the result hash; pinned both fixture task metrics, predictions, trace hashes, generation length/stop reason, and empty-completion hash |
 | 8 | Full validation | PASS | Official CPU gate: 339 passed, 1 skipped; Ruff, Hydra config preflight, lock drift, offline smoke, `uv lock --check`, changed-path format, and diff checks pass |
-| 9 | Independent re-review | Pending | Repeat against the exact committed second-repair head; preserve the verdict and any remaining note in the pull request |
+| 9 | Independent re-review | FAIL | Exact-head review of `9722b49` reran 339 tests (1 skipped), then found the canonical 48-codepoint scan was repeated and prohibitively materialized for every checkpoint, the default benchmark cache polluted Git status, and dirty evaluator identity bound filenames but not changed bytes |
+| 10 | Repair | Complete | Added a verified suite/corpus/normalizer/scanner-implementation-bound reusable scan artifact with a no-rescan milestone invariant, moved generated cache state under ignored output storage, and bound tracked diffs plus non-ignored untracked bytes into Git identity |
+| 11 | Full validation | PASS | Official CPU gate: 340 passed, 1 skipped; Ruff, Hydra config preflight, lock drift, offline smoke, `uv lock --check`, changed-path format, and diff checks pass |
+| 12 | Independent re-review | Pending | Repeat against the exact committed third-repair head and preserve the verdict in the pull request |
 
 ## Resolved protocol
 
@@ -64,15 +67,15 @@
 
 ## Current conclusion
 
-Both independent failed reviews remain visible. Their five findings are now
-repaired without weakening the fixed protocol or the complete contamination
-scan: the benchmark fails cheap context incompatibility before the scan, both
-tasks honor checkpoint precision, external records are pinned, executable
-evaluator identity is complete, and fixture outputs are golden rather than
-merely repeatable. An extra repository-wide format diagnostic identified four
-pre-existing, unrelated files outside this ticket's diff; the configured Ruff
-lint gate and all changed benchmark paths pass, so those files were not
-rewritten here. The second repair's full gate passes; this record remains
-pending until its exact-head independent re-review is retained in the pull
-request. No benchmark score from the zero-weight fixture is a model-quality
-result.
+All three independent failed reviews remain visible. Their eight findings are
+repaired without weakening the fixed protocol or complete contamination gate:
+cheap context incompatibility precedes scanning, both tasks honor checkpoint
+precision, external records are pinned, evaluator/runtime and dirty source
+bytes are identity-bound, fixture outputs are golden, generated cache state is
+ignored, and completed suite/corpus-bound scan evidence is reused across
+milestones rather than recomputing the 48-codepoint corpus index. An extra
+repository-wide format diagnostic identified four pre-existing, unrelated
+files outside this ticket's diff; the configured Ruff lint gate and all changed
+benchmark paths pass, so those files were not rewritten here. The third
+repair's full gate passes and its exact-head independent review is pending. No
+benchmark score from the zero-weight fixture is a model-quality result.

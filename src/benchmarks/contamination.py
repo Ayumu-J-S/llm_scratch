@@ -3,6 +3,11 @@
 from __future__ import annotations
 
 import hashlib
+import fcntl
+import json
+import os
+import tempfile
+import unicodedata
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any
@@ -12,11 +17,24 @@ from data.identity import canonical_json_bytes, normalize_text_identity
 from data.manifests import preflight_manifest
 from data.stream_loader.cache import BoundedShardCache, RetryPolicy
 from data.stream_loader.loader import ManifestTextSource
+from runtime.reproducibility import sha256_file
 
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 SHINGLE_CODEPOINTS = 48
-SCAN_REVISION = "BENCH-001-contamination-v1"
+SCAN_REVISION = "BENCH-001-contamination-v2"
+NORMALIZATION_REVISION = "normalize-text-identity-nfc-strip-v1"
+SCAN_INDEX_SCHEMA_VERSION = 1
+_SCAN_IMPLEMENTATION_FILES = {
+    "benchmarks.contamination": Path(__file__).resolve(),
+    "benchmarks.suite": ROOT_DIR / "src/benchmarks/suite.py",
+    "data.identity": ROOT_DIR / "src/data/identity.py",
+    "data.manifests": ROOT_DIR / "src/data/manifests.py",
+    "data.parquet_source": ROOT_DIR / "src/data/parquet_source.py",
+    "data.quality": ROOT_DIR / "src/data/quality.py",
+    "data.splits": ROOT_DIR / "src/data/splits.py",
+    "data.stream_loader.loader": ROOT_DIR / "src/data/stream_loader/loader.py",
+}
 
 
 class ContaminationScanError(ValueError):
@@ -38,6 +56,44 @@ def scan_checkpoint_training_data(
 
     sources, streaming = _training_sources(checkpoint_config)
     training_cache = _training_cache(streaming, fallback=fallback_cache)
+    index_identity = _scan_index_identity(sources, suite)
+    index_identity_sha256 = _sha256_json(index_identity)
+    index_dir = training_cache.cache_dir / "contamination-scans"
+    index_path = index_dir / f"{index_identity_sha256}.json"
+    lock_path = training_cache.lock_dir / f"contamination-{index_identity_sha256}.lock"
+    index_dir.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("a+b") as lock:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        if index_path.is_file():
+            return _read_scan_index(
+                index_path,
+                expected_identity=index_identity,
+                expected_identity_sha256=index_identity_sha256,
+            )
+        report = _scan_training_sources(
+            sources,
+            suite,
+            training_cache=training_cache,
+            index_identity_sha256=index_identity_sha256,
+        )
+        _write_scan_index(
+            index_path,
+            index_identity=index_identity,
+            index_identity_sha256=index_identity_sha256,
+            report=report,
+        )
+        return report
+
+
+def _scan_training_sources(
+    sources: list[dict[str, Any]],
+    suite: LoadedSuite,
+    *,
+    training_cache: BoundedShardCache,
+    index_identity_sha256: str,
+) -> dict[str, Any]:
+    """Perform the one-time corpus scan used to build a reusable verified index."""
+
     probe_index = _build_probe_index(suite)
     matches: list[dict[str, Any]] = []
     scanned_documents = 0
@@ -134,6 +190,7 @@ def scan_checkpoint_training_data(
     }
     return {
         "scan_revision": SCAN_REVISION,
+        "scan_index_identity_sha256": index_identity_sha256,
         "scan_complete": True,
         "benchmark_access": suite.access,
         "benchmark_examples": suite.example_count,
@@ -146,6 +203,112 @@ def scan_checkpoint_training_data(
         "matches": matches,
         "contaminated": bool(matches),
     }
+
+
+def _scan_index_identity(sources: list[dict[str, Any]], suite: LoadedSuite) -> dict[str, Any]:
+    """Bind reusable scan evidence to corpus, task content, and scanner bytes."""
+
+    return {
+        "scan_revision": SCAN_REVISION,
+        "normalization_revision": NORMALIZATION_REVISION,
+        "unicode_database_version": unicodedata.unidata_version,
+        "shingle_codepoints": SHINGLE_CODEPOINTS,
+        "implementation_sha256": {
+            name: sha256_file(path) for name, path in sorted(_SCAN_IMPLEMENTATION_FILES.items())
+        },
+        "suite": suite.identity(),
+        "training_sources": [
+            {
+                "name": str(source["name"]),
+                "manifest_fingerprint": str(source["expected_fingerprint"]),
+                "selection": str(source["selection"]),
+            }
+            for source in sources
+        ],
+    }
+
+
+def _read_scan_index(
+    path: Path,
+    *,
+    expected_identity: Mapping[str, Any],
+    expected_identity_sha256: str,
+) -> dict[str, Any]:
+    try:
+        artifact = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise ContaminationScanError(f"contamination scan index is unreadable: {path}") from error
+    if not isinstance(artifact, Mapping):
+        raise ContaminationScanError("contamination scan index must be a JSON object")
+    required = {
+        "schema_version",
+        "index_identity",
+        "index_identity_sha256",
+        "report",
+        "artifact_sha256",
+    }
+    if set(artifact) != required or artifact.get("schema_version") != SCAN_INDEX_SCHEMA_VERSION:
+        raise ContaminationScanError("contamination scan index schema is invalid")
+    identity = artifact.get("index_identity")
+    if (
+        not isinstance(identity, Mapping)
+        or dict(identity) != dict(expected_identity)
+        or artifact.get("index_identity_sha256") != expected_identity_sha256
+        or _sha256_json(identity) != expected_identity_sha256
+    ):
+        raise ContaminationScanError("contamination scan index identity does not match this run")
+    unsigned = {key: value for key, value in artifact.items() if key != "artifact_sha256"}
+    if artifact.get("artifact_sha256") != _sha256_json(unsigned):
+        raise ContaminationScanError("contamination scan index failed its artifact checksum")
+    report = artifact.get("report")
+    if (
+        not isinstance(report, Mapping)
+        or report.get("scan_complete") is not True
+        or report.get("scan_index_identity_sha256") != expected_identity_sha256
+    ):
+        raise ContaminationScanError("contamination scan index contains an incomplete report")
+    return dict(report)
+
+
+def _write_scan_index(
+    path: Path,
+    *,
+    index_identity: Mapping[str, Any],
+    index_identity_sha256: str,
+    report: Mapping[str, Any],
+) -> None:
+    unsigned = {
+        "schema_version": SCAN_INDEX_SCHEMA_VERSION,
+        "index_identity": dict(index_identity),
+        "index_identity_sha256": index_identity_sha256,
+        "report": dict(report),
+    }
+    artifact = {**unsigned, "artifact_sha256": _sha256_json(unsigned)}
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent)
+    )
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            json.dump(
+                artifact,
+                handle,
+                ensure_ascii=False,
+                indent=2,
+                sort_keys=True,
+                allow_nan=False,
+            )
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+        directory_fd = os.open(path.parent, os.O_RDONLY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def _training_sources(
@@ -279,6 +442,10 @@ def _shingle_digests(text: str) -> set[str]:
 
 def _sha256(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8", errors="strict")).hexdigest()
+
+
+def _sha256_json(value: Mapping[str, Any]) -> str:
+    return hashlib.sha256(canonical_json_bytes(value)).hexdigest()
 
 
 def _append(index: dict[str, list[dict[str, str]]], digest: str, reference: dict[str, str]) -> None:

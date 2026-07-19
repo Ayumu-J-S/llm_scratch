@@ -1,4 +1,5 @@
 import json
+import subprocess
 from copy import deepcopy
 from pathlib import Path
 
@@ -10,6 +11,7 @@ from models.simple_decoder_transformer import SimpleDecoderTransformer
 from runtime.reproducibility import (
     ManifestMismatchError,
     ReproducibilityError,
+    collect_git_identity,
     dataloader_generator,
     dataloader_worker_init_fn,
     seed_everything,
@@ -27,6 +29,10 @@ TOKENIZER = ROOT / "assets/tokenizers/llm-jp-v1/manifest.json"
 TOKENIZER_FINGERPRINT = "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b"
 DATA = ROOT / "tests/fixtures/data_manifests/memorization.manifest.json"
 DATA_FINGERPRINT = "00c3797a7d0eda13950fd699a60c45fcd388829f016479caaeb369438767bd31"
+
+
+def _git(root: Path, *args: str) -> None:
+    subprocess.run(["git", *args], cwd=root, check=True, capture_output=True)
 
 
 def _fixture_trace(seed: int):
@@ -77,6 +83,35 @@ def test_deterministic_toggle_is_explicit():
     seed_everything(123, deterministic=False)
     assert not torch.are_deterministic_algorithms_enabled()
     seed_everything(123, deterministic=True)
+
+
+def test_git_identity_binds_distinct_tracked_and_untracked_dirty_bytes(tmp_path: Path):
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.name", "Fixture")
+    _git(tmp_path, "config", "user.email", "fixture@example.invalid")
+    tracked = tmp_path / "evaluator.py"
+    tracked.write_text("value = 'clean'\n", encoding="utf-8")
+    _git(tmp_path, "add", "evaluator.py")
+    _git(tmp_path, "commit", "-qm", "fixture")
+
+    tracked.write_text("value = 'first'\n", encoding="utf-8")
+    first_tracked = collect_git_identity(tmp_path)
+    tracked.write_text("value = 'other'\n", encoding="utf-8")
+    other_tracked = collect_git_identity(tmp_path)
+    assert first_tracked["sha"] == other_tracked["sha"]
+    assert first_tracked["status"] == other_tracked["status"]
+    assert first_tracked["worktree_content_sha256"] != (other_tracked["worktree_content_sha256"])
+
+    tracked.write_text("value = 'clean'\n", encoding="utf-8")
+    untracked = tmp_path / "untracked_evaluator.py"
+    untracked.write_text("value = 'first'\n", encoding="utf-8")
+    first_untracked = collect_git_identity(tmp_path)
+    untracked.write_text("value = 'other'\n", encoding="utf-8")
+    other_untracked = collect_git_identity(tmp_path)
+    assert first_untracked["status"] == other_untracked["status"]
+    assert (
+        first_untracked["worktree_content_sha256"] != (other_untracked["worktree_content_sha256"])
+    )
 
 
 def _manifest_config():
