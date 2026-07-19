@@ -9,7 +9,7 @@ a leaderboard framework or any chat/SFT behavior.
 The immutable registry is
 [`data/benchmarks/suite-v1.json`](../data/benchmarks/suite-v1.json). Its compiled
 fingerprint is
-`39e658f55b445b5390a01390523b077018a1337c257ad82f0a167085636b7bd2`.
+`adf433c320252b4d2cbdd6f9817f6f9e34a846bf81b39915a697def1ab477042`.
 The evaluator refuses a registry whose canonical fingerprint differs.
 
 | Task | Development source | Reserved final source | Revision | Scoring |
@@ -21,9 +21,9 @@ The registry records each source URL, byte size, SHA-256, record count, split,
 repository, commit URL, and license. The development subset identities are:
 
 - JCommonsenseQA:
-  `fa5ce35310f98b171da7db6afeff222381161f1987a99d70e7ede9b77a283b0e`
+  `37e39dca6ce5108fe720dda6e0246f7c8ef858e22961229540d2023faeabe0bd`
 - GSM8K:
-  `3f5c12085bfcb2e4dc94d91d1d3630b476d06343c6c2fc6c6df2d5d87f90daba`
+  `03fa95e872665b2be1633781879fe10cc5d04f5b2d1d3add055d60deecf6d9c6`
 
 There are zero few-shot examples. Each task's exact prompt and scorer
 specification has its own SHA-256 in addition to its readable revision.
@@ -74,6 +74,8 @@ document in every checkpoint-owned manifest selected as `train`. It records:
 
 - exact whole-document hashes;
 - normalized whole-document hashes using the repository text-identity policy;
+- source-faithful full-record hashes plus key-order/whitespace-independent
+  canonical JSON-object identities;
 - exact matches over normalized 48-codepoint shingles;
 - source name, training document ID, upstream ID, manifest/dataset identity,
   scan counts, byte counts, and a complete scan-order digest.

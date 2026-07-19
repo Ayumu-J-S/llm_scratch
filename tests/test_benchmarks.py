@@ -21,6 +21,8 @@ from benchmarks.contamination import (
     SHINGLE_CODEPOINTS,
     ContaminationScanError,
     _ShingleMatcher,
+    _build_probe_index,
+    _document_matches,
     scan_checkpoint_training_data,
 )
 from benchmarks.external import ExternalComparisonError, write_external_comparison
@@ -37,6 +39,9 @@ from benchmarks.suite import (
     JCOMMONSENSEQA_PROMPT_REVISION,
     JCOMMONSENSEQA_SCORER_REVISION,
     SUBSET_SELECTOR_REVISION,
+    BenchmarkExample,
+    LoadedSuite,
+    LoadedTask,
     load_suite,
 )
 from data.identity import canonical_fingerprint
@@ -59,6 +64,9 @@ TOKENIZER_CONFIG = {
     "expected_fingerprint": "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b",
 }
 PROTOCOL = {
+    "contamination": {
+        "probe_revision": "source-record-and-canonical-json-object-v1",
+    },
     "few_shot_examples": 0,
     "jcommonsenseqa": {
         "prompt_revision": JCOMMONSENSEQA_PROMPT_REVISION,
@@ -121,6 +129,14 @@ def _registry(
                         {
                             "example_id": "1",
                             "record_sha256": canonical_fingerprint(dev_j[0]),
+                            "source_record_sha256": hashlib.sha256(
+                                json.dumps(
+                                    dev_j[0],
+                                    ensure_ascii=False,
+                                    sort_keys=True,
+                                    separators=(",", ":"),
+                                ).encode("utf-8")
+                            ).hexdigest(),
                         }
                     ]
                 ),
@@ -129,6 +145,14 @@ def _registry(
                         {
                             "example_id": "0",
                             "record_sha256": canonical_fingerprint(dev_gsm[0]),
+                            "source_record_sha256": hashlib.sha256(
+                                json.dumps(
+                                    dev_gsm[0],
+                                    ensure_ascii=False,
+                                    sort_keys=True,
+                                    separators=(",", ":"),
+                                ).encode("utf-8")
+                            ).hexdigest(),
                         }
                     ]
                 ),
@@ -348,13 +372,17 @@ def test_injected_contamination_reports_source_and_document_id(monkeypatch, tmp_
     index = json.loads(index_files[0].read_text(encoding="utf-8"))
     assert index["index_identity_sha256"] == evidence["scan_index_identity_sha256"]
     assert index["index_identity"]["normalization_revision"] == (
-        "normalize-text-identity-nfc-strip-v1"
+        "normalize-text-identity-nfc-strip-plus-json-object-v2"
+    )
+    assert index["index_identity"]["json_object_normalization_revision"] == (
+        "canonical-json-object-sha256-v1"
     )
     assert index["index_identity"]["matcher_revision"] == (
         "collision-verified-rolling-hash-codepoint-v1"
     )
     assert index["index_identity"]["producer"]["dependency_lock_sha256"]
     assert index["index_identity"]["producer"]["runtime"]["packages"]["pyarrow"]
+
     producer_source = index["index_identity"]["producer"]["source"]
     producer_paths = {entry["path"] for entry in producer_source["files"]}
     assert producer_source["scope_revision"] == "src-python-pyproject-lock-v1"
@@ -411,6 +439,94 @@ def test_injected_contamination_reports_source_and_document_id(monkeypatch, tmp_
             fallback_cache=BoundedShardCache(tmp_path / "fallback-4", max_size_bytes=10_000_000),
         )
     assert checkpoint.is_file()
+
+
+def test_all_selected_source_records_match_verbatim_and_reordered_json():
+    jcommonsenseqa_examples = []
+    gsm8k_examples = []
+    for index in range(128):
+        jcommonsenseqa_record = {
+            "q_id": 10_000 + index,
+            "question": f"短い質問{index}",
+            "choice0": "甲",
+            "choice1": "乙",
+            "choice2": "丙",
+            "choice3": "丁",
+            "choice4": "戊",
+            "label": index % 5,
+        }
+        gsm8k_record = {
+            "question": f"What is {index} plus one?",
+            "answer": f"Add one.\n#### {index + 1}",
+        }
+        jcommonsenseqa_examples.append(
+            BenchmarkExample(
+                task="jcommonsenseqa",
+                example_id=str(jcommonsenseqa_record["q_id"]),
+                record=jcommonsenseqa_record,
+                source_record=json.dumps(jcommonsenseqa_record, ensure_ascii=False),
+            )
+        )
+        gsm8k_examples.append(
+            BenchmarkExample(
+                task="gsm8k",
+                example_id=str(index),
+                record=gsm8k_record,
+                source_record=json.dumps(gsm8k_record, ensure_ascii=False),
+            )
+        )
+    suite = LoadedSuite(
+        suite_id=FINAL_ACKNOWLEDGEMENT,
+        suite_fingerprint="fixture",
+        access="dev",
+        protocol=PROTOCOL,
+        protocol_sha256="fixture",
+        tasks=(
+            LoadedTask(
+                name="jcommonsenseqa",
+                examples=tuple(jcommonsenseqa_examples),
+                source_identity={},
+            ),
+            LoadedTask(name="gsm8k", examples=tuple(gsm8k_examples), source_identity={}),
+        ),
+    )
+    probe_index = _build_probe_index(suite)
+
+    for task in suite.tasks:
+        for example in task.examples:
+            exact = _document_matches(
+                example.source_record,
+                source_name="fixture_train",
+                document_id=f"{task.name}-{example.example_id}-raw",
+                upstream_id=None,
+                probe_index=probe_index,
+            )
+            reordered = json.dumps(
+                dict(reversed(list(example.record.items()))),
+                ensure_ascii=False,
+                indent=2,
+            )
+            structured = _document_matches(
+                reordered,
+                source_name="fixture_train",
+                document_id=f"{task.name}-{example.example_id}-reordered",
+                upstream_id=None,
+                probe_index=probe_index,
+            )
+            assert any(
+                match["task"] == task.name
+                and match["benchmark_example_id"] == example.example_id
+                and match["benchmark_field"] == "source_record"
+                and match["match_type"] == "exact"
+                for match in exact
+            )
+            assert any(
+                match["task"] == task.name
+                and match["benchmark_example_id"] == example.example_id
+                and match["benchmark_field"] == "canonical_record"
+                and match["match_type"] == "structured_json"
+                for match in structured
+            )
 
 
 def test_shingle_matcher_is_linear_and_does_not_materialize_corpus_windows():
@@ -784,7 +900,7 @@ def test_external_baseline_record_is_aggregate_only_and_isolated(monkeypatch, tm
             "data_access": "upstream disclosure",
             "protocol_context_preflight": {
                 "protocol_sha256": (
-                    "79cf8b28ec8746043abc05d40a701520d3423f7cdcdbc098c956364a8e09eb7b"
+                    "d56ffdbdf0862929f40e51b1fe748b58826b8bb95532f11e1af4e8a9a7972377"
                 ),
                 "passed": True,
                 "no_truncation": True,
@@ -821,10 +937,10 @@ def test_external_baseline_record_is_aggregate_only_and_isolated(monkeypatch, tm
     assert record["suite"]["access"] == "dev"
     assert record["suite"]["minimum_context_length"] == 129
     assert record["suite"]["protocol_sha256"] == (
-        "79cf8b28ec8746043abc05d40a701520d3423f7cdcdbc098c956364a8e09eb7b"
+        "d56ffdbdf0862929f40e51b1fe748b58826b8bb95532f11e1af4e8a9a7972377"
     )
     assert record["suite"]["tasks"]["jcommonsenseqa"]["selected_examples_sha256"] == (
-        "fa5ce35310f98b171da7db6afeff222381161f1987a99d70e7ede9b77a283b0e"
+        "37e39dca6ce5108fe720dda6e0246f7c8ef858e22961229540d2023faeabe0bd"
     )
 
     contaminated = copy.deepcopy(payload)
@@ -926,7 +1042,12 @@ def test_wandb_receives_only_compact_aggregate_rows(monkeypatch, tmp_path: Path)
         "contamination": {
             "scan_complete": True,
             "scanned_documents": 12,
-            "match_counts": {"exact": 0, "normalized": 0, "shingle_48": 0},
+            "match_counts": {
+                "exact": 0,
+                "normalized": 0,
+                "structured_json": 0,
+                "shingle_48": 0,
+            },
         },
         "tasks": {
             "jcommonsenseqa": {

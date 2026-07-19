@@ -24,7 +24,7 @@ BenchmarkAccess = Literal["dev", "final"]
 SUITE_ID = "BENCH-001-suite-v1"
 FINAL_ACKNOWLEDGEMENT = SUITE_ID
 CANONICAL_REGISTRY_PATH = Path(__file__).resolve().parents[2] / "data/benchmarks/suite-v1.json"
-CANONICAL_REGISTRY_FINGERPRINT = "39e658f55b445b5390a01390523b077018a1337c257ad82f0a167085636b7bd2"
+CANONICAL_REGISTRY_FINGERPRINT = "adf433c320252b4d2cbdd6f9817f6f9e34a846bf81b39915a697def1ab477042"
 JCOMMONSENSEQA_PROMPT_REVISION = "BENCH-001-jcommonsenseqa-zero-shot-v1"
 JCOMMONSENSEQA_SCORER_REVISION = "BENCH-001-conditional-logprob-v2"
 GSM8K_PROMPT_REVISION = "BENCH-001-gsm8k-zero-shot-v1"
@@ -33,6 +33,7 @@ GSM8K_MAX_NEW_TOKENS = 128
 PROTOCOL_MINIMUM_CONTEXT_LENGTH = GSM8K_MAX_NEW_TOKENS + 1
 GENERATED_TOKEN_TRACE_REVISION = "canonical-json-token-ids-sha256-v1"
 SUBSET_SELECTOR_REVISION = "sha256-example-id-v1"
+CONTAMINATION_PROBE_REVISION = "source-record-and-canonical-json-object-v1"
 INVALID_GSM8K_ANSWER = "[invalid]"
 _GSM8K_ANSWER = re.compile(r"#### (\-?[0-9\.\,]+)")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
@@ -85,6 +86,7 @@ class BenchmarkExample:
     task: str
     example_id: str
     record: dict[str, Any]
+    source_record: str
 
 
 @dataclass(frozen=True)
@@ -177,6 +179,9 @@ def load_suite(
             {
                 "example_id": example.example_id,
                 "record_sha256": hashlib.sha256(canonical_json_bytes(example.record)).hexdigest(),
+                "source_record_sha256": hashlib.sha256(
+                    example.source_record.encode("utf-8", errors="strict")
+                ).hexdigest(),
             }
             for example in examples
         ]
@@ -285,6 +290,7 @@ def contamination_probes(example: BenchmarkExample) -> tuple[tuple[str, str], ..
                         separators=(",", ":"),
                     ),
                 ),
+                ("source_record", example.source_record),
             ]
             + [(f"choice{index}", str(example.record[f"choice{index}"])) for index in range(5)]
         )
@@ -305,6 +311,7 @@ def contamination_probes(example: BenchmarkExample) -> tuple[tuple[str, str], ..
                     separators=(",", ":"),
                 ),
             ),
+            ("source_record", example.source_record),
         )
     raise BenchmarkSuiteError(f"unsupported benchmark task: {example.task}")
 
@@ -324,10 +331,13 @@ def _deterministic_subset(examples: list[BenchmarkExample], *, size: int) -> lis
     return ranked[:size]
 
 
-def _examples(task_name: str, records: list[dict[str, Any]]) -> list[BenchmarkExample]:
+def _examples(
+    task_name: str,
+    records: list[tuple[dict[str, Any], str]],
+) -> list[BenchmarkExample]:
     examples: list[BenchmarkExample] = []
     seen: set[str] = set()
-    for index, record in enumerate(records):
+    for index, (record, source_record) in enumerate(records):
         if task_name == "jcommonsenseqa":
             required = {"q_id", "question", "label", *(f"choice{i}" for i in range(5))}
             if set(record) != required:
@@ -355,16 +365,23 @@ def _examples(task_name: str, records: list[dict[str, Any]]) -> list[BenchmarkEx
         if example_id in seen:
             raise BenchmarkSuiteError(f"duplicate {task_name} example ID: {example_id}")
         seen.add(example_id)
-        examples.append(BenchmarkExample(task=task_name, example_id=example_id, record=record))
+        examples.append(
+            BenchmarkExample(
+                task=task_name,
+                example_id=example_id,
+                record=record,
+                source_record=source_record,
+            )
+        )
     return examples
 
 
-def _parse_records(payload: bytes, *, task_name: str) -> list[dict[str, Any]]:
+def _parse_records(payload: bytes, *, task_name: str) -> list[tuple[dict[str, Any], str]]:
     try:
         text = payload.decode("utf-8", errors="strict")
     except UnicodeDecodeError as error:
         raise BenchmarkSuiteError(f"{task_name} source is not valid UTF-8") from error
-    records: list[dict[str, Any]] = []
+    records: list[tuple[dict[str, Any], str]] = []
     for line_number, line in enumerate(text.splitlines(), start=1):
         if not line.strip():
             continue
@@ -376,7 +393,7 @@ def _parse_records(payload: bytes, *, task_name: str) -> list[dict[str, Any]]:
             ) from error
         if not isinstance(record, dict):
             raise BenchmarkSuiteError(f"{task_name} source records must be JSON objects")
-        records.append(record)
+        records.append((record, line))
     if not records:
         raise BenchmarkSuiteError(f"{task_name} source contains no records")
     return records
@@ -454,6 +471,9 @@ def _validate_registry(registry: dict[str, Any], *, expected_fingerprint: str) -
     protocol = _mapping(registry["protocol"], "protocol")
     expected_protocol = {
         "few_shot_examples": 0,
+        "contamination": {
+            "probe_revision": CONTAMINATION_PROBE_REVISION,
+        },
         "jcommonsenseqa": {
             "prompt_revision": JCOMMONSENSEQA_PROMPT_REVISION,
             "scorer_revision": JCOMMONSENSEQA_SCORER_REVISION,

@@ -27,10 +27,11 @@ from runtime.reproducibility import sha256_file
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 SHINGLE_CODEPOINTS = 48
-SCAN_REVISION = "BENCH-001-contamination-v3"
-NORMALIZATION_REVISION = "normalize-text-identity-nfc-strip-v1"
+SCAN_REVISION = "BENCH-001-contamination-v4"
+NORMALIZATION_REVISION = "normalize-text-identity-nfc-strip-plus-json-object-v2"
 SCAN_INDEX_SCHEMA_VERSION = 2
 MATCHER_REVISION = "collision-verified-rolling-hash-codepoint-v1"
+JSON_OBJECT_NORMALIZATION_REVISION = "canonical-json-object-sha256-v1"
 PRODUCER_IDENTITY_REVISION = "contamination-producer-v1"
 PRODUCER_SOURCE_SCOPE_REVISION = "src-python-pyproject-lock-v1"
 _PRODUCER_PACKAGES = ("pyarrow",)
@@ -55,6 +56,7 @@ Reference = dict[str, str]
 class _ProbeIndex:
     exact: dict[str, list[Reference]]
     normalized: dict[str, list[Reference]]
+    structured_json: dict[str, list[Reference]]
     shingles: _ShingleMatcher
 
 
@@ -278,7 +280,7 @@ def _scan_training_sources(
     )
     counts = {
         match_type: sum(match["match_type"] == match_type for match in matches)
-        for match_type in ("exact", "normalized", "shingle_48")
+        for match_type in ("exact", "normalized", "structured_json", "shingle_48")
     }
     return {
         "scan_revision": SCAN_REVISION,
@@ -306,6 +308,7 @@ def _scan_index_identity(sources: list[dict[str, Any]], suite: LoadedSuite) -> d
         "unicode_database_version": unicodedata.unidata_version,
         "shingle_codepoints": SHINGLE_CODEPOINTS,
         "matcher_revision": MATCHER_REVISION,
+        "json_object_normalization_revision": JSON_OBJECT_NORMALIZATION_REVISION,
         "implementation_sha256": {
             name: sha256_file(path) for name, path in sorted(_SCAN_IMPLEMENTATION_FILES.items())
         },
@@ -530,6 +533,7 @@ def _training_cache(
 def _build_probe_index(suite: LoadedSuite) -> _ProbeIndex:
     exact: dict[str, list[Reference]] = {}
     normalized_index: dict[str, list[Reference]] = {}
+    structured_json: dict[str, list[Reference]] = {}
     shingle_patterns: dict[str, list[Reference]] = {}
     for task in suite.tasks:
         for example in task.examples:
@@ -542,11 +546,14 @@ def _build_probe_index(suite: LoadedSuite) -> _ProbeIndex:
                 _append(exact, _sha256(text), reference)
                 normalized = normalize_text_identity(text)
                 _append(normalized_index, _sha256(normalized), reference)
+                if field == "canonical_record":
+                    _append(structured_json, _sha256(text), reference)
                 for shingle in _iter_shingles(normalized):
                     _append_unique(shingle_patterns, shingle, reference)
     return _ProbeIndex(
         exact=exact,
         normalized=normalized_index,
+        structured_json=structured_json,
         shingles=_ShingleMatcher(shingle_patterns),
     )
 
@@ -566,6 +573,15 @@ def _document_matches(
         ("normalized", probe_index.normalized.get(_sha256(normalized), [])),
         ("shingle_48", probe_index.shingles.references_in(normalized)),
     )
+    structured_json = _canonical_json_object(text)
+    if structured_json is not None:
+        observed = (
+            *observed,
+            (
+                "structured_json",
+                probe_index.structured_json.get(_sha256(structured_json), []),
+            ),
+        )
     for match_type, references in observed:
         for reference in references:
             matches.append(
@@ -577,7 +593,22 @@ def _document_matches(
                     "training_upstream_id": None if upstream_id is None else str(upstream_id),
                 }
             )
-    return matches
+    return _deduplicate_matches(matches)
+
+
+def _canonical_json_object(text: str) -> str | None:
+    """Return a key-order/whitespace-independent identity for standalone JSON objects."""
+
+    stripped = text.strip()
+    if not stripped.startswith("{") or not stripped.endswith("}"):
+        return None
+    try:
+        value = json.loads(stripped)
+        if not isinstance(value, Mapping):
+            return None
+        return canonical_json_bytes(value).decode("utf-8", errors="strict")
+    except (json.JSONDecodeError, TypeError, ValueError, UnicodeError):
+        return None
 
 
 def _deduplicate_matches(matches: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
