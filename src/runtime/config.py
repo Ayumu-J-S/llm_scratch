@@ -24,6 +24,7 @@ _TOP_LEVEL = {
     "artifacts",
     "wandb",
     "evaluation",
+    "benchmark",
     "measurement",
 }
 _RUNTIME = {"device"}
@@ -127,6 +128,15 @@ _ARTIFACTS = {"checkpoints_dir", "keep_last_n", "resume_path"}
 _WANDB = {"enabled", "project", "entity", "name", "mode", "log_model_every_n_epoch"}
 _EVALUATION = {"checkpoint_path", "output_path", "device", "wandb"}
 _EVALUATION_WANDB = {"enabled", "project", "entity", "name", "mode"}
+_BENCHMARK = {"checkpoint_path", "output_path", "device", "cache", "wandb"}
+_BENCHMARK_CACHE = {
+    "dir",
+    "max_size_bytes",
+    "min_free_bytes",
+    "wait_timeout_seconds",
+    "timeout_seconds",
+}
+_BENCHMARK_WANDB = {"enabled", "project", "entity", "name", "mode"}
 _MEASUREMENT = {"enabled", "warmup_optimizer_steps", "cuda_events", "output_path"}
 
 
@@ -262,6 +272,79 @@ def validate_evaluation_checkpoint_runtime(
         )
 
 
+def validate_benchmark_config(config: Mapping[str, Any] | DictConfig) -> dict[str, Any]:
+    """Validate benchmark operational controls without exposing data access authority."""
+
+    cfg = _plain(config)
+    _check_keys(cfg, _TOP_LEVEL, "<root>")
+    _required(cfg, ("profile", "benchmark"), "<root>")
+    profile = _plain(cfg["profile"])
+    if (
+        profile.get("name") != "benchmark"
+        or profile.get("purpose") != "benchmark"
+        or profile.get("task") != "benchmark_checkpoint"
+    ):
+        raise ConfigPreflightError("standalone benchmark requires profile=benchmark")
+    benchmark = _plain(cfg["benchmark"])
+    _check_keys(benchmark, _BENCHMARK, "benchmark")
+    _required(benchmark, ("checkpoint_path", "output_path", "device", "cache"), "benchmark")
+    for key in ("checkpoint_path", "output_path", "device"):
+        if not isinstance(benchmark[key], str) or not benchmark[key].strip():
+            raise ConfigPreflightError(f"benchmark.{key} must be a non-empty string")
+    if benchmark["device"] not in {"cpu", "cuda"}:
+        raise ConfigPreflightError("benchmark.device must be either 'cpu' or 'cuda'")
+    cache = benchmark["cache"]
+    if not isinstance(cache, Mapping):
+        raise ConfigPreflightError("benchmark.cache must be a mapping")
+    _check_keys(cache, _BENCHMARK_CACHE, "benchmark.cache")
+    _required(
+        cache,
+        ("dir", "max_size_bytes", "min_free_bytes", "wait_timeout_seconds", "timeout_seconds"),
+        "benchmark.cache",
+    )
+    if not isinstance(cache["dir"], str) or not cache["dir"].strip():
+        raise ConfigPreflightError("benchmark.cache.dir must be a non-empty path string")
+    for field in ("max_size_bytes", "min_free_bytes"):
+        value = cache[field]
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise ConfigPreflightError(f"benchmark.cache.{field} must be a non-negative integer")
+    if cache["max_size_bytes"] < 1:
+        raise ConfigPreflightError("benchmark.cache.max_size_bytes must be positive")
+    for field in ("wait_timeout_seconds", "timeout_seconds"):
+        try:
+            valid = math.isfinite(float(cache[field])) and float(cache[field]) > 0
+        except (TypeError, ValueError):
+            valid = False
+        if not valid:
+            raise ConfigPreflightError(f"benchmark.cache.{field} must be positive and finite")
+    wandb_config = benchmark.get("wandb", {})
+    if not isinstance(wandb_config, Mapping):
+        raise ConfigPreflightError("benchmark.wandb must be a mapping")
+    _check_keys(wandb_config, _BENCHMARK_WANDB, "benchmark.wandb")
+    if not isinstance(wandb_config.get("enabled", False), bool):
+        raise ConfigPreflightError("benchmark.wandb.enabled must be boolean")
+    if wandb_config.get("mode", "online") not in {"online", "offline"}:
+        raise ConfigPreflightError("benchmark.wandb.mode must be either 'online' or 'offline'")
+    return cfg
+
+
+def validate_benchmark_checkpoint_runtime(
+    config: Mapping[str, Any] | DictConfig,
+    checkpoint_config: Mapping[str, Any] | DictConfig,
+) -> None:
+    """Reject benchmark device choices incompatible with checkpoint-owned precision."""
+
+    benchmark = _plain(_plain(config)["benchmark"])
+    training = _plain(_plain(checkpoint_config)["training"])
+    device = str(benchmark["device"])
+    precision = str(training.get("precision", "fp32"))
+    if device == "cpu" and precision == "bf16":
+        raise ConfigPreflightError(
+            "benchmark.device=cpu is incompatible with checkpoint-owned "
+            "training.precision=bf16; use benchmark.device=cuda or benchmark an FP32 checkpoint"
+        )
+
+
 def validate_training_config(config: Mapping[str, Any] | DictConfig) -> dict[str, Any]:
     """Validate a composed config before tokenizer/data/model initialization."""
 
@@ -278,6 +361,7 @@ def validate_training_config(config: Mapping[str, Any] | DictConfig) -> dict[str
         ("artifacts", _ARTIFACTS),
         ("wandb", _WANDB),
         ("evaluation", _EVALUATION),
+        ("benchmark", _BENCHMARK),
         ("measurement", _MEASUREMENT),
     ):
         _check_nested(cfg, key, allowed, "<root>")
@@ -314,12 +398,13 @@ def validate_training_config(config: Mapping[str, Any] | DictConfig) -> dict[str
     _required(profile, ("name",), "profile")
     profile_name = str(profile["name"])
     if (
-        profile_name == "evaluation"
-        or profile.get("purpose") == "evaluation"
-        or profile.get("task") == "evaluate_checkpoint"
+        profile_name in {"evaluation", "benchmark"}
+        or profile.get("purpose") in {"evaluation", "benchmark"}
+        or profile.get("task") in {"evaluate_checkpoint", "benchmark_checkpoint"}
     ):
         raise ConfigPreflightError(
-            "profile=evaluation is standalone-only; the training entrypoint cannot run it"
+            "evaluation and benchmark profiles are standalone-only; "
+            "the training entrypoint cannot run them"
         )
     data = _plain(cfg["data"])
     _required(data, ("mode",), "data")
