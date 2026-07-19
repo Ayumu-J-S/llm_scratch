@@ -95,6 +95,10 @@
 | 72 | Supplemental exact-head re-audit | FAIL | Audit of `4d8a254` composed the accepted adversaries and found that a reordered, ASCII-escaped NFD selected record serialized as a JSON string inside 40 array layers was silently skipped. The full scan published and cached `scan_complete=true`, `contaminated=false`; depth 30 detected, depths 31-32 failed closed, and depth 33 or greater returned a false clean result |
 | 73 | Repair | Complete | Made the constant-memory string-literal extractor mirror leaf-object handling: every complete literal is decoded at local depth independent of its physical outer wrapper, while recursive decoded-string depth and the shared byte/node/string budgets remain hard limits. Bumped all scan/normalizer/cache identities |
 | 74 | Focused and full validation | PASS | Separate direct and full-scan regressions detect reversed-key NFD/ASCII records as raw JSON inside 40 object layers and after JSON-string serialization inside 40 array and mixed layers; every cached report remains contaminated. An 8,193-literal document fails closed on the shared string budget; unclosed-string/newline recovery, 1,200-level hostile wrappers, and the 4,095-prefix incomplete-scan control remain intact. The focused gate passes 86 tests and the official CPU/static gate passes 490 tests with 1 skipped; no broad training-corpus scan or GPU work ran |
+| 75 | Exact-head independent `/review` | FAIL | Formal review of clean head `dcab48e` reran the full 490-test gate (1 skipped), then found that the default CUDA evaluator did not impose a deterministic execution policy. `nn.MultiheadAttention` could therefore select nondeterministic SDPA/cuDNN paths while the evaluation identity omitted the policy that produced the score |
+| 76 | Repair | Complete | Applied a fixed policy before checkpoint loading: seed 0, strict deterministic algorithms, required pre-initialization cuBLAS workspace, math-only SDPA, deterministic/non-autotuned cuDNN, highest FP32 matmul precision, and TF32 off. The evaluator verifies the observed backend state, fails closed if CUDA was initialized under a conflicting workspace policy, and binds the exact policy/revision into evaluation identity |
+| 77 | Focused validation | PASS | Four determinism and fixture-identity regressions plus scoped Ruff/format pass. Tests prove the policy precedes checkpoint loading, backend state is strict and observable, conflicting initialized-CUDA state fails closed, and identical fixture results retain the complete fixed policy in their hashed identity; full validation and exact-head re-review remain pending |
+| 78 | Full validation | PASS | Official network-isolated CPU gate passes 493 tests with 1 skipped, repository Ruff, resolved smoke Hydra preflight, lock-drift rejection, and disabled/offline process-tree smoke. The broader BENCH/generation/config/reproducibility selection passes 89 tests; changed-file format and diff checks pass. No GPU, network dataset access, full-corpus scan, or large artifact was used; 426 GB remained free |
 
 ## Resolved protocol
 
@@ -114,6 +118,11 @@
 - Result publication: the default path under `outputs/benchmark-results` is
   `<access>-<evaluation_identity_sha256>.json`; results are exclusive and are
   never replaced, so an exact rerun uses a fresh configured result root/path.
+- Deterministic execution: before loading the checkpoint, evaluation fixes seed
+  0, strict deterministic algorithms, `CUBLAS_WORKSPACE_CONFIG=:4096:8`,
+  math-only SDPA, deterministic cuDNN without autotuning, highest FP32 matmul
+  precision, and TF32 off. Conflicting already-initialized CUDA state fails
+  closed, and the complete applied policy is hashed into result identity.
 - Contamination: complete checkpoint-owned train selections, exact/normalized
   whole-document identity, source-faithful record identity, text-normalized
   canonical JSON-object identity across key-order/whitespace variants, and
@@ -147,7 +156,7 @@
 
 ## Current conclusion
 
-All eighteen failed review/audit cycles remain visible. Their thirty-six findings are
+All nineteen failed review/audit cycles remain visible. Their thirty-seven findings are
 repaired without weakening the fixed protocol or complete contamination gate:
 cheap context incompatibility precedes scanning, both tasks honor checkpoint
 precision, external records are pinned, evaluator/runtime and dirty source
@@ -189,9 +198,13 @@ filenames bind the access partition plus complete evaluation identity so
 milestones, final evaluation, and evaluator revisions can coexist without
 replacement, while run-manifest verification compares the exact recorded
 dirty-worktree bytes in addition to commit, dirty flag, and status paths.
+Benchmark execution now establishes and verifies its fixed strict deterministic
+CUDA/backend policy before checkpoint loading, and hashes that policy into every
+result identity rather than treating deterministic generation settings as a
+substitute for deterministic execution.
 An extra repository-wide format diagnostic identified four pre-existing, unrelated
 files outside this ticket's diff; the configured Ruff lint gate and all changed
 benchmark paths pass, so those files were not rewritten here. Every repair's
-focused and full gates pass; exact-head independent re-review remains
-quota-blocked with no verdict and the PR remains draft. No
+focused and full gates pass; exact-head independent re-review remains pending
+on the repaired successor and the PR remains draft. No
 benchmark score from the zero-weight fixture is a model-quality result.

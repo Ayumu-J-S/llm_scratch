@@ -30,7 +30,12 @@ from benchmarks.contamination import (
     scan_checkpoint_training_data,
 )
 from benchmarks.external import ExternalComparisonError, write_external_comparison
-from benchmarks.runner import BenchmarkContaminationError, _write_json_atomic, run_benchmark
+from benchmarks.runner import (
+    BenchmarkContaminationError,
+    _apply_evaluation_determinism_policy,
+    _write_json_atomic,
+    run_benchmark,
+)
 from benchmarks.scoring import (
     BenchmarkScoringError,
     conditional_log_probability,
@@ -976,6 +981,68 @@ def test_runner_rejects_unsupported_cuda_bf16_before_training_scan(monkeypatch, 
         )
 
 
+def test_fixed_benchmark_determinism_policy_is_applied_and_observable(monkeypatch):
+    monkeypatch.delenv("CUBLAS_WORKSPACE_CONFIG", raising=False)
+
+    policy = _apply_evaluation_determinism_policy()
+
+    assert policy == {
+        "revision": "strict-math-sdpa-v1",
+        "seed": 0,
+        "deterministic_algorithms": {"enabled": True, "warn_only": False},
+        "cublas_workspace_config": ":4096:8",
+        "scaled_dot_product_attention": {
+            "math": True,
+            "flash": False,
+            "memory_efficient": False,
+            "cudnn": False,
+        },
+        "cudnn": {"deterministic": True, "benchmark": False},
+        "float32": {
+            "matmul_precision": "highest",
+            "cuda_matmul_allow_tf32": False,
+            "cudnn_allow_tf32": False,
+        },
+    }
+    assert torch.are_deterministic_algorithms_enabled()
+    assert not torch.is_deterministic_algorithms_warn_only_enabled()
+    assert torch.backends.cuda.math_sdp_enabled()
+    assert not torch.backends.cuda.flash_sdp_enabled()
+    assert not torch.backends.cuda.mem_efficient_sdp_enabled()
+    assert not torch.backends.cuda.cudnn_sdp_enabled()
+
+
+def test_benchmark_determinism_fails_if_cuda_was_initialized_under_another_policy(
+    monkeypatch,
+):
+    monkeypatch.setenv("CUBLAS_WORKSPACE_CONFIG", ":16:8")
+    monkeypatch.setattr(torch.cuda, "is_initialized", lambda: True)
+
+    with pytest.raises(RuntimeError, match="before CUDA initialization"):
+        _apply_evaluation_determinism_policy()
+
+
+def test_runner_applies_determinism_before_loading_checkpoint(monkeypatch, tmp_path: Path):
+    checkpoint, _ = _pretraining_checkpoint(tmp_path)
+    config = _benchmark_config(tmp_path, checkpoint)
+    policy_applied = False
+
+    def tracked_policy():
+        nonlocal policy_applied
+        policy_applied = True
+        return _apply_evaluation_determinism_policy()
+
+    def blocked_load(_path: Path):
+        assert policy_applied
+        raise RuntimeError("checkpoint load observed deterministic policy")
+
+    monkeypatch.setattr("benchmarks.runner._apply_evaluation_determinism_policy", tracked_policy)
+    monkeypatch.setattr("benchmarks.runner.load_checkpoint_for_generation", blocked_load)
+
+    with pytest.raises(RuntimeError, match="observed deterministic policy"):
+        run_benchmark(config)
+
+
 def test_runner_rejects_sibling_checkpoint_output_before_suite_loading(monkeypatch, tmp_path: Path):
     checkpoint, _ = _pretraining_checkpoint(tmp_path)
     milestone = checkpoint.with_name("milestone-step-000000000004.pt")
@@ -1193,6 +1260,24 @@ def test_fixture_checkpoint_scoring_and_result_identity_are_deterministic(
     second = json.loads(second_path.read_text(encoding="utf-8"))
     assert first == second
     assert first["evaluation_identity_sha256"] == second["evaluation_identity_sha256"]
+    assert first["evaluation_identity"]["determinism_policy"] == {
+        "revision": "strict-math-sdpa-v1",
+        "seed": 0,
+        "deterministic_algorithms": {"enabled": True, "warn_only": False},
+        "cublas_workspace_config": ":4096:8",
+        "scaled_dot_product_attention": {
+            "math": True,
+            "flash": False,
+            "memory_efficient": False,
+            "cudnn": False,
+        },
+        "cudnn": {"deterministic": True, "benchmark": False},
+        "float32": {
+            "matmul_precision": "highest",
+            "cuda_matmul_allow_tf32": False,
+            "cudnn_allow_tf32": False,
+        },
+    }
     assert set(first["evaluation_identity"]["evaluator"]) == {
         "git",
         "lock_sha256",

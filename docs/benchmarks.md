@@ -30,6 +30,12 @@ specification has its own SHA-256 in addition to its readable revision.
 Decoding configuration, source identity, selected-example identity, checkpoint
 logical and physical identity, tokenizer fingerprint, device, and
 checkpoint-owned precision are all attached to the stable evaluation identity.
+Before checkpoint construction, the evaluator fixes seed 0, strict
+deterministic-algorithm enforcement, the `:4096:8` cuBLAS workspace, math-only
+scaled-dot-product attention, deterministic cuDNN without autotuning, highest
+FP32 matmul precision, and TF32 off. If CUDA was already initialized under a
+different cuBLAS policy, evaluation fails closed. The complete applied policy
+and its revision are part of the evaluation identity.
 The identity also binds the executable evaluator's Git commit, status, and a
 content digest over its tracked diff plus every non-ignored untracked file,
 along with the dependency-lock hash, OS/Python/PyTorch/CUDA stack, visible
