@@ -20,6 +20,9 @@ SPEC.loader.exec_module(RUNNER)
 _container_command = RUNNER._container_command
 _preflight_storage = RUNNER._preflight_storage
 _run_config_authorities = RUNNER._run_config_authorities
+_resource_budget = RUNNER._resource_budget
+_resolved_role_config = RUNNER._resolved_role_config
+_run_commands = RUNNER._run_commands
 _selected_entry = RUNNER._selected_entry
 _shard_cache_identity = RUNNER._shard_cache_identity
 
@@ -107,6 +110,10 @@ def test_decomposition_commands_are_exact_selected_profile_and_offline(tmp_path)
         assert command[command.index("--measured-optimizer-steps") + 1] == "20"
         assert command[command.index("--min-available-memory-bytes") + 1] == "64000000000"
         assert command[command.index("--min-free-disk-bytes") + 1] == "120000000000"
+        assert command[command.index("--post-plan-free-reserve-bytes") + 1] == "100000000000"
+        assert int(command[command.index("--max-in-flight-atomic-write-bytes") + 1]) < (
+            20_000_000_000
+        )
         assert command[command.index("--max-swap-in-pages") + 1] == "0"
         assert "--network=none" in command
         assert "profile=pretrain_baseline" in command
@@ -128,6 +135,41 @@ def test_every_execution_role_has_a_full_config_authority():
     assert len({item["authority_key"] for item in authorities}) == 4
     assert all(len(item["canonical_config_sha256"]) == 64 for item in authorities)
     assert all(len(item["experiment_config_sha256"]) == 64 for item in authorities)
+    assert all(item["max_in_flight_atomic_write_bytes"] < 20_000_000_000 for item in authorities)
+    assert all(item["effective_min_free_disk_bytes"] == 120_000_000_000 for item in authorities)
+
+
+def test_atomic_write_budget_raises_floor_when_projection_exceeds_static_buffer():
+    cfg = _config()
+    entry = build_matrix_plan(cfg)[0]
+    resolved = _resolved_role_config(cfg, entry, "matrix")
+    resolved["model"]["num_layers"] = 200
+    budget = _resource_budget(resolved, 120_000_000_000)
+    assert budget["max_in_flight_atomic_write_bytes"] > 20_000_000_000
+    assert budget["effective_min_free_disk_bytes"] == (
+        100_000_000_000 + budget["max_in_flight_atomic_write_bytes"]
+    )
+
+
+def test_failed_role_stops_runner_and_marks_execution_incomplete(monkeypatch, tmp_path):
+    run_dirs = [tmp_path / "first", tmp_path / "second"]
+    commands = []
+    for run_dir in run_dirs:
+        run_dir.mkdir()
+        commands.append(["docker", "run", f"{run_dir}:/evidence"])
+    calls = []
+
+    def failed_first(command, **_kwargs):
+        calls.append(command)
+        return type("Result", (), {"returncode": 23})()
+
+    monkeypatch.setattr(RUNNER.subprocess, "run", failed_first)
+    assert _run_commands(commands, tmp_path) == 23
+    assert calls == [commands[0]]
+    execution = json.loads((tmp_path / "execution.json").read_text(encoding="utf-8"))
+    assert execution["complete"] is False
+    assert execution["return_code"] == 23
+    assert len(execution["attempts"]) == 1
 
 
 def test_shard_cache_identity_is_content_bound_and_deterministic(tmp_path):

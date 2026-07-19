@@ -531,6 +531,18 @@ def _validate_manifest_and_config(
     if len(authorities) != 1:
         raise ValueError("run lacks one immutable resolved-config authority")
     authority = authorities[0]
+    expected_storage_safety = {
+        "configured_min_free_disk_bytes": int(plan["config"]["gates"]["min_free_disk_bytes"]),
+        "post_plan_free_reserve_bytes": int(authority["post_plan_free_reserve_bytes"]),
+        "max_in_flight_atomic_write_bytes": int(authority["max_in_flight_atomic_write_bytes"]),
+        "effective_min_free_disk_bytes": int(authority["effective_min_free_disk_bytes"]),
+    }
+    if run.get("storage_safety") != expected_storage_safety:
+        raise ValueError("run storage-safety budget differs from immutable plan authority")
+    if role in {"matrix", "pilot"} and run.get("parameter_count") != authority.get(
+        "parameter_count"
+    ):
+        raise ValueError("observed parameter count differs from immutable storage authority")
     plain_cfg = OmegaConf.to_container(cfg, resolve=True)
     if not isinstance(plain_cfg, Mapping) or canonical_config_sha256(plain_cfg) != authority.get(
         "canonical_config_sha256"
@@ -847,6 +859,14 @@ def summarize_run(
     )
     metrics = _read_jsonl(run_dir / "checkpoints" / "metrics.jsonl")
     checkpoint_rows = [row for row in rows if "checkpoint/size_bytes" in row]
+    authority_key = _authority_key(role, str(run["candidate_id"]), int(run["repetition"]))
+    atomic_write_budget = next(
+        int(item["max_in_flight_atomic_write_bytes"])
+        for item in plan["run_config_authorities"]
+        if item["authority_key"] == authority_key
+    )
+    if any(int(row["checkpoint/size_bytes"]) > atomic_write_budget for row in checkpoint_rows):
+        raise ValueError("observed checkpoint exceeded immutable atomic-write safety budget")
     final_checkpoint_rows = [row for row in rows if row.get("event") == "final_checkpoint"]
     validation_pauses = [
         float(row["full_event_pause_seconds"]) for row in rows if row.get("event") == "validation"
@@ -1124,6 +1144,10 @@ def _load_plan(evidence_root: Path, cfg: Mapping[str, Any]) -> dict[str, Any]:
                 "repetition",
                 "canonical_config_sha256",
                 "experiment_config_sha256",
+                "parameter_count",
+                "max_in_flight_atomic_write_bytes",
+                "post_plan_free_reserve_bytes",
+                "effective_min_free_disk_bytes",
             }
             or authority["authority_key"]
             != _authority_key(
@@ -1134,6 +1158,24 @@ def _load_plan(evidence_root: Path, cfg: Mapping[str, Any]) -> dict[str, Any]:
             or not all(
                 isinstance(authority[key], str) and len(authority[key]) == 64
                 for key in ("canonical_config_sha256", "experiment_config_sha256")
+            )
+            or any(
+                isinstance(authority[key], bool)
+                or not isinstance(authority[key], int)
+                or authority[key] <= 0
+                for key in (
+                    "parameter_count",
+                    "max_in_flight_atomic_write_bytes",
+                    "post_plan_free_reserve_bytes",
+                    "effective_min_free_disk_bytes",
+                )
+            )
+            or authority["post_plan_free_reserve_bytes"] != 100_000_000_000
+            or authority["effective_min_free_disk_bytes"]
+            != max(
+                120_000_000_000,
+                authority["post_plan_free_reserve_bytes"]
+                + authority["max_in_flight_atomic_write_bytes"],
             )
         ):
             raise ValueError("DGX plan contains an invalid run-config authority")

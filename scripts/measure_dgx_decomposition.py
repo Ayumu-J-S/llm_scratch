@@ -47,6 +47,8 @@ def parser() -> argparse.ArgumentParser:
     command.add_argument("--telemetry-interval-seconds", type=float, default=1.0)
     command.add_argument("--min-available-memory-bytes", type=int, required=True)
     command.add_argument("--min-free-disk-bytes", type=int, required=True)
+    command.add_argument("--post-plan-free-reserve-bytes", type=int, required=True)
+    command.add_argument("--max-in-flight-atomic-write-bytes", type=int, required=True)
     command.add_argument("--max-temperature-c", type=float, required=True)
     command.add_argument("--max-swap-in-pages", type=int, required=True)
     command.add_argument("--max-swap-out-pages", type=int, required=True)
@@ -91,6 +93,31 @@ def _environment() -> dict:
         timeout=30,
     )
     return json.loads(result.stdout)
+
+
+def _effective_min_free_disk_bytes(args: argparse.Namespace) -> int:
+    if args.min_free_disk_bytes != 120_000_000_000:
+        raise RuntimeError("DGX operational free-disk floor must be exactly 120 GB")
+    if args.post_plan_free_reserve_bytes != 100_000_000_000:
+        raise RuntimeError("DGX post-plan free-disk reserve must be exactly 100 GB")
+    if args.max_in_flight_atomic_write_bytes <= 0:
+        raise RuntimeError("DGX maximum in-flight atomic-write budget must be positive")
+    return max(
+        args.min_free_disk_bytes,
+        args.post_plan_free_reserve_bytes + args.max_in_flight_atomic_write_bytes,
+    )
+
+
+def _preflight(args: argparse.Namespace, output_dir: Path, effective_floor_bytes: int) -> dict:
+    sample = system_sample(output_dir, (Path("/cache"),))
+    if sample["host"]["memory_available_bytes"] < args.min_available_memory_bytes:
+        raise RuntimeError("available UMA is below the hard preflight floor")
+    if sample["host"]["disk_free_bytes"] < effective_floor_bytes:
+        raise RuntimeError("free disk is below the hard preflight floor")
+    temperature = sample["gpu"]["temperature_c"]
+    if temperature is None or temperature > args.max_temperature_c:
+        raise RuntimeError("GPU temperature is unavailable or above the hard preflight ceiling")
+    return sample
 
 
 def _identity(cfg, output_dir: Path) -> dict:
@@ -195,6 +222,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     output_dir = Path(args.output_dir).resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
     started = time.time()
+    effective_disk_floor = _effective_min_free_disk_bytes(args)
     record: dict = {
         "schema_version": 3,
         "ticket": "DGX-001",
@@ -209,6 +237,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         "measured_optimizer_steps": args.measured_optimizer_steps,
         "telemetry_interval_seconds": args.telemetry_interval_seconds,
         "started_unix_seconds": started,
+        "storage_safety": {
+            "configured_min_free_disk_bytes": args.min_free_disk_bytes,
+            "post_plan_free_reserve_bytes": args.post_plan_free_reserve_bytes,
+            "max_in_flight_atomic_write_bytes": args.max_in_flight_atomic_write_bytes,
+            "effective_min_free_disk_bytes": effective_disk_floor,
+        },
     }
     sampler: TelemetrySampler | None = None
     try:
@@ -220,7 +254,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if cfg.wandb.mode != "disabled" or cfg.measurement.enabled:
             raise RuntimeError("DGX decomposition must disable W&B and trainer measurement")
         record["environment"] = _environment()
-        record["preflight"] = system_sample(output_dir, (Path("/cache"),))
+        record["preflight"] = _preflight(args, output_dir, effective_disk_floor)
         record.update(
             {
                 "num_layers": int(cfg.model.num_layers),
@@ -241,11 +275,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             interval_seconds=args.telemetry_interval_seconds,
             hard_limits={
                 "min_available_memory_bytes": args.min_available_memory_bytes,
-                "min_free_disk_bytes": args.min_free_disk_bytes,
+                "min_free_disk_bytes": effective_disk_floor,
                 "max_temperature_c": args.max_temperature_c,
                 "max_swap_in_pages": args.max_swap_in_pages,
                 "max_swap_out_pages": args.max_swap_out_pages,
             },
+            interrupt_on_violation=True,
             additional_disk_paths=(Path("/cache"),),
         )
         record["telemetry_started_monotonic_seconds"] = time.monotonic()

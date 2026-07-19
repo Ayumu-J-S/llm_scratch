@@ -53,12 +53,13 @@ logs/evidence. No destructive cleanup is part of this ticket.
   recovery, and 100M-target milestones.
 - `scripts/measure_dgx.py` runs the canonical trainer, records physical
   config/manifest/checkpoint identities, samples host/GPU state out of band,
-  enforces pilot watchdog limits, and binds the final checkpoint to the
-  trainer's complete schema-v3 measurement chain. Pilot mode also records
+  enforces fail-closed watchdog limits for matrix and pilot roles, and binds the
+  final checkpoint to the trainer's complete schema-v3 measurement chain. Pilot mode also records
   Japanese and English base-model continuations from that exact checkpoint.
 - `scripts/measure_dgx_decomposition.py` measures three 10+20-update
   repetitions of the device-resident model path and real streaming loader path
-  for the summary-selected profile.
+  for the summary-selected profile. Both roles use the same fail-closed hard
+  resource watchdog and preserve their failed evidence on interruption.
 - `scripts/run_dgx_measurements.py` checks clean source/image identity, executes
   the rotated triplicate matrix in the network-isolated pinned container as the
   host UID:GID, preserves commands and logs, hashes the immutable data cache
@@ -70,6 +71,11 @@ logs/evidence. No destructive cleanup is part of this ticket.
   scientific experiment-config identity. Auxiliary runs also bind the physical
   matrix plan and summary, exact plan ID, protocol, selection rule, commit, and
   image rather than trusting a self-reported candidate.
+- Every role also binds an exact parameter count and a conservative atomic
+  checkpoint-write budget (128 bytes per parameter plus 4 GB fixed overhead).
+  The operational disk floor is the greater of 120 GB and the required 100 GB
+  reserve plus that budget; all current candidates stay below the static 20 GB
+  buffer, while a larger future shape raises the floor automatically.
 - `scripts/summarize_dgx_measurements.py` gates every raw run and writes the
   repeat statistics, selection, pause-aware token/checkpoint/storage plan, and
   named bottleneck.
@@ -85,6 +91,7 @@ Local implementation/config validation:
 
 ```text
 uv run pytest -q tests/test_dgx_planning.py tests/test_dgx_runner.py \
+  tests/test_dgx_telemetry.py tests/test_dgx_watchdog_roles.py \
   tests/test_config_profiles.py
 uv run ruff check src/dgx scripts/measure_dgx.py \
   scripts/run_dgx_measurements.py scripts/summarize_dgx_measurements.py \
@@ -139,6 +146,8 @@ to claim that a measured profile has been selected.
 | 15 | Supplemental audit | `FAIL` at `a828b74` | A self-consistent mutation could evade subset-only config checks; auxiliary selection did not bind the physical source matrix plan/protocol strongly enough; clock, power, and utilization could be absent | Exact findings retained in PR #47 |
 | 16 | Protocol repair 3 | implemented | Predeclare and verify complete per-role resolved/experiment config hashes; bind auxiliary evidence to the exact physical matrix plan and summary; require finite nonnegative clock/power/utilization coverage; add adversarial config and authority tests | Focused DGX tests |
 | 17 | Human operational constraint | implemented | Preserve at least 100 GB machine availability using a 120 GB preflight/watchdog floor, projected cache/output growth grouped by filesystem, and an independent 100 GB post-plan reserve gate; no destructive cleanup | Same/split filesystem, low-space, and independent-reserve tests |
+| 18 | Supplemental exact-head re-audit | `FAIL` at `e858bf3` | The live 120 GB watchdog interrupted only pilot; matrix/model-only/loader-only could record a 119 GB violation, return success, and allow later commands to continue | Auditor CPU reproduction and PR #47 trail |
+| 19 | Protocol repair 4 | implemented; re-audit pending | Arm fail-closed interruption for every role, add decomposition hard preflight, preserve failed run/telemetry evidence, stop runner sequencing after any nonzero role, and bind the 100 GB reserve to a conservative per-role atomic-write budget that dynamically raises the live floor when needed | Role-level low-disk interruption, runner-incomplete, budget-boundary, and authority-tamper tests |
 
 Independent `/review` will cover `PHILOSOPHY.md`, DGX-001 acceptance, and the
 applicable `CHECK.md` minimum, comparison, data supply, DGX/UMA, training-health,

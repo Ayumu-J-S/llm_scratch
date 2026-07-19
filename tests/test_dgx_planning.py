@@ -147,6 +147,8 @@ def _write_plan(root: Path, config) -> dict:
     for entry in matrix_runs:
         resolved = _candidate_config(entry)
         plain = OmegaConf.to_container(resolved, resolve=True)
+        parameter_count = 100_000_000 + entry["num_layers"]
+        max_in_flight = parameter_count * 128 + 4_000_000_000
         authorities.append(
             {
                 "authority_key": (f"matrix:{entry['candidate_id']}:r{entry['repetition']}"),
@@ -155,6 +157,12 @@ def _write_plan(root: Path, config) -> dict:
                 "repetition": entry["repetition"],
                 "canonical_config_sha256": canonical_config_sha256(plain),
                 "experiment_config_sha256": experiment_config_sha256(plain),
+                "parameter_count": parameter_count,
+                "max_in_flight_atomic_write_bytes": max_in_flight,
+                "post_plan_free_reserve_bytes": 100_000_000_000,
+                "effective_min_free_disk_bytes": max(
+                    120_000_000_000, 100_000_000_000 + max_in_flight
+                ),
             }
         )
     payload = {
@@ -444,6 +452,12 @@ def _fake_run(
         "git_commit": COMMIT,
         "image_id": IMAGE,
         "parameter_count": 100_000_000 + entry["num_layers"],
+        "storage_safety": {
+            "configured_min_free_disk_bytes": 120_000_000_000,
+            "post_plan_free_reserve_bytes": authority["post_plan_free_reserve_bytes"],
+            "max_in_flight_atomic_write_bytes": authority["max_in_flight_atomic_write_bytes"],
+            "effective_min_free_disk_bytes": authority["effective_min_free_disk_bytes"],
+        },
         "num_layers": entry["num_layers"],
         "embed_size": entry["embed_size"],
         "num_heads": entry["num_heads"],
@@ -634,6 +648,40 @@ def test_mislabeled_matrix_shape_is_rejected(tmp_path):
     run["num_layers"] += 1
     _write_json(run_path, run)
     with pytest.raises(ValueError, match="differs from immutable plan"):
+        summarize_run(run_dir, config["gates"], expected=entry, plan=plan)
+
+
+def test_run_cannot_self_report_a_weaker_storage_watchdog(tmp_path):
+    config = OmegaConf.to_container(compose_dgx(), resolve=True)
+    plan = _write_plan(tmp_path, config)
+    entry = build_matrix_plan(config)[0]
+    run_dir = _fake_run(tmp_path, entry, plan, 18_000)
+    run_path = run_dir / "run.json"
+    run = json.loads(run_path.read_text())
+    run["storage_safety"]["effective_min_free_disk_bytes"] = 1
+    _write_json(run_path, run)
+    with pytest.raises(ValueError, match="storage-safety budget"):
+        summarize_run(run_dir, config["gates"], expected=entry, plan=plan)
+
+
+def test_observed_checkpoint_cannot_exceed_atomic_write_budget(tmp_path):
+    config = OmegaConf.to_container(compose_dgx(), resolve=True)
+    plan = _write_plan(tmp_path, config)
+    entry = build_matrix_plan(config)[0]
+    run_dir = _fake_run(tmp_path, entry, plan, 18_000)
+    measurement_path = run_dir / "measurement.json"
+    measurement = json.loads(measurement_path.read_text())
+    authority = next(
+        item
+        for item in plan["run_config_authorities"]
+        if item["authority_key"] == f"matrix:{entry['candidate_id']}:r{entry['repetition']}"
+    )
+    checkpoint = next(
+        row for row in measurement["segments"][0]["rows"] if row.get("event") == "checkpoint"
+    )
+    checkpoint["checkpoint/size_bytes"] = authority["max_in_flight_atomic_write_bytes"] + 1
+    _write_json(measurement_path, measurement)
+    with pytest.raises(ValueError, match="atomic-write safety budget"):
         summarize_run(run_dir, config["gates"], expected=entry, plan=plan)
 
 

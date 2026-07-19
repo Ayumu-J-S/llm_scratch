@@ -25,6 +25,9 @@ from runtime.reproducibility import canonical_config_sha256, experiment_config_s
 
 
 ROOT = Path(__file__).resolve().parent.parent
+POST_PLAN_FREE_RESERVE_BYTES = 100_000_000_000
+ATOMIC_WRITE_FIXED_BUDGET_BYTES = 4_000_000_000
+ATOMIC_WRITE_BYTES_PER_PARAMETER = 128
 PROTOCOL_CONFIG_KEYS = (
     "schema_version",
     "image",
@@ -120,6 +123,65 @@ def _data_cache_max_bytes() -> int:
     return int(profile.data.streaming.cache.max_size_bytes)
 
 
+def _resolved_role_config(cfg: dict, entry: dict, role: str) -> dict:
+    with hydra.initialize_config_dir(version_base=None, config_dir=str(ROOT / "config")):
+        resolved = hydra.compose(config_name="train", overrides=_role_overrides(cfg, entry, role))
+    plain = OmegaConf.to_container(resolved, resolve=True)
+    if not isinstance(plain, dict):
+        raise RuntimeError("DGX role configuration did not resolve to a mapping")
+    return plain
+
+
+def _model_parameter_count(resolved: dict) -> int:
+    tokenizer = resolved.get("tokenizer", {})
+    manifest_path = ROOT / str(tokenizer.get("manifest_path", ""))
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if manifest.get("fingerprint") != tokenizer.get("expected_fingerprint"):
+        raise RuntimeError("DGX tokenizer manifest differs from the resolved authority")
+    vocab_size = int(manifest["runtime"]["vocab_size"])
+    embed_size = int(resolved["model"]["embed_size"])
+    num_layers = int(resolved["model"]["num_layers"])
+    # Exact parameter count for SimpleDecoderTransformer: token embedding and
+    # untied LM head plus 12E^2 + 13E parameters per decoder block.
+    return (
+        2 * vocab_size * embed_size
+        + vocab_size
+        + num_layers * (12 * embed_size * embed_size + 13 * embed_size)
+    )
+
+
+def _resource_budget(resolved: dict, configured_floor_bytes: int) -> dict[str, int]:
+    parameter_count = _model_parameter_count(resolved)
+    # The checkpoint contains FP32 model weights (4 B/parameter) and AdamW
+    # moments (8 B/parameter).  A 128 B/parameter budget plus 4 GB fixed
+    # allowance conservatively covers serialization/container/config/cursor
+    # overhead.  If it ever exceeds the static 20 GB buffer, the operational
+    # floor rises instead of consuming the human-required 100 GB reserve.
+    max_in_flight = (
+        parameter_count * ATOMIC_WRITE_BYTES_PER_PARAMETER + ATOMIC_WRITE_FIXED_BUDGET_BYTES
+    )
+    effective_floor = max(int(configured_floor_bytes), POST_PLAN_FREE_RESERVE_BYTES + max_in_flight)
+    return {
+        "parameter_count": parameter_count,
+        "max_in_flight_atomic_write_bytes": max_in_flight,
+        "post_plan_free_reserve_bytes": POST_PLAN_FREE_RESERVE_BYTES,
+        "effective_min_free_disk_bytes": effective_floor,
+    }
+
+
+def _role_resource_budget(cfg: dict, entry: dict, role: str) -> dict[str, int]:
+    return _resource_budget(
+        _resolved_role_config(cfg, entry, role), int(cfg["gates"]["min_free_disk_bytes"])
+    )
+
+
+def _maximum_operational_floor(cfg: dict) -> int:
+    return max(
+        _role_resource_budget(cfg, entry, "matrix")["effective_min_free_disk_bytes"]
+        for entry in build_matrix_plan(cfg)
+    )
+
+
 def _filesystem_device(path: Path) -> int:
     return path.stat().st_dev
 
@@ -195,7 +257,7 @@ def _preflight(cfg: dict) -> tuple[str, str, Path, Path, dict[str, object]]:
         cache_existing_bytes=int(cache_identity["size_bytes"]),
         cache_max_bytes=_data_cache_max_bytes(),
         output_growth_bytes=reserve,
-        minimum_free_bytes=int(cfg["gates"]["min_free_disk_bytes"]),
+        minimum_free_bytes=_maximum_operational_floor(cfg),
     )
     netrc = Path.home() / ".netrc"
     if cfg["mode"] == "pilot" and not os.environ.get("WANDB_API_KEY") and not netrc.is_file():
@@ -354,12 +416,8 @@ def _role_overrides(cfg: dict, entry: dict, role: str) -> list[str]:
 def _run_config_authorities(cfg: dict, roles: list[tuple[dict, str]]) -> list[dict]:
     authorities = []
     for entry, role in roles:
-        with hydra.initialize_config_dir(version_base=None, config_dir=str(ROOT / "config")):
-            resolved = hydra.compose(
-                config_name="train", overrides=_role_overrides(cfg, entry, role)
-            )
-        plain = OmegaConf.to_container(resolved, resolve=True)
-        assert isinstance(plain, dict)
+        plain = _resolved_role_config(cfg, entry, role)
+        resource_budget = _resource_budget(plain, int(cfg["gates"]["min_free_disk_bytes"]))
         authorities.append(
             {
                 "authority_key": _authority_key(role, entry),
@@ -368,6 +426,7 @@ def _run_config_authorities(cfg: dict, roles: list[tuple[dict, str]]) -> list[di
                 "repetition": int(entry.get("repetition", 1)),
                 "canonical_config_sha256": canonical_config_sha256(plain),
                 "experiment_config_sha256": experiment_config_sha256(plain),
+                **resource_budget,
             }
         )
     return authorities
@@ -385,6 +444,7 @@ def _container_command(
     role: str,
 ) -> list[str]:
     repetition = int(entry.get("repetition", 1))
+    resource_budget = _role_resource_budget(cfg, entry, role)
     if role == "matrix":
         run_name = f"{entry['candidate_id']}-r{repetition}"
     elif role == "pilot":
@@ -488,6 +548,10 @@ def _container_command(
             str(gates["min_available_memory_bytes"]),
             "--min-free-disk-bytes",
             str(gates["min_free_disk_bytes"]),
+            "--post-plan-free-reserve-bytes",
+            str(resource_budget["post_plan_free_reserve_bytes"]),
+            "--max-in-flight-atomic-write-bytes",
+            str(resource_budget["max_in_flight_atomic_write_bytes"]),
             "--max-temperature-c",
             str(gates["max_temperature_c"]),
             "--max-swap-in-pages",
@@ -529,6 +593,10 @@ def _container_command(
         str(gates["min_available_memory_bytes"]),
         "--min-free-disk-bytes",
         str(gates["min_free_disk_bytes"]),
+        "--post-plan-free-reserve-bytes",
+        str(resource_budget["post_plan_free_reserve_bytes"]),
+        "--max-in-flight-atomic-write-bytes",
+        str(resource_budget["max_in_flight_atomic_write_bytes"]),
         "--max-temperature-c",
         str(gates["max_temperature_c"]),
         "--max-swap-in-pages",

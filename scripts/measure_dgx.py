@@ -37,6 +37,8 @@ def parser() -> argparse.ArgumentParser:
     command.add_argument("--telemetry-interval-seconds", type=float, default=1.0)
     command.add_argument("--min-available-memory-bytes", required=True, type=int)
     command.add_argument("--min-free-disk-bytes", required=True, type=int)
+    command.add_argument("--post-plan-free-reserve-bytes", required=True, type=int)
+    command.add_argument("--max-in-flight-atomic-write-bytes", required=True, type=int)
     command.add_argument("--max-temperature-c", required=True, type=float)
     command.add_argument("--max-swap-in-pages", type=int, default=0)
     command.add_argument("--max-swap-out-pages", type=int, default=0)
@@ -119,7 +121,20 @@ def _environment() -> dict:
     return json.loads(result.stdout)
 
 
-def _preflight(args: argparse.Namespace, output_dir: Path) -> dict:
+def _effective_min_free_disk_bytes(args: argparse.Namespace) -> int:
+    if args.min_free_disk_bytes != 120_000_000_000:
+        raise RuntimeError("DGX operational free-disk floor must be exactly 120 GB")
+    if args.post_plan_free_reserve_bytes != 100_000_000_000:
+        raise RuntimeError("DGX post-plan free-disk reserve must be exactly 100 GB")
+    if args.max_in_flight_atomic_write_bytes <= 0:
+        raise RuntimeError("DGX maximum in-flight atomic-write budget must be positive")
+    return max(
+        args.min_free_disk_bytes,
+        args.post_plan_free_reserve_bytes + args.max_in_flight_atomic_write_bytes,
+    )
+
+
+def _preflight(args: argparse.Namespace, output_dir: Path, effective_floor_bytes: int) -> dict:
     if not args.git_commit or len(args.git_commit) != 40:
         raise RuntimeError("one exact 40-character git commit is required")
     if not args.image_id or not args.image_id.startswith("sha256:"):
@@ -133,7 +148,7 @@ def _preflight(args: argparse.Namespace, output_dir: Path) -> dict:
     sample = system_sample(output_dir, (Path("/cache"),))
     if sample["host"]["memory_available_bytes"] < args.min_available_memory_bytes:
         raise RuntimeError("available UMA is below the hard preflight floor")
-    if sample["host"]["disk_free_bytes"] < args.min_free_disk_bytes:
+    if sample["host"]["disk_free_bytes"] < effective_floor_bytes:
         raise RuntimeError("free disk is below the hard preflight floor")
     temperature = sample["gpu"]["temperature_c"]
     if temperature is None or temperature > args.max_temperature_c:
@@ -155,6 +170,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
     run_path = output_dir / "run.json"
     started = time.time()
+    effective_disk_floor = _effective_min_free_disk_bytes(args)
     record: dict = {
         "schema_version": 3,
         "ticket": "DGX-001",
@@ -169,10 +185,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         "warmup_optimizer_steps": args.warmup_optimizer_steps,
         "measured_optimizer_steps": args.measured_optimizer_steps,
         "started_unix_seconds": started,
+        "storage_safety": {
+            "configured_min_free_disk_bytes": args.min_free_disk_bytes,
+            "post_plan_free_reserve_bytes": args.post_plan_free_reserve_bytes,
+            "max_in_flight_atomic_write_bytes": args.max_in_flight_atomic_write_bytes,
+            "effective_min_free_disk_bytes": effective_disk_floor,
+        },
     }
     sampler: TelemetrySampler | None = None
     try:
-        record["preflight"] = _preflight(args, output_dir)
+        record["preflight"] = _preflight(args, output_dir, effective_disk_floor)
         record["environment"] = _environment()
         cfg = _compose(args.overrides)
         expected_profile = "pretrain_baseline" if args.role == "pilot" else "dgx_candidate"
@@ -230,12 +252,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             interval_seconds=args.telemetry_interval_seconds,
             hard_limits={
                 "min_available_memory_bytes": args.min_available_memory_bytes,
-                "min_free_disk_bytes": args.min_free_disk_bytes,
+                "min_free_disk_bytes": effective_disk_floor,
                 "max_temperature_c": args.max_temperature_c,
                 "max_swap_in_pages": args.max_swap_in_pages,
                 "max_swap_out_pages": args.max_swap_out_pages,
             },
-            interrupt_on_violation=args.role == "pilot",
+            interrupt_on_violation=True,
             additional_disk_paths=(Path("/cache"),),
         )
         record["telemetry_started_monotonic_seconds"] = time.monotonic()
@@ -245,6 +267,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         record["telemetry_ended_monotonic_seconds"] = time.monotonic()
         final_checkpoint = output_dir / cfg.artifacts.checkpoints_dir / "final.pt"
         loaded = load_checkpoint_for_generation(final_checkpoint)
+        if loaded.physical_identity["size_bytes"] > args.max_in_flight_atomic_write_bytes:
+            raise RuntimeError("observed checkpoint exceeded its atomic-write safety budget")
         record["checkpoint_verified"] = loaded.payload["kind"] == "final"
         record["checkpoint"] = str(final_checkpoint.relative_to(output_dir))
         record["checkpoint_physical_identity"] = loaded.physical_identity

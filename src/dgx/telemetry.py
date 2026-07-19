@@ -189,6 +189,9 @@ class TelemetrySampler:
                     sample = system_sample(self.output_path.parent, self.additional_disk_paths)
                 except (OSError, RuntimeError, subprocess.SubprocessError, ValueError) as error:
                     self.errors.append(f"{type(error).__name__}: {error}")
+                    if self.interrupt_on_violation:
+                        _thread.interrupt_main()
+                        self._stop.set()
                 else:
                     handle.write(json.dumps(sample, sort_keys=True) + "\n")
                     handle.flush()
