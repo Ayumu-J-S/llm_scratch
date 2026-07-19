@@ -52,7 +52,10 @@ boundaries; W&B adds no independent cadence. A training boundary emits one
 compact dictionary containing step, target tokens, elapsed time, training
 NLL/perplexity, target throughput, RSS/peak RSS, PyTorch peak
 allocated/reserved memory on CUDA, gradient norm, clipping, non-finite count,
-learning rate, and any validation result produced at that same step. When a
+learning rate, and any validation result produced at that same step. The CUDA
+system fields are monotonic run-level peaks even when explicit benchmark
+measurement resets PyTorch's interval counters before each step; the
+measurement artifact keeps its separate per-step interval peaks. When a
 validation boundary does not coincide with a scheduled training log, its
 compact aggregate and per-corpus scalars are emitted at that exact validation
 step instead of being attributed to a later step. W&B documents that each
@@ -71,6 +74,16 @@ Training startup, finalization, artifact decisions, and standalone evaluation
 therefore cannot wait indefinitely on `Summary.update`. When step/token logging
 cadences are both unset, the epoch boundary reports the token-weighted epoch NLL
 and perplexity rather than relabeling the final optimizer update as the epoch.
+Final summary publication also refreshes throughput, RSS, and run-level CUDA
+peaks, so a stop horizon between scheduled history rows cannot leave the final
+system evidence stale.
+
+The pull-request offline smoke applies a required Linux seccomp rule before the
+training command starts. It denies non-Unix socket creation for the complete
+process tree, including the native W&B service, while allowing the Unix sockets
+needed for local SDK IPC. A native-syscall probe after exec and in a descendant
+proves inheritance before each disabled/offline arm. Missing or unloadable
+`libseccomp.so.2` is an explicit smoke failure; there is no Python-only fallback.
 
 `wandb.watch.enabled=false` is the default. When explicitly enabled, its hook
 type and frequency are configured under `wandb.watch`, and bounded hook

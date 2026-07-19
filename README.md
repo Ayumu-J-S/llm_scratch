@@ -85,9 +85,11 @@ make ci-cpu
 remaining lint, unit, Hydra-composition, lock-drift, and smoke steps use the
 existing environment with `uv --no-sync` and offline environment settings. The
 smoke uses only committed manifest/tokenizer inputs, removes common W&B,
-Hugging Face, and AWS credential variables in its child process, and blocks
-Python network sockets. It is a small CPU wiring check, not a quality or
-performance run.
+Hugging Face, and AWS credential variables in its child process. A required
+Linux seccomp filter blocks non-Unix socket creation for the training process
+and every descendant, including the native W&B service, while preserving local
+Unix-socket IPC; the smoke fails if that isolation cannot be installed. It is a
+small CPU wiring check, not a quality or performance run.
 
 The public Hugging Face integration test is intentionally not a pull-request
 check; it runs only from the manually dispatched or weekly scheduled `Network

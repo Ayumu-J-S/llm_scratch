@@ -3,8 +3,9 @@
 - Roadmap ticket: `WB-001`
 - Branch: `codex/wb-001-main-integration`
 - Draft PR: [#46](https://github.com/Ayumu-J-S/llm_scratch/pull/46)
-- Status: current-main integration repair is in progress after exact-head review
-  cycle 20 returned `FAIL`; the complete cycle trail is in live PR #46. R1
+- Status: cycle-24 repair validation passes after exact-head review cycle 23
+  returned `FAIL`; a fresh exact-head review remains pending. The complete
+  cycle trail is in live PR #46. R1
   functional evidence remains supported. Attempt 9's historical
   `PASS WITH NOTE` and 168-gate result are retained, but its paired-overhead
   figures are withdrawn from current acceptance because scheduled scalar-log
@@ -18,7 +19,7 @@
   lineage evidence at the existing trainer cadence while disabled/offline mode,
   missing auth/quota, and upload failure preserve all local work.
 - Expected result: strict config, policy/auth/usage/size test matrices, and a
-  socket-blocked offline smoke pass; scalar calls equal the declared trainer
+  process-tree network-isolated offline smoke pass; scalar calls equal the declared trainer
   log boundaries; no smoke/CI/memorization artifact can upload.
 - Success condition: all WB-001 acceptance tests pass; no raw corpus or
   recovery checkpoint enters W&B; an artifact uploads only after matching
@@ -33,7 +34,7 @@
 - Baseline metrics and evidence link: AS-IS unconditional watch and upload path
   in `ROADMAP.md`; no trustworthy disabled/offline/watch comparison existed.
 - Smallest run capable of answering the question: CPU policy/config/trainer
-  tests plus the canonical socket-blocked disabled/offline smoke. Performance
+  tests plus the canonical process-tree-isolated disabled/offline smoke. Performance
   conclusions require the separately predeclared R2 below.
 
 ## Planned budget
@@ -90,14 +91,16 @@
 
 ### Counters, evidence, and integrity
 
-- Automated result after integration repairs: focused integration `115 passed
-  in 11.26s` plus `16 passed` for the R2 verifier and `2 passed` for the offline
-  inspector; current full repository suite `379 passed, 1 skipped in 69.10s`.
-- Offline smoke: both disabled and offline invocations completed while
-  credentials were removed; name resolution, non-Unix `connect`, `connect_ex`,
-  and `sendto` operations were blocked. Offline W&B 0.25.1 initialized, logged
-  only at trainer boundaries, removed watch state, and finished without
-  network.
+- Current cycle-24 result: focused trainer/CI-quality repair selection `38
+  passed in 1.65s`; full `make ci-cpu` `441 passed, 1 skipped in 74.07s`, plus
+  Ruff, config preflight, lock drift, and process-tree-isolated disabled/offline
+  smoke.
+- Current repaired offline smoke: both disabled and offline invocations complete
+  with credentials removed. A required Linux seccomp filter denies non-Unix
+  socket creation for the complete training process tree, including native
+  W&B children, while Unix-socket IPC remains available. Native syscall probes
+  after exec and in a descendant verify inheritance before each arm. Offline
+  W&B 0.25.1 initializes, logs only at trainer boundaries, and finishes locally.
 - W&B run/project/artifact IDs: disabled arm `N/A`; offline arm local-only and
   temporary; artifact policy `none`, so no artifact candidate or cloud upload.
 - Checkpoints: local verified final checkpoints completed in both arms and were
@@ -610,6 +613,33 @@ perform SDK-owned local-backend publication in the model hot path outside the
 tracker scalar worker; watch remains default-off and no universal timeout claim
 is made for hook-generated records.
 
+## Current-main exact-head cycle 23 — FAIL; cycle 24 repair
+
+Independent review of exact clean head
+`a4c9a26fb2c97e39cfd6fb728116120e99cde730` returned `FAIL` after reproducing
+the full CPU suite at 437 passed and one skipped, plus Ruff, config preflight,
+and the then-current offline smoke. It found three P2 evidence defects: final
+summary publication omitted current system scalars when the stop horizon fell
+between scheduled history rows; CUDA peak fields became latest-interval rather
+than run-level peaks when benchmark measurement reset allocator counters; and
+the Python socket monkeypatch did not constrain the native W&B service child.
+
+Cycle 24 refreshes current system scalars in the final summary, retains
+monotonic run-level CUDA allocated/reserved peaks across measurement resets
+while leaving per-step interval peaks in the measurement artifact, and launches
+both disabled/offline arms under a required inherited Linux seccomp filter.
+The smoke proves the filter with native socket syscalls after exec and in a
+descendant, permits AF_UNIX for local W&B IPC, and fails explicitly when
+`libseccomp.so.2` cannot be installed. No finding is erased.
+
+Cycle-24 validation passes: focused trainer/CI-quality tests report 38 passed;
+the full CPU quality gate reports 441 passed and one skipped, with Ruff, Hydra
+config preflight, lock drift, and both isolated smoke arms passing. A separate
+read-only isolation audit returned `PASS` after tracing filter installation,
+blocked AF_INET/AF_INET6/AF_NETLINK calls, allowed AF_UNIX IPC, and the native
+`wandb-core` descendant beneath the inherited filter. This audit is supporting
+evidence, not a substitute for the mandatory exact-head review.
+
 ## Conclusion
 
 - Hypothesis result: functional/failure-isolation behavior is supported at R1.
@@ -618,17 +648,16 @@ is made for hook-generated records.
   because the old verifier excluded scheduled scalar-log pauses.
 - Evidence-backed conclusion: the implementation can preserve local metrics and
   checkpoints across disabled/offline W&B and tested external failure paths,
-  while cycle-21 local validation is pending final exact-head review. The live
-  three-step smoke also confirms authenticated online scalar visibility and
+  while cycle-24 local validation passes and exact-head review remains pending.
+  The live three-step smoke also confirms authenticated online scalar visibility and
   clean no-artifact completion. Cycle-13
   quota, scalar-boundary, and watch-cleanup history remains useful, while the
   current repair no longer cites the flawed overhead denominator. The ticket is
-  not ready until cycle-21 validation and independent exact-head review finish.
+  not ready until cycle-24 validation and independent exact-head review finish.
 - Uncertainty and limitations: the online smoke did not consume artifact quota
   or exercise artifact retention/upload; failed DGX evidence is retained, and
   no current overhead or cross-attempt performance claim is made. Quota
   reservation is tracker-lifetime, and a stuck daemon SDK worker is
   process-lifetime bounded.
-- Exactly one next step: validate cycle 21 and obtain an independent exact-head
-  `PASS` or justified `PASS WITH NOTE`, then use the live PR handoff for the
-  guarded merge audit.
+- Exactly one next step: obtain an independent exact-head `PASS` or justified
+  `PASS WITH NOTE`, then use the live PR handoff for the guarded merge audit.

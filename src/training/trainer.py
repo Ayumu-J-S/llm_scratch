@@ -157,6 +157,8 @@ class Trainer:
         self._measurement_checkpoint_boundaries: list[dict[str, Any]] = []
         self._active_measurement_checkpoint_boundary: dict[str, Any] | None = None
         self._measurement_completed = False
+        self._wandb_cuda_run_peak_allocated_bytes = 0
+        self._wandb_cuda_run_peak_reserved_bytes = 0
         self._measurement_evidence_id = uuid.uuid4().hex if self._measurement_enabled else None
         self._resume_measurement_config: dict[str, Any] | None = None
         self._resume_measurement_evidence_id: str | None = None
@@ -246,6 +248,7 @@ class Trainer:
                         step_started = time.perf_counter() if self._measurement_enabled else None
                         wall_start_unix_ns = time.time_ns() if self._measurement_enabled else None
                         if self._measurement_cuda_events:
+                            self._capture_cuda_run_peaks()
                             torch.cuda.reset_peak_memory_stats(self.device)
                         wait_started = time.perf_counter() if self._measurement_enabled else None
                         try:
@@ -389,6 +392,7 @@ class Trainer:
                     "run/final_target_tokens": self.target_tokens,
                     "run/final_elapsed_seconds": self.elapsed_seconds,
                     **self._latest_wandb_scalars,
+                    **self._system_wandb_scalars(),
                 }
             )
             if self._measurement_enabled:
@@ -953,18 +957,32 @@ class Trainer:
                 values["system/rss_bytes"] = int(line.split()[1]) * 1024
             elif line.startswith("VmHWM:"):
                 values["system/rss_peak_bytes"] = int(line.split()[1]) * 1024
+        self._capture_cuda_run_peaks()
         if self.device.type == "cuda":
             values.update(
                 {
-                    "system/cuda_peak_allocated_bytes": int(
-                        torch.cuda.max_memory_allocated(self.device)
-                    ),
-                    "system/cuda_peak_reserved_bytes": int(
-                        torch.cuda.max_memory_reserved(self.device)
-                    ),
+                    "system/cuda_peak_allocated_bytes": self._wandb_cuda_run_peak_allocated_bytes,
+                    "system/cuda_peak_reserved_bytes": self._wandb_cuda_run_peak_reserved_bytes,
                 }
             )
         return values
+
+    def _capture_cuda_run_peaks(self) -> tuple[int, int]:
+        """Retain process-run CUDA peaks across per-step measurement resets."""
+
+        if self.device.type != "cuda":
+            return 0, 0
+        allocated_bytes = int(torch.cuda.max_memory_allocated(self.device))
+        reserved_bytes = int(torch.cuda.max_memory_reserved(self.device))
+        self._wandb_cuda_run_peak_allocated_bytes = max(
+            self._wandb_cuda_run_peak_allocated_bytes,
+            allocated_bytes,
+        )
+        self._wandb_cuda_run_peak_reserved_bytes = max(
+            self._wandb_cuda_run_peak_reserved_bytes,
+            reserved_bytes,
+        )
+        return allocated_bytes, reserved_bytes
 
     def _new_step_measurement(self) -> dict[str, Any]:
         phases = (
@@ -1040,12 +1058,7 @@ class Trainer:
             cuda_milliseconds[name] = sum(start.elapsed_time(end) for start, end in pairs)
         host_seconds = timing["host_seconds"]
         attributed_host_seconds = sum(host_seconds.values()) + boundary_sync_seconds
-        if self.device.type == "cuda":
-            allocated_bytes = int(torch.cuda.max_memory_allocated(self.device))
-            reserved_bytes = int(torch.cuda.max_memory_reserved(self.device))
-        else:
-            allocated_bytes = 0
-            reserved_bytes = 0
+        allocated_bytes, reserved_bytes = self._capture_cuda_run_peaks()
         self._measurement_rows.append(
             {
                 "event": "optimizer_step",

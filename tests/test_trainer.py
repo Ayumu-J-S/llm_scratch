@@ -277,6 +277,59 @@ def test_wandb_uses_training_log_cadence_and_compact_scalar_schema(tmp_path: Pat
     assert any(key.startswith("validation/corpus/") for key in logged)
 
 
+def test_wandb_final_summary_refreshes_system_scalars_after_last_log_boundary(
+    tmp_path: Path,
+    monkeypatch,
+):
+    trainer = _trainer(
+        tmp_path,
+        [_batch([[0, 1]]) for _ in range(3)],
+        max_steps=3,
+        log_every_n_steps=2,
+        validation_every_n_steps=99,
+    )
+    tracking = RecordingWandbTracker()
+    trainer.wandb = tracking
+    system_sample = 0
+
+    def system_scalars():
+        nonlocal system_sample
+        system_sample += 1
+        return {
+            "throughput/target_tokens_per_second": float(system_sample),
+            "system/rss_bytes": system_sample,
+        }
+
+    monkeypatch.setattr(trainer, "_system_wandb_scalars", system_scalars)
+
+    trainer.fit()
+
+    assert tracking.logs[0]["optimizer_step"] == 2
+    assert tracking.logs[0]["system/rss_bytes"] == 1
+    assert tracking.summaries[-1]["run/final_optimizer_step"] == 3
+    assert tracking.summaries[-1]["system/rss_bytes"] == 2
+    assert tracking.summaries[-1]["throughput/target_tokens_per_second"] == 2.0
+
+
+def test_wandb_cuda_peaks_remain_run_level_across_measurement_intervals(
+    tmp_path: Path,
+    monkeypatch,
+):
+    trainer = _trainer(tmp_path, [_batch([[0, 1]])])
+    trainer.device = torch.device("cuda")
+    allocated = iter((100, 300, 200))
+    reserved = iter((400, 250, 500))
+    monkeypatch.setattr(torch.cuda, "max_memory_allocated", lambda _device: next(allocated))
+    monkeypatch.setattr(torch.cuda, "max_memory_reserved", lambda _device: next(reserved))
+
+    assert trainer._capture_cuda_run_peaks() == (100, 400)
+    assert trainer._capture_cuda_run_peaks() == (300, 250)
+    scalars = trainer._system_wandb_scalars()
+
+    assert scalars["system/cuda_peak_allocated_bytes"] == 300
+    assert scalars["system/cuda_peak_reserved_bytes"] == 500
+
+
 def test_wandb_logs_validation_at_its_exact_boundary_when_cadences_differ(tmp_path: Path):
     trainer = _trainer(
         tmp_path,

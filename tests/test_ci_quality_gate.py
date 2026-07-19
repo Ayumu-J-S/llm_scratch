@@ -4,6 +4,8 @@ import importlib.util
 import os
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -61,3 +63,22 @@ def test_offline_smoke_environment_removes_credentials_and_loads_socket_guard(
     assert "_guarded_connect" in module.NETWORK_GUARD
     assert "_guarded_connect_ex" in module.NETWORK_GUARD
     assert "_guarded_sendto" in module.NETWORK_GUARD
+
+
+def test_offline_smoke_blocks_native_network_sockets_across_process_tree(tmp_path):
+    module = load_offline_smoke()
+    environment = module.offline_environment(tmp_path, wandb_mode="offline")
+
+    module.verify_process_tree_network_guard(environment)
+
+
+def test_offline_smoke_refuses_python_only_fallback_when_seccomp_is_missing(monkeypatch):
+    module = load_offline_smoke()
+
+    def missing_library(*_args, **_kwargs):
+        raise OSError("missing")
+
+    monkeypatch.setattr(module.ctypes, "CDLL", missing_library)
+
+    with pytest.raises(RuntimeError, match="requires libseccomp"):
+        module.install_process_tree_network_guard()
