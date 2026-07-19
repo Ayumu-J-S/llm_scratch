@@ -76,12 +76,16 @@ def run_benchmark(
         raise ValueError("benchmark access must be dev or final")
     benchmark_cfg = cfg.benchmark
     checkpoint_path = _root_or_cwd_path(str(benchmark_cfg.checkpoint_path))
-    output_path = _output_path(benchmark_cfg).resolve()
-    _reject_output_checkpoint_collision(checkpoint_path, output_path)
+    configured_output_path = _output_path(benchmark_cfg)
 
     loaded = load_checkpoint_for_generation(checkpoint_path)
     checkpoint_cfg = OmegaConf.create(loaded.payload["state"]["resolved_config"])
     validate_training_config(checkpoint_cfg)
+    output_path = _validated_benchmark_output_path(
+        checkpoint_path,
+        configured_output_path,
+        checkpoint_config=checkpoint_cfg,
+    )
     validate_benchmark_checkpoint_runtime(cfg, checkpoint_cfg)
     device = select_device(str(benchmark_cfg.device))
     sampler = CheckpointSampler.from_loaded_checkpoint(
@@ -321,13 +325,40 @@ def _write_json_atomic(path: Path, payload: Mapping[str, Any]) -> None:
         temporary.unlink(missing_ok=True)
 
 
-def _reject_output_checkpoint_collision(checkpoint_path: Path, output_path: Path) -> None:
+def _validated_benchmark_output_path(
+    checkpoint_path: Path,
+    output_path: Path,
+    *,
+    checkpoint_config: DictConfig,
+) -> Path:
+    """Return one ordinary JSON path outside every known checkpoint namespace."""
+
     checkpoint = checkpoint_path.resolve()
-    output = output_path.resolve()
-    if checkpoint == output:
-        raise ValueError("benchmark output path must not be the checkpoint path")
+    candidate = output_path.absolute()
+    output = candidate.resolve()
+    checkpoint_roots = {checkpoint.parent}
+    configured_root = Path(str(checkpoint_config.artifacts.checkpoints_dir))
+    if configured_root.is_absolute():
+        checkpoint_roots.add(configured_root.resolve())
+    protected_names = {"checkpoint", "checkpoints"}
+    if any(root == output or root in output.parents for root in checkpoint_roots) or any(
+        part.casefold() in protected_names for part in output.parts[:-1]
+    ):
+        raise ValueError("benchmark output path must be outside checkpoint namespaces")
+    if output.suffix != ".json":
+        raise ValueError("benchmark output path must use a .json suffix")
     try:
-        if output.exists() and os.path.samefile(checkpoint, output):
-            raise ValueError("benchmark output and checkpoint must not share an inode")
+        existing = candidate.lstat()
     except FileNotFoundError:
-        return
+        return output
+    except OSError as error:
+        raise ValueError("benchmark output path cannot be inspected safely") from error
+    if candidate.is_symlink():
+        raise ValueError("benchmark output path must not be a symlink")
+    if not candidate.is_file():
+        raise ValueError("benchmark output path must be a regular file")
+    if existing.st_nlink != 1:
+        raise ValueError("benchmark output path must not be a hardlink")
+    if os.path.samefile(checkpoint, candidate):
+        raise ValueError("benchmark output and checkpoint must not share an inode")
+    return output

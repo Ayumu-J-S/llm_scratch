@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -496,6 +497,49 @@ def test_runner_rejects_unsupported_cuda_bf16_before_training_scan(monkeypatch, 
             registry_path=registry,
             expected_registry_fingerprint=fingerprint,
         )
+
+
+def test_runner_rejects_sibling_checkpoint_output_before_suite_loading(monkeypatch, tmp_path: Path):
+    checkpoint, _ = _pretraining_checkpoint(tmp_path)
+    milestone = checkpoint.with_name("milestone-step-000000000004.pt")
+    shutil.copy2(checkpoint, milestone)
+    checkpoint_bytes = checkpoint.read_bytes()
+    milestone_bytes = milestone.read_bytes()
+    config = _benchmark_config(tmp_path, milestone)
+    config.benchmark.output_path = str(checkpoint)
+    monkeypatch.setattr(
+        "benchmarks.runner.load_suite",
+        lambda *_args, **_kwargs: pytest.fail(
+            "checkpoint namespace collision must fail before suite loading"
+        ),
+    )
+
+    with pytest.raises(ValueError, match="outside checkpoint namespaces"):
+        run_benchmark(config)
+
+    assert checkpoint.read_bytes() == checkpoint_bytes
+    assert milestone.read_bytes() == milestone_bytes
+
+
+def test_runner_rejects_checkpoint_symlink_and_hardlink_aliases(tmp_path: Path):
+    checkpoint, _ = _pretraining_checkpoint(tmp_path)
+    checkpoint_bytes = checkpoint.read_bytes()
+    alias_directory = tmp_path / "checkpoint-alias"
+    alias_directory.symlink_to(checkpoint.parent, target_is_directory=True)
+    symlink_config = _benchmark_config(tmp_path, checkpoint)
+    symlink_config.benchmark.output_path = str(alias_directory / "result.json")
+
+    with pytest.raises(ValueError, match="outside checkpoint namespaces"):
+        run_benchmark(symlink_config)
+
+    hardlink = tmp_path / "checkpoint-hardlink.json"
+    hardlink.hardlink_to(checkpoint)
+    hardlink_config = _benchmark_config(tmp_path, checkpoint)
+    hardlink_config.benchmark.output_path = str(hardlink)
+    with pytest.raises(ValueError, match="must not be a hardlink"):
+        run_benchmark(hardlink_config)
+
+    assert checkpoint.read_bytes() == checkpoint_bytes
 
 
 def test_fixture_checkpoint_scoring_and_result_identity_are_deterministic(
