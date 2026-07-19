@@ -88,7 +88,7 @@ def _fake_run(root: Path, entry: dict, throughput: float, *, swap_out: int = 0) 
     rows.append(
         {
             "event": "validation",
-            "validation_event_seconds": 3.0,
+            "full_event_pause_seconds": 3.0,
         }
     )
     rows.append(

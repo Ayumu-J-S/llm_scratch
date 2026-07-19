@@ -93,6 +93,8 @@ used to claim the measured profile is selected.
 | 3 | Repair | implemented | Pass a container-only `safe.directory` value for the exact mounted worktree; clean status and exact commit remain required | Runner command and repeat target smoke |
 | 4 | Target smoke attempt 2 | failed before model construction | Exact Git identity passed; the isolated worktree cache was empty and network isolation rejected an implicit corpus download | `/tmp/dgx-001-smoke-6a80d43/run.json` |
 | 5 | Repair | implemented | Require an explicit existing `cache_root` and mount that hash-verified cache read/write into every matrix/pilot container | Runner preflight and repeat target smoke |
+| 6 | Target smoke attempt 3 | passed | Real pinned JA/EN stream, 70,828,682 parameters, 12 BF16 CUDA updates/49,152 targets, verified checkpoints, finite validation, 12,891 post-warmup targets/s, 3.13% data wait, 3.88 GB allocator peak, 48 C max, zero swap | `docs/experiments/evidence/DGX-001-smoke-909e7b9.json` |
+| 7 | Evidence projection repair | implemented | Use VAL-001's exact `full_event_pause_seconds` field so validation overhead is not understated | Smoke measurement validation row and focused test |
 
 Independent `/review` will cover `PHILOSOPHY.md`, DGX-001 acceptance, and the
 applicable `CHECK.md` minimum, comparison, data supply, DGX/UMA, training-health,
