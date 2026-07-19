@@ -254,9 +254,7 @@ def test_measurement_evidence_preserves_verified_segments_across_resume(tmp_path
     }
     assert suffix["complete"] is True
     suffix_steps = [
-        row["optimizer_step"]
-        for row in suffix["rows"]
-        if row["event"] == "optimizer_step"
+        row["optimizer_step"] for row in suffix["rows"] if row["event"] == "optimizer_step"
     ]
     assert suffix_steps == [4, 5, 6]
     assert json.loads(first_path.read_text(encoding="utf-8")) == first_payload

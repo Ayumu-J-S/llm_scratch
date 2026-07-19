@@ -163,10 +163,24 @@ def build_streaming_dataloader(
     split_name: str,
     *,
     device: torch.device | None = None,
+    manifest_root: Path | None = None,
 ):
     reproducibility_cfg = cfg.get("reproducibility", {})
     base_seed = int(reproducibility_cfg.get("seed", 0))
     stream_config = streaming_split_config(cfg.data.streaming, split_name)
+    if manifest_root is not None:
+        for field in ("sources", "datasets"):
+            entries = stream_config.get(field, [])
+            if not isinstance(entries, list):
+                continue
+            for source in entries:
+                if not isinstance(source, dict):
+                    continue
+                if source.get("type", source.get("source", "hf")) != "manifest":
+                    continue
+                manifest_path = Path(str(source["manifest_path"]))
+                if not manifest_path.is_absolute():
+                    source["manifest_path"] = str((manifest_root / manifest_path).resolve())
     if stream_config.get("require_manifests") is False:
         raise ValueError("streaming training cannot set require_manifests=false")
     stream_config["require_manifests"] = True
@@ -193,12 +207,18 @@ def build_validation_loader_factory(
     *,
     tokenizer=None,
     device: torch.device | None = None,
+    manifest_root: Path | None = None,
 ):
     """Return a fresh fixed-window validation loader for each scoring event."""
 
     data_mode = cfg.data.get("mode")
     if data_mode == "streaming":
-        return lambda: build_streaming_dataloader(cfg, "validation", device=device)
+        return lambda: build_streaming_dataloader(
+            cfg,
+            "validation",
+            device=device,
+            manifest_root=manifest_root,
+        )
     if data_mode != "memorization_smoke":
         raise ValueError("data.mode must be either 'memorization_smoke' or 'streaming'")
     if tokenizer is None:

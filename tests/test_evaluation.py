@@ -574,7 +574,9 @@ def test_trainer_memorization_metrics_have_no_validation_namespace(tmp_path):
 
 
 @pytest.mark.parametrize("split_field", ["sources", "datasets"])
-def test_standalone_milestone_matches_shared_training_time_score(tmp_path, split_field):
+def test_standalone_milestone_matches_shared_training_time_score(
+    tmp_path, monkeypatch, split_field
+):
     checkpoint, checkpoint_config, model, identity, counters = _milestone_checkpoint(
         tmp_path / "checkpoints", split_field=split_field
     )
@@ -594,6 +596,9 @@ def test_standalone_milestone_matches_shared_training_time_score(tmp_path, split
         evaluation_config.evaluation.checkpoint_path = str(checkpoint)
         evaluation_config.evaluation.output_path = str(tmp_path / "standalone.json")
         evaluation_config.evaluation.device = "cpu"
+    foreign_cwd = tmp_path / "foreign-cwd"
+    foreign_cwd.mkdir()
+    monkeypatch.chdir(foreign_cwd)
     result_path = evaluate_module.evaluate_checkpoint(evaluation_config)
     standalone = json.loads(result_path.read_text(encoding="utf-8"))
     result = standalone["result"]
@@ -610,6 +615,7 @@ def test_standalone_milestone_matches_shared_training_time_score(tmp_path, split
     assert standalone["checkpoint"]["logical"] == live_result.logical_checkpoint_identity
     assert standalone["checkpoint"]["physical"]["path"] == str(checkpoint.resolve())
     assert len(standalone["checkpoint"]["physical"]["sha256"]) == 64
+    assert standalone["evaluation"]["checkpoint_config_sha256"] == identity["config_sha256"]
     evaluator_run = standalone["evaluator_run"]
     assert len(evaluator_run["git"]["sha"]) == 40
     assert isinstance(evaluator_run["git"]["dirty"], bool)
@@ -685,6 +691,26 @@ def test_standalone_rejects_output_checkpoint_collisions_before_evaluation(
         evaluate_module.evaluate_checkpoint(evaluation_config)
 
     assert checkpoint.read_bytes() == original
+
+
+def test_standalone_rejects_invalid_measurement_before_checkpoint_or_device(tmp_path, monkeypatch):
+    evaluation_config = _compose("profile=evaluation")
+    with open_dict(evaluation_config):
+        evaluation_config.evaluation.checkpoint_path = str(tmp_path / "unused.pt")
+        evaluation_config.measurement.enabled = "false"
+    monkeypatch.setattr(
+        evaluate_module,
+        "load_checkpoint_for_generation",
+        lambda *_args, **_kwargs: pytest.fail("invalid measurement must fail before checkpoint IO"),
+    )
+    monkeypatch.setattr(
+        evaluate_module,
+        "select_device",
+        lambda *_args, **_kwargs: pytest.fail("invalid measurement must fail before device setup"),
+    )
+
+    with pytest.raises(ConfigPreflightError, match="measurement.enabled"):
+        evaluate_module.evaluate_checkpoint(evaluation_config)
 
 
 def test_standalone_wandb_summary_records_compact_identities_and_local_hash(tmp_path, monkeypatch):

@@ -949,9 +949,7 @@ class Trainer:
                     self._resumed_from.path.parent,
                     prior_config.get("output_path"),
                 )
-                self._measurement_segments.extend(
-                    self._load_measurement_segments(prior_path)
-                )
+                self._measurement_segments.extend(self._load_measurement_segments(prior_path))
                 prior_status = "verified"
             else:
                 prior_status = "disabled"
