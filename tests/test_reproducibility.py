@@ -114,6 +114,32 @@ def test_git_identity_binds_distinct_tracked_and_untracked_dirty_bytes(tmp_path:
     )
 
 
+@pytest.mark.parametrize("tracked", [False, True])
+def test_git_identity_rejects_symlinked_evaluator_paths(tmp_path: Path, tracked: bool):
+    repository = tmp_path / "repository"
+    repository.mkdir()
+    _git(repository, "init", "-q")
+    _git(repository, "config", "user.name", "Fixture")
+    _git(repository, "config", "user.email", "fixture@example.invalid")
+    committed = repository / "committed.py"
+    committed.write_text("value = 'clean'\n", encoding="utf-8")
+    _git(repository, "add", "committed.py")
+    _git(repository, "commit", "-qm", "fixture")
+    target = tmp_path / "mutable-target.py"
+    target.write_text("value = 'first'\n", encoding="utf-8")
+    linked = repository / "linked_evaluator.py"
+    linked.symlink_to(target)
+    if tracked:
+        _git(repository, "add", "linked_evaluator.py")
+        _git(repository, "commit", "-qm", "tracked symlink")
+
+    with pytest.raises(ReproducibilityError, match="regular file, not a symlink"):
+        collect_git_identity(repository)
+    target.write_text("value = 'other'\n", encoding="utf-8")
+    with pytest.raises(ReproducibilityError, match="regular file, not a symlink"):
+        collect_git_identity(repository)
+
+
 def _manifest_config():
     return {
         "profile": {"purpose": "memorization_smoke"},

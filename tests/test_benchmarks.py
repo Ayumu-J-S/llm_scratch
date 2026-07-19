@@ -433,6 +433,24 @@ def test_shingle_matcher_is_linear_and_does_not_materialize_corpus_windows():
     assert matcher.stored_codepoints == len(first) + len(second)
 
 
+def test_shingle_matcher_deduplicates_reference_identity_within_one_document():
+    shared = {
+        "task": "jcommonsenseqa",
+        "benchmark_example_id": "shared",
+        "benchmark_field": "question",
+    }
+    distinct = {
+        "task": "jcommonsenseqa",
+        "benchmark_example_id": "distinct",
+        "benchmark_field": "choice0",
+    }
+    document = "".join(chr(0x4E00 + index) for index in range(SHINGLE_CODEPOINTS + 100))
+    patterns = {document[index : index + SHINGLE_CODEPOINTS]: [shared] for index in range(101)}
+    patterns[document[:SHINGLE_CODEPOINTS]] = [shared, distinct]
+
+    assert _ShingleMatcher(patterns).references_in(document) == [shared, distinct]
+
+
 def test_runner_retains_blocked_evidence_and_never_scores_contamination(
     monkeypatch, tmp_path: Path
 ):
@@ -593,6 +611,10 @@ def test_fixture_checkpoint_scoring_and_result_identity_are_deterministic(
                 "correct": False,
                 "valid_answer_format": False,
                 "generated_token_count": 128,
+                "generated_token_ids_hash_revision": "canonical-json-token-ids-sha256-v1",
+                "generated_token_ids_sha256": (
+                    "1b912946d3fd584649a7924a6d699d2bd0ee0da2ebc320bd53135fa9b1ec21a0"
+                ),
                 "stop_reason": "max_new_tokens",
                 "completion_sha256": (
                     "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
@@ -600,7 +622,7 @@ def test_fixture_checkpoint_scoring_and_result_identity_are_deterministic(
             }
         ],
         "prediction_trace_sha256": (
-            "1324e33caac696f2ca5f233879d69616399761449e055b71485005c2b2b6aae4"
+            "f2ade7738dfbfb6af7bb08e549d8dd7fe64d59df50423e700cde2255961a69a0"
         ),
     }
 

@@ -31,6 +31,7 @@ GSM8K_PROMPT_REVISION = "BENCH-001-gsm8k-zero-shot-v1"
 GSM8K_SCORER_REVISION = "openai-gsm8k-ANS_RE-v1"
 GSM8K_MAX_NEW_TOKENS = 128
 PROTOCOL_MINIMUM_CONTEXT_LENGTH = GSM8K_MAX_NEW_TOKENS + 1
+GENERATED_TOKEN_TRACE_REVISION = "canonical-json-token-ids-sha256-v1"
 SUBSET_SELECTOR_REVISION = "sha256-example-id-v1"
 INVALID_GSM8K_ANSWER = "[invalid]"
 _GSM8K_ANSWER = re.compile(r"#### (\-?[0-9\.\,]+)")
@@ -66,6 +67,11 @@ _SCORER_SPECS = {
         "answer_regex": r"#### (\-?[0-9\.\,]+)",
         "normalization": "strip then remove commas",
         "comparison": "exact string equality",
+        "generated_token_trace": {
+            "revision": GENERATED_TOKEN_TRACE_REVISION,
+            "encoding": "canonical JSON array of integer token IDs",
+            "retention": "SHA-256 only; raw IDs excluded",
+        },
     },
 }
 

@@ -44,7 +44,11 @@
 | 21 | Repair | Complete | Restored the original ID-only canonical `encode` hot path while keeping offset extraction explicit to benchmark scoring; derived the checkpoint-owned root after verified checkpoint/config loading and rejected JSON output/temp placement, checkpoint namespaces, symlink aliases, and hardlinks before suite loading or scanning |
 | 22 | Focused validation | PASS | ID-only training encode, sibling checkpoint, directory-symlink alias, hardlink alias, scoring golden, benchmark/tokenizer/generation/config suites, and Ruff pass (87 focused tests) |
 | 23 | Full validation | PASS | Official CPU gate: 348 passed, 1 skipped; Ruff, Hydra config preflight, lock drift, offline smoke, `uv lock --check`, changed-path format, and diff checks pass |
-| 24 | Independent re-review | Pending | Repeat against the exact committed sixth-repair head and preserve the verdict in the pull request |
+| 24 | Independent re-review | FAIL | Exact-head review of `10f237d` reran the full 348-test gate (1 skipped), then found that overlapping shingles could materialize the same reference many times per document before final deduplication, the zero-weight generation golden did not uniquely bind special-token sequences that decode identically, and untracked symlink target bytes could change without changing evaluator identity |
+| 25 | Repair | Complete | Deduplicated shingle matches by task/example/field identity inside each document; added a versioned SHA-256 over canonical-JSON generated token IDs without retaining raw IDs; rejected every tracked or untracked non-regular evaluator path before reading dirty content |
+| 26 | Focused validation | PASS | Bounded per-document reference identity, corrected versioned token-sequence golden, tracked/untracked symlink rejection (including target mutation), 27 benchmark/reproducibility tests, and Ruff pass |
+| 27 | Full validation | PASS | Official CPU gate: 351 passed, 1 skipped; Ruff, Hydra config preflight, lock drift, offline smoke, `uv lock --check`, changed-path format, and diff checks pass |
+| 28 | Independent re-review | Pending | Repeat against the exact committed seventh-repair head and preserve the verdict in the pull request |
 
 ## Resolved protocol
 
@@ -80,7 +84,7 @@
 
 ## Current conclusion
 
-All six independent failed reviews remain visible. Their sixteen findings are
+All seven independent failed reviews remain visible. Their nineteen findings are
 repaired without weakening the fixed protocol or complete contamination gate:
 cheap context incompatibility precedes scanning, both tasks honor checkpoint
 precision, external records are pinned, evaluator/runtime and dirty source
@@ -92,10 +96,12 @@ evidence is reused across milestones. Choice scoring now uses an exact joint
 encoding and offset-defined suffix, unsupported CUDA BF16 is rejected before
 the training scan, and external records prove sufficient no-truncation context.
 Normal training encoding remains ID-only, while local result paths cannot enter
-or alias the checkpoint-owned namespace.
+or alias the checkpoint-owned namespace. Per-document contamination evidence is
+reference-deduplicated, generation traces bind canonical token-sequence hashes,
+and evaluator identity rejects symlinked or special producer paths.
 An extra
 repository-wide format diagnostic identified four pre-existing, unrelated
 files outside this ticket's diff; the configured Ruff lint gate and all changed
-benchmark paths pass, so those files were not rewritten here. The sixth repair's
+benchmark paths pass, so those files were not rewritten here. The seventh repair's
 full gate passes and its exact-head independent review is pending. No
 benchmark score from the zero-weight fixture is a model-quality result.

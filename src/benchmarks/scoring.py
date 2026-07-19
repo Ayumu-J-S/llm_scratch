@@ -9,6 +9,7 @@ import torch
 import torch.nn.functional as F
 
 from benchmarks.suite import (
+    GENERATED_TOKEN_TRACE_REVISION,
     INVALID_GSM8K_ANSWER,
     BenchmarkExample,
     LoadedSuite,
@@ -250,6 +251,10 @@ def _score_gsm8k(
                 "correct": is_correct,
                 "valid_answer_format": is_valid,
                 "generated_token_count": len(result.generated_token_ids),
+                "generated_token_ids_hash_revision": GENERATED_TOKEN_TRACE_REVISION,
+                "generated_token_ids_sha256": hashlib.sha256(
+                    canonical_json_bytes(list(result.generated_token_ids))
+                ).hexdigest(),
                 "stop_reason": result.stop_reason,
                 "completion_sha256": hashlib.sha256(
                     result.completion.encode("utf-8", errors="strict")

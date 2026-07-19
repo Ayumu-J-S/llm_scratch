@@ -95,7 +95,7 @@ class _ShingleMatcher:
         rolling_hash = _rolling_key(text[:SHINGLE_CODEPOINTS])
         operations = SHINGLE_CODEPOINTS
         verifications = 0
-        matched_patterns: set[str] = set()
+        matched_references: set[tuple[str, str, str]] = set()
         references: list[Reference] = []
         final_start = len(text) - SHINGLE_CODEPOINTS
         for start in range(final_start + 1):
@@ -104,9 +104,16 @@ class _ShingleMatcher:
                 verifications += 1
                 candidate = text[start : start + SHINGLE_CODEPOINTS]
                 matched = bucket.get(candidate)
-                if matched is not None and candidate not in matched_patterns:
-                    matched_patterns.add(candidate)
-                    references.extend(matched)
+                if matched is not None:
+                    for reference in matched:
+                        identity = (
+                            reference["task"],
+                            reference["benchmark_example_id"],
+                            reference["benchmark_field"],
+                        )
+                        if identity not in matched_references:
+                            matched_references.add(identity)
+                            references.append(reference)
             if start == final_start:
                 break
             outgoing = ord(text[start]) + 1

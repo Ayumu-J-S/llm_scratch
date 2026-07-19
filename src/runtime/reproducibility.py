@@ -135,6 +135,8 @@ def _git(root_dir: Path) -> dict[str, Any]:
 
     status = run("status", "--porcelain", "--untracked-files=all")
     sha = run("rev-parse", "HEAD")
+    tracked = run_bytes("ls-files", "-z")
+    _reject_non_regular_tracked_paths(root_dir, tracked)
     tracked_diff = run_bytes("diff", "--binary", "--no-ext-diff", "HEAD", "--")
     untracked = run_bytes("ls-files", "--others", "--exclude-standard", "-z")
     worktree_digest = hashlib.sha256()
@@ -145,10 +147,12 @@ def _git(root_dir: Path) -> dict[str, Any]:
     if (
         run("rev-parse", "HEAD") != sha
         or run("status", "--porcelain", "--untracked-files=all") != status
+        or run_bytes("ls-files", "-z") != tracked
         or run_bytes("diff", "--binary", "--no-ext-diff", "HEAD", "--") != tracked_diff
         or run_bytes("ls-files", "--others", "--exclude-standard", "-z") != untracked
     ):
         raise ReproducibilityError("git worktree changed while its content identity was captured")
+    _reject_non_regular_tracked_paths(root_dir, tracked)
     return {
         "sha": sha,
         "dirty": bool(status),
@@ -170,19 +174,18 @@ def _hash_untracked_path(digest: Any, root_dir: Path, raw_path: bytes) -> None:
         before = path.lstat()
     except OSError as error:
         raise ReproducibilityError(f"unable to hash untracked path: {path}") from error
+    if not stat.S_ISREG(before.st_mode):
+        raise ReproducibilityError(
+            f"untracked evaluator path must be a regular file, not a symlink or special path: {path}"
+        )
     _hash_field(digest, b"untracked-path", raw_path)
     _hash_field(digest, b"untracked-mode", str(before.st_mode).encode())
     try:
-        if stat.S_ISLNK(before.st_mode):
-            _hash_field(digest, b"untracked-symlink", os.fsencode(os.readlink(path)))
-        elif stat.S_ISREG(before.st_mode):
-            file_digest = hashlib.sha256()
-            with path.open("rb") as handle:
-                for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-                    file_digest.update(chunk)
-            _hash_field(digest, b"untracked-file-sha256", file_digest.digest())
-        else:
-            _hash_field(digest, b"untracked-special", b"")
+        file_digest = hashlib.sha256()
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                file_digest.update(chunk)
+        _hash_field(digest, b"untracked-file-sha256", file_digest.digest())
         after = path.lstat()
     except OSError as error:
         raise ReproducibilityError(f"unable to hash untracked path: {path}") from error
@@ -202,6 +205,23 @@ def _hash_untracked_path(digest: Any, root_dir: Path, raw_path: bytes) -> None:
     )
     if observed_after != observed_before:
         raise ReproducibilityError(f"untracked path changed while it was hashed: {path}")
+
+
+def _reject_non_regular_tracked_paths(root_dir: Path, tracked: bytes) -> None:
+    for raw_path in (path for path in tracked.split(b"\0") if path):
+        path = root_dir / os.fsdecode(raw_path)
+        try:
+            observed = path.lstat()
+        except FileNotFoundError:
+            continue
+        except OSError as error:
+            raise ReproducibilityError(
+                f"unable to inspect tracked evaluator path: {path}"
+            ) from error
+        if not stat.S_ISREG(observed.st_mode):
+            raise ReproducibilityError(
+                f"tracked evaluator path must be a regular file, not a symlink or special path: {path}"
+            )
 
 
 def collect_git_identity(root_dir: str | Path) -> dict[str, Any]:
