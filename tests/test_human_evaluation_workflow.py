@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import copy
+import hashlib
+import hmac
 import json
+import os
 import stat
 from pathlib import Path
 from types import SimpleNamespace
@@ -9,7 +12,7 @@ from types import SimpleNamespace
 import pytest
 
 from human_evaluation import workflow
-from human_evaluation.schema import SCORE_SCHEMA_VERSION
+from human_evaluation.schema import SCORE_SCHEMA_VERSION, load_prompt_set
 from human_evaluation.workflow import (
     HumanEvaluationError,
     _load_checkpoint_candidates,
@@ -83,6 +86,8 @@ def _loaded(slot: str, *, target_tokens: int, optimizer_step: int) -> LoadedChec
 def prepared_study(tmp_path: Path, monkeypatch):
     workspace = tmp_path / "human-evaluation" / "study"
     key = create_blinding_key(tmp_path / "secret" / "human.key")
+    key.write_bytes(b"HUMAN-001 deterministic fixture key")
+    key.chmod(0o600)
 
     def fake_loader(path: str | Path):
         slot = "earlier" if "earlier" in str(path) else "later"
@@ -203,6 +208,16 @@ def test_prepare_is_reproducible_balanced_and_public_bundle_has_no_identity_leak
     assert not any(fragment in key for fragment in forbidden_key_fragments for key in public_keys)
 
     assignments = private["payload"]["assignments"]
+    prompt_ids = [prompt.id for prompt in load_prompt_set(PROMPT_SET_PATH).prompts]
+    expected_prompt_order = sorted(
+        prompt_ids,
+        key=lambda prompt_id: hmac.new(
+            key.read_bytes(),
+            f"item-order:{public['study_id']}:{prompt_id}".encode(),
+            hashlib.sha256,
+        ).digest(),
+    )
+    assert [assignment["prompt_id"] for assignment in assignments] == expected_prompt_order
     assert sum(item["candidates"]["A"] == "earlier" for item in assignments) == 4
     assert sum(item["candidates"]["B"] == "earlier" for item in assignments) == 4
     assert (
@@ -353,6 +368,107 @@ def test_public_and_private_tampering_are_rejected(prepared_study):
             blinding_key_path=key,
             score_paths=score_paths,
         )
+
+
+def test_import_rejects_wrong_private_and_public_modes_or_hardlinks(prepared_study):
+    workspace, key, paths = prepared_study
+    public = json.loads(paths["public_bundle"].read_text(encoding="utf-8"))
+    score_paths = _write_scores(workspace, _score(public, "first"), _score(public, "second"))
+
+    def run_import():
+        return import_scores(
+            workspace_dir=workspace,
+            blinding_key_path=key,
+            score_paths=score_paths,
+        )
+
+    for path, bad_mode, expected in (
+        (workspace, 0o755, "directory has wrong permissions"),
+        (workspace / "private", 0o755, "directory has wrong permissions"),
+        (workspace / "public", 0o700, "directory has wrong permissions"),
+        (workspace / "reviews", 0o755, "reviews directory permissions"),
+        (paths["public_bundle"], 0o600, "public bundle permissions"),
+        (paths["private_mapping"], 0o644, "private mapping permissions"),
+        (score_paths[0], 0o644, "score file permissions"),
+        (key, 0o644, "blinding key permissions"),
+    ):
+        original_mode = stat.S_IMODE(path.stat().st_mode)
+        path.chmod(bad_mode)
+        with pytest.raises(HumanEvaluationError, match=expected):
+            run_import()
+        path.chmod(original_mode)
+
+    for path, expected in (
+        (paths["public_bundle"], "public bundle must not be hardlinked"),
+        (paths["private_mapping"], "private mapping must not be hardlinked"),
+        (score_paths[0], "score file must not be hardlinked"),
+        (key, "blinding key must not be hardlinked"),
+    ):
+        hardlink = path.parent / f"{path.name}.hardlink"
+        os.link(path, hardlink)
+        with pytest.raises(HumanEvaluationError, match=expected):
+            run_import()
+        hardlink.unlink()
+
+
+def test_import_rejects_workspace_public_private_review_score_and_key_symlinks(prepared_study):
+    workspace, key, paths = prepared_study
+    public = json.loads(paths["public_bundle"].read_text(encoding="utf-8"))
+    score_paths = _write_scores(workspace, _score(public, "first"), _score(public, "second"))
+
+    workspace_alias = workspace.parent / "workspace-alias"
+    workspace_alias.symlink_to(workspace, target_is_directory=True)
+    with pytest.raises(HumanEvaluationError, match="workspace must not be a symlink"):
+        import_scores(
+            workspace_dir=workspace_alias,
+            blinding_key_path=key,
+            score_paths=score_paths,
+        )
+    workspace_alias.unlink()
+
+    key_alias = key.parent / "key-alias"
+    key_alias.symlink_to(key)
+    with pytest.raises(HumanEvaluationError, match="blinding key must be a regular non-symlink"):
+        import_scores(
+            workspace_dir=workspace,
+            blinding_key_path=key_alias,
+            score_paths=score_paths,
+        )
+    key_alias.unlink()
+
+    for directory_name in ("public", "private", "reviews"):
+        directory = workspace / directory_name
+        real_directory = workspace / f"{directory_name}-real"
+        directory.rename(real_directory)
+        directory.symlink_to(real_directory, target_is_directory=True)
+        with pytest.raises(HumanEvaluationError, match="symlink|real directory"):
+            import_scores(
+                workspace_dir=workspace,
+                blinding_key_path=key,
+                score_paths=[
+                    workspace / "reviews" / score_paths[0].name,
+                    workspace / "reviews" / score_paths[1].name,
+                ],
+            )
+        directory.unlink()
+        real_directory.rename(directory)
+
+    for path, expected in (
+        (paths["public_bundle"], "public bundle must be a regular non-symlink"),
+        (paths["private_mapping"], "private mapping must be a regular non-symlink"),
+        (score_paths[0], "score file must be a regular non-symlink"),
+    ):
+        real_path = path.with_name(f"{path.name}.real")
+        path.rename(real_path)
+        path.symlink_to(real_path)
+        with pytest.raises(HumanEvaluationError, match=expected):
+            import_scores(
+                workspace_dir=workspace,
+                blinding_key_path=key,
+                score_paths=score_paths,
+            )
+        path.unlink()
+        real_path.rename(path)
 
 
 def test_checkpoint_pair_requires_same_run_and_at_least_25_percent_token_separation():

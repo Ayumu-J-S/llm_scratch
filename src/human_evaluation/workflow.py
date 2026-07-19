@@ -162,9 +162,15 @@ def prepare_evaluation(
         }
         del sampler
 
+    randomized_prompts = sorted(
+        prompt_set.prompts,
+        key=lambda prompt: hmac.new(
+            key, f"item-order:{study_id}:{prompt.id}".encode(), hashlib.sha256
+        ).digest(),
+    )
     public_items: list[dict[str, Any]] = []
     private_assignments: list[dict[str, Any]] = []
-    for prompt in prompt_set.prompts:
+    for prompt in randomized_prompts:
         item_id = _blind_id(key, "item", {"study_id": study_id, "prompt_id": prompt.id})
         generation_item_seed = generation_seeds[prompt.id]
         completions: dict[str, str] = {}
@@ -246,6 +252,7 @@ def import_scores(
     """Validate human score files, compute agreement, and unblind privately."""
 
     workspace, public_path, mapping_path = _study_paths(workspace_dir)
+    _require_workspace_directories(workspace)
     key_path, key = _read_key(blinding_key_path)
     _require_key_outside_workspace(key_path, workspace)
     if len(score_paths) < 2:
@@ -253,6 +260,7 @@ def import_scores(
     for score_path in score_paths:
         _require_review_path(Path(score_path), workspace)
 
+    _require_public_file(public_path, "public bundle")
     public_bundle = _read_json_object(public_path, "public bundle")
     _validate_public_bundle(public_bundle)
     _require_private_file(mapping_path, "private mapping")
@@ -789,6 +797,18 @@ def _prepare_workspace_directories(workspace: Path) -> None:
         os.chmod(path, mode)
 
 
+def _require_workspace_directories(workspace: Path) -> None:
+    for path, mode in (
+        (workspace, 0o700),
+        (workspace / "public", 0o755),
+        (workspace / "private", 0o700),
+    ):
+        if path.is_symlink() or not path.is_dir():
+            raise HumanEvaluationError(f"study namespace must be a real directory: {path}")
+        if stat.S_IMODE(path.stat().st_mode) != mode:
+            raise HumanEvaluationError(f"study directory has wrong permissions: {path}")
+
+
 def _require_isolated_workspace(workspace: Path) -> None:
     lowered = {part.casefold() for part in workspace.parts}
     if "human-evaluation" not in lowered:
@@ -817,7 +837,10 @@ def _require_review_path(path: Path, workspace: Path) -> None:
     if raw_path.is_symlink():
         raise HumanEvaluationError("score file must be a regular non-symlink file")
     resolved = raw_path.resolve()
-    review_root = (workspace / "reviews").resolve()
+    raw_review_root = workspace / "reviews"
+    if raw_review_root.is_symlink():
+        raise HumanEvaluationError("study reviews directory must not be a symlink")
+    review_root = raw_review_root.resolve()
     if not resolved.is_relative_to(review_root):
         raise HumanEvaluationError("score files must live under the study's reviews directory")
     if not review_root.is_dir() or stat.S_IMODE(review_root.stat().st_mode) != 0o700:
@@ -832,8 +855,23 @@ def _require_private_file(path: Path, label: str) -> None:
         raise HumanEvaluationError(f"cannot read {label}: {path}") from error
     if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
         raise HumanEvaluationError(f"{label} must be a regular non-symlink file")
+    if metadata.st_nlink != 1:
+        raise HumanEvaluationError(f"{label} must not be hardlinked")
     if stat.S_IMODE(metadata.st_mode) != 0o600:
         raise HumanEvaluationError(f"{label} permissions must be exactly 0600")
+
+
+def _require_public_file(path: Path, label: str) -> None:
+    try:
+        metadata = path.lstat()
+    except OSError as error:
+        raise HumanEvaluationError(f"cannot read {label}: {path}") from error
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+        raise HumanEvaluationError(f"{label} must be a regular non-symlink file")
+    if metadata.st_nlink != 1:
+        raise HumanEvaluationError(f"{label} must not be hardlinked")
+    if stat.S_IMODE(metadata.st_mode) != 0o644:
+        raise HumanEvaluationError(f"{label} permissions must be exactly 0644")
 
 
 def _read_key(path: str | Path) -> tuple[Path, bytes]:
@@ -844,6 +882,8 @@ def _read_key(path: str | Path) -> tuple[Path, bytes]:
         raise HumanEvaluationError(f"cannot read blinding key: {key_path}") from error
     if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
         raise HumanEvaluationError("blinding key must be a regular non-symlink file")
+    if metadata.st_nlink != 1:
+        raise HumanEvaluationError("blinding key must not be hardlinked")
     if stat.S_IMODE(metadata.st_mode) != 0o600:
         raise HumanEvaluationError("blinding key permissions must be exactly 0600")
     key_path = key_path.resolve()
@@ -883,9 +923,14 @@ def _json_bytes(payload: Mapping[str, Any]) -> bytes:
 def _write_new_or_identical(path: Path, payload: bytes, *, mode: int) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists():
+        metadata = path.lstat()
+        if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+            raise HumanEvaluationError(f"study evidence must be a regular file: {path}")
+        if metadata.st_nlink != 1:
+            raise HumanEvaluationError(f"study evidence must not be hardlinked: {path}")
         if path.read_bytes() != payload:
             raise HumanEvaluationError(f"refusing to replace non-identical study evidence: {path}")
-        if stat.S_IMODE(path.stat().st_mode) != mode:
+        if stat.S_IMODE(metadata.st_mode) != mode:
             raise HumanEvaluationError(f"existing study evidence has wrong permissions: {path}")
         return
     temporary = path.parent / f".{path.name}.{uuid.uuid4().hex}.tmp"
