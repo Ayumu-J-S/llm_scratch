@@ -156,6 +156,18 @@ def test_final_fsync_failure_is_retained_and_fail_closed(monkeypatch, tmp_path):
     interrupted = Event()
     monkeypatch.setattr("dgx.telemetry._thread.interrupt_main", interrupted.set)
     monkeypatch.setattr(
+        "dgx.telemetry.system_sample",
+        lambda *_args: {
+            "host": {
+                "memory_available_bytes": 1,
+                "disk_free_bytes": 1,
+                "swap_in_pages": 0,
+                "swap_out_pages": 0,
+            },
+            "gpu": {"temperature_c": 40.0},
+        },
+    )
+    monkeypatch.setattr(
         "dgx.telemetry.os.fsync", lambda _fd: (_ for _ in ()).throw(OSError("fsync failed"))
     )
     sampler = TelemetrySampler(

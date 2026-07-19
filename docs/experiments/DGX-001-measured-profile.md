@@ -154,6 +154,8 @@ to claim that a measured profile has been selected.
 | 19 | Protocol repair 4 | implemented; re-audit pending | Arm fail-closed interruption for every role, add decomposition hard preflight, preserve failed run/telemetry evidence, stop runner sequencing after any nonzero role, and bind the 100 GB reserve to a conservative per-role atomic-write budget that dynamically raises the live floor when needed | Role-level low-disk interruption, runner-incomplete, budget-boundary, and authority-tamper tests |
 | 20 | Supplemental exact-head re-audit | `FAIL` at `016b323` | Evidence-file open/write/flush/fsync or malformed-sample failure could kill only the telemetry worker, leaving the workload un-interrupted and no machine-readable error | Exact `/dev/full` reproduction and PR #47 trail |
 | 21 | Protocol repair 5 | implemented; re-audit pending | Contain the complete telemetry worker lifecycle, retain fatal state independently of the evidence file, interrupt every armed workload, and make `stop()` reject captured failure or unexpected thread death | Open/write/flush/malformed-sample/fsync/close/`/dev/full` adversarial tests |
+| 22 | Exact-head CI | `FAIL` at `0fc8703` | The fsync adversarial test used host GPU sampling, so x86 CI correctly failed closed on missing `nvidia-smi` before reaching the intended fsync assertion | Actions run `29682842745` |
+| 23 | CI fixture repair | implemented; CI pending | Pin the fsync test to a synthetic safe sample so it exercises only the intended finalization failure on every platform | Full and focused local suites |
 
 Independent `/review` will cover `PHILOSOPHY.md`, DGX-001 acceptance, and the
 applicable `CHECK.md` minimum, comparison, data supply, DGX/UMA, training-health,
