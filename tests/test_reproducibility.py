@@ -1,4 +1,6 @@
+import fcntl
 import json
+import os
 import subprocess
 from copy import deepcopy
 from pathlib import Path
@@ -318,15 +320,32 @@ def test_prepare_trainer_rejects_concurrent_same_directory_launch(tmp_path: Path
         config = hydra.compose(config_name="train", overrides=["profile=smoke_overfit"])
     run_dir = tmp_path / "colliding-run"
     run_dir.mkdir()
-    (run_dir / ".run-preparation.lock").write_bytes(b"")
+    descriptor = os.open(
+        run_dir / ".run-preparation.lock", os.O_RDWR | os.O_CREAT, 0o600
+    )
+    fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
     monkeypatch.setattr(
         train_module,
         "save_resolved_config",
         lambda *_args, **_kwargs: pytest.fail("colliding run must fail before evidence mutation"),
     )
 
-    with pytest.raises(train_module.ConfigPreflightError, match="already being prepared"):
-        train_module.prepare_trainer(config, run_dir=run_dir)
+    try:
+        with pytest.raises(train_module.ConfigPreflightError, match="already being prepared"):
+            train_module.prepare_trainer(config, run_dir=run_dir)
+    finally:
+        fcntl.flock(descriptor, fcntl.LOCK_UN)
+        os.close(descriptor)
+
+
+def test_run_preparation_reclaims_unlocked_marker_after_process_death(tmp_path: Path):
+    run_dir = tmp_path / "interrupted-run"
+    run_dir.mkdir()
+    lock_path = run_dir / ".run-preparation.lock"
+    lock_path.write_bytes(b"stale marker bytes")
+
+    with train_module._exclusive_run_preparation(run_dir):
+        assert lock_path.is_file()
 
 
 def test_operational_wandb_controls_do_not_change_checkpoint_compatibility():

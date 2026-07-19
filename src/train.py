@@ -1,3 +1,4 @@
+import fcntl
 import os
 from contextlib import contextmanager
 from pathlib import Path
@@ -306,17 +307,19 @@ def _exclusive_run_preparation(run_dir: Path):
 
     run_dir.mkdir(parents=True, exist_ok=True)
     lock_path = run_dir / ".run-preparation.lock"
+    descriptor = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
     try:
-        descriptor = os.open(lock_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    except FileExistsError as error:
+        fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError as error:
+        os.close(descriptor)
         raise ConfigPreflightError(
             f"run directory is already being prepared by another process: {run_dir}"
         ) from error
     try:
         yield
     finally:
+        fcntl.flock(descriptor, fcntl.LOCK_UN)
         os.close(descriptor)
-        lock_path.unlink(missing_ok=True)
 
 
 def prepare_trainer(cfg: DictConfig, *, run_dir: Path | None = None) -> Trainer:
