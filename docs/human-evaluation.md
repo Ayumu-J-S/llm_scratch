@@ -1,0 +1,135 @@
+# Blinded base-model continuation evaluation
+
+HUMAN-001 compares two checkpoints from one RUN-001 pretraining run. It is a
+small qualitative continuation study, not preference-data collection and not a
+chat evaluation. The checked-in `HUMAN-001-v1` prompt set contains four
+Japanese and four English prompts. Each checkpoint receives the same derived
+seed for a prompt under the fixed generation contract:
+
+- `max_new_tokens=64`
+- `temperature=0.8`
+- `top_k=40`
+- one explicit master seed, with a private HMAC-derived per-prompt seed
+
+The two full-state checkpoints must be physically distinct, reconstructable by
+the canonical sampler, belong to the same experiment/config/tokenizer/data
+identity, advance both optimizer-step and target-token counters, and be at
+least 25% apart using the later checkpoint's target-token count as the
+denominator. The real Hydra workflow defaults to `device=cuda` for canonical
+BF16 RUN-001 checkpoints. It loads and finishes one checkpoint before loading
+the other, so it does not keep two models resident on the DGX Spark.
+
+## Prepare the study
+
+Keep the HMAC key outside the evaluation workspace and outside the repository.
+The command creates it once with exact owner-only `0600` permissions and refuses
+to replace it:
+
+```bash
+uv run llm-scratch-human-evaluate \
+  action=create_key \
+  blinding_key_path=/home/USER/.config/llm-scratch/secrets/HUMAN-001.key
+```
+
+Prepare a new dedicated workspace. Generated workspaces are ignored by Git and
+must include a `human-evaluation` path component. Paths that overlap `data`,
+`runs`, `checkpoints`, `cache`, `manifests`, `artifacts`, or training
+namespaces are rejected.
+
+```bash
+uv run llm-scratch-human-evaluate \
+  action=prepare \
+  workspace_dir=/absolute/operator/path/human-evaluation/RUN-001-milestones \
+  blinding_key_path=/home/USER/.config/llm-scratch/secrets/HUMAN-001.key \
+  checkpoints.earlier=/absolute/run/path/checkpoints/milestone-EARLIER.pt \
+  checkpoints.later=/absolute/run/path/checkpoints/milestone-LATER.pt \
+  generation.seed=20260719 \
+  device=cuda
+```
+
+The opaque study ID is an HMAC over the versioned prompt set, generation seed,
+and exact private checkpoint pair. The assignment is reproducible with the same
+key and inputs. Within each language, the earlier checkpoint appears as A twice
+and B twice, preventing checkpoint position from being confounded with
+language.
+
+The workspace separates material by purpose:
+
+```text
+human-evaluation/RUN-001-milestones/
+  public/bundle.json       # only file shared with reviewers
+  private/mapping.json     # authenticated checkpoint mapping, mode 0600
+  reviews/                 # returned score files, directory mode 0700
+  private/result-*.json    # unblinded result after import, mode 0600
+```
+
+Only `public/bundle.json` leaves the operator's private workspace. It contains
+opaque study/item IDs, prompt language/text, literal A/B continuations, the
+fixed non-seed sampling settings, and the rubric. Its closed schema has no
+checkpoint, run, path, digest, counter, seed, ordering, or mapping fields. The
+private mapping records exact checkpoint paths/SHA-256/counters and generation
+seeds, authenticates them with HMAC-SHA256, and binds the public bundle hash.
+
+## Human scoring
+
+Use at least two genuinely distinct human reviewers. Do not prefill, simulate,
+or model-generate ratings. A reviewer scores each candidate independently on
+the public 1–5 rubric and chooses `A`, `B`, or `tie`. Save one returned JSON file
+per reviewer under the study's private `reviews/` directory and make both the
+directory and files private:
+
+```bash
+mkdir -p -m 700 /absolute/operator/path/human-evaluation/RUN-001-milestones/reviews
+chmod 700 /absolute/operator/path/human-evaluation/RUN-001-milestones/reviews
+chmod 600 /absolute/operator/path/human-evaluation/RUN-001-milestones/reviews/*.json
+```
+
+Each score file uses this exact schema, with one rating for each of the eight
+opaque item IDs in the public bundle:
+
+```json
+{
+  "schema_version": "human-evaluation-scores-v1",
+  "study_id": "study-OPAQUE",
+  "reviewer_id": "distinct-private-reviewer-id",
+  "ratings": [
+    {
+      "item_id": "item-OPAQUE",
+      "candidate_a": {"fluency": 1, "coherence": 1, "naturalness": 1},
+      "candidate_b": {"fluency": 1, "coherence": 1, "naturalness": 1},
+      "preference": "tie",
+      "comment": ""
+    }
+  ]
+}
+```
+
+The example values show the schema, not ratings to copy. Reviewers must replace
+them with their own judgments. Import is fail-closed: it rejects extra or
+missing fields, missing/duplicate items, out-of-range scores, a wrong study,
+case-insensitively duplicate reviewer IDs, fewer than two reviewers, wrong file
+modes, public-bundle changes, private-mapping changes, or the wrong key.
+
+```bash
+uv run llm-scratch-human-evaluate \
+  action=import_scores \
+  workspace_dir=/absolute/operator/path/human-evaluation/RUN-001-milestones \
+  blinding_key_path=/home/USER/.config/llm-scratch/secrets/HUMAN-001.key \
+  'scores.paths=[/absolute/operator/path/human-evaluation/RUN-001-milestones/reviews/reviewer-1.json,/absolute/operator/path/human-evaluation/RUN-001-milestones/reviews/reviewer-2.json]'
+```
+
+The private result retains each score-file checksum, unblinds every rating to
+the exact earlier/later checkpoint identity, reports per-checkpoint rubric
+means and preferences, and computes reviewer-pair denominators, exact
+preference agreement, exact rating agreement, and rating mean absolute
+difference. A new score-file set receives a new immutable result filename.
+
+## Research-integrity boundary
+
+The prompt asset stays under `evaluation/human`, and generated prompts,
+continuations, mappings, scores, and results stay under the ignored dedicated
+`human-evaluation` namespace. None of this material is a training example,
+preference dataset, manifest input, cache entry, benchmark input, or target.
+Never copy it into those paths. HUMAN-001 remains incomplete until RUN-001
+provides the real separated checkpoints and at least two actual humans complete
+the blinded bundle.
