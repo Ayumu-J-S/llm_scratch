@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Any
 
 import wandb
-from hydra.core.hydra_config import HydraConfig
 from omegaconf import DictConfig, OmegaConf
 
 from benchmarks.contamination import scan_checkpoint_training_data
@@ -76,9 +75,10 @@ def run_benchmark(
         raise ValueError("benchmark access must be dev or final")
     benchmark_cfg = cfg.benchmark
     checkpoint_path = _root_or_cwd_path(str(benchmark_cfg.checkpoint_path))
-    configured_output_path = _output_path(benchmark_cfg)
+    configured_output_root, configured_output_path = _output_paths(benchmark_cfg)
     sampler, output_path = _load_benchmark_sampler(
         checkpoint_path,
+        configured_output_root,
         configured_output_path,
         cfg=cfg,
     )
@@ -134,6 +134,7 @@ def run_benchmark(
 
 def _load_benchmark_sampler(
     checkpoint_path: Path,
+    configured_output_root: Path,
     configured_output_path: Path,
     *,
     cfg: DictConfig,
@@ -145,8 +146,10 @@ def _load_benchmark_sampler(
     validate_training_config(checkpoint_cfg)
     output_path = _validated_benchmark_output_path(
         checkpoint_path,
+        configured_output_root,
         configured_output_path,
         checkpoint_config=checkpoint_cfg,
+        cache_path=_root_or_cwd_path(str(cfg.benchmark.cache.dir)),
     )
     validate_benchmark_checkpoint_runtime(cfg, checkpoint_cfg)
     device = select_device(str(cfg.benchmark.device))
@@ -292,15 +295,11 @@ def _benchmark_cache(cache_cfg: DictConfig) -> BoundedShardCache:
     )
 
 
-def _output_path(benchmark_cfg: DictConfig) -> Path:
+def _output_paths(benchmark_cfg: DictConfig) -> tuple[Path, Path]:
+    root = Path(str(benchmark_cfg.output_root))
+    configured_root = root if root.is_absolute() else ROOT_DIR / root
     path = Path(str(benchmark_cfg.output_path))
-    if path.is_absolute():
-        return path
-    try:
-        output_dir = Path(HydraConfig.get().runtime.output_dir)
-    except Exception:
-        output_dir = Path.cwd()
-    return output_dir / path
+    return configured_root, path if path.is_absolute() else configured_root / path
 
 
 def _root_or_cwd_path(value: str) -> Path:
@@ -312,6 +311,8 @@ def _root_or_cwd_path(value: str) -> Path:
 
 
 def _write_json_atomic(path: Path, payload: Mapping[str, Any]) -> None:
+    """Publish one complete JSON result without ever replacing an existing path."""
+
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary_name = tempfile.mkstemp(
         prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent)
@@ -330,7 +331,13 @@ def _write_json_atomic(path: Path, payload: Mapping[str, Any]) -> None:
             handle.write("\n")
             handle.flush()
             os.fsync(handle.fileno())
-        os.replace(temporary, path)
+        try:
+            os.link(temporary, path)
+        except FileExistsError as error:
+            raise ValueError(
+                f"result output already exists and will not be replaced: {path}"
+            ) from error
+        temporary.unlink()
         directory_fd = os.open(path.parent, os.O_RDONLY)
         try:
             os.fsync(directory_fd)
@@ -342,13 +349,17 @@ def _write_json_atomic(path: Path, payload: Mapping[str, Any]) -> None:
 
 def _validated_benchmark_output_path(
     checkpoint_path: Path,
+    configured_output_root: Path,
     output_path: Path,
     *,
     checkpoint_config: DictConfig,
+    cache_path: Path,
 ) -> Path:
-    """Return one ordinary JSON path outside every known checkpoint namespace."""
+    """Return one new JSON path inside the dedicated benchmark-result namespace."""
 
     checkpoint = checkpoint_path.resolve()
+    root_candidate = configured_output_root.absolute()
+    output_root = root_candidate.resolve()
     candidate = output_path.absolute()
     output = candidate.resolve()
     checkpoint_roots: set[Path] = set()
@@ -376,15 +387,50 @@ def _validated_benchmark_output_path(
     try:
         existing = candidate.lstat()
     except FileNotFoundError:
-        return output
+        existing = None
     except OSError as error:
         raise ValueError("benchmark output path cannot be inspected safely") from error
-    if candidate.is_symlink():
-        raise ValueError("benchmark output path must not be a symlink")
-    if not candidate.is_file():
-        raise ValueError("benchmark output path must be a regular file")
-    if existing.st_nlink != 1:
-        raise ValueError("benchmark output path must not be a hardlink")
-    if os.path.samefile(checkpoint, candidate):
-        raise ValueError("benchmark output and checkpoint must not share an inode")
+    if existing is not None:
+        if candidate.is_symlink():
+            raise ValueError("benchmark output path must not be a symlink")
+        if not candidate.is_file():
+            raise ValueError("benchmark output path must be a regular file")
+        if existing.st_nlink != 1:
+            raise ValueError("benchmark output path must not be a hardlink")
+        if os.path.samefile(checkpoint, candidate):
+            raise ValueError("benchmark output and checkpoint must not share an inode")
+        raise ValueError("benchmark output path must not overwrite an existing file")
+    if root_candidate != output_root:
+        raise ValueError("benchmark output root must not traverse a symlink")
+    if root_candidate.exists() and not root_candidate.is_dir():
+        raise ValueError("benchmark output root must be a directory")
+    if output == output_root or output_root not in output.parents:
+        raise ValueError("benchmark output path must be inside its configured output root")
+    repository_output_root = (ROOT_DIR / "outputs/benchmark-results").resolve()
+    if output_root == ROOT_DIR or (
+        ROOT_DIR in output_root.parents
+        and output_root != repository_output_root
+        and repository_output_root not in output_root.parents
+    ):
+        raise ValueError(
+            "repository-local benchmark output roots must be inside outputs/benchmark-results"
+        )
+    repository_protected = tuple(
+        (ROOT_DIR / name).resolve()
+        for name in (".git", "assets", "config", "data", "docs", "src", "tests")
+    )
+    if any(root == output_root or root in output_root.parents for root in repository_protected):
+        raise ValueError("benchmark output root must be outside repository input namespaces")
+    resolved_cache = cache_path.resolve()
+    if (
+        resolved_cache == output_root
+        or resolved_cache in output_root.parents
+        or output_root in resolved_cache.parents
+    ):
+        raise ValueError("benchmark output root must be separate from benchmark cache storage")
+    protected_root_names = {"artifact", "artifacts", "cache", "checkpoint", "checkpoints"}
+    if any(part.casefold() in protected_root_names for part in output_root.parts):
+        raise ValueError(
+            "benchmark output root must be outside cache/checkpoint/artifact namespaces"
+        )
     return output

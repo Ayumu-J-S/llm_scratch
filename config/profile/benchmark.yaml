@@ -9,6 +9,8 @@ profile:
 
 benchmark:
   checkpoint_path: null
+  # Benchmark evidence is confined to this ignored, non-input namespace.
+  output_root: outputs/benchmark-results
   output_path: benchmark.json
   device: cuda
   cache:

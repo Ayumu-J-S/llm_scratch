@@ -129,7 +129,7 @@ _ARTIFACTS = {"checkpoints_dir", "keep_last_n", "resume_path"}
 _WANDB = {"enabled", "project", "entity", "name", "mode", "log_model_every_n_epoch"}
 _EVALUATION = {"checkpoint_path", "output_path", "device", "wandb"}
 _EVALUATION_WANDB = {"enabled", "project", "entity", "name", "mode"}
-_BENCHMARK = {"checkpoint_path", "output_path", "device", "cache", "wandb"}
+_BENCHMARK = {"checkpoint_path", "output_root", "output_path", "device", "cache", "wandb"}
 _BENCHMARK_CACHE = {
     "dir",
     "max_size_bytes",
@@ -288,8 +288,12 @@ def validate_benchmark_config(config: Mapping[str, Any] | DictConfig) -> dict[st
         raise ConfigPreflightError("standalone benchmark requires profile=benchmark")
     benchmark = _plain(cfg["benchmark"])
     _check_keys(benchmark, _BENCHMARK, "benchmark")
-    _required(benchmark, ("checkpoint_path", "output_path", "device", "cache"), "benchmark")
-    for key in ("checkpoint_path", "output_path", "device"):
+    _required(
+        benchmark,
+        ("checkpoint_path", "output_root", "output_path", "device", "cache"),
+        "benchmark",
+    )
+    for key in ("checkpoint_path", "output_root", "output_path", "device"):
         if not isinstance(benchmark[key], str) or not benchmark[key].strip():
             raise ConfigPreflightError(f"benchmark.{key} must be a non-empty string")
     if benchmark["device"] not in {"cpu", "cuda"}:

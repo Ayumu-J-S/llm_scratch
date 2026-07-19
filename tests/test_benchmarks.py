@@ -26,7 +26,7 @@ from benchmarks.contamination import (
     scan_checkpoint_training_data,
 )
 from benchmarks.external import ExternalComparisonError, write_external_comparison
-from benchmarks.runner import BenchmarkContaminationError, run_benchmark
+from benchmarks.runner import BenchmarkContaminationError, _write_json_atomic, run_benchmark
 from benchmarks.scoring import (
     BenchmarkScoringError,
     conditional_log_probability,
@@ -274,7 +274,8 @@ def _benchmark_config(tmp_path: Path, checkpoint: Path, output: str = "result.js
         "profile=benchmark",
         f"benchmark.checkpoint_path={checkpoint}",
         "benchmark.device=cpu",
-        f"benchmark.output_path={tmp_path / output}",
+        f"benchmark.output_root={tmp_path / 'benchmark-results'}",
+        f"benchmark.output_path={output}",
         f"benchmark.cache.dir={tmp_path / 'benchmark-cache'}",
         "benchmark.cache.max_size_bytes=10000000",
         "benchmark.cache.min_free_bytes=0",
@@ -692,7 +693,8 @@ def test_runner_accepts_output_beside_repository_when_checkpoint_parent_is_broad
     output = tmp_path / "repository" / "runs" / "benchmark.json"
     output.parent.mkdir(parents=True)
     config = _benchmark_config(tmp_path, copied_checkpoint)
-    config.benchmark.output_path = str(output)
+    config.benchmark.output_root = str(output.parent)
+    config.benchmark.output_path = output.name
     monkeypatch.setattr(
         "benchmarks.runner.load_suite",
         lambda *_args, **_kwargs: pytest.fail(
@@ -702,6 +704,43 @@ def test_runner_accepts_output_beside_repository_when_checkpoint_parent_is_broad
 
     with pytest.raises(pytest.fail.Exception, match="valid output path"):
         run_benchmark(config)
+
+
+def test_runner_rejects_repository_input_and_output_root_escape_before_suite_loading(
+    monkeypatch, tmp_path: Path
+):
+    checkpoint, _ = _pretraining_checkpoint(tmp_path)
+    registry = ROOT / "data/benchmarks/suite-v1.json"
+    registry_bytes = registry.read_bytes()
+    config = _benchmark_config(tmp_path, checkpoint)
+    config.benchmark.output_path = str(registry)
+    monkeypatch.setattr(
+        "benchmarks.runner.load_suite",
+        lambda *_args, **_kwargs: pytest.fail("unsafe output must fail before suite loading"),
+    )
+
+    with pytest.raises(ValueError, match="must not overwrite an existing file"):
+        run_benchmark(config)
+    assert registry.read_bytes() == registry_bytes
+
+    config.benchmark.output_path = str(tmp_path / "outside" / "new.json")
+    with pytest.raises(ValueError, match="inside its configured output root"):
+        run_benchmark(config)
+
+    config.benchmark.output_root = str(ROOT / "data/benchmark-results")
+    config.benchmark.output_path = "new.json"
+    with pytest.raises(ValueError, match="repository-local benchmark output roots"):
+        run_benchmark(config)
+
+
+def test_atomic_benchmark_result_publish_never_replaces_existing_output(tmp_path: Path):
+    output = tmp_path / "benchmark-results/result.json"
+    _write_json_atomic(output, {"result": "first"})
+    first_bytes = output.read_bytes()
+
+    with pytest.raises(ValueError, match="will not be replaced"):
+        _write_json_atomic(output, {"result": "second"})
+    assert output.read_bytes() == first_bytes
 
 
 def test_runner_releases_loaded_checkpoint_before_suite_and_training_scan(
@@ -945,6 +984,8 @@ def test_external_baseline_record_is_aggregate_only_and_isolated(monkeypatch, tm
     assert record["suite"]["tasks"]["jcommonsenseqa"]["selected_examples_sha256"] == (
         "37e39dca6ce5108fe720dda6e0246f7c8ef858e22961229540d2023faeabe0bd"
     )
+    with pytest.raises(ExternalComparisonError, match="must not overwrite an existing file"):
+        write_external_comparison(payload, output_path="external.json")
 
     contaminated = copy.deepcopy(payload)
     contaminated["tasks"]["gsm8k"]["completions"] = ["raw output"]
