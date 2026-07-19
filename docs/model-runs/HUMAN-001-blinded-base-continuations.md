@@ -47,6 +47,8 @@ Failed cycles are retained and must not be rewritten as passing cycles.
 | 8 | repair | `f92dfe97cf46a3ce805523a6243259ef9aeed6af` | Close all cycle-7 identity and byte-binding gaps | implemented | Complete producer identity, stable assignment inputs, and one-buffer prompt parsing implemented with adversarial regressions | Focused HUMAN gate passed 25 tests; exact-head CPU gate passed 521 tests with 1 skip |
 | 9 | re-review | `f6ca50bf1e43ce4e68f7c237be78e43554c629f8` against `origin/main` | Independent formal `/review` | `FAIL` | P1: a fresh launch could inherit an occupied run directory's lineage. P2: HUMAN scanned the corpus before rejecting known device/precision/context incompatibility. | `codex review --base origin/main`; reviewer independently inspected the broad branch and confirmed the suite passed |
 | 10 | repair | `774d1bf9e29c8f6adf7c049447cfc63d3d1b5bdc` through `b6f03f9606867b36a7165878ab192c2c29f4c6b4` | Close both cycle-9 fail-closed ordering gaps | implemented | Fresh launches reject existing manifests, preparation is serialized across same-directory collisions, explicit resumes must supply verified lineage, and HUMAN device/precision/tokenizer/context preflight precedes scanning | Focused reproducibility/HUMAN gate passes 42 tests; exact-head CPU gate passes 526 tests with 1 skip; independent re-review pending |
+| 11 | re-review | `7917c9bd9ed27b0fa1d9bbbbf2a553792f9a5c87` against `origin/main` | Independent formal `/review` | `FAIL` | P1 in the inherited BENCH scanner: adding ordinary metadata fields let 124/128 selected JCommonsenseQA records evade complete contamination detection. The HUMAN cycle-9 repairs were not re-raised. | Reviewer independently reran 526 passed, 1 skipped and reproduced the enriched-record miss |
+| 12 | target integration | `928b832dcaae747f0ad5a04644741b46ea526007` | Integrate repaired BENCH target `71c0eee929c1d5c37e47cb8cbc761f648e7630a9` | implemented | Adopted schema-owned mapping projections for augmented records plus nested-candidate follow-up; no duplicate local BENCH implementation | Enriched-record focused gate passes 2 tests; focused reproducibility/HUMAN gate remains 42 passed; full gate/re-review pending |
 
 ## Independent check selection and verdicts
 
@@ -239,12 +241,56 @@ Failed cycles are retained and must not be rewritten as passing cycles.
   repair/docs head `b6f03f9` passes 526 tests with one skip plus Ruff, Hydra
   config preflight, lock drift, and credential-isolated offline training/W&B
   smoke; 456 GB remained free.
-- Remaining risk: independent exact-head re-review is pending.
+- Remaining risk: cycle-5 review found one inherited BENCH integrity gap after
+  the BENCH target had independently advanced with its repair.
+
+### Review cycle 5 — formal re-review of `7917c9b`
+
+- Commit reviewed: `7917c9bd9ed27b0fa1d9bbbbf2a553792f9a5c87`.
+- Selected `CHECK.md` sections: applicable 7, 8, and 9.1 across the branch
+  ancestry; real DGX generation, ratings, performance, and quality remained N/A.
+- Ticket acceptance result: `FAIL` because the branch still carried an older
+  inherited BENCH contamination scanner.
+- Philosophy alignment: HUMAN-specific integrity repairs held, but benchmark
+  isolation could not be certified on the stale target snapshot.
+- Complexity / change-surface result: repair belongs in the BENCH target and is
+  consumed here by target integration, not duplicated in HUMAN.
+- ML-system result: `FAIL`; selected records enriched with ordinary metadata
+  could receive reusable false-clean scan evidence.
+- Verdict: `FAIL` because one P1 finding remained.
+
+#### Finding
+
+| Severity | Area | What was wrong | Required action |
+| --- | --- | --- | --- |
+| P1 | inherited BENCH contamination | Whole augmented mappings were hashed without also matching the selected record's schema-owned field subset; the review reproduced misses for 124/128 selected JCommonsenseQA examples | Integrate the advanced BENCH target containing enriched-record projection matching and its nested-candidate follow-up, then rerun validation/review |
+
+## Failed-review handoff — cycle 5
+
+- Reproduction command: `codex review --base origin/main` at `7917c9b`; the
+  reviewer added one metadata key to each selected record and observed 124/128
+  JCommonsenseQA misses.
+- Constraints preserved: complete contamination detection, no weakening of
+  scan work bounds, HUMAN stable identity and preflight repairs, 100 GB free,
+  and no real generation/rating/GPU work.
+- Repair request: consume BENCH target `71c0eee` (including `d9f6271` enriched
+  record projections) rather than create a divergent HUMAN-local scanner fix.
+
+## Repair cycle 5
+
+- Finding addressed: the inherited BENCH P1.
+- Change made: merge `928b832` integrates BENCH head `71c0eee`, including
+  schema-owned field projections for augmented mappings and the nested
+  candidate preservation follow-up.
+- Validation rerun: the two enriched-record focused tests pass and the focused
+  reproducibility/HUMAN gate remains 42 passed.
+- Remaining risk: full CPU validation and independent exact-head re-review are
+  pending.
 
 ## Independent re-review
 
-- Commit reviewed: pending cycle-4 repair successor.
-- Prior findings disposition: cycle-1 through cycle-4 repairs implemented;
+- Commit reviewed: pending cycle-5 target-integration successor.
+- Prior findings disposition: cycle-1 through cycle-5 repairs implemented;
   exact-head re-review pending.
 - New findings: pending.
 - Verdict: pending.
@@ -256,7 +302,7 @@ Failed cycles are retained and must not be rewritten as passing cycles.
   incomplete review state.
 - Human authorization and scope, or `N/A — human merge`: bounded roadmap series
   authorization exists, but review and exact-head gates still block merge.
-- Exact reviewed head: latest reviewed head `00c4045`; failing.
+- Exact reviewed head: latest reviewed head `7917c9b`; failing.
 - Final review verdict: `FAIL`.
 - Actionable findings repaired and independently re-reviewed: no.
 - Blocking review decision / newer human objection: actionable review findings
