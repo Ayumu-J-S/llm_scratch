@@ -115,6 +115,10 @@
 | 92 | Repair | Complete | Benchmark and guarded-final decorators now resolve the repository's single canonical config directory explicitly. Structured matching retains bounded exact-object identities and additionally projects every normalized candidate mapping onto each pinned task schema, so extra scalar or nested provenance fields cannot hide an otherwise complete selected record. Leaf and enclosing root candidates are recovered without parsing hostile over-depth envelopes; all scan/cache identities were advanced |
 | 93 | Focused and canonical validation | PASS | Both installed entrypoints compose from outside the repository. Direct all-selected coverage detects 128/128 metadata-enriched JCommonsenseQA and GSM8K mappings, including nested metadata and ASCII-escaped NFD values; a complete-scan regression proves contaminated cached evidence by exact document/example identity. Fifteen focused adversarial tests pass, and the pinned canonical sources independently detect 128/128 enriched records for both tasks |
 | 94 | Full validation | PASS | Official network-isolated CPU gate passes 499 tests with 1 skipped plus repository Ruff, resolved Hydra preflight, lock-drift rejection, and disabled/offline process-tree smoke. The broader benchmark/generation/config/reproducibility/tokenizer selection passes 143 tests. No GPU, online W&B, full-corpus scan, or large artifact was used; exact-head CI and independent re-review remain pending |
+| 95 | Exact-head independent `/review` | FAIL | Formal review of clean head `d9f6271` reproduced that a selected mapping containing nested provenance disappears when it is itself inside an over-depth object envelope: closing the provenance object replaced the leaf candidate, while the root envelope could not be parsed. All 128 selected JCommonsenseQA records missed under 33 wrapper layers, permitting false-clean cached evidence |
+| 96 | Repair | Complete | The bounded lexical extractor now emits every completed object on close, preserving intermediate mappings without parsing an over-depth envelope. Schema projection normalizes only benchmark-owned fields, so unrelated metadata-key normalization collisions cannot hide an otherwise complete selected record. Scan, normalization, and JSON-object identities were advanced |
+| 97 | Focused and canonical validation | PASS | The reviewer reproduction and the stronger metadata-collision variant report zero misses across all 128 canonical examples in both tasks under 40 object layers. The broader benchmark/generation/config/reproducibility/tokenizer selection passes 130 tests; full validation and exact-head re-review remain pending |
+| 98 | Full validation | PASS | Official network-isolated CPU gate passes 500 tests with 1 skipped plus repository Ruff, resolved Hydra preflight, lock-drift rejection, and disabled/offline process-tree smoke. No GPU, online W&B, full-corpus scan, or large artifact was used; exact-head CI and independent re-review remain pending |
 
 ## Resolved protocol
 
@@ -151,10 +155,10 @@
   exhaustion of any work limit fails the complete scan closed with source and
   document identity and cannot publish reusable complete evidence. A lexical
   container-depth preflight makes parser-overdepth behavior independent of the
-  Python runtime's recursion threshold. A constant-state leaf/root-object
-  extractor and an analogous complete-string-literal extractor still recover
-  safe innermost records and bounded enriched enclosing mappings from object,
-  array, or mixed wrappers without parsing an over-depth envelope. Physical wrapper depth does not
+  Python runtime's recursion threshold. A document-size-bounded completed-object
+  extractor and a constant-state complete-string-literal extractor still recover
+  safe innermost and intermediate enriched mappings from object, array, or mixed
+  wrappers without parsing an over-depth envelope. Physical wrapper depth does not
   consume logical decoded-string depth, while the shared work budgets still
   fail the whole document scan closed.
 
@@ -174,7 +178,7 @@
 
 ## Current conclusion
 
-All twenty-three failed review/audit cycles remain visible. Their forty-two findings are
+All twenty-four failed review/audit cycles remain visible. Their forty-three findings are
 repaired without weakening the fixed protocol or complete contamination gate:
 cheap context incompatibility precedes scanning, both tasks honor checkpoint
 precision, external records are pinned, evaluator/runtime and dirty source
@@ -202,9 +206,9 @@ byte/node/depth/string caps; normalized-key collisions and parser recursion are
 non-matches rather than scan crashes, while actual traversal-budget exhaustion
 is an explicit incomplete-scan error that cannot become a cached PASS. Lexical
 container-depth validation prevents Python-version-specific parser recursion
-behavior from changing that distinction, while constant-memory leaf extraction
-prevents deep enclosing objects or arrays from hiding a safe innermost benchmark
-record, enriched mapping, or serialized record string;
+behavior from changing that distinction, while the bounded completed-object
+extractor prevents deep enclosing objects or arrays from hiding a safe innermost
+or intermediate benchmark record, enriched mapping, or serialized record string;
 canonical acceptance covers every selected development record in both tasks.
 External comparisons separately attest the compiled prompt and scorer hashes,
 and generation rejects non-finite logits before any GSM8K token or score is

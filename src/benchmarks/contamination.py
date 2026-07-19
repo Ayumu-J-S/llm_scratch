@@ -27,12 +27,12 @@ from runtime.reproducibility import sha256_file
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 SHINGLE_CODEPOINTS = 48
-SCAN_REVISION = "BENCH-001-contamination-v16"
-NORMALIZATION_REVISION = "normalize-text-identity-nfc-strip-plus-json-object-v14"
+SCAN_REVISION = "BENCH-001-contamination-v17"
+NORMALIZATION_REVISION = "normalize-text-identity-nfc-strip-plus-json-object-v15"
 SCAN_INDEX_SCHEMA_VERSION = 2
 MATCHER_REVISION = "collision-verified-rolling-hash-codepoint-v1"
 JSON_OBJECT_NORMALIZATION_REVISION = (
-    "constant-memory-leaf-object-string-superset-projection-json-nfc-sha256-v13"
+    "bounded-all-object-string-superset-projection-json-nfc-sha256-v14"
 )
 PRODUCER_IDENTITY_REVISION = "contamination-producer-v1"
 PRODUCER_SOURCE_SCOPE_REVISION = "src-python-pyproject-lock-v1"
@@ -642,7 +642,10 @@ def _document_matches(
         ("shingle_48", probe_index.shingles.references_in(normalized)),
     ]
     try:
-        for structured_json, mapping in _canonical_json_candidates(normalized):
+        for structured_json, mapping in _canonical_json_candidates(
+            normalized,
+            projection_key_sets=probe_index.structured_json_projections,
+        ):
             observed.append(
                 (
                     "structured_json",
@@ -754,7 +757,8 @@ def _decode_json_candidate(
     *,
     budget: _JsonTraversalBudget,
     depth: int,
-) -> tuple[Any, tuple[tuple[str, int], ...]] | None:
+    projection_key_sets: Iterable[tuple[str, ...]] = (),
+) -> tuple[Any | None, tuple[tuple[str, int], ...], tuple[Mapping[str, Any], ...]] | None:
     """Decode and normalize one JSON candidate without allowing parser failures to escape."""
 
     try:
@@ -768,13 +772,30 @@ def _decode_json_candidate(
         budget.claim_parse(text, depth=depth)
         value = json.loads(text)
         decoded_values: list[tuple[str, int]] = []
-        normalized = _normalize_decoded_json(
-            value,
-            budget=budget,
-            depth=depth,
-            decoded_values=decoded_values,
+        projections = tuple(
+            projection
+            for required_keys in projection_key_sets
+            if (
+                projection := _normalized_mapping_projection(
+                    value,
+                    required_keys=required_keys,
+                    budget=budget,
+                    depth=depth,
+                    decoded_values=decoded_values,
+                )
+            )
+            is not None
         )
-        return normalized, tuple(decoded_values)
+        try:
+            normalized = _normalize_decoded_json(
+                value,
+                budget=budget,
+                depth=depth,
+                decoded_values=decoded_values,
+            )
+        except (TypeError, ValueError, UnicodeError, OverflowError):
+            normalized = None
+        return normalized, tuple(decoded_values), projections
     except (
         json.JSONDecodeError,
         RecursionError,
@@ -784,6 +805,43 @@ def _decode_json_candidate(
         OverflowError,
     ):
         return None
+
+
+def _normalized_mapping_projection(
+    value: Any,
+    *,
+    required_keys: tuple[str, ...],
+    budget: _JsonTraversalBudget,
+    depth: int,
+    decoded_values: list[tuple[str, int]],
+) -> Mapping[str, Any] | None:
+    """Normalize only schema-owned fields, ignoring unrelated metadata conflicts."""
+
+    if not isinstance(value, Mapping):
+        return None
+    required = set(required_keys)
+    selected: dict[str, Any] = {}
+    for key, item in value.items():
+        if not isinstance(key, str):
+            return None
+        normalized_key = unicodedata.normalize("NFC", key)
+        if normalized_key not in required:
+            continue
+        if normalized_key in selected:
+            return None
+        selected[normalized_key] = item
+    if set(selected) != required:
+        return None
+    try:
+        normalized = _normalize_decoded_json(
+            selected,
+            budget=budget,
+            depth=depth,
+            decoded_values=decoded_values,
+        )
+    except (TypeError, ValueError, UnicodeError, OverflowError):
+        return None
+    return normalized if isinstance(normalized, Mapping) else None
 
 
 def _json_structure_within_depth(text: str, *, max_depth: int) -> bool:
@@ -834,6 +892,7 @@ def _canonical_json_candidates(
     text: str,
     *,
     limits: _JsonTraversalLimits | None = None,
+    projection_key_sets: Iterable[tuple[str, ...]] = (),
 ) -> Iterable[tuple[str, Mapping[str, Any]]]:
     """Yield bounded canonical mappings, including recursively JSON-encoded strings.
 
@@ -862,12 +921,16 @@ def _canonical_json_candidates(
                 candidate_text[start:end],
                 budget=budget,
                 depth=decode_depth + structural_depth,
+                projection_key_sets=projection_key_sets,
             )
             if decoded is None:
                 continue
-            decoded_object_ranges.append((start, end))
-            normalized, decoded_values = decoded
-            yield from _canonical_mappings(normalized)
+            normalized, decoded_values, projections = decoded
+            if normalized is not None:
+                decoded_object_ranges.append((start, end))
+                yield from _canonical_mappings(normalized)
+            for projection in projections:
+                yield canonical_json_bytes(projection).decode("utf-8", errors="strict"), projection
             _queue_decoded_json_strings(
                 pending,
                 seen_depth,
@@ -947,7 +1010,7 @@ def _may_contain_json(text: str) -> bool:
 def _embedded_json_object_ranges(
     text: str,
 ) -> Iterable[tuple[int, int, int]]:
-    """Yield leaf and outer objects under both malformed-prose lexical parities."""
+    """Yield every completed object under both malformed-prose lexical parities."""
 
     observed: set[tuple[int, int]] = set()
     for initial_in_string in (False, True):
@@ -967,12 +1030,15 @@ def _json_object_candidate_ranges(
     *,
     initial_in_string: bool,
 ) -> Iterable[tuple[int, int]]:
-    """Extract leaf plus enclosing root objects with one constant-state interpretation."""
+    """Extract every completed object with one bounded lexical interpretation.
 
-    object_depth = 0
-    outer_start: int | None = None
-    leaf_start: int | None = None
-    leaf_depth = 0
+    The open-object stack is bounded by the document itself, whose source policy
+    already caps UTF-8 size.  Yielding on close preserves intermediate mappings:
+    a selected record may contain nested provenance and itself sit inside an
+    over-depth envelope that the JSON parser must reject.
+    """
+
+    object_starts: list[int] = []
     in_string = initial_in_string
     escaped = False
     for index, character in enumerate(text):
@@ -984,37 +1050,22 @@ def _json_object_candidate_ranges(
             elif character == '"':
                 in_string = False
             elif character in "\r\n":
-                object_depth = 0
-                outer_start = None
-                leaf_start = None
-                leaf_depth = 0
+                object_starts.clear()
                 in_string = False
                 escaped = False
             continue
         if character == '"':
             in_string = True
         elif character == "{":
-            if object_depth == 0:
-                outer_start = index
-            object_depth += 1
-            leaf_start = index
-            leaf_depth = object_depth
+            object_starts.append(index)
         elif character == "}":
-            if object_depth == 0:
+            if not object_starts:
                 continue
-            ranges: list[tuple[int, int]] = []
-            if leaf_start is not None and object_depth == leaf_depth:
-                ranges.append((leaf_start, index + 1))
-                leaf_start = None
-                leaf_depth = 0
-            if object_depth == 1 and outer_start is not None:
-                ranges.append((outer_start, index + 1))
-            object_depth -= 1
-            if object_depth == 0:
-                outer_start = None
+            start = object_starts.pop()
+            if not object_starts:
                 in_string = False
                 escaped = False
-            yield from dict.fromkeys(ranges)
+            yield start, index + 1
 
 
 def _json_string_literal_ranges(

@@ -420,10 +420,10 @@ def test_injected_contamination_reports_source_and_document_id(monkeypatch, tmp_
     index = json.loads(index_files[0].read_text(encoding="utf-8"))
     assert index["index_identity_sha256"] == evidence["scan_index_identity_sha256"]
     assert index["index_identity"]["normalization_revision"] == (
-        "normalize-text-identity-nfc-strip-plus-json-object-v14"
+        "normalize-text-identity-nfc-strip-plus-json-object-v15"
     )
     assert index["index_identity"]["json_object_normalization_revision"] == (
-        "constant-memory-leaf-object-string-superset-projection-json-nfc-sha256-v13"
+        "bounded-all-object-string-superset-projection-json-nfc-sha256-v14"
     )
     assert index["index_identity"]["matcher_revision"] == (
         "collision-verified-rolling-hash-codepoint-v1"
@@ -544,6 +544,8 @@ def test_all_selected_source_records_match_verbatim_and_reordered_json():
         "nested_object_array": {"jcommonsenseqa": 0, "gsm8k": 0},
         "object_key": {"jcommonsenseqa": 0, "gsm8k": 0},
         "metadata_enriched": {"jcommonsenseqa": 0, "gsm8k": 0},
+        "metadata_collision": {"jcommonsenseqa": 0, "gsm8k": 0},
+        "deep_metadata_enriched": {"jcommonsenseqa": 0, "gsm8k": 0},
         "quoted_prose": {"jcommonsenseqa": 0, "gsm8k": 0},
         "unterminated_quote_object": {"jcommonsenseqa": 0, "gsm8k": 0},
     }
@@ -582,6 +584,28 @@ def test_all_selected_source_records_match_verbatim_and_reordered_json():
                     ensure_ascii=True,
                     indent=2,
                     sort_keys=True,
+                ),
+                "metadata_collision": json.dumps(
+                    {
+                        **reordered_record,
+                        "source": {
+                            "é": "first",
+                            unicodedata.normalize("NFD", "é"): "second",
+                        },
+                    },
+                    ensure_ascii=True,
+                    indent=2,
+                    sort_keys=True,
+                ),
+                "deep_metadata_enriched": (
+                    '{"wrapper":' * 40
+                    + json.dumps(
+                        {**reordered_record, "source": {"dataset": "benchmark-import"}},
+                        ensure_ascii=True,
+                        indent=2,
+                        sort_keys=True,
+                    )
+                    + "}" * 40
                 ),
                 "quoted_prose": f"training payload {json_string_record} end",
                 "unterminated_quote_object": f'ordinary malformed " prefix {reordered} trailing',
@@ -629,6 +653,8 @@ def test_all_selected_source_records_match_verbatim_and_reordered_json():
         "nested_object_array": {"jcommonsenseqa": 128, "gsm8k": 128},
         "object_key": {"jcommonsenseqa": 128, "gsm8k": 128},
         "metadata_enriched": {"jcommonsenseqa": 128, "gsm8k": 128},
+        "metadata_collision": {"jcommonsenseqa": 128, "gsm8k": 128},
+        "deep_metadata_enriched": {"jcommonsenseqa": 128, "gsm8k": 128},
         "quoted_prose": {"jcommonsenseqa": 128, "gsm8k": 128},
         "unterminated_quote_object": {"jcommonsenseqa": 128, "gsm8k": 128},
     }
@@ -714,6 +740,19 @@ def _structured_adversarial_record(example: BenchmarkExample) -> str:
     return json.dumps(reordered, ensure_ascii=True, indent=2)
 
 
+def _metadata_enriched_adversarial_record(example: BenchmarkExample) -> str:
+    reordered = {
+        key: unicodedata.normalize("NFD", value) if isinstance(value, str) else value
+        for key, value in reversed(list(example.record.items()))
+    }
+    return json.dumps(
+        {**reordered, "source": {"dataset": "benchmark-import", "split": "train"}},
+        ensure_ascii=True,
+        indent=2,
+        sort_keys=True,
+    )
+
+
 def _decoded_string_budget_document(example: BenchmarkExample, *, prefixes: int) -> str:
     return ('{"n":"x"}\n' * prefixes) + _structured_adversarial_record(example)
 
@@ -763,6 +802,36 @@ def test_selected_record_survives_overdepth_object_array_and_mixed_wrappers(tmp_
             and match["match_type"] == "structured_json"
             for match in matches
         )
+
+
+def test_metadata_enriched_record_survives_overdepth_object_wrapper(tmp_path: Path):
+    registry, fingerprint = _registry(tmp_path)
+    suite = load_suite(
+        registry,
+        expected_fingerprint=fingerprint,
+        access="dev",
+        cache=BoundedShardCache(tmp_path / "benchmark-cache", max_size_bytes=10_000_000),
+        timeout_seconds=1.0,
+    )
+    probe_index = _build_probe_index(suite)
+    example = next(task for task in suite.tasks if task.name == "jcommonsenseqa").examples[0]
+    target = _metadata_enriched_adversarial_record(example)
+    text = '{"wrapper":' * 40 + target + "}" * 40
+
+    matches = _document_matches(
+        text,
+        source_name="fixture_train",
+        document_id="deep-metadata-enriched",
+        upstream_id=None,
+        probe_index=probe_index,
+    )
+
+    assert any(
+        match["benchmark_example_id"] == example.example_id
+        and match["benchmark_field"] == "canonical_record"
+        and match["match_type"] == "structured_json"
+        for match in matches
+    )
 
 
 @pytest.mark.parametrize("wrapper_name", ["object", "array_serialized", "mixed_serialized"])
