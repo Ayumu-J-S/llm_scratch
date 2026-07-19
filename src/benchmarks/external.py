@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from benchmarks.runner import _write_json_atomic
-from benchmarks.suite import canonical_external_dev_identity
+from benchmarks.suite import PROTOCOL_MINIMUM_CONTEXT_LENGTH, canonical_external_dev_identity
 
 
 class ExternalComparisonError(ValueError):
@@ -31,6 +31,14 @@ _SUBJECT_FIELDS = {
     "tokenizer",
     "context_length",
     "data_access",
+    "protocol_context_preflight",
+}
+_CONTEXT_PREFLIGHT_FIELDS = {
+    "protocol_sha256",
+    "passed",
+    "no_truncation",
+    "required_context_length",
+    "task_required_context_lengths",
 }
 _TASK_FIELDS = {"primary_metric", "value", "correct", "total"}
 _FORBIDDEN_KEYS = {
@@ -71,12 +79,16 @@ def write_external_comparison(
     if (
         isinstance(subject["context_length"], bool)
         or not isinstance(subject["context_length"], int)
-        or subject["context_length"] < 1
+        or subject["context_length"] < PROTOCOL_MINIMUM_CONTEXT_LENGTH
     ):
-        raise ExternalComparisonError("external context_length must be positive")
+        raise ExternalComparisonError(
+            "external context_length must satisfy the fixed protocol minimum of "
+            f"{PROTOCOL_MINIMUM_CONTEXT_LENGTH} tokens"
+        )
     for field in ("training_compute", "tokenizer", "data_access"):
         if not isinstance(subject[field], str) or not subject[field]:
             raise ExternalComparisonError(f"external {field} disclosure must be non-empty")
+    _validate_context_preflight(subject, suite_identity=suite_identity)
     tasks = _mapping(payload["tasks"], "tasks")
     if set(tasks) != {"jcommonsenseqa", "gsm8k"}:
         raise ExternalComparisonError("external comparison must contain both suite tasks")
@@ -129,6 +141,54 @@ def write_external_comparison(
     }
     _write_json_atomic(output, record)
     return output
+
+
+def _validate_context_preflight(
+    subject: Mapping[str, Any],
+    *,
+    suite_identity: Mapping[str, Any],
+) -> None:
+    preflight = _mapping(subject["protocol_context_preflight"], "protocol_context_preflight")
+    if set(preflight) != _CONTEXT_PREFLIGHT_FIELDS:
+        raise ExternalComparisonError("external protocol context preflight is incomplete")
+    if preflight["protocol_sha256"] != suite_identity["protocol_sha256"]:
+        raise ExternalComparisonError(
+            "external context preflight must bind the compiled benchmark protocol"
+        )
+    if preflight["passed"] is not True or preflight["no_truncation"] is not True:
+        raise ExternalComparisonError(
+            "external context preflight must attest complete no-truncation execution"
+        )
+    task_requirements = _mapping(
+        preflight["task_required_context_lengths"],
+        "protocol_context_preflight.task_required_context_lengths",
+    )
+    if set(task_requirements) != {"jcommonsenseqa", "gsm8k"}:
+        raise ExternalComparisonError(
+            "external context preflight must disclose both task requirements"
+        )
+    for name, value in task_requirements.items():
+        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+            raise ExternalComparisonError(
+                f"external context preflight requirement for {name} must be positive"
+            )
+    if task_requirements["gsm8k"] < PROTOCOL_MINIMUM_CONTEXT_LENGTH:
+        raise ExternalComparisonError(
+            "external GSM8K context requirement cannot fit the fixed generation cap"
+        )
+    required = preflight["required_context_length"]
+    if (
+        isinstance(required, bool)
+        or not isinstance(required, int)
+        or required != max(task_requirements.values())
+    ):
+        raise ExternalComparisonError(
+            "external required_context_length must equal the maximum task requirement"
+        )
+    if subject["context_length"] < required:
+        raise ExternalComparisonError(
+            "external subject context_length is below its protocol preflight requirement"
+        )
 
 
 def _isolated_output_path(output_path: str | Path) -> Path:

@@ -6,6 +6,7 @@ import math
 from collections.abc import Mapping
 from typing import Any
 
+import torch
 from omegaconf import DictConfig, OmegaConf
 
 
@@ -411,6 +412,17 @@ def validate_benchmark_checkpoint_runtime(
         raise ConfigPreflightError(
             "benchmark.device=cpu is incompatible with checkpoint-owned "
             "training.precision=bf16; use benchmark.device=cuda or benchmark an FP32 checkpoint"
+        )
+    if (
+        device == "cuda"
+        and precision == "bf16"
+        and torch.cuda.is_available()
+        and not torch.cuda.is_bf16_supported()
+    ):
+        raise ConfigPreflightError(
+            "benchmark.device=cuda is incompatible with checkpoint-owned "
+            "training.precision=bf16 because the selected CUDA runtime/device does not "
+            "support BF16"
         )
 
 

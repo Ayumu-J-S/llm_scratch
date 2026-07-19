@@ -24,11 +24,13 @@ BenchmarkAccess = Literal["dev", "final"]
 SUITE_ID = "BENCH-001-suite-v1"
 FINAL_ACKNOWLEDGEMENT = SUITE_ID
 CANONICAL_REGISTRY_PATH = Path(__file__).resolve().parents[2] / "data/benchmarks/suite-v1.json"
-CANONICAL_REGISTRY_FINGERPRINT = "20af73847cdc67b083cfd4fe4cacc2d5d6db0bc3fb468bea5a1f43cf0ee95511"
+CANONICAL_REGISTRY_FINGERPRINT = "39e658f55b445b5390a01390523b077018a1337c257ad82f0a167085636b7bd2"
 JCOMMONSENSEQA_PROMPT_REVISION = "BENCH-001-jcommonsenseqa-zero-shot-v1"
-JCOMMONSENSEQA_SCORER_REVISION = "BENCH-001-conditional-logprob-v1"
+JCOMMONSENSEQA_SCORER_REVISION = "BENCH-001-conditional-logprob-v2"
 GSM8K_PROMPT_REVISION = "BENCH-001-gsm8k-zero-shot-v1"
 GSM8K_SCORER_REVISION = "openai-gsm8k-ANS_RE-v1"
+GSM8K_MAX_NEW_TOKENS = 128
+PROTOCOL_MINIMUM_CONTEXT_LENGTH = GSM8K_MAX_NEW_TOKENS + 1
 SUBSET_SELECTOR_REVISION = "sha256-example-id-v1"
 INVALID_GSM8K_ANSWER = "[invalid]"
 _GSM8K_ANSWER = re.compile(r"#### (\-?[0-9\.\,]+)")
@@ -53,7 +55,8 @@ _SCORER_SPECS = {
     "jcommonsenseqa": {
         "revision": JCOMMONSENSEQA_SCORER_REVISION,
         "candidate": "choice text",
-        "tokenization_boundary": "prompt and continuation encoded separately",
+        "tokenization": "exact prompt-plus-choice string encoded once",
+        "target_span": "offset-masked choice suffix; boundary-crossing tokens rejected",
         "tie_break": "lowest choice index",
         "primary": "sum_log_probability / continuation_token_count",
         "secondary": "sum_log_probability",
@@ -217,6 +220,7 @@ def canonical_external_dev_identity() -> dict[str, Any]:
         "suite_fingerprint": registry["suite_fingerprint"],
         "access": "dev",
         "protocol_sha256": hashlib.sha256(canonical_json_bytes(protocol)).hexdigest(),
+        "minimum_context_length": PROTOCOL_MINIMUM_CONTEXT_LENGTH,
         "subset_selector": subset["selector"],
         "tasks": {
             task_name: {
@@ -452,7 +456,7 @@ def _validate_registry(registry: dict[str, Any], *, expected_fingerprint: str) -
         "gsm8k": {
             "prompt_revision": GSM8K_PROMPT_REVISION,
             "scorer_revision": GSM8K_SCORER_REVISION,
-            "decoding": {"method": "greedy", "max_new_tokens": 128},
+            "decoding": {"method": "greedy", "max_new_tokens": GSM8K_MAX_NEW_TOKENS},
             "primary_metric": "exact_match",
         },
     }

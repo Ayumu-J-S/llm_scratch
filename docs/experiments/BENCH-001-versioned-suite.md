@@ -36,17 +36,22 @@
 | 13 | Repair | Complete | Confined external JSON to a dedicated non-checkpoint tree with path/symlink/hardlink rejection; replaced corpus-window SHA-256 with a collision-verified linear rolling matcher; bound cached evidence to scoped evaluator source bytes, lock, installed PyArrow, Python/platform, suite/task content, and manifest content/fingerprints |
 | 14 | Focused validation | PASS | Benchmark suite and Ruff pass; a 1,000,048-codepoint scale invariant requires exactly one rolling update per codepoint, only one exact-candidate allocation/verification, and matcher storage proportional to the two unique fixture patterns. Canonical final matcher construction retains 1,029,282 unique patterns rather than a 36,972,934-node trie |
 | 15 | Full validation | PASS | Official CPU gate: 341 passed, 1 skipped; Ruff, Hydra config preflight, lock drift, offline smoke, `uv lock --check`, changed-path format, and diff checks pass |
-| 16 | Independent re-review | Pending | Repeat against the exact committed fourth-repair head and preserve the verdict in the pull request |
+| 16 | Independent re-review | FAIL | Exact-head review of `cba8281` reran 341 tests (1 skipped), then found that JCommonsenseQA separately encoded choices and therefore scored a synthetic tokenizer prefix, unsupported CUDA BF16 failed only after the scan, and external results could claim a one-token context under the same protocol identity |
+| 17 | Repair | Complete | Changed JCommonsenseQA to one exact joint encoding with tokenizer-offset suffix masking and a new scorer identity; added CUDA BF16 capability preflight before suite loading/scanning; required protocol-bound no-truncation evidence, per-task required context, and a fixed 129-token external minimum |
+| 18 | Focused validation | PASS | Corrected fixture golden, joint-tokenization invariant, external context contract, CUDA BF16 preflight, and Ruff pass; canonical sources reverify to 256 examples, protocol hash `79cf8b2…`, registry fingerprint `39e658f…`, and context requirements JCommonsenseQA=97/GSM8K=264 |
+| 19 | Full validation | PASS | Official CPU gate: 345 passed, 1 skipped; Ruff, Hydra config preflight, lock drift, offline smoke, `uv lock --check`, changed-path format, and diff checks pass |
+| 20 | Independent re-review | Pending | Repeat against the exact committed fifth-repair head and preserve the verdict in the pull request |
 
 ## Resolved protocol
 
 - Suite: `BENCH-001-suite-v1`
 - Development selection: the first 128 examples by SHA-256 rank of canonical
   task/example ID, separately for each task.
-- JCommonsenseQA: a fixed Japanese question/options/answer prompt; each choice
-  is tokenized at an explicit continuation boundary and scored by conditional
-  log probability; length normalization is primary and raw log-probability
-  accuracy is retained as a secondary metric.
+- JCommonsenseQA: a fixed Japanese question/options/answer prompt; the exact
+  prompt-plus-choice string is encoded once, tokenizer source offsets define
+  the scoreable choice suffix, and boundary-crossing tokens are rejected.
+  Length-normalized conditional log probability is primary and raw
+  log-probability accuracy is retained as a secondary metric.
 - GSM8K: fixed `Question`/`Answer` prompt, greedy continuation, 128-token cap,
   the checkpoint-owned evaluation precision, and the dataset repository's
   `####` answer regex.
@@ -71,7 +76,7 @@
 
 ## Current conclusion
 
-All four independent failed reviews remain visible. Their eleven findings are
+All five independent failed reviews remain visible. Their fourteen findings are
 repaired without weakening the fixed protocol or complete contamination gate:
 cheap context incompatibility precedes scanning, both tasks honor checkpoint
 precision, external records are pinned, evaluator/runtime and dirty source
@@ -79,9 +84,12 @@ bytes are identity-bound, fixture outputs are golden, generated cache state is
 ignored, external JSON cannot enter or alias checkpoint storage, the first
 corpus scan uses a bounded linear rolling matcher, full scoped producer identity
 invalidates stale scan evidence, and completed suite/corpus/producer-bound scan
-evidence is reused across milestones. An extra
+evidence is reused across milestones. Choice scoring now uses an exact joint
+encoding and offset-defined suffix, unsupported CUDA BF16 is rejected before
+the training scan, and external records prove sufficient no-truncation context.
+An extra
 repository-wide format diagnostic identified four pre-existing, unrelated
 files outside this ticket's diff; the configured Ruff lint gate and all changed
-benchmark paths pass, so those files were not rewritten here. The fourth
-repair's full gate passes and its exact-head independent review is pending. No
+benchmark paths pass, so those files were not rewritten here. The fifth repair's
+full gate passes and its exact-head independent review is pending. No
 benchmark score from the zero-weight fixture is a model-quality result.

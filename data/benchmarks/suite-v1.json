@@ -21,11 +21,11 @@
     "jcommonsenseqa": {
       "primary_metric": "length_normalized_accuracy",
       "prompt_revision": "BENCH-001-jcommonsenseqa-zero-shot-v1",
-      "scorer_revision": "BENCH-001-conditional-logprob-v1"
+      "scorer_revision": "BENCH-001-conditional-logprob-v2"
     }
   },
   "schema_version": 1,
-  "suite_fingerprint": "20af73847cdc67b083cfd4fe4cacc2d5d6db0bc3fb468bea5a1f43cf0ee95511",
+  "suite_fingerprint": "39e658f55b445b5390a01390523b077018a1337c257ad82f0a167085636b7bd2",
   "suite_id": "BENCH-001-suite-v1",
   "tasks": {
     "gsm8k": {
