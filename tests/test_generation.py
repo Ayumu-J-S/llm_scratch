@@ -175,6 +175,27 @@ def test_sampler_rejects_manual_sampling_knobs_without_a_seed(tmp_path: Path):
         sampler.generate("base", max_new_tokens=1, precision="fp16")
 
 
+@pytest.mark.parametrize("nonfinite", [float("nan"), float("inf"), float("-inf")])
+def test_sampler_rejects_nonfinite_generation_logits(tmp_path: Path, nonfinite: float):
+    tokenizer = CanonicalTokenizer.from_config(TOKENIZER_CONFIG)
+    checkpoint, _ = _checkpoint(tmp_path, logits={_normal_token(tokenizer): 5.0})
+    sampler = CheckpointSampler.from_checkpoint(checkpoint)
+
+    def nonfinite_forward(tokens: torch.Tensor) -> torch.Tensor:
+        logits = torch.zeros(
+            tokens.size(0),
+            tokens.size(1),
+            tokenizer.vocab_size,
+            device=tokens.device,
+        )
+        logits[..., _normal_token(tokenizer)] = nonfinite
+        return logits
+
+    sampler.model.forward = nonfinite_forward
+    with pytest.raises(SamplingError, match="non-finite logits"):
+        sampler.generate("base", max_new_tokens=2)
+
+
 def test_sampler_rejects_checkpoint_config_that_disagrees_with_its_identity(tmp_path: Path):
     tokenizer = CanonicalTokenizer.from_config(TOKENIZER_CONFIG)
     checkpoint, _ = _checkpoint(tmp_path, logits={_normal_token(tokenizer): 5.0})

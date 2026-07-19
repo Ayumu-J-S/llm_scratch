@@ -74,8 +74,8 @@ document in every checkpoint-owned manifest selected as `train`. It records:
 
 - exact whole-document hashes;
 - normalized whole-document hashes using the repository text-identity policy;
-- source-faithful full-record hashes plus key-order/whitespace-independent
-  canonical JSON-object identities;
+- source-faithful full-record hashes plus text-normalized,
+  key-order/whitespace-independent canonical JSON-object identities;
 - exact matches over normalized 48-codepoint shingles;
 - source name, training document ID, upstream ID, manifest/dataset identity,
   scan counts, byte counts, and a complete scan-order digest.
@@ -115,15 +115,16 @@ model artifacts are not uploaded.
 Optional external baselines use the separate
 `llm-scratch-benchmark-external` aggregate recorder. It requires parameter
 count, training-compute, tokenizer, context-length, and data-access disclosure.
-It also requires a protocol-hash-bound no-truncation preflight with per-task
-required lengths, enforces a fixed minimum of 129 tokens for the GSM8K
-generation contract, and rejects subjects shorter than their disclosed
-requirement. It rejects raw text, outputs, logits, token IDs, and weights; and
-marks the record ineligible for training data or targets. The recorder itself attaches the
-compiled development-suite fingerprint, protocol hash, source hashes,
-selected-example hashes, selector, access level, and fixed 128-example totals;
-callers cannot supply an alternate protocol or partition identity. It does not
-load external weights into the repository checkpoint runner. Records can be
-written only beneath the generated `outputs/external-comparisons` tree with a
-`.json` suffix. Paths outside that tree, symlinks, hardlinks, and nested
-artifact/checkpoint namespaces are rejected before the atomic write.
+It also requires a protocol-, prompt-, and scorer-hash-bound no-truncation
+preflight with per-task required lengths, enforces a fixed minimum of 129 tokens
+for the GSM8K generation contract, and rejects subjects shorter than their
+disclosed requirement. It rejects raw text, outputs, logits, token IDs, and
+weights; and marks the record ineligible for training data or targets. The
+recorder itself attaches the compiled development-suite fingerprint, protocol,
+prompt, and scorer hashes, source hashes, selected-example hashes, selector,
+access level, and fixed 128-example totals; callers cannot supply an alternate
+protocol or partition identity. It does not load external weights into the
+repository checkpoint runner. Records can be written only beneath the generated
+`outputs/external-comparisons` tree with a `.json` suffix. Paths outside that
+tree, symlinks, hardlinks, and nested artifact/checkpoint namespaces are rejected
+before the atomic write.

@@ -35,6 +35,7 @@ _SUBJECT_FIELDS = {
 }
 _CONTEXT_PREFLIGHT_FIELDS = {
     "protocol_sha256",
+    "component_hashes",
     "passed",
     "no_truncation",
     "required_context_length",
@@ -154,6 +155,10 @@ def _validate_context_preflight(
     if preflight["protocol_sha256"] != suite_identity["protocol_sha256"]:
         raise ExternalComparisonError(
             "external context preflight must bind the compiled benchmark protocol"
+        )
+    if preflight["component_hashes"] != suite_identity["component_hashes"]:
+        raise ExternalComparisonError(
+            "external context preflight must bind the compiled prompt and scorer components"
         )
     if preflight["passed"] is not True or preflight["no_truncation"] is not True:
         raise ExternalComparisonError(
