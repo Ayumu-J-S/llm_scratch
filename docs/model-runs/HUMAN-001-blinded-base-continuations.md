@@ -49,6 +49,8 @@ Failed cycles are retained and must not be rewritten as passing cycles.
 | 10 | repair | `774d1bf9e29c8f6adf7c049447cfc63d3d1b5bdc` through `b6f03f9606867b36a7165878ab192c2c29f4c6b4` | Close both cycle-9 fail-closed ordering gaps | implemented | Fresh launches reject existing manifests, preparation is serialized across same-directory collisions, explicit resumes must supply verified lineage, and HUMAN device/precision/tokenizer/context preflight precedes scanning | Focused reproducibility/HUMAN gate passes 42 tests; exact-head CPU gate passes 526 tests with 1 skip; independent re-review pending |
 | 11 | re-review | `7917c9bd9ed27b0fa1d9bbbbf2a553792f9a5c87` against `origin/main` | Independent formal `/review` | `FAIL` | P1 in the inherited BENCH scanner: adding ordinary metadata fields let 124/128 selected JCommonsenseQA records evade complete contamination detection. The HUMAN cycle-9 repairs were not re-raised. | Reviewer independently reran 526 passed, 1 skipped and reproduced the enriched-record miss |
 | 12 | target integration | `928b832dcaae747f0ad5a04644741b46ea526007` through `6414349fc147e40f6eaef86ca9041b3926468442` | Integrate repaired BENCH target `71c0eee929c1d5c37e47cb8cbc761f648e7630a9` | implemented | Adopted schema-owned mapping projections for augmented records plus nested-candidate follow-up; no duplicate local BENCH implementation | Enriched-record focused gate passes 2 tests; focused reproducibility/HUMAN gate remains 42 passed; exact-head CPU gate passes 531 tests with 1 skip; re-review pending |
+| 13 | re-review | `9e47cdc5b5193377bf77bb1b1d1e95b07c3542c4` against BENCH target `71c0eee929c1d5c37e47cb8cbc761f648e7630a9` | Independent formal `/review` | interrupted; no verdict | The reviewer independently passed the 531-test suite, but the target advanced before a verdict; the stale-base review was stopped rather than represented as exact-head evidence | Reviewer output: 531 passed, 1 skipped; no verdict retained |
+| 14 | target integration | `bd9924bfb9e25b096bc18a5e32d8e156426f1e5f` | Integrate BENCH target `f40d86333eb1b0136d429b0c27ce11856a571a45` | implemented | Adopted input-only projections for unlabeled JCommonsenseQA and GSM8K records; no HUMAN-local scanner fork | Exact-head CPU gate passes 532 tests with 1 skip plus Ruff, Hydra config, lock drift, and offline training/W&B smoke; re-review pending |
 
 ## Independent check selection and verdicts
 
@@ -289,9 +291,22 @@ Failed cycles are retained and must not be rewritten as passing cycles.
   remained free.
 - Remaining risk: independent exact-head re-review is pending.
 
+## Interrupted re-review and advanced target integration
+
+- The independent review of `9e47cdc` against BENCH target `71c0eee` was
+  interrupted after its independent 531-test gate passed because the PR target
+  advanced before the reviewer returned a verdict. It is retained as an
+  interrupted review, not a pass.
+- Merge `bd9924b` integrates BENCH head `f40d863`, whose contamination
+  projections preserve detection for selected, unlabeled JCommonsenseQA and
+  GSM8K input records.
+- Exact `bd9924b` passes 532 tests with one skip plus Ruff, Hydra config
+  preflight, lock drift, and credential-isolated offline training/W&B smoke;
+  455 GB remained free. Independent exact-head review remains required.
+
 ## Independent re-review
 
-- Commit reviewed: pending cycle-5 target-integration successor.
+- Commit reviewed: pending cycle-14 target-integration successor.
 - Prior findings disposition: cycle-1 through cycle-5 repairs implemented;
   exact-head re-review pending.
 - New findings: pending.
@@ -311,10 +326,11 @@ Failed cycles are retained and must not be rewritten as passing cycles.
   remain until the successor passes independent re-review.
 - Unresolved review threads: PR audit pending.
 - Required-context and configured-workflow inventory: pending final audit.
-- Exact-head check statuses: integrated repair/docs head `6414349` passed 531
-  tests with one skip plus Ruff, Hydra config, lock drift, and offline
+- Exact-head check statuses: integrated target head `bd9924b` passed 532 tests
+  with one skip plus Ruff, Hydra config, lock drift, and offline
   training/W&B smoke; independent review pending.
-- Current base and mergeable evidence: target merge/revalidation pending.
+- Current base and mergeable evidence: BENCH target `f40d863` is integrated;
+  final GitHub refresh remains pending.
 - PR trail, validation, risks, and authorization parity: this record and PR #50
   must retain all failed cycles.
 - Prohibited self-merge categories: no prohibited external action is requested,
