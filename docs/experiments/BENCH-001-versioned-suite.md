@@ -64,6 +64,10 @@
 | 41 | Repair | Complete | Confined repository benchmark results to a dedicated configured root outside input/cache/checkpoint/artifact namespaces; made internal and external atomic publication exclusive and no-overwrite; rejected existing files, path escapes, symlinks, and hardlinks. Run-manifest verification now requires exact equality of the captured worktree-content digest |
 | 42 | Focused validation | PASS | 52 benchmark/reproducibility/config tests plus scoped Ruff/format/diff checks pass. Regressions preserve the canonical registry bytes under a malicious output override, reject configured-root escape and repository-data roots before suite loading, prove existing internal/external results cannot be replaced, and reject same-status/same-path dirty tracked-byte mutation during manifest verification |
 | 43 | Full validation | PASS | Official CPU gate: 360 passed, 1 skipped; Ruff, Hydra config preflight, lock drift, offline smoke, `uv lock --check`, changed-path format, and diff checks pass |
+| 44 | Independent re-review | FAIL | Exact-head review of `8626c24` reran 360 tests (1 skipped) successfully, then found that the fixed, exclusive default `benchmark.json` allowed the canonical command to publish only once across all checkpoints/partitions and that JCommonsenseQA could accept non-finite raw vocabulary logits when its gathered target probabilities remained finite |
+| 45 | Repair | Complete | Made the default result path `dev\|final-<evaluation_identity_sha256>.json`, binding access, physical checkpoint bytes, compiled suite/protocol, evaluator revision, lock, and runtime while retaining exclusive no-overwrite publication and explicit fresh-root/path control; rejected any non-finite raw choice-scoring logit before log-softmax or target extraction |
+| 46 | Focused validation | PASS | 65 benchmark/generation/config/reproducibility tests plus scoped Ruff pass. Regressions prove the default filename equals the complete result identity, exact reruns fail before repeating the training scan, and non-target NaN/positive-infinity/negative-infinity vocabulary logits cannot produce a JCommonsenseQA score |
+| 47 | Full validation | PASS | Official CPU gate: 364 passed, 1 skipped; Ruff, Hydra config preflight, lock drift, offline smoke, `uv lock --check`, changed-path format, and diff checks pass |
 
 ## Resolved protocol
 
@@ -80,6 +84,9 @@
   `####` answer regex.
 - Final acknowledgement: `BENCHMARK_FINAL_ACK=BENCH-001-suite-v1`; checked
   outside Hydra.
+- Result publication: the default path under `outputs/benchmark-results` is
+  `<access>-<evaluation_identity_sha256>.json`; results are exclusive and are
+  never replaced, so an exact rerun uses a fresh configured result root/path.
 - Contamination: complete checkpoint-owned train selections, exact/normalized
   whole-document identity, source-faithful record identity, text-normalized
   canonical JSON-object identity across key-order/whitespace variants, and
@@ -101,7 +108,7 @@
 
 ## Current conclusion
 
-All eleven independent failed reviews remain visible. Their twenty-seven findings are
+All twelve independent failed reviews remain visible. Their twenty-nine findings are
 repaired without weakening the fixed protocol or complete contamination gate:
 cheap context incompatibility precedes scanning, both tasks honor checkpoint
 precision, external records are pinned, evaluator/runtime and dirty source
@@ -124,13 +131,16 @@ structure-normalized JSON identity to detect BOM, newline, Unicode,
 key-order, and whitespace variants; canonical acceptance covers every selected
 development record in both tasks. External comparisons separately attest the
 compiled prompt and scorer hashes, and generation rejects non-finite logits
-before any GSM8K token or score is accepted. Internal and external results are
-exclusive, no-overwrite publications in dedicated output namespaces, while
-run-manifest verification compares the exact recorded dirty-worktree bytes in
+before any GSM8K token or score is accepted; choice scoring rejects non-finite
+raw logits before normalization or extraction. Internal and external results
+are exclusive, no-overwrite publications in dedicated output namespaces, and
+default checkpoint-owned filenames bind the access partition plus complete
+evaluation identity so milestones, final evaluation, and evaluator revisions
+can coexist without replacement, while run-manifest verification compares the
+exact recorded dirty-worktree bytes in
 addition to commit, dirty flag, and status paths.
-An extra
-repository-wide format diagnostic identified four pre-existing, unrelated
+An extra repository-wide format diagnostic identified four pre-existing, unrelated
 files outside this ticket's diff; the configured Ruff lint gate and all changed
-benchmark paths pass, so those files were not rewritten here. The eleventh repair's
+benchmark paths pass, so those files were not rewritten here. Every repair's
 focused and full gates pass; exact-head independent re-review remains. No
 benchmark score from the zero-weight fixture is a model-quality result.

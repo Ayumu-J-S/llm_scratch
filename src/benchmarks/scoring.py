@@ -173,6 +173,8 @@ def conditional_log_probability(
     inputs = torch.tensor([input_ids], dtype=torch.long, device=sampler.device)
     with torch.inference_mode(), autocast_context(sampler.device, precision):
         logits = sampler.model(inputs)[0]
+        if not bool(torch.isfinite(logits).all().item()):
+            raise BenchmarkScoringError("benchmark choice scoring produced non-finite logits")
         start = continuation_start - 1
         end = len(joint_ids) - 1
         continuation_logits = logits[start:end]
