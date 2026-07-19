@@ -27,18 +27,22 @@ from runtime.reproducibility import sha256_file
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 SHINGLE_CODEPOINTS = 48
-SCAN_REVISION = "BENCH-001-contamination-v18"
-NORMALIZATION_REVISION = "normalize-text-identity-nfc-strip-plus-json-object-v16"
+SCAN_REVISION = "BENCH-001-contamination-v19"
+NORMALIZATION_REVISION = "normalize-text-identity-nfc-strip-plus-json-object-v17"
 SCAN_INDEX_SCHEMA_VERSION = 2
 MATCHER_REVISION = "collision-verified-rolling-hash-codepoint-v1"
 JSON_OBJECT_NORMALIZATION_REVISION = (
-    "bounded-all-object-string-input-projection-json-nfc-sha256-v15"
+    "bounded-all-object-string-input-projection-json-nfc-sha256-v16"
 )
 PRODUCER_IDENTITY_REVISION = "contamination-producer-v1"
 PRODUCER_SOURCE_SCOPE_REVISION = "src-python-pyproject-lock-v1"
 _PRODUCER_PACKAGES = ("pyarrow",)
 _INPUT_ONLY_OMITTED_FIELDS = {
-    "jcommonsenseqa": frozenset({"label"}),
+    # q_id selects and identifies the pinned source example, but the evaluator
+    # prompt consumes only the question and five choices. Treat that exact
+    # prompt-bearing mapping as contamination even when source metadata and the
+    # answer label were not copied into training data.
+    "jcommonsenseqa": frozenset({"label", "q_id"}),
     "gsm8k": frozenset({"answer"}),
 }
 _ROLLING_BASE = 1_000_000_007

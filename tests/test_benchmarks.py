@@ -420,10 +420,10 @@ def test_injected_contamination_reports_source_and_document_id(monkeypatch, tmp_
     index = json.loads(index_files[0].read_text(encoding="utf-8"))
     assert index["index_identity_sha256"] == evidence["scan_index_identity_sha256"]
     assert index["index_identity"]["normalization_revision"] == (
-        "normalize-text-identity-nfc-strip-plus-json-object-v16"
+        "normalize-text-identity-nfc-strip-plus-json-object-v17"
     )
     assert index["index_identity"]["json_object_normalization_revision"] == (
-        "bounded-all-object-string-input-projection-json-nfc-sha256-v15"
+        "bounded-all-object-string-input-projection-json-nfc-sha256-v16"
     )
     assert index["index_identity"]["matcher_revision"] == (
         "collision-verified-rolling-hash-codepoint-v1"
@@ -612,7 +612,12 @@ def test_all_selected_source_records_match_verbatim_and_reordered_json():
                     {
                         key: value
                         for key, value in reordered_record.items()
-                        if key not in {"label", "answer"}
+                        if key
+                        not in (
+                            {"label", "q_id"}
+                            if task.name == "jcommonsenseqa"
+                            else {"answer"}
+                        )
                     },
                     ensure_ascii=True,
                     indent=2,
@@ -1130,7 +1135,7 @@ def test_full_scan_cannot_cache_clean_evidence_for_unlabeled_selected_input(
     unlabeled = {
         key: unicodedata.normalize("NFD", value) if isinstance(value, str) else value
         for key, value in reversed(list(example.record.items()))
-        if key != "label"
+        if key not in {"label", "q_id"}
     }
     text = json.dumps(unlabeled, ensure_ascii=True, indent=2, sort_keys=True)
     document_id = "d" * 64
