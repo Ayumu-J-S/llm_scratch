@@ -27,12 +27,12 @@ from runtime.reproducibility import sha256_file
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 SHINGLE_CODEPOINTS = 48
-SCAN_REVISION = "BENCH-001-contamination-v8"
-NORMALIZATION_REVISION = "normalize-text-identity-nfc-strip-plus-json-object-v6"
+SCAN_REVISION = "BENCH-001-contamination-v9"
+NORMALIZATION_REVISION = "normalize-text-identity-nfc-strip-plus-json-object-v7"
 SCAN_INDEX_SCHEMA_VERSION = 2
 MATCHER_REVISION = "collision-verified-rolling-hash-codepoint-v1"
 JSON_OBJECT_NORMALIZATION_REVISION = (
-    "bounded-recursive-decoded-json-string-nfc-canonical-object-sha256-v5"
+    "fail-closed-bounded-recursive-decoded-json-string-nfc-object-sha256-v6"
 )
 PRODUCER_IDENTITY_REVISION = "contamination-producer-v1"
 PRODUCER_SOURCE_SCOPE_REVISION = "src-python-pyproject-lock-v1"
@@ -162,27 +162,32 @@ class _JsonTraversalBudget:
     nodes: int = 0
     decoded_strings: int = 0
 
-    def claim_parse(self, text: str, *, depth: int) -> bool:
+    def claim_parse(self, text: str, *, depth: int) -> None:
         if depth > self.limits.depth:
-            return False
+            raise _JsonTraversalLimitExceeded("depth")
         byte_count = len(text.encode("utf-8", errors="strict"))
         if self.total_bytes + byte_count > self.limits.total_bytes:
-            return False
+            raise _JsonTraversalLimitExceeded("total_bytes")
         self.total_bytes += byte_count
-        return True
 
     def claim_node(self, *, depth: int, decoded_string: bool = False) -> None:
-        if depth > self.limits.depth or self.nodes >= self.limits.nodes:
-            raise _JsonTraversalLimitExceeded
+        if depth > self.limits.depth:
+            raise _JsonTraversalLimitExceeded("depth")
+        if self.nodes >= self.limits.nodes:
+            raise _JsonTraversalLimitExceeded("nodes")
         if decoded_string and self.decoded_strings >= self.limits.decoded_strings:
-            raise _JsonTraversalLimitExceeded
+            raise _JsonTraversalLimitExceeded("decoded_strings")
         self.nodes += 1
         if decoded_string:
             self.decoded_strings += 1
 
 
-class _JsonTraversalLimitExceeded(ValueError):
+class _JsonTraversalLimitExceeded(RuntimeError):
     """A hostile or oversized decoded JSON candidate exceeded a fixed scan bound."""
+
+    def __init__(self, limit_name: str) -> None:
+        self.limit_name = limit_name
+        super().__init__(f"JSON traversal exhausted the {limit_name} limit")
 
 
 def scan_checkpoint_training_data(
@@ -623,13 +628,20 @@ def _document_matches(
         ("normalized", probe_index.normalized.get(_sha256(normalized), [])),
         ("shingle_48", probe_index.shingles.references_in(normalized)),
     ]
-    for structured_json in _canonical_json_objects(normalized):
-        observed.append(
-            (
-                "structured_json",
-                probe_index.structured_json.get(_sha256(structured_json), []),
+    try:
+        for structured_json in _canonical_json_objects(normalized):
+            observed.append(
+                (
+                    "structured_json",
+                    probe_index.structured_json.get(_sha256(structured_json), []),
+                )
             )
-        )
+    except _JsonTraversalLimitExceeded as error:
+        raise ContaminationScanError(
+            "complete contamination scan aborted: "
+            f"JSON traversal {error.limit_name} limit exhausted for "
+            f"source={source_name!r}, document_id={document_id!r}"
+        ) from error
     for match_type, references in observed:
         for reference in references:
             matches.append(
@@ -717,8 +729,7 @@ def _decode_json_candidate(
     """Decode and normalize one JSON candidate without allowing parser failures to escape."""
 
     try:
-        if not budget.claim_parse(text, depth=depth):
-            return None
+        budget.claim_parse(text, depth=depth)
         value = json.loads(text)
         decoded_values: list[tuple[str, int]] = []
         normalized = _normalize_decoded_json(
@@ -775,15 +786,15 @@ def _canonical_json_objects(
     while cursor < len(pending):
         candidate_text, decode_depth = pending[cursor]
         cursor += 1
+        if decode_depth >= budget.limits.depth and _may_contain_json(candidate_text):
+            raise _JsonTraversalLimitExceeded("depth")
         object_ranges: list[tuple[int, int]] = []
-        object_range_limit_reached = False
         for start, end, structural_depth in _embedded_json_object_ranges(
             candidate_text,
             max_depth=budget.limits.depth - decode_depth,
         ):
             if len(object_ranges) >= budget.limits.nodes:
-                object_range_limit_reached = True
-                break
+                raise _JsonTraversalLimitExceeded("nodes")
             object_ranges.append((start, end))
             decoded = _decode_json_candidate(
                 candidate_text[start:end],
@@ -800,8 +811,6 @@ def _canonical_json_objects(
                 decoded_values,
                 limits=budget.limits,
             )
-        if object_range_limit_reached:
-            continue
         object_range_index = 0
         for start, end, structural_depth in _json_string_literal_ranges(
             candidate_text,
@@ -842,8 +851,10 @@ def _queue_decoded_json_strings(
 ) -> None:
     for value, value_depth in decoded_values:
         next_depth = value_depth + 1
-        if next_depth > limits.depth or not _may_contain_json(value):
+        if not _may_contain_json(value):
             continue
+        if next_depth > limits.depth:
+            raise _JsonTraversalLimitExceeded("depth")
         digest = _sha256(value)
         previous_depth = seen_depth.get(digest)
         if previous_depth is not None and previous_depth <= next_depth:

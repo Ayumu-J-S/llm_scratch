@@ -22,6 +22,7 @@ from benchmarks.contamination import (
     SHINGLE_CODEPOINTS,
     ContaminationScanError,
     _canonical_json_objects,
+    _JsonTraversalLimitExceeded,
     _JsonTraversalLimits,
     _ShingleMatcher,
     _build_probe_index,
@@ -50,6 +51,7 @@ from benchmarks.suite import (
 )
 from data.identity import canonical_fingerprint
 from data.stream_loader.cache import BoundedShardCache
+from data.stream_loader.loader import RawDocument
 from generation.sampler import CheckpointSampler
 from models.simple_decoder_transformer import SimpleDecoderTransformer
 from runtime.config import ConfigPreflightError, validate_benchmark_config
@@ -377,10 +379,10 @@ def test_injected_contamination_reports_source_and_document_id(monkeypatch, tmp_
     index = json.loads(index_files[0].read_text(encoding="utf-8"))
     assert index["index_identity_sha256"] == evidence["scan_index_identity_sha256"]
     assert index["index_identity"]["normalization_revision"] == (
-        "normalize-text-identity-nfc-strip-plus-json-object-v6"
+        "normalize-text-identity-nfc-strip-plus-json-object-v7"
     )
     assert index["index_identity"]["json_object_normalization_revision"] == (
-        "bounded-recursive-decoded-json-string-nfc-canonical-object-sha256-v5"
+        "fail-closed-bounded-recursive-decoded-json-string-nfc-object-sha256-v6"
     )
     assert index["index_identity"]["matcher_revision"] == (
         "collision-verified-rolling-hash-codepoint-v1"
@@ -593,10 +595,14 @@ def test_decoded_json_traversal_enforces_each_exact_boundary():
         return list(_canonical_json_objects(serialized, limits=_JsonTraversalLimits(**limits)))
 
     assert identities() == [serialized]
-    assert identities(total_bytes=candidate_bytes - 1) == []
-    assert identities(nodes=3) == []
-    assert identities(depth=1) == []
-    assert identities(decoded_strings=1) == []
+    with pytest.raises(_JsonTraversalLimitExceeded, match="total_bytes"):
+        identities(total_bytes=candidate_bytes - 1)
+    with pytest.raises(_JsonTraversalLimitExceeded, match="nodes"):
+        identities(nodes=3)
+    with pytest.raises(_JsonTraversalLimitExceeded, match="depth"):
+        identities(depth=1)
+    with pytest.raises(_JsonTraversalLimitExceeded, match="decoded_strings"):
+        identities(decoded_strings=1)
 
     nested_record = '{"key":"value"}'
     array_wrapped_string = "[[" + json.dumps(nested_record) + "]]"
@@ -613,7 +619,8 @@ def test_decoded_json_traversal_enforces_each_exact_boundary():
         decoded_strings=8,
     )
     assert list(_canonical_json_objects(array_wrapped_string, limits=permissive)) == [nested_record]
-    assert list(_canonical_json_objects(array_wrapped_string, limits=shallow)) == []
+    with pytest.raises(_JsonTraversalLimitExceeded, match="depth"):
+        list(_canonical_json_objects(array_wrapped_string, limits=shallow))
 
 
 def test_decoded_json_rejects_recursive_normalized_key_collisions():
@@ -638,6 +645,112 @@ def test_hostile_json_depth_is_a_non_match_and_later_record_still_scans():
     )
 
     assert list(_canonical_json_objects(hostile + "\n" + serialized)) == [serialized]
+
+
+def _decoded_string_budget_document(example: BenchmarkExample, *, prefixes: int) -> str:
+    reordered = {
+        key: unicodedata.normalize("NFD", value) if isinstance(value, str) else value
+        for key, value in reversed(list(example.record.items()))
+    }
+    target = json.dumps(reordered, ensure_ascii=True, indent=2)
+    return ('{"n":"x"}\n' * prefixes) + target
+
+
+def test_default_decoded_string_budget_exhaustion_fails_closed(tmp_path: Path):
+    registry, fingerprint = _registry(tmp_path)
+    suite = load_suite(
+        registry,
+        expected_fingerprint=fingerprint,
+        access="dev",
+        cache=BoundedShardCache(tmp_path / "benchmark-cache", max_size_bytes=10_000_000),
+        timeout_seconds=1.0,
+    )
+    probe_index = _build_probe_index(suite)
+    example = next(task for task in suite.tasks if task.name == "jcommonsenseqa").examples[0]
+    exhausted = _decoded_string_budget_document(example, prefixes=4_095)
+
+    with pytest.raises(
+        ContaminationScanError,
+        match="decoded_strings limit exhausted.*fixture_train.*budget-document",
+    ):
+        _document_matches(
+            exhausted,
+            source_name="fixture_train",
+            document_id="budget-document",
+            upstream_id=None,
+            probe_index=probe_index,
+        )
+
+    bounded = _document_matches(
+        _decoded_string_budget_document(example, prefixes=4_000),
+        source_name="fixture_train",
+        document_id="bounded-document",
+        upstream_id=None,
+        probe_index=probe_index,
+    )
+    assert any(
+        match["benchmark_example_id"] == example.example_id
+        and match["benchmark_field"] == "canonical_record"
+        and match["match_type"] == "structured_json"
+        for match in bounded
+    )
+
+
+def test_scan_budget_exhaustion_writes_no_complete_or_stale_index(
+    monkeypatch,
+    tmp_path: Path,
+):
+    registry, fingerprint = _registry(tmp_path)
+    _, checkpoint_config = _pretraining_checkpoint(tmp_path)
+    suite = load_suite(
+        registry,
+        expected_fingerprint=fingerprint,
+        access="dev",
+        cache=BoundedShardCache(tmp_path / "benchmark-cache", max_size_bytes=10_000_000),
+        timeout_seconds=1.0,
+    )
+    example = next(task for task in suite.tasks if task.name == "jcommonsenseqa").examples[0]
+    documents = [_decoded_string_budget_document(example, prefixes=4_095)]
+
+    def manifest_source(*_args, **_kwargs):
+        text = documents[0]
+        return iter(
+            [
+                RawDocument(
+                    text=text,
+                    metadata={
+                        "document_id": "f" * 64,
+                        "content_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+                        "upstream_id": "budget-upstream",
+                    },
+                )
+            ]
+        )
+
+    monkeypatch.setattr(contamination_scans, "ManifestTextSource", manifest_source)
+    fallback = BoundedShardCache(tmp_path / "fallback", max_size_bytes=10_000_000)
+    with pytest.raises(
+        ContaminationScanError,
+        match=f"decoded_strings limit exhausted.*fixture_train.*{'f' * 64}",
+    ):
+        scan_checkpoint_training_data(
+            checkpoint_config,
+            suite,
+            fallback_cache=fallback,
+        )
+
+    index_dir = tmp_path / "training-cache/contamination-scans"
+    assert list(index_dir.glob("*.json")) == []
+
+    documents[0] = _decoded_string_budget_document(example, prefixes=4_000)
+    evidence = scan_checkpoint_training_data(
+        checkpoint_config,
+        suite,
+        fallback_cache=fallback,
+    )
+    assert evidence["scan_complete"] is True
+    assert evidence["contaminated"] is True
+    assert list(index_dir.glob("*.json"))
 
 
 def test_shingle_matcher_is_linear_and_does_not_materialize_corpus_windows():

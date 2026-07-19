@@ -81,6 +81,10 @@
 | 58 | Repair | Complete | Added per-document byte/node/structural-depth/decoded-string traversal budgets; iterative deduplicated rescanning of NFC-normalized decoded JSON string values; mapping identities inside nested objects/arrays; recursive normalized-key collision rejection; and safe handling of JSON parser, normalizer, and canonicalizer recursion/malformed failures. Revised the scan/cache identity |
 | 59 | Focused and canonical validation | PASS | 79 benchmark/generation/config/reproducibility tests plus Ruff pass. Regressions cover all 128 examples per task through double serialization, nested object/array strings, and quoted prose with ASCII-escaped NFD; exact and one-unit-beyond byte/node/depth/string caps; recursive key collisions; and a 1,200-level hostile candidate followed by a valid record. Pinned canonical development acceptance independently detects 128/128 JCommonsenseQA and 128/128 GSM8K for all three wrapper modes |
 | 60 | Full validation | PASS | Official CPU gate: 483 passed, 1 skipped; repository Ruff, resolved Hydra preflight, lock-drift detection, and disabled/offline process-tree-isolated smoke pass. Validation reused only the existing 4.2 MB benchmark cache with 426 GB free and did not launch a full training-corpus scan |
+| 61 | Supplemental exact-head re-audit | FAIL | Audit of clean head `cf67dcc` passed 127 focused tests and Ruff, then showed that one shared decoded-JSON budget could be exhausted by 4,095 tiny prefix objects in a 41.4 KB document. The later selected record became a silent non-match while the worker still reported `scan_complete=true`; byte, node, and decoded-string small-cap variants reproduced the same integrity failure |
+| 62 | Repair | Complete | Distinguished traversal-budget exhaustion from malformed/deep JSON non-matches. Byte, node, decoded-string, decode-depth, and candidate-count exhaustion now propagates as a source/document-scoped `ContaminationScanError` without raw text; the scan worker cannot construct a complete report or publish/cache an index. Bumped all scan/normalization/cache identities |
+| 63 | Focused and canonical validation | PASS | 81 benchmark/generation/config/reproducibility tests plus Ruff pass. The exact 4,095-prefix default reproduction fails closed with document diagnostics, 4,000 prefixes detects the target, each explicit cap fails closed, and the worker writes no index before a successful bounded rerun. Pinned canonical development acceptance remains 128/128 for both tasks across double-serialized, nested object/array, quoted-prose, and additional escaped-prose modes |
+| 64 | Full validation | PASS | Official CPU gate: 485 passed, 1 skipped; repository Ruff, resolved Hydra preflight, lock-drift detection, and disabled/offline process-tree-isolated smoke pass. Free disk remained 426 GB and no full training-corpus scan was launched |
 
 ## Resolved protocol
 
@@ -106,7 +110,9 @@
   normalized 48-codepoint shingles. Decoded JSON string values are recursively
   rescanned under fixed total-byte, node, structural-depth, and decoded-string
   limits, including nested object/array, double-serialized, and quoted-prose
-  wrappers; malformed or over-depth candidates cannot abort the corpus scan.
+  wrappers. Malformed or parser-overdepth candidates are bounded non-matches;
+  exhaustion of any work limit fails the complete scan closed with source and
+  document identity and cannot publish reusable complete evidence.
 
 ## Review selection
 
@@ -124,7 +130,7 @@
 
 ## Current conclusion
 
-All fifteen failed review/audit cycles remain visible. Their thirty-three findings are
+All sixteen failed review/audit cycles remain visible. Their thirty-four findings are
 repaired without weakening the fixed protocol or complete contamination gate:
 cheap context incompatibility precedes scanning, both tasks honor checkpoint
 precision, external records are pinned, evaluator/runtime and dirty source
@@ -148,7 +154,8 @@ key-order, whitespace, embedded wrapper, and ASCII-escaped decoded-NFD variants.
 Decoded JSON strings are recursively inspected through object, array,
 double-serialized, and quoted-prose wrappers under strict per-document
 byte/node/depth/string caps; normalized-key collisions and parser recursion are
-non-matches rather than scan crashes;
+non-matches rather than scan crashes, while actual traversal-budget exhaustion
+is an explicit incomplete-scan error that cannot become a cached PASS;
 canonical acceptance covers every selected development record in both tasks.
 External comparisons separately attest the compiled prompt and scorer hashes,
 and generation rejects non-finite logits before any GSM8K token or score is
