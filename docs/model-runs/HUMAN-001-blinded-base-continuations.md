@@ -401,7 +401,9 @@ Failed cycles are retained and must not be rewritten as passing cycles.
   exact bytes parsed as the public bundle.
 - Validation rerun: the three new regressions and existing tamper test pass;
   the broader affected reproducibility/HUMAN gate passes 46 tests and Ruff.
-  About 456 GB remained free.
+  Exact repair/docs head `483e3e6` passes 536 tests with one skip plus Ruff,
+  Hydra config preflight, lock drift, and credential-isolated offline
+  training/W&B smoke. About 456 GB remained free.
 - Remaining risk: BENCH advanced again during repair. Final target integration,
   the complete CPU gate, and independent exact-head re-review remain pending.
 
@@ -418,9 +420,9 @@ Failed cycles are retained and must not be rewritten as passing cycles.
   remain until the successor passes independent re-review.
 - Unresolved review threads: PR audit pending.
 - Required-context and configured-workflow inventory: pending final audit.
-- Exact-head check statuses: integrated target head `7d1aeae` passed 533 tests
-  with one skip plus Ruff, Hydra config, lock drift, and offline
-  training/W&B smoke; independent review pending.
+- Exact-head check statuses: repair/docs head `483e3e6` passed 536 tests with
+  one skip plus Ruff, Hydra config, lock drift, and offline training/W&B smoke;
+  advanced target integration and independent review remain pending.
 - Current base and mergeable evidence: BENCH target `c31e96e` is integrated;
   final GitHub refresh remains pending.
 - PR trail, validation, risks, and authorization parity: this record and PR #50
