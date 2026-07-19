@@ -17,6 +17,8 @@ SELECTED_RUNS=("$@")
 IMAGE=${WB001_IMAGE:-llm-scratch:env-001}
 RUN_TIMEOUT_SECONDS=${WB001_RUN_TIMEOUT_SECONDS:-1800}
 ROOT=$(git rev-parse --show-toplevel)
+HOST_UID=$(id -u)
+HOST_GID=$(id -g)
 SCRIPT=$(realpath "$0")
 VERIFIER="$ROOT/docs/experiments/evidence/verify_wb001_dgx.py"
 WANDB_INSPECTOR="$ROOT/docs/experiments/evidence/inspect_wandb_offline.py"
@@ -182,6 +184,7 @@ prime_cache() {
   set +e
   timeout --signal=TERM --kill-after=30 "$RUN_TIMEOUT_SECONDS" \
     docker run --rm --pull=never --gpus all --network none --ipc=host --name "$RUN_NAME" \
+      --user "$HOST_UID:$HOST_GID" \
       --ulimit memlock=-1 --ulimit stack=67108864 \
       -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory \
       -e GIT_CONFIG_VALUE_0=/workspace -e PYTHONPATH=/workspace/src \
@@ -231,6 +234,7 @@ run_one() {
   RUN_NAME="llm-scratch-wb001-$run_id"
   local command=(
     docker run --rm --pull=never --gpus all --network none --ipc=host
+    --user "$HOST_UID:$HOST_GID"
     --ulimit memlock=-1 --ulimit stack=67108864 --name "$RUN_NAME"
     -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory
     -e GIT_CONFIG_VALUE_0=/workspace -e PYTHONPATH=/workspace/src
