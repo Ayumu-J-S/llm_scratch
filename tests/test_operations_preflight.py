@@ -386,3 +386,28 @@ def test_container_mount_plan_rejects_writable_git_metadata_overlap(
             manifests={"data_manifests": []},
             cache={"caches": caches},
         )
+
+
+@pytest.mark.parametrize("nested", [False, True])
+def test_host_cache_preflight_rejects_git_metadata_overlap(tmp_path, monkeypatch, nested):
+    common_git = tmp_path / "common-git"
+    git_dir = common_git / "worktrees" / "fixture"
+    git_dir.mkdir(parents=True)
+    cache = common_git / "nested-cache" if nested else common_git
+    cache.mkdir(exist_ok=True)
+    plain = OmegaConf.to_container(_cfg(), resolve=True)
+    plain["data"]["streaming"] = {
+        "cache": {
+            "dir": str(cache),
+            "max_size_bytes": 1_000_000,
+            "min_free_bytes": 0,
+        }
+    }
+
+    def git_path(_root, argument):
+        return git_dir if argument == "--git-dir" else common_git
+
+    monkeypatch.setattr(preflight_module, "_git_absolute_path", git_path)
+
+    with pytest.raises(PreflightError, match="writable cache.*Git metadata"):
+        preflight_module._cache_check(OmegaConf.create(plain), ROOT_DIR)

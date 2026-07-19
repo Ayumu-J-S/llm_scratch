@@ -292,6 +292,7 @@ def _cache_check(cfg: Mapping[str, Any] | DictConfig, root_dir: Path) -> dict[st
     records = []
     for cache in caches:
         path = _rooted(str(cache["dir"]), root_dir)
+        reject_writable_git_overlap(root_dir, path, purpose="cache")
         records.append(
             {
                 "path": str(path),
