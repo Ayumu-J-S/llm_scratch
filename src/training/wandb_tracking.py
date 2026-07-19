@@ -950,6 +950,7 @@ class WandbTracker:
         data_fingerprints = self.checkpoint_identity.get("data_fingerprints", [])
         return {
             "lineage/experiment_id": self.checkpoint_identity.get("experiment_id"),
+            "lineage/run_lineage_id": self.checkpoint_identity.get("run_lineage_id"),
             "lineage/git_sha": self.checkpoint_identity.get("git_sha"),
             "lineage/config_sha256": self.checkpoint_identity.get("config_sha256"),
             "lineage/lock_sha256": self.checkpoint_identity.get("lock_sha256"),

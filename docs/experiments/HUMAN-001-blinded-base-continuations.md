@@ -39,6 +39,18 @@
 Do not edit these predeclared conditions after the first real preparation
 attempt. Add a dated note and a new attempt if the protocol must change.
 
+## Implementation review constraints added before any real attempt
+
+Formal review requires the first real attempt to prove, before generation, a
+complete exact/normalized scan of every checkpoint-owned training manifest for
+all HUMAN prompts. A match blocks and retains authenticated identifier/count/
+digest evidence without prompt text. The two checkpoints must share a unique
+run lineage rather than only a deterministic experiment recipe ID. Private
+mapping and result evidence must bind the fixed deterministic CUDA policy, Git
+HEAD and dirty-content digest, `uv.lock`, complete resolved HUMAN Hydra config,
+and concrete OS/PyTorch/CUDA/container identity. These are implementation
+integrity gates, not observed model results or changes to the hypothesis.
+
 ## Planned budget
 
 | Resource | Limit | Derivation / measurement source |
@@ -48,7 +60,7 @@ attempt. Add a dated note and a new attempt if the protocol must change.
 | Optimizer steps | 0 | Evaluation does not optimize |
 | Evaluation work and cadence | at most 1,024 generated tokens | 16 continuations × at most 64 new tokens |
 | Checkpoint count and bytes | 2 existing RUN-001 checkpoints; 0 new checkpoints | Meaningful milestone pair; loaded sequentially |
-| Local / external / W&B storage | compact JSON only; no W&B artifact | Public bundle plus private mapping/reviews/result; checkpoints stay local |
+| Local / external / W&B storage | compact JSON/index only; no W&B artifact; at least 100 GB remains free | Public bundle, private mapping/reviews/result, reusable prompt-scan index; checkpoints stay local |
 
 ## Attempt status — no decision-relevant run yet
 

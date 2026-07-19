@@ -172,6 +172,7 @@ def test_run_manifest_is_self_contained_and_mutation_is_explicit(tmp_path):
     payload = verify_run_manifest(run_dir)
     assert run_path.name == "run_manifest.json"
     assert payload["experiment_id"].startswith("exp-")
+    assert payload["run_lineage_id"].startswith("run-")
     assert (run_dir / "resolved_config.yaml").is_file()
     assert (run_dir / "tokenizer_manifest.json").is_file()
     assert (run_dir / "data_manifest_0.json").is_file()
@@ -182,7 +183,9 @@ def test_run_manifest_is_self_contained_and_mutation_is_explicit(tmp_path):
         verify_run_manifest(run_dir)
 
 
-def test_operational_controls_do_not_change_run_identity(monkeypatch, tmp_path):
+def test_operational_controls_preserve_recipe_but_not_independent_run_lineage(
+    monkeypatch, tmp_path
+):
     config = _manifest_config()
     config["artifacts"] = {
         "checkpoints_dir": "checkpoints",
@@ -245,15 +248,43 @@ def test_operational_controls_do_not_change_run_identity(monkeypatch, tmp_path):
 
     assert first_manifest["config"]["sha256"] != resumed_manifest["config"]["sha256"]
     assert first_manifest["experiment_id"] == resumed_manifest["experiment_id"]
+    assert first_manifest["run_lineage_id"] != resumed_manifest["run_lineage_id"]
     assert first_manifest["experiment_identity"] == resumed_manifest["experiment_identity"]
     assert first_manifest["experiment_identity"]["operational_exclusions"] == [
         "artifacts.resume_path",
         "measurement",
         "wandb",
     ]
-    assert build_checkpoint_identity(config, run_manifest_path=first_manifest_path) == (
+    assert build_checkpoint_identity(config, run_manifest_path=first_manifest_path) != (
         build_checkpoint_identity(resumed, run_manifest_path=resumed_manifest_path)
     )
+
+    inherited_run = tmp_path / "inherited-resume-run"
+    inherited_manifest_path = write_run_manifest(
+        cfg=resumed,
+        run_dir=inherited_run,
+        root_dir=ROOT,
+        resolved_config_path=resumed_resolved,
+        tokenizer_manifest_path=TOKENIZER,
+        tokenizer_expected_fingerprint=TOKENIZER_FINGERPRINT,
+        run_lineage_id=first_manifest["run_lineage_id"],
+    )
+    inherited_manifest = json.loads(inherited_manifest_path.read_text(encoding="utf-8"))
+    assert inherited_manifest["run_lineage_id"] == first_manifest["run_lineage_id"]
+    assert build_checkpoint_identity(config, run_manifest_path=first_manifest_path) == (
+        build_checkpoint_identity(resumed, run_manifest_path=inherited_manifest_path)
+    )
+
+    retained_manifest_path = write_run_manifest(
+        cfg=resumed,
+        run_dir=first_run,
+        root_dir=ROOT,
+        resolved_config_path=resumed_resolved,
+        tokenizer_manifest_path=TOKENIZER,
+        tokenizer_expected_fingerprint=TOKENIZER_FINGERPRINT,
+    )
+    retained_manifest = json.loads(retained_manifest_path.read_text(encoding="utf-8"))
+    assert retained_manifest["run_lineage_id"] == first_manifest["run_lineage_id"]
 
 
 def test_operational_wandb_controls_do_not_change_checkpoint_compatibility():

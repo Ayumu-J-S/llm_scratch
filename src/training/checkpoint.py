@@ -31,6 +31,7 @@ from data.identity import canonical_json_bytes
 
 CHECKPOINT_SCHEMA_VERSION = 1
 _RECOVERY_PATTERN = re.compile(r"^recovery-step-(\d{12})\.pt$")
+_RUN_LINEAGE_PATTERN = re.compile(r"^run-[0-9a-f]{32}$")
 
 
 class CheckpointError(RuntimeError):
@@ -174,9 +175,12 @@ def build_checkpoint_identity(
         git = run_manifest.get("git")
         lock = run_manifest.get("lock")
         experiment_id = run_manifest.get("experiment_id")
+        run_lineage_id = run_manifest.get("run_lineage_id")
         if (
             not isinstance(experiment_id, str)
             or not experiment_id
+            or not isinstance(run_lineage_id, str)
+            or _RUN_LINEAGE_PATTERN.fullmatch(run_lineage_id) is None
             or not isinstance(git, Mapping)
             or not isinstance(git.get("sha"), str)
             or not git["sha"]
@@ -185,10 +189,12 @@ def build_checkpoint_identity(
             or not lock["sha256"]
         ):
             raise CheckpointError(
-                "run manifest for checkpoint identity requires experiment_id, git.sha, and lock.sha256"
+                "run manifest for checkpoint identity requires experiment_id, run_lineage_id, "
+                "git.sha, and lock.sha256"
             )
         # These are the recorded immutable run values, not inferred substitutes.
         identity["experiment_id"] = experiment_id
+        identity["run_lineage_id"] = run_lineage_id
         identity["git_sha"] = git["sha"]
         identity["lock_sha256"] = lock["sha256"]
     return identity
@@ -487,6 +493,34 @@ class CheckpointManager:
             if match is not None and path.is_file():
                 entries.append((int(match.group(1)), path))
         return [path for _, path in sorted(entries, reverse=True)]
+
+
+def load_run_lineage_from_resume(resume_path: str | Path, *, checkpoint_dir: str | Path) -> str:
+    """Read the unique run lineage from the newest verified resume candidate."""
+
+    probe = CheckpointManager(checkpoint_dir, keep_last_n=1, identity={})
+    candidates = probe._resume_candidates(resume_path)
+    if not candidates:
+        raise CheckpointVerificationError(
+            f"no recovery checkpoint found for resume path: {resume_path}"
+        )
+    rejected: list[Path] = []
+    for path in candidates:
+        try:
+            payload = probe._read_verified(path)
+        except CheckpointVerificationError:
+            rejected.append(path)
+            continue
+        lineage = payload["identity"].get("run_lineage_id")
+        if not isinstance(lineage, str) or _RUN_LINEAGE_PATTERN.fullmatch(lineage) is None:
+            raise CheckpointCompatibilityError(
+                "resume checkpoint is missing its unique run_lineage_id"
+            )
+        return lineage
+    names = ", ".join(str(path) for path in rejected)
+    raise CheckpointVerificationError(
+        f"no verified recovery checkpoint remains for lineage; rejected: {names}"
+    )
 
 
 def _checkpoint_step(payload: Mapping[str, Any]) -> int:

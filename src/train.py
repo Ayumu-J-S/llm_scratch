@@ -21,6 +21,7 @@ from runtime.reproducibility import (
 from training.checkpoint import (
     CheckpointManager,
     build_checkpoint_identity,
+    load_run_lineage_from_resume,
     require_exact_stream_resume_state,
 )
 from training.optimization import build_optimizer, build_scheduler
@@ -313,6 +314,13 @@ def prepare_trainer(cfg: DictConfig, *, run_dir: Path | None = None) -> Trainer:
     )
     device = select_device(cfg.runtime.device)
     logger.info("Using device: {}", device)
+    checkpoint_dir = run_dir / Path(cfg.artifacts.checkpoints_dir)
+    resume_path = cfg.artifacts.get("resume_path")
+    inherited_run_lineage = None
+    if resume_path is not None and not (run_dir / "run_manifest.json").exists():
+        inherited_run_lineage = load_run_lineage_from_resume(
+            resume_path, checkpoint_dir=checkpoint_dir
+        )
     resolved_config_path = save_resolved_config(cfg, run_dir=run_dir)
     logger.info("Resolved Hydra config: {}", resolved_config_path)
     tokenizer_config = build_tokenizer_config(cfg)
@@ -323,6 +331,7 @@ def prepare_trainer(cfg: DictConfig, *, run_dir: Path | None = None) -> Trainer:
         resolved_config_path=resolved_config_path,
         tokenizer_manifest_path=ROOT_DIR / tokenizer_config["manifest_path"],
         tokenizer_expected_fingerprint=tokenizer_config.get("expected_fingerprint"),
+        run_lineage_id=inherited_run_lineage,
     )
     logger.info("Run manifest: {}", run_manifest_path)
 
@@ -332,12 +341,10 @@ def prepare_trainer(cfg: DictConfig, *, run_dir: Path | None = None) -> Trainer:
     logger.info("Tokenizer vocab size: {}", tokenizer.vocab_size)
     logger.info("Tokenizer fingerprint: {}", tokenizer.fingerprint)
 
-    checkpoint_dir = run_dir / Path(cfg.artifacts.checkpoints_dir)
     checkpoint_identity = build_checkpoint_identity(
         cfg,
         run_manifest_path=run_manifest_path,
     )
-    resume_path = cfg.artifacts.get("resume_path")
     if resume_path is not None:
         # Read and compare the full checkpoint header before opening the train
         # stream. Trainer performs the same verified load immediately before

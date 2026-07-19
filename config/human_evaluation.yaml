@@ -21,6 +21,14 @@ generation:
 scores:
   paths: []
 
+contamination:
+  cache:
+    dir: ${hydra:runtime.cwd}/outputs/human-evaluation-cache
+    max_size_bytes: 100000000
+    # Preserve the operator-requested 100 GB disk reserve during complete scans.
+    min_free_bytes: 100000000000
+    wait_timeout_seconds: 120.0
+
 hydra:
   run:
     dir: ${hydra:runtime.cwd}/human-evaluation/.hydra/${now:%Y%m%d-%H%M%S}

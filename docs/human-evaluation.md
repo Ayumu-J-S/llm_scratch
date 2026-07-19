@@ -12,14 +12,24 @@ seed for a prompt under the fixed generation contract:
 - one explicit master seed, with a private HMAC-derived per-prompt seed
 
 The two full-state checkpoints must be physically distinct, reconstructable by
-the canonical sampler, belong to the same experiment/config/tokenizer/data
-identity, advance both optimizer-step and target-token counters, and be at
+the canonical sampler, belong to the same unique `run_lineage_id` as well as the
+same experiment/config/tokenizer/data identity, advance both optimizer-step and target-token counters, and be at
 least 25% apart using the later checkpoint's target-token count as the
 denominator. The real Hydra workflow defaults to `device=cuda` for canonical
 BF16 RUN-001 checkpoints. Sampling uses the checkpoint-owned `training.precision`
 and the exact physical SHA-256 verified for the private mapping. It loads and
 finishes one checkpoint before loading the other, so it does not keep two
 models resident on the DGX Spark.
+
+Before either model is loaded for generation, the workflow scans every document
+in every checkpoint-owned training manifest for exact and normalized occurrences
+of all eight prompts. Any occurrence blocks generation and leaves an
+authenticated private report containing prompt IDs, source/document IDs,
+counts, and digests but no prompt text. The scan cache is identity-bound to the
+prompt set, run/config/data manifests, and scanner implementation, and enforces
+at least 100 GB free disk. Generation uses the same strict deterministic CUDA
+policy as BENCH-001: deterministic algorithms, math SDPA only, TF32 disabled,
+and a pre-initialization cuBLAS workspace policy.
 
 ## Prepare the study
 
@@ -53,10 +63,10 @@ uv run llm-scratch-human-evaluate \
 ```
 
 The opaque study ID is an HMAC over the versioned prompt set, generation seed,
-and exact private checkpoint pair. The assignment is reproducible with the same
+exact private checkpoint pair, completed contamination report, deterministic
+policy, and evaluator identity. The assignment is reproducible with the same
 key and inputs. Within each language, the earlier checkpoint appears as A twice
-and B twice, preventing checkpoint position from being confounded with
-language.
+and B twice, preventing checkpoint position from being confounded with language.
 
 The workspace separates material by purpose:
 
@@ -77,7 +87,11 @@ score files cannot cross-apply to another bundle even when its study/item IDs
 match. The closed public schema has no checkpoint, run, path, checkpoint hash,
 counter, seed, ordering, or mapping fields. The
 private mapping records exact checkpoint paths/SHA-256/counters and generation
-seeds, authenticates them with HMAC-SHA256, and binds the public bundle hash.
+seeds, the unique run lineage, complete clean contamination report, deterministic
+policy, and evaluator identity. The evaluator identity includes Git HEAD plus
+dirty-content digest, `uv.lock`, complete resolved HUMAN Hydra configuration,
+and OS/Python/PyTorch/CUDA/container details. HMAC-SHA256 authenticates this
+private evidence and binds the public bundle hash.
 
 ## Human scoring
 
@@ -133,7 +147,9 @@ The private result retains each score-file checksum, unblinds every rating to
 the exact earlier/later checkpoint identity, reports per-checkpoint rubric
 means and preferences, and computes reviewer-pair denominators, exact
 preference agreement, exact rating agreement, and rating mean absolute
-difference. A new score-file set receives a new immutable result filename.
+difference. It also retains preparation/import evaluator identities, the fixed
+determinism policy, and the complete prompt-contamination report. A new
+score-file set receives a new immutable result filename.
 
 ## Research-integrity boundary
 

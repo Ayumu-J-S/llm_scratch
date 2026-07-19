@@ -140,6 +140,10 @@ sections are operational controls, not experiment changes. They remain in the
 byte-exact resolved-config evidence, while run/checkpoint experiment identity
 excludes them so enabling timing, changing its output path, or changing
 observability cannot invalidate resume.
+Each new run directory also receives a random `run_lineage_id` in its manifest
+and full-state checkpoints. Re-entering the same run directory retains that
+lineage for resume, while an independent launch with the same deterministic
+recipe receives a different lineage and cannot masquerade as the same run.
 Standalone evaluator-run identity still records and hashes its full resolved
 evaluation config, including `measurement`; the exclusion applies only to the
 training experiment/checkpoint identity.

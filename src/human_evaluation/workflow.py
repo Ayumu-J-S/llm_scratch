@@ -16,7 +16,12 @@ from pathlib import Path
 from typing import Any
 
 from data.identity import canonical_json_bytes
+from data.stream_loader.cache import BoundedShardCache
 from generation.sampler import CheckpointSampler
+from human_evaluation.contamination import (
+    MINIMUM_FREE_BYTES,
+    scan_checkpoint_training_prompts,
+)
 from human_evaluation.schema import (
     EVALUATOR_REVISION,
     MAX_NEW_TOKENS,
@@ -34,6 +39,11 @@ from human_evaluation.schema import (
     load_prompt_set,
 )
 from training.checkpoint import LoadedCheckpoint, load_checkpoint_for_generation
+from runtime.evaluation import (
+    EVALUATION_DETERMINISM_POLICY,
+    apply_evaluation_determinism_policy,
+    collect_evaluator_identity,
+)
 
 
 _FORBIDDEN_OUTPUT_PARTS = frozenset(
@@ -58,6 +68,7 @@ _CHECKPOINT_SHARED_IDENTITY_FIELDS = (
     "model_config",
     "tokenizer_fingerprint",
     "data_fingerprints",
+    "run_lineage_id",
 )
 _PUBLIC_FIELDS = {
     "schema_version",
@@ -112,6 +123,7 @@ def prepare_evaluation(
     earlier_checkpoint: str | Path,
     later_checkpoint: str | Path,
     generation_seed: int,
+    operational_config: Mapping[str, Any],
     device: str = "cpu",
 ) -> dict[str, Path]:
     """Generate a balanced blinded bundle and authenticated private mapping."""
@@ -119,6 +131,11 @@ def prepare_evaluation(
     seed = _nonnegative_int(generation_seed, "generation_seed")
     if device not in {"cpu", "cuda"}:
         raise HumanEvaluationError("device must be explicitly cpu or cuda")
+    determinism_policy = apply_evaluation_determinism_policy()
+    evaluator_identity = collect_evaluator_identity(
+        _REPOSITORY_ROOT, resolved_config=operational_config
+    )
+    evaluator_identity_sha256 = hashlib.sha256(canonical_json_bytes(evaluator_identity)).hexdigest()
     workspace, public_path, mapping_path = _study_paths(workspace_dir)
     key_path, key = _read_key(blinding_key_path)
     _require_key_outside_workspace(key_path, workspace)
@@ -128,16 +145,44 @@ def prepare_evaluation(
     _require_key_outside_repository(key_path)
 
     candidates = _load_checkpoint_candidates(earlier_checkpoint, later_checkpoint)
+    prompt_set_sha256 = _sha256_file(prompt_path)
+    contamination = scan_checkpoint_training_prompts(
+        candidates["earlier"]["_resolved_config"],
+        candidates["earlier"]["_checkpoint_identity"],
+        prompt_set.prompts,
+        prompt_set_version=prompt_set.version,
+        prompt_set_sha256=prompt_set_sha256,
+        evaluated_checkpoints=[candidates[slot] for slot in ("earlier", "later")],
+        fallback_cache=_contamination_cache(operational_config),
+        repository_root=_REPOSITORY_ROOT,
+    )
+    contamination_sha256 = hashlib.sha256(canonical_json_bytes(contamination)).hexdigest()
+    if contamination.get("scan_complete") is not True:
+        raise HumanEvaluationError("prompt contamination scan did not complete")
+    if contamination.get("contaminated") is True:
+        evidence_path = _write_blocked_contamination_evidence(
+            workspace,
+            key=key,
+            contamination=contamination,
+            evaluator_identity=evaluator_identity,
+            determinism_policy=determinism_policy,
+        )
+        raise HumanEvaluationError(
+            f"HUMAN-001 prompts occur in checkpoint training data; blocked evidence: {evidence_path}"
+        )
     study_id = _blind_id(
         key,
         "study",
         {
             "prompt_set_version": prompt_set.version,
-            "prompt_set_sha256": _sha256_file(prompt_path),
+            "prompt_set_sha256": prompt_set_sha256,
             "generation_seed": seed,
             "device": device,
             "protocol_version": PROTOCOL_VERSION,
             "evaluator_revision": EVALUATOR_REVISION,
+            "evaluator_identity_sha256": evaluator_identity_sha256,
+            "determinism_policy": determinism_policy,
+            "contamination_sha256": contamination_sha256,
             "checkpoint_pair": [
                 {
                     "slot": slot,
@@ -145,6 +190,7 @@ def prepare_evaluation(
                     "target_tokens": candidates[slot]["target_tokens"],
                     "optimizer_step": candidates[slot]["optimizer_step"],
                     "experiment_id": candidates[slot]["experiment_id"],
+                    "run_lineage_id": candidates[slot]["run_lineage_id"],
                 }
                 for slot in ("earlier", "later")
             ],
@@ -224,6 +270,7 @@ def prepare_evaluation(
         "protocol": {
             "version": PROTOCOL_VERSION,
             "evaluator_revision": EVALUATOR_REVISION,
+            "determinism_policy_revision": determinism_policy["revision"],
             "device": device,
         },
         "sampling": {
@@ -244,6 +291,9 @@ def prepare_evaluation(
             "checkpoint_precision": {
                 slot: candidates[slot]["precision"] for slot in ("earlier", "later")
             },
+            "contamination_sha256": contamination_sha256,
+            "evaluator_identity": evaluator_identity,
+            "determinism_policy": determinism_policy,
         },
     )
     public_bundle = {
@@ -260,7 +310,7 @@ def prepare_evaluation(
         "prompt_set": {
             "version": prompt_set.version,
             "path": str(prompt_path),
-            "sha256": _sha256_file(prompt_path),
+            "sha256": prompt_set_sha256,
         },
         "generation": {
             "max_new_tokens": MAX_NEW_TOKENS,
@@ -269,7 +319,16 @@ def prepare_evaluation(
             "seed": seed,
             "device": device,
         },
-        "checkpoints": [candidates["earlier"], candidates["later"]],
+        "checkpoints": [
+            _private_checkpoint(candidates["earlier"]),
+            _private_checkpoint(candidates["later"]),
+        ],
+        "contamination": contamination,
+        "evaluator": {
+            "identity": evaluator_identity,
+            "identity_sha256": evaluator_identity_sha256,
+        },
+        "determinism_policy": determinism_policy,
         "assignments": private_assignments,
         "public_bundle_sha256": hashlib.sha256(public_bytes).hexdigest(),
     }
@@ -292,6 +351,7 @@ def import_scores(
     workspace_dir: str | Path,
     blinding_key_path: str | Path,
     score_paths: Sequence[str | Path],
+    operational_config: Mapping[str, Any],
 ) -> Path:
     """Validate human score files, compute agreement, and unblind privately."""
 
@@ -299,6 +359,12 @@ def import_scores(
     _require_workspace_directories(workspace)
     key_path, key = _read_key(blinding_key_path)
     _require_key_outside_workspace(key_path, workspace)
+    import_evaluator_identity = collect_evaluator_identity(
+        _REPOSITORY_ROOT, resolved_config=operational_config
+    )
+    import_evaluator_identity_sha256 = hashlib.sha256(
+        canonical_json_bytes(import_evaluator_identity)
+    ).hexdigest()
     if len(score_paths) < 2:
         raise HumanEvaluationError("at least two human score files are required")
     for score_path in score_paths:
@@ -370,6 +436,15 @@ def import_scores(
         "study_id": public_bundle["study_id"],
         "bundle_id": public_bundle["bundle_id"],
         "public_bundle_sha256": expected_public_hash,
+        "contamination": private_payload["contamination"],
+        "determinism_policy": private_payload["determinism_policy"],
+        "evaluators": {
+            "prepare": private_payload["evaluator"],
+            "import": {
+                "identity": import_evaluator_identity,
+                "identity_sha256": import_evaluator_identity_sha256,
+            },
+        },
         "reviewers": [score["reviewer_id"] for score in scores],
         "score_files": score_files,
         "checkpoints": list(checkpoint_by_slot.values()),
@@ -388,6 +463,7 @@ def import_scores(
                 "study_id": public_bundle["study_id"],
                 "bundle_id": public_bundle["bundle_id"],
                 "score_sha256": [record["sha256"] for record in score_files],
+                "import_evaluator_identity_sha256": import_evaluator_identity_sha256,
             }
         )
     ).hexdigest()[:16]
@@ -432,6 +508,7 @@ def run_from_config(config: Mapping[str, Any]) -> dict[str, Any]:
             earlier_checkpoint=_required_path(checkpoints.get("earlier"), "checkpoints.earlier"),
             later_checkpoint=_required_path(checkpoints.get("later"), "checkpoints.later"),
             generation_seed=_nonnegative_int(generation.get("seed"), "generation.seed"),
+            operational_config=config,
             device=device,
         )
         return {name: str(path) for name, path in paths.items()}
@@ -444,6 +521,7 @@ def run_from_config(config: Mapping[str, Any]) -> dict[str, Any]:
             workspace_dir=workspace,
             blinding_key_path=key_path,
             score_paths=paths,
+            operational_config=config,
         )
         return {"private_result": str(result)}
     raise HumanEvaluationError("action must be create_key, prepare, or import_scores")
@@ -474,6 +552,12 @@ def _load_checkpoint_candidates(
         identities[slot] = copy.deepcopy(dict(identity))
         for field in ("experiment_id", "git_sha", "lock_sha256"):
             _nonempty_string(identity.get(field), f"{slot} checkpoint identity.{field}")
+        run_lineage_id = _run_lineage_id(
+            identity.get("run_lineage_id"), f"{slot} checkpoint identity.run_lineage_id"
+        )
+        data_fingerprints = _sha256_list(
+            identity.get("data_fingerprints"), f"{slot} checkpoint identity.data_fingerprints"
+        )
         candidates[slot] = {
             "slot": slot,
             "path": str(Path(checkpoint.physical_identity["path"]).resolve()),
@@ -485,8 +569,11 @@ def _load_checkpoint_candidates(
             ),
             "kind": _nonempty_string(payload.get("kind"), f"{slot} checkpoint kind"),
             "experiment_id": identity["experiment_id"],
+            "run_lineage_id": run_lineage_id,
             "git_sha": identity["git_sha"],
-            "lock_sha256": identity["lock_sha256"],
+            "lock_sha256": _sha256_string(
+                identity["lock_sha256"], f"{slot} checkpoint lock_sha256"
+            ),
             "config_sha256": _sha256_string(
                 identity.get("config_sha256"), f"{slot} checkpoint config_sha256"
             ),
@@ -494,11 +581,14 @@ def _load_checkpoint_candidates(
                 identity.get("tokenizer_fingerprint"),
                 f"{slot} checkpoint tokenizer_fingerprint",
             ),
+            "data_fingerprints": data_fingerprints,
             "optimizer_step": _nonnegative_int(
                 counters.get("optimizer_step"), f"{slot} optimizer_step"
             ),
             "target_tokens": _positive_int(counters.get("target_tokens"), f"{slot} target_tokens"),
             "precision": _checkpoint_precision(training_config.get("precision")),
+            "_resolved_config": copy.deepcopy(dict(resolved_config)),
+            "_checkpoint_identity": copy.deepcopy(dict(identity)),
         }
         del checkpoint, payload, state, counters, resolved_config, training_config, identity
     if candidates["earlier"]["sha256"] == candidates["later"]["sha256"]:
@@ -520,6 +610,77 @@ def _load_checkpoint_candidates(
     if candidates["later"]["optimizer_step"] <= candidates["earlier"]["optimizer_step"]:
         raise HumanEvaluationError("later checkpoint must have a larger optimizer-step counter")
     return candidates
+
+
+def _private_checkpoint(candidate: Mapping[str, Any]) -> dict[str, Any]:
+    fields = {
+        "slot",
+        "path",
+        "sha256",
+        "size_bytes",
+        "kind",
+        "experiment_id",
+        "run_lineage_id",
+        "git_sha",
+        "lock_sha256",
+        "config_sha256",
+        "tokenizer_fingerprint",
+        "data_fingerprints",
+        "optimizer_step",
+        "target_tokens",
+        "precision",
+    }
+    return {field: copy.deepcopy(candidate[field]) for field in fields}
+
+
+def _contamination_cache(config: Mapping[str, Any]) -> BoundedShardCache:
+    contamination = _required_mapping(config.get("contamination"), "contamination")
+    cache = _required_mapping(contamination.get("cache"), "contamination.cache")
+    path = Path(_required_path(cache.get("dir"), "contamination.cache.dir")).expanduser()
+    if not path.is_absolute():
+        path = _REPOSITORY_ROOT / path
+    return BoundedShardCache(
+        path.resolve(),
+        max_size_bytes=_positive_int(
+            cache.get("max_size_bytes"), "contamination.cache.max_size_bytes"
+        ),
+        min_free_bytes=max(
+            _nonnegative_int(cache.get("min_free_bytes"), "contamination.cache.min_free_bytes"),
+            MINIMUM_FREE_BYTES,
+        ),
+        wait_timeout_seconds=_positive_number(
+            cache.get("wait_timeout_seconds"), "contamination.cache.wait_timeout_seconds"
+        ),
+    )
+
+
+def _write_blocked_contamination_evidence(
+    workspace: Path,
+    *,
+    key: bytes,
+    contamination: Mapping[str, Any],
+    evaluator_identity: Mapping[str, Any],
+    determinism_policy: Mapping[str, Any],
+) -> Path:
+    payload = {
+        "status": "blocked_contamination",
+        "contamination": dict(contamination),
+        "evaluator": dict(evaluator_identity),
+        "determinism_policy": dict(determinism_policy),
+    }
+    evidence = {
+        "schema_version": "human-evaluation-contamination-v1",
+        "payload": payload,
+        "authentication": {
+            "algorithm": "HMAC-SHA256",
+            "tag": hmac.new(key, canonical_json_bytes(payload), hashlib.sha256).hexdigest(),
+        },
+    }
+    identity = hashlib.sha256(canonical_json_bytes(payload)).hexdigest()[:16]
+    path = workspace / "private" / f"contamination-blocked-{identity}.json"
+    _prepare_workspace_directories(workspace)
+    _write_new_or_identical(path, _json_bytes(evidence), mode=0o600)
+    return path
 
 
 def _balanced_assignments(
@@ -558,11 +719,17 @@ def _validate_public_bundle(bundle: dict[str, Any]) -> None:
     protocol = bundle["protocol"]
     if not isinstance(protocol, dict):
         raise HumanEvaluationError("public protocol must be an object")
-    _exact_fields(protocol, {"version", "evaluator_revision", "device"}, "public protocol")
+    _exact_fields(
+        protocol,
+        {"version", "evaluator_revision", "determinism_policy_revision", "device"},
+        "public protocol",
+    )
     if protocol["version"] != PROTOCOL_VERSION:
         raise HumanEvaluationError("public protocol version is unsupported")
     if protocol["evaluator_revision"] != EVALUATOR_REVISION:
         raise HumanEvaluationError("public evaluator revision is unsupported")
+    if protocol["determinism_policy_revision"] != EVALUATION_DETERMINISM_POLICY["revision"]:
+        raise HumanEvaluationError("public determinism policy revision is unsupported")
     if protocol["device"] not in {"cpu", "cuda"}:
         raise HumanEvaluationError("public protocol device must be cpu or cuda")
     if bundle["sampling"] != {
@@ -741,6 +908,9 @@ def _validate_private_payload(payload: dict[str, Any], public_bundle: dict[str, 
             "checkpoints",
             "assignments",
             "public_bundle_sha256",
+            "contamination",
+            "evaluator",
+            "determinism_policy",
         },
         "private mapping payload",
     )
@@ -748,6 +918,33 @@ def _validate_private_payload(payload: dict[str, Any], public_bundle: dict[str, 
         raise HumanEvaluationError("public and private study IDs differ")
     if payload["bundle_id"] != public_bundle["bundle_id"]:
         raise HumanEvaluationError("public and private bundle IDs differ")
+    contamination = payload["contamination"]
+    if (
+        not isinstance(contamination, dict)
+        or contamination.get("scan_complete") is not True
+        or contamination.get("contaminated") is not False
+        or contamination.get("matches") != []
+    ):
+        raise HumanEvaluationError("private evidence requires a complete clean prompt scan")
+    contamination_identity = contamination.get("identity")
+    if (
+        not isinstance(contamination_identity, Mapping)
+        or contamination.get("identity_sha256")
+        != hashlib.sha256(canonical_json_bytes(contamination_identity)).hexdigest()
+    ):
+        raise HumanEvaluationError("private prompt scan identity is invalid")
+    evaluator = payload["evaluator"]
+    if not isinstance(evaluator, dict):
+        raise HumanEvaluationError("private evaluator identity must be an object")
+    _exact_fields(evaluator, {"identity", "identity_sha256"}, "private evaluator")
+    if (
+        not isinstance(evaluator["identity"], Mapping)
+        or evaluator["identity_sha256"]
+        != hashlib.sha256(canonical_json_bytes(evaluator["identity"])).hexdigest()
+    ):
+        raise HumanEvaluationError("private evaluator identity digest is invalid")
+    if payload["determinism_policy"] != EVALUATION_DETERMINISM_POLICY:
+        raise HumanEvaluationError("private determinism policy differs from the fixed policy")
     prompt_set = payload["prompt_set"]
     if not isinstance(prompt_set, dict):
         raise HumanEvaluationError("private prompt_set must be an object")
@@ -785,10 +982,12 @@ def _validate_private_payload(payload: dict[str, Any], public_bundle: dict[str, 
         "size_bytes",
         "kind",
         "experiment_id",
+        "run_lineage_id",
         "git_sha",
         "lock_sha256",
         "config_sha256",
         "tokenizer_fingerprint",
+        "data_fingerprints",
         "optimizer_step",
         "target_tokens",
         "precision",
@@ -805,15 +1004,61 @@ def _validate_private_payload(payload: dict[str, Any], public_bundle: dict[str, 
         _nonempty_string(checkpoint["path"], f"private checkpoint {slot}.path")
         for field in ("sha256", "lock_sha256", "config_sha256", "tokenizer_fingerprint"):
             _sha256_string(checkpoint[field], f"private checkpoint {slot}.{field}")
+        data_fingerprints = checkpoint["data_fingerprints"]
+        if not isinstance(data_fingerprints, list) or not data_fingerprints:
+            raise HumanEvaluationError(
+                f"private checkpoint {slot}.data_fingerprints must be a non-empty list"
+            )
+        for index, fingerprint in enumerate(data_fingerprints):
+            _sha256_string(fingerprint, f"private checkpoint {slot}.data_fingerprints[{index}]")
         _positive_int(checkpoint["size_bytes"], f"private checkpoint {slot}.size_bytes")
         _nonempty_string(checkpoint["kind"], f"private checkpoint {slot}.kind")
         _nonempty_string(checkpoint["experiment_id"], f"private checkpoint {slot}.experiment_id")
+        _run_lineage_id(checkpoint["run_lineage_id"], f"private checkpoint {slot}.run_lineage_id")
         _nonempty_string(checkpoint["git_sha"], f"private checkpoint {slot}.git_sha")
         _nonnegative_int(checkpoint["optimizer_step"], f"private checkpoint {slot}.optimizer_step")
         _positive_int(checkpoint["target_tokens"], f"private checkpoint {slot}.target_tokens")
         _checkpoint_precision(checkpoint["precision"])
     if slots != {"earlier", "later"}:
         raise HumanEvaluationError("private mapping must contain earlier and later checkpoints")
+    earlier_checkpoint = next(
+        checkpoint for checkpoint in checkpoints if checkpoint["slot"] == "earlier"
+    )
+    scan_checkpoint = contamination_identity.get("checkpoint")
+    scan_evaluated_checkpoints = contamination_identity.get("evaluated_checkpoints")
+    scan_prompt_set = contamination_identity.get("prompt_set")
+    if not isinstance(scan_checkpoint, Mapping) or {
+        "config_sha256": scan_checkpoint.get("config_sha256"),
+        "run_lineage_id": scan_checkpoint.get("run_lineage_id"),
+        "data_fingerprints": scan_checkpoint.get("data_fingerprints"),
+    } != {
+        "config_sha256": earlier_checkpoint["config_sha256"],
+        "run_lineage_id": earlier_checkpoint["run_lineage_id"],
+        "data_fingerprints": earlier_checkpoint["data_fingerprints"],
+    }:
+        raise HumanEvaluationError("prompt scan is not bound to the evaluated checkpoint/data")
+    expected_scan_pair = sorted(
+        [
+            {
+                "slot": checkpoint["slot"],
+                "sha256": checkpoint["sha256"],
+                "optimizer_step": checkpoint["optimizer_step"],
+                "target_tokens": checkpoint["target_tokens"],
+            }
+            for checkpoint in checkpoints
+        ],
+        key=lambda checkpoint: checkpoint["slot"],
+    )
+    if scan_evaluated_checkpoints != expected_scan_pair:
+        raise HumanEvaluationError("prompt scan is not bound to the exact checkpoint pair")
+    if not isinstance(scan_prompt_set, Mapping) or {
+        "version": scan_prompt_set.get("version"),
+        "sha256": scan_prompt_set.get("sha256"),
+    } != {
+        "version": prompt_set["version"],
+        "sha256": prompt_set["sha256"],
+    }:
+        raise HumanEvaluationError("prompt scan is not bound to the evaluated prompt set")
 
     assignments = payload["assignments"]
     public_item_ids = {item["item_id"] for item in public_bundle["items"]}
@@ -853,14 +1098,18 @@ def _reject_private_identity_leak(
             "path",
             "sha256",
             "experiment_id",
+            "run_lineage_id",
             "git_sha",
             "lock_sha256",
             "config_sha256",
             "tokenizer_fingerprint",
+            "data_fingerprints",
         ):
             value = candidate.get(field)
             if isinstance(value, str) and value:
                 private_values.add(value)
+            elif isinstance(value, list):
+                private_values.update(item for item in value if isinstance(item, str) and item)
     leaked = sorted(value for value in private_values if value in public_text)
     if leaked:
         raise HumanEvaluationError("generated public bundle contains a private checkpoint identity")
@@ -1081,6 +1330,12 @@ def _sha256_string(value: Any, label: str) -> str:
     return value
 
 
+def _sha256_list(value: Any, label: str) -> list[str]:
+    if not isinstance(value, list) or not value:
+        raise HumanEvaluationError(f"{label} must be a non-empty list")
+    return [_sha256_string(item, f"{label}[{index}]") for index, item in enumerate(value)]
+
+
 def _exact_fields(payload: dict[str, Any], expected: set[str], label: str) -> None:
     actual = set(payload)
     if actual != expected:
@@ -1121,4 +1376,21 @@ def _nonnegative_int(value: Any, label: str) -> int:
 def _checkpoint_precision(value: Any) -> str:
     if value not in {"fp32", "bf16"}:
         raise HumanEvaluationError("checkpoint training.precision must be fp32 or bf16")
+    return value
+
+
+def _positive_number(value: Any, label: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, int | float) or value <= 0:
+        raise HumanEvaluationError(f"{label} must be a positive number")
+    return float(value)
+
+
+def _run_lineage_id(value: Any, label: str) -> str:
+    if (
+        not isinstance(value, str)
+        or len(value) != 36
+        or not value.startswith("run-")
+        or any(character not in "0123456789abcdef" for character in value[4:])
+    ):
+        raise HumanEvaluationError(f"{label} must be a canonical unique run lineage")
     return value

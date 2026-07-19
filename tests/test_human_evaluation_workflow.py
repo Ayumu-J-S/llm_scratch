@@ -17,8 +17,8 @@ from human_evaluation.workflow import (
     HumanEvaluationError,
     _load_checkpoint_candidates,
     create_blinding_key,
-    import_scores,
-    prepare_evaluation,
+    import_scores as _import_scores,
+    prepare_evaluation as _prepare_evaluation,
 )
 from training.checkpoint import LoadedCheckpoint
 
@@ -27,6 +27,7 @@ PROMPT_SET_PATH = Path("evaluation/human/prompts-v1.json").resolve()
 SHARED_IDENTITY = {
     "schema_version": 1,
     "experiment_id": "RUN-001-synthetic-human-fixture",
+    "run_lineage_id": "run-11111111111111111111111111111111",
     "git_sha": "1" * 40,
     "lock_sha256": "2" * 64,
     "config_sha256": "3" * 64,
@@ -34,6 +35,106 @@ SHARED_IDENTITY = {
     "tokenizer_fingerprint": "4" * 64,
     "data_fingerprints": ["5" * 64, "6" * 64],
 }
+
+OPERATIONAL_CONFIG = {
+    "action": "fixture",
+    "contamination": {
+        "cache": {
+            "dir": "/tmp/human-evaluation-test-cache",
+            "max_size_bytes": 10_000_000,
+            "min_free_bytes": 100_000_000_000,
+            "wait_timeout_seconds": 1.0,
+        }
+    },
+}
+
+
+def prepare_evaluation(**kwargs):
+    return _prepare_evaluation(operational_config=OPERATIONAL_CONFIG, **kwargs)
+
+
+def import_scores(**kwargs):
+    return _import_scores(operational_config=OPERATIONAL_CONFIG, **kwargs)
+
+
+@pytest.fixture(autouse=True)
+def deterministic_private_evidence(monkeypatch):
+    monkeypatch.setattr(
+        workflow,
+        "apply_evaluation_determinism_policy",
+        lambda: copy.deepcopy(workflow.EVALUATION_DETERMINISM_POLICY),
+    )
+
+    def evaluator_identity(_root, *, resolved_config):
+        return {
+            "git": {
+                "sha": "e" * 40,
+                "dirty": False,
+                "status": [],
+                "worktree_content_sha256": "f" * 64,
+            },
+            "resolved_config": copy.deepcopy(dict(resolved_config)),
+            "resolved_config_sha256": hashlib.sha256(
+                workflow.canonical_json_bytes(dict(resolved_config))
+            ).hexdigest(),
+            "lock": {"path": "/fixture/uv.lock", "sha256": "a" * 64},
+            "environment": {
+                "os": "fixture",
+                "os_release": {},
+                "architecture": "fixture",
+                "python": "3.fixture",
+                "torch": {},
+                "cuda": {},
+                "container_image": {},
+            },
+        }
+
+    def clean_scan(
+        _checkpoint_config,
+        checkpoint_identity,
+        prompts,
+        *,
+        prompt_set_version,
+        prompt_set_sha256,
+        evaluated_checkpoints,
+        **_kwargs,
+    ):
+        identity = {
+            "prompt_set": {
+                "version": prompt_set_version,
+                "sha256": prompt_set_sha256,
+                "prompts": [prompt.id for prompt in prompts],
+            },
+            "checkpoint": copy.deepcopy(dict(checkpoint_identity)),
+            "evaluated_checkpoints": sorted(
+                [
+                    {
+                        "slot": checkpoint["slot"],
+                        "sha256": checkpoint["sha256"],
+                        "optimizer_step": checkpoint["optimizer_step"],
+                        "target_tokens": checkpoint["target_tokens"],
+                    }
+                    for checkpoint in evaluated_checkpoints
+                ],
+                key=lambda checkpoint: checkpoint["slot"],
+            ),
+        }
+        return {
+            "scan_revision": "fixture",
+            "scan_complete": True,
+            "identity": identity,
+            "identity_sha256": hashlib.sha256(workflow.canonical_json_bytes(identity)).hexdigest(),
+            "training_sources": [],
+            "scanned_documents": 1,
+            "scanned_utf8_bytes": 1,
+            "scanned_document_order_sha256": "b" * 64,
+            "match_counts": {"exact": 0, "normalized": 0},
+            "matches": [],
+            "contaminated": False,
+        }
+
+    monkeypatch.setattr(workflow, "collect_evaluator_identity", evaluator_identity)
+    monkeypatch.setattr(workflow, "scan_checkpoint_training_prompts", clean_scan)
 
 
 class FakeSampler:
@@ -188,6 +289,7 @@ def test_prepare_is_reproducible_balanced_and_public_bundle_has_no_identity_leak
         "rubric",
         "items",
     }
+    assert public["protocol"]["determinism_policy_revision"] == "strict-math-sdpa-v1"
     serialized_public = paths["public_bundle"].read_text(encoding="utf-8")
     for private_value in (
         "/synthetic/earlier.pt",
@@ -197,6 +299,9 @@ def test_prepare_is_reproducible_balanced_and_public_bundle_has_no_identity_leak
         "1000000",
         "1500000",
         "RUN-001-synthetic-human-fixture",
+        "run-11111111111111111111111111111111",
+        "5" * 64,
+        "6" * 64,
     ):
         assert private_value not in serialized_public
     forbidden_key_fragments = {
@@ -226,6 +331,11 @@ def test_prepare_is_reproducible_balanced_and_public_bundle_has_no_identity_leak
     assert not any(fragment in key for fragment in forbidden_key_fragments for key in public_keys)
 
     assignments = private["payload"]["assignments"]
+    assert private["payload"]["contamination"]["scan_complete"] is True
+    assert private["payload"]["contamination"]["contaminated"] is False
+    assert private["payload"]["evaluator"]["identity"]["git"]["worktree_content_sha256"]
+    assert private["payload"]["evaluator"]["identity"]["resolved_config"] == OPERATIONAL_CONFIG
+    assert private["payload"]["determinism_policy"] == workflow.EVALUATION_DETERMINISM_POLICY
     prompt_ids = [prompt.id for prompt in load_prompt_set(PROMPT_SET_PATH).prompts]
     expected_prompt_order = sorted(
         prompt_ids,
@@ -326,6 +436,10 @@ def test_score_import_round_trip_agreement_and_exact_unblinding(prepared_study):
         set(rating["ratings"]) == {"earlier", "later"} for rating in result["unblinded_ratings"]
     )
     assert result["research_integrity"]["training_reuse_permitted"] is False
+    assert result["contamination"]["contaminated"] is False
+    assert set(result["evaluators"]) == {"prepare", "import"}
+    assert result["evaluators"]["import"]["identity"]["resolved_config"] == OPERATIONAL_CONFIG
+    assert result["determinism_policy"] == workflow.EVALUATION_DETERMINISM_POLICY
     assert stat.S_IMODE(result_path.stat().st_mode) == 0o600
 
 
@@ -584,6 +698,113 @@ def test_checkpoint_pair_requires_same_run_and_at_least_25_percent_token_separat
 
     with pytest.raises(HumanEvaluationError, match="experiment_id differs"):
         _load_checkpoint_candidates("earlier", "later", loader=different_run)
+
+    def different_launch_same_recipe(path: str | Path):
+        slot = "earlier" if "earlier" in str(path) else "later"
+        loaded = _loaded(
+            slot,
+            target_tokens=700 if slot == "earlier" else 1_000,
+            optimizer_step=70 if slot == "earlier" else 100,
+        )
+        if slot == "later":
+            loaded.payload["identity"]["run_lineage_id"] = "run-22222222222222222222222222222222"
+        return loaded
+
+    with pytest.raises(HumanEvaluationError, match="run_lineage_id differs"):
+        _load_checkpoint_candidates("earlier", "later", loader=different_launch_same_recipe)
+
+
+def test_prompt_contamination_blocks_before_generation_and_retains_private_evidence(
+    tmp_path: Path, monkeypatch
+):
+    workspace = tmp_path / "human-evaluation" / "contaminated"
+    key = create_blinding_key(tmp_path / "secret" / "contaminated.key")
+
+    def fake_loader(path: str | Path):
+        slot = "earlier" if "earlier" in str(path) else "later"
+        return _loaded(
+            slot,
+            target_tokens=1_000_000 if slot == "earlier" else 1_500_000,
+            optimizer_step=100 if slot == "earlier" else 150,
+        )
+
+    def contaminated_scan(
+        _checkpoint_config,
+        checkpoint_identity,
+        prompts,
+        *,
+        prompt_set_version,
+        prompt_set_sha256,
+        **_kwargs,
+    ):
+        identity = {
+            "prompt_set": {
+                "version": prompt_set_version,
+                "sha256": prompt_set_sha256,
+                "prompts": [prompt.id for prompt in prompts],
+            },
+            "checkpoint": {
+                "config_sha256": checkpoint_identity["config_sha256"],
+                "run_lineage_id": checkpoint_identity["run_lineage_id"],
+                "data_fingerprints": checkpoint_identity["data_fingerprints"],
+            },
+        }
+        return {
+            "scan_revision": "fixture",
+            "scan_complete": True,
+            "identity": identity,
+            "identity_sha256": hashlib.sha256(workflow.canonical_json_bytes(identity)).hexdigest(),
+            "training_sources": [
+                {
+                    "name": "train-source",
+                    "documents": 17,
+                    "utf8_bytes": 4096,
+                }
+            ],
+            "scanned_documents": 17,
+            "scanned_utf8_bytes": 4096,
+            "scanned_document_order_sha256": "b" * 64,
+            "match_counts": {"exact": 1, "normalized": 1},
+            "matches": [
+                {
+                    "match_type": "exact",
+                    "prompt_id": "ja-01",
+                    "language": "ja",
+                    "source": "train-source",
+                    "training_document_id": "document-17",
+                    "training_upstream_id": "upstream-17",
+                }
+            ],
+            "contaminated": True,
+        }
+
+    monkeypatch.setattr(workflow, "load_checkpoint_for_generation", fake_loader)
+    monkeypatch.setattr(workflow, "scan_checkpoint_training_prompts", contaminated_scan)
+    monkeypatch.setattr(
+        workflow.CheckpointSampler,
+        "from_loaded_checkpoint",
+        lambda *_args, **_kwargs: pytest.fail("generation must not start after contamination"),
+    )
+    with pytest.raises(HumanEvaluationError, match="prompts occur"):
+        prepare_evaluation(
+            prompt_set_path=PROMPT_SET_PATH,
+            workspace_dir=workspace,
+            blinding_key_path=key,
+            earlier_checkpoint="/synthetic/earlier.pt",
+            later_checkpoint="/synthetic/later.pt",
+            generation_seed=20260719,
+            device="cpu",
+        )
+    evidence_paths = list((workspace / "private").glob("contamination-blocked-*.json"))
+    assert len(evidence_paths) == 1
+    evidence_text = evidence_paths[0].read_text(encoding="utf-8")
+    evidence = json.loads(evidence_text)
+    report = evidence["payload"]["contamination"]
+    assert report["scanned_documents"] == 17
+    assert report["matches"][0]["source"] == "train-source"
+    assert report["matches"][0]["training_document_id"] == "document-17"
+    for prompt in load_prompt_set(PROMPT_SET_PATH).prompts:
+        assert prompt.text not in evidence_text
 
 
 def test_prepare_rejects_checkpoint_bytes_changed_after_pair_validation(

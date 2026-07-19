@@ -13,6 +13,7 @@ import os
 import random
 import stat
 import subprocess
+import uuid
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -29,6 +30,9 @@ class ReproducibilityError(ValueError):
 
 class ManifestMismatchError(ReproducibilityError):
     """Raised when an input or persisted run manifest changed after capture."""
+
+
+_RUN_LINEAGE_PREFIX = "run-"
 
 
 def sha256_bytes(value: bytes) -> str:
@@ -343,6 +347,7 @@ def write_run_manifest(
     tokenizer_manifest_path: str | Path,
     tokenizer_expected_fingerprint: str | None,
     data_manifest_configs: list[Mapping[str, Any]] | None = None,
+    run_lineage_id: str | None = None,
 ) -> Path:
     """Persist a self-contained run identity and immutable input snapshots."""
 
@@ -410,9 +415,14 @@ def write_run_manifest(
         "data_fingerprints": [item["fingerprint"] for item in snapshots],
     }
     experiment_id = "exp-" + sha256_bytes(canonical_json_bytes(identity_payload))[:20]
+    destination = run_path / "run_manifest.json"
+    run_lineage_id = _existing_or_new_run_lineage(
+        destination, inherited_run_lineage_id=run_lineage_id
+    )
     payload = {
         "schema_version": 1,
         "experiment_id": experiment_id,
+        "run_lineage_id": run_lineage_id,
         "git": git,
         "config": {"path": config_path.name, "sha256": config_hash},
         "experiment_identity": {
@@ -426,7 +436,6 @@ def write_run_manifest(
         "tokenizer": tokenizer_snapshot,
         "data": snapshots,
     }
-    destination = run_path / "run_manifest.json"
     destination.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
@@ -444,6 +453,7 @@ def verify_run_manifest(
         payload = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
         raise ManifestMismatchError(f"invalid run manifest: {manifest_path}") from error
+    _require_run_lineage(payload.get("run_lineage_id"), error_type=ManifestMismatchError)
     config_entry = payload.get("config")
     config_file = (
         run_path / str(config_entry.get("path", "resolved_config.yaml"))
@@ -501,3 +511,41 @@ def verify_run_manifest(
         if not run_file.is_file() or sha256_file(run_file) != expected:
             raise ManifestMismatchError(f"captured input manifest changed: {run_file}")
     return payload
+
+
+def _existing_or_new_run_lineage(
+    manifest_path: Path, *, inherited_run_lineage_id: str | None
+) -> str:
+    if not manifest_path.exists():
+        if inherited_run_lineage_id is None:
+            return f"{_RUN_LINEAGE_PREFIX}{uuid.uuid4().hex}"
+        return _require_run_lineage(inherited_run_lineage_id, error_type=ReproducibilityError)
+    try:
+        existing = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise ReproducibilityError(
+            f"cannot retain run lineage from existing manifest: {manifest_path}"
+        ) from error
+    if not isinstance(existing, Mapping):
+        raise ReproducibilityError(f"existing run manifest is not an object: {manifest_path}")
+    existing_lineage = _require_run_lineage(
+        existing.get("run_lineage_id"), error_type=ReproducibilityError
+    )
+    if inherited_run_lineage_id is not None and inherited_run_lineage_id != existing_lineage:
+        raise ReproducibilityError(
+            "resume checkpoint run lineage differs from the existing run manifest"
+        )
+    return existing_lineage
+
+
+def _require_run_lineage(value: Any, *, error_type: type[ValueError]) -> str:
+    if not isinstance(value, str) or not value.startswith(_RUN_LINEAGE_PREFIX):
+        raise error_type("run manifest is missing a unique run_lineage_id")
+    suffix = value.removeprefix(_RUN_LINEAGE_PREFIX)
+    try:
+        parsed = uuid.UUID(hex=suffix)
+    except (ValueError, AttributeError) as error:
+        raise error_type("run manifest run_lineage_id is invalid") from error
+    if parsed.hex != suffix:
+        raise error_type("run manifest run_lineage_id is not canonical")
+    return value
