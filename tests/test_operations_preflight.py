@@ -473,13 +473,16 @@ def test_container_mount_plan_binds_external_inputs_and_linked_git_metadata(tmp_
     data_manifest = tmp_path / "data.json"
     usage = tmp_path / "wandb-usage.json"
     checkpoint = tmp_path / "final.pt"
-    for directory in (run_root, cache):
+    measurement_dir = tmp_path / "measurement-evidence"
+    for directory in (run_root, cache, measurement_dir):
         directory.mkdir()
     for path in (tokenizer, data_manifest, usage, checkpoint):
         path.write_text("fixture", encoding="utf-8")
     plain = OmegaConf.to_container(_cfg(), resolve=True)
     plain["tokenizer"]["manifest_path"] = str(tokenizer)
     plain["wandb"]["artifact"]["usage_snapshot_path"] = str(usage)
+    plain["measurement"]["enabled"] = True
+    plain["measurement"]["output_path"] = str(measurement_dir / "measurement.json")
 
     result = _container_mount_check(
         OmegaConf.create(plain),
@@ -496,9 +499,37 @@ def test_container_mount_plan_binds_external_inputs_and_linked_git_metadata(tmp_
     assert mounts[str(ROOT_DIR.resolve())]["read_only"] is False
     assert mounts[str(run_root.resolve())]["read_only"] is False
     assert mounts[str(cache.resolve())]["read_only"] is False
+    assert mounts[str(measurement_dir.resolve())]["read_only"] is False
     assert mounts[str(common_git)]["read_only"] is True
     for path in (tokenizer, data_manifest, usage, checkpoint):
         assert mounts[str(path.resolve())]["read_only"] is True
+
+
+def test_container_mount_plan_uses_current_wandb_configuration(tmp_path):
+    run_root = tmp_path / "runs"
+    run_root.mkdir()
+    old_usage = tmp_path / "missing-old-usage.json"
+    current_usage = tmp_path / "current-usage.json"
+    current_usage.write_text("fixture", encoding="utf-8")
+    authority = OmegaConf.to_container(_cfg(), resolve=True)
+    authority["wandb"]["artifact"]["usage_snapshot_path"] = str(old_usage)
+    operational = OmegaConf.to_container(_cfg(), resolve=True)
+    operational["wandb"]["artifact"]["usage_snapshot_path"] = str(current_usage)
+
+    result = _container_mount_check(
+        OmegaConf.create(authority),
+        operational_cfg=OmegaConf.create(operational),
+        root_dir=ROOT_DIR,
+        run_root=run_root,
+        executor="container",
+        checkpoint_path=None,
+        manifests={"data_manifests": []},
+        cache={"caches": []},
+    )
+
+    mounts = {record["source"]: record for record in result["mounts"]}
+    assert str(old_usage.resolve()) not in mounts
+    assert mounts[str(current_usage.resolve())]["read_only"] is True
 
 
 def test_container_mount_plan_rejects_unbound_missing_external_cache(tmp_path):

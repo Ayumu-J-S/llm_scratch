@@ -71,6 +71,7 @@ _PROTECTED_ALWAYS = {
     "hydra.run.dir",
     "hydra.output_subdir",
     "artifacts.checkpoints_dir",
+    "measurement.output_path",
 }
 _PROTECTED_BY_ACTION = {
     "resume": {"artifacts.resume_path"},
@@ -307,6 +308,7 @@ def _operational_overrides(
     values.append(f"hydra.run.dir={_hydra_string(attempt.path / 'work')}")
     values.append("hydra.output_subdir=null")
     values.append("artifacts.checkpoints_dir=checkpoints")
+    values.append("measurement.output_path=measurement.json")
     if args.action == "smoke":
         values.extend(
             [

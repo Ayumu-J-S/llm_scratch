@@ -395,6 +395,12 @@ def _evidence_files(attempt: Attempt) -> list[dict[str, Any]]:
         if not path.is_file():
             raise HandoffValidationError(f"metrics evidence file is missing: {path}")
         paths.append(path)
+    measurement_path = _measurement_evidence_path(
+        attempt,
+        outcome=str(result.get("outcome", "")),
+    )
+    if measurement_path is not None:
+        paths.append(measurement_path)
     outputs = _mapping(result.get("outputs"), "result outputs")
     for record in outputs.get("files", []):
         item = _mapping(record, "result output file")
@@ -429,6 +435,7 @@ def _validate_attempt_artifacts(
         _sha256(digest, "metrics evidence SHA-256")
         if sha256_file(path) != digest:
             raise HandoffValidationError(f"metrics evidence hash changed: {path}")
+    _measurement_evidence_path(attempt, outcome=outcome)
     checkpoint_status = _mapping(result.get("checkpoint_status"), "checkpoint status")
     checkpoint_files = checkpoint_status.get("files", [])
     if not isinstance(checkpoint_files, list):
@@ -704,6 +711,42 @@ def _attempt_owned_path(value: Any, attempt: Attempt, label: str) -> Path:
     return path
 
 
+def _measurement_evidence_path(attempt: Attempt, *, outcome: str) -> Path | None:
+    """Resolve and require attempt-owned trainer timing evidence when enabled."""
+
+    state = attempt.state()
+    if state.get("action") not in {"smoke", "train", "resume"}:
+        return None
+    from omegaconf import OmegaConf
+
+    config_path = attempt.path / "resolved_config.yaml"
+    if not config_path.is_file():
+        if outcome == "succeeded":
+            raise HandoffValidationError("successful training is missing resolved_config.yaml")
+        return None
+    cfg = OmegaConf.load(config_path)
+    measurement = cfg.get("measurement", {}) or {}
+    if measurement.get("enabled") is not True:
+        return None
+    artifacts = cfg.get("artifacts", {}) or {}
+    checkpoint_dir = Path(str(artifacts.get("checkpoints_dir", "checkpoints")))
+    if not checkpoint_dir.is_absolute():
+        checkpoint_dir = attempt.path / "work" / checkpoint_dir
+    configured = measurement.get("output_path")
+    if configured:
+        path = Path(str(configured))
+        if not path.is_absolute():
+            path = checkpoint_dir.parent / path
+    else:
+        path = checkpoint_dir.parent / "measurement.json"
+    path = _attempt_owned_path(path, attempt, "measurement evidence")
+    if path.is_file():
+        return path
+    if outcome == "succeeded":
+        raise HandoffValidationError(f"measurement evidence file is missing: {path}")
+    return None
+
+
 def _verify_file_identity(path: Path, record: Mapping[str, Any], label: str) -> None:
     if not path.is_file():
         raise HandoffValidationError(f"{label} is missing")
@@ -732,7 +775,9 @@ def _conclusion(
     diagnosis = _mapping(result.get("diagnosis"), "result diagnosis")
     return {
         "condition_result": (
-            "supported" if result.get("outcome") == "succeeded" else "not_supported"
+            "pending_evidence_review"
+            if result.get("outcome") == "succeeded"
+            else "not_evaluated"
         ),
         "evidence_backed_summary": str(diagnosis["summary"]),
         "uncertainty": (

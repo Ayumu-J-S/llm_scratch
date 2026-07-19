@@ -116,6 +116,7 @@ def run_preflight(
             "container_mounts",
             lambda: _container_mount_check(
                 authority_cfg,
+                operational_cfg=cfg,
                 root_dir=root_dir,
                 run_root=run_root,
                 executor=executor,
@@ -580,6 +581,7 @@ def _milestone_checkpoint_bound(plain: Mapping[str, Any], *, action: str) -> int
 def _container_mount_check(
     cfg: Mapping[str, Any] | DictConfig,
     *,
+    operational_cfg: Mapping[str, Any] | DictConfig | None = None,
     root_dir: Path,
     run_root: Path,
     executor: str,
@@ -597,7 +599,7 @@ def _container_mount_check(
         destination = path.expanduser().resolve()
         if (
             not read_only
-            and purpose in {"run_root", "cache"}
+            and purpose in {"run_root", "cache", "measurement_output"}
             and any(
                 destination == protected or destination.is_relative_to(protected)
                 for protected in protected_git_paths
@@ -671,9 +673,33 @@ def _container_mount_check(
                 require_directory=True,
             )
 
+    authority_plain = _plain(cfg)
+    operational_plain = _plain(operational_cfg if operational_cfg is not None else cfg)
+    measurement = operational_plain.get("measurement", {})
+    if isinstance(measurement, Mapping) and measurement.get("enabled") is True:
+        configured_output = measurement.get("output_path")
+        if configured_output:
+            requested_output = Path(str(configured_output)).expanduser()
+            if requested_output.is_absolute():
+                output = requested_output.resolve()
+                covered = any(
+                    not record["read_only"]
+                    and (
+                        output == Path(str(record["destination"]))
+                        or output.is_relative_to(Path(str(record["destination"])))
+                    )
+                    for record in records.values()
+                )
+                if not covered:
+                    add(
+                        output.parent,
+                        read_only=False,
+                        purpose="measurement_output",
+                        require_directory=True,
+                    )
+
     manifest_record = manifests if isinstance(manifests, Mapping) else {}
-    plain = _plain(cfg)
-    tokenizer_cfg = _mapping(plain.get("tokenizer"), "tokenizer")
+    tokenizer_cfg = _mapping(authority_plain.get("tokenizer"), "tokenizer")
     add(
         _rooted(str(tokenizer_cfg["manifest_path"]), root),
         read_only=True,
@@ -689,7 +715,7 @@ def _container_mount_check(
                 require_directory=False,
             )
 
-    wandb_cfg = _wandb_configuration(OmegaConf.create(plain))
+    wandb_cfg = _wandb_configuration(OmegaConf.create(operational_plain))
     artifact_cfg = wandb_cfg.get("artifact", {})
     if isinstance(artifact_cfg, Mapping) and artifact_cfg.get("usage_snapshot_path"):
         add(

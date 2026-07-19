@@ -25,6 +25,10 @@ from operations.artifacts import (
 from operations.preflight import PreflightError
 
 
+_PROCESS_GROUP_TERM_GRACE_SECONDS = 2.0
+_PROCESS_GROUP_KILL_GRACE_SECONDS = 2.0
+
+
 def wait_with_disk_watchdog(
     process: subprocess.Popen[bytes],
     *,
@@ -184,6 +188,37 @@ def stop_owned_process(
                     trusted_process_group_id=trusted_ownership.get("process_group_id"),
                 )
                 process.terminate()
+    if trusted_process_group:
+        assert trusted_ownership is not None
+        process_group_id = int(trusted_ownership["process_group_id"])
+        if not _wait_for_process_group_exit(
+            process,
+            process_group_id,
+            timeout_seconds=_PROCESS_GROUP_TERM_GRACE_SECONDS,
+        ):
+            try:
+                os.killpg(process_group_id, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            except OSError as error:
+                errors.append(f"owned process group could not be killed: {error}")
+            if not _wait_for_process_group_exit(
+                process,
+                process_group_id,
+                timeout_seconds=_PROCESS_GROUP_KILL_GRACE_SECONDS,
+            ):
+                members = _live_process_group_members(process_group_id)
+                attempt.event(
+                    "process_group_cleanup_incomplete",
+                    process_group_id=process_group_id,
+                    live_member_pids=members,
+                )
+                errors.append(
+                    "owned process group still has live members after SIGKILL: "
+                    + ", ".join(str(pid) for pid in members)
+                )
+        return errors
+
     try:
         process.wait(timeout=12)
     except subprocess.TimeoutExpired:
@@ -193,12 +228,50 @@ def stop_owned_process(
                 check=False,
                 capture_output=True,
             )
-        elif trusted_process_group:
-            assert trusted_ownership is not None
-            os.killpg(int(trusted_ownership["process_group_id"]), signal.SIGKILL)
         else:
             process.kill()
     return errors
+
+
+def _wait_for_process_group_exit(
+    process: subprocess.Popen[bytes],
+    process_group_id: int,
+    *,
+    timeout_seconds: float,
+) -> bool:
+    """Reap the leader and wait until no non-zombie member remains in its group."""
+
+    deadline = time.monotonic() + timeout_seconds
+    while True:
+        process.poll()
+        if not _live_process_group_members(process_group_id):
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.05)
+
+
+def _live_process_group_members(process_group_id: int) -> list[int]:
+    """Return live Linux process IDs still owned by one process group."""
+
+    members: list[int] = []
+    try:
+        entries = Path("/proc").iterdir()
+    except OSError:
+        return [process_group_id]
+    for entry in entries:
+        if not entry.name.isdigit():
+            continue
+        try:
+            stat = (entry / "stat").read_text(encoding="utf-8")
+            suffix = stat[stat.rfind(")") + 2 :].split()
+            state = suffix[0]
+            observed_group = int(suffix[2])
+        except (OSError, ValueError, IndexError):
+            continue
+        if observed_group == process_group_id and state != "Z":
+            members.append(int(entry.name))
+    return sorted(members)
 
 
 def create_container(

@@ -5,6 +5,10 @@ experiments. It composes the existing Hydra profiles and launches the existing
 training, evaluation, and benchmark entrypoints; it does not implement a second
 trainer or a scheduler.
 
+Operational completion never decides the scientific hypothesis. A successful
+attempt handoff records `pending_evidence_review`; reviewers evaluate the
+predeclared success and failure conditions from the retained evidence.
+
 Every Hydra-capable command requires an explicit executor, device, run root,
 run ID, attempt ID, and a literal `--` before Hydra overrides. There is no
 executor or device fallback.
@@ -131,6 +135,10 @@ read-only, configured caches as writable, and tokenizer/data manifests, W&B
 usage snapshots, and input checkpoints as read-only. Every external absolute
 path must already exist; otherwise preflight rejects the launch. The same mount
 manifest is consumed by the Git probe and the created training container.
+Enabled external measurement outputs receive a writable parent-directory bind,
+while the operational command itself fixes its measurement artifact inside the
+attempt. Resume mount planning uses current W&B controls, because W&B settings
+are operational and are intentionally excluded from checkpoint identity.
 Writable run/cache paths may not equal or descend from Git metadata, and a
 duplicate path with conflicting access modes is rejected rather than weakened.
 Ignored repository-internal cache directories are created empty during
@@ -173,8 +181,14 @@ configuration and preflight. A signal before child launch commits a stopped
 result and validated handoff; a signal after launch is routed through the same
 exact-owned process/container cleanup path. The terminal result and event log
 record the signal name rather than bypassing checkpoint/result finalization.
+Trusted host process-group cleanup waits for live descendants after the leader
+exits, escalates the exact group to `SIGKILL`, and records a lifecycle error if
+any non-zombie group member remains.
 
 Handoff validation binds the result schema, run ID, attempt ID, action, and
 outcome to the terminal attempt state. Attempts that reached child execution
 must retain both stdout and stderr logs, and a referenced structured metrics
 stream is required to remain inside the attempt with its recorded SHA-256.
+When trainer measurement is enabled, the attempt-owned timing artifact is also
+required on success and is included in the handoff evidence inventory by path,
+size, and SHA-256.

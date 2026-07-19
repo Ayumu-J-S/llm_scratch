@@ -116,6 +116,7 @@ def test_offline_smoke_through_validated_handoff(tmp_path):
         "sha256": hashlib.sha256(experiment_record.read_bytes()).hexdigest(),
     }
     assert handoff["results"]["lifecycle_errors"] == []
+    assert handoff["conclusion"]["condition_result"] == "pending_evidence_review"
     assert handoff["scientific_identity"]["data_manifests"][0]["split"] == "memorization"
     assert handoff["scientific_identity"]["run_manifest"]["status"] == "verified"
     assert handoff["scientific_identity"]["runtime"]["status"] == "recorded"
@@ -199,6 +200,8 @@ def test_handoff_requires_state_bound_result_logs_and_metrics(tmp_path):
         *_prefix(tmp_path, "smoke", "attempt-integrity"),
         "--",
         *_small_smoke_overrides(),
+        "measurement.enabled=true",
+        "measurement.warmup_optimizer_steps=0",
     ]
     assert operate.main(command) == 0
 
@@ -246,6 +249,34 @@ def test_handoff_requires_state_bound_result_logs_and_metrics(tmp_path):
     with pytest.raises(HandoffValidationError, match="metrics evidence hash changed"):
         generate_handoff(attempt, root_dir=Path(__file__).resolve().parents[1])
     metrics_path.write_bytes(metrics_bytes)
+
+    measurement_path = attempt.path / "work" / "measurement.json"
+    measurement_bytes = measurement_path.read_bytes()
+    measurement_path.unlink()
+    with pytest.raises(HandoffValidationError, match="measurement evidence file is missing"):
+        generate_handoff(attempt, root_dir=Path(__file__).resolve().parents[1])
+    measurement_path.write_bytes(measurement_bytes)
+
+    generated = generate_handoff(attempt, root_dir=Path(__file__).resolve().parents[1])
+    handoff = json.loads(generated.with_name("handoff.json").read_text(encoding="utf-8"))
+    measurement_record = next(
+        record
+        for record in handoff["integrity"]["evidence_files"]
+        if record["path"] == str(measurement_path)
+    )
+    assert measurement_record["sha256"] == sha256_file(measurement_path)
+
+    measurement_path.write_bytes(measurement_bytes + b"\n")
+    with pytest.raises(
+        HandoffValidationError,
+        match="handoff evidence (inventory differs|file changed|hash changed)",
+    ):
+        validate_handoff(
+            handoff,
+            attempt=attempt,
+            root_dir=Path(__file__).resolve().parents[1],
+        )
+    measurement_path.write_bytes(measurement_bytes)
 
     generate_handoff(attempt, root_dir=Path(__file__).resolve().parents[1])
 

@@ -4,6 +4,7 @@ import json
 import signal
 import subprocess
 import sys
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -84,6 +85,14 @@ def test_operational_hydra_authority_rejects_parent_mapping_replacement(tmp_path
             ["runtime={device:cpu}"],
             attempt=attempt,
         )
+    with pytest.raises(AttemptError, match="belongs to llm-scratch-ops"):
+        runner._operational_overrides(
+            args,
+            ["measurement.output_path=/external/measurement.json"],
+            attempt=attempt,
+        )
+    overrides = runner._operational_overrides(args, [], attempt=attempt)
+    assert "measurement.output_path=measurement.json" in overrides
 
 
 def test_dangerous_run_root_is_rejected_before_attempt_creation(tmp_path, monkeypatch):
@@ -838,6 +847,52 @@ def test_missing_proc_capture_stops_only_exact_direct_child(tmp_path, monkeypatc
     ]
     kinds = [json.loads(path.read_text())["kind"] for path in attempt.events_dir.glob("*.json")]
     assert "process_group_ownership_unavailable" in kinds
+
+
+def test_owned_process_group_descendant_is_killed_after_leader_exits(tmp_path):
+    attempt = _attempt(tmp_path)
+    child_pid_path = tmp_path / "descendant.pid"
+    child_code = (
+        "import os,signal,sys,time; "
+        "from pathlib import Path; "
+        "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+        "Path(sys.argv[1]).write_text(str(os.getpid())); "
+        "time.sleep(30)"
+    )
+    parent_code = (
+        "import subprocess,sys,time; "
+        f"subprocess.Popen([sys.executable, '-c', {child_code!r}, sys.argv[1]]); "
+        "time.sleep(30)"
+    )
+    process = subprocess.Popen(
+        [sys.executable, "-c", parent_code, str(child_pid_path)],
+        start_new_session=True,
+    )
+    trusted = process_identity(process.pid)
+    atomic_write_json(attempt.path / "pid.json", trusted)
+    try:
+        for _ in range(200):
+            if child_pid_path.is_file():
+                break
+            time.sleep(0.01)
+        assert child_pid_path.is_file()
+
+        errors = lifecycle.stop_owned_process(
+            process,
+            attempt=attempt,
+            container_record=None,
+            trusted_ownership=trusted,
+        )
+
+        assert errors == []
+        assert process.poll() is not None
+        assert lifecycle._live_process_group_members(
+            int(trusted["process_group_id"])
+        ) == []
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait()
 
 
 def test_malformed_terminal_container_inspect_still_force_removes_exact_id(tmp_path, monkeypatch):
