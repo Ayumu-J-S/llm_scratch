@@ -27,12 +27,12 @@ from runtime.reproducibility import sha256_file
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 SHINGLE_CODEPOINTS = 48
-SCAN_REVISION = "BENCH-001-contamination-v12"
-NORMALIZATION_REVISION = "normalize-text-identity-nfc-strip-plus-json-object-v10"
+SCAN_REVISION = "BENCH-001-contamination-v13"
+NORMALIZATION_REVISION = "normalize-text-identity-nfc-strip-plus-json-object-v11"
 SCAN_INDEX_SCHEMA_VERSION = 2
 MATCHER_REVISION = "collision-verified-rolling-hash-codepoint-v1"
 JSON_OBJECT_NORMALIZATION_REVISION = (
-    "constant-memory-leaf-object-string-fail-closed-json-nfc-sha256-v9"
+    "constant-memory-leaf-object-string-fail-closed-json-nfc-sha256-v10"
 )
 PRODUCER_IDENTITY_REVISION = "contamination-producer-v1"
 PRODUCER_SOURCE_SCOPE_REVISION = "src-python-pyproject-lock-v1"
@@ -824,6 +824,7 @@ def _canonical_json_objects(
         if decode_depth >= budget.limits.depth and _may_contain_json(candidate_text):
             raise _JsonTraversalLimitExceeded("depth")
         object_ranges: list[tuple[int, int]] = []
+        decoded_object_ranges: list[tuple[int, int]] = []
         for start, end, structural_depth in _embedded_json_object_ranges(candidate_text):
             if len(object_ranges) >= budget.limits.nodes:
                 raise _JsonTraversalLimitExceeded("nodes")
@@ -835,6 +836,7 @@ def _canonical_json_objects(
             )
             if decoded is None:
                 continue
+            decoded_object_ranges.append((start, end))
             normalized, decoded_values = decoded
             yield from _canonical_mappings(normalized)
             _queue_decoded_json_strings(
@@ -846,14 +848,14 @@ def _canonical_json_objects(
         object_range_index = 0
         for start, end, structural_depth in _json_string_literal_ranges(candidate_text):
             while (
-                object_range_index < len(object_ranges)
-                and object_ranges[object_range_index][1] <= start
+                object_range_index < len(decoded_object_ranges)
+                and decoded_object_ranges[object_range_index][1] <= start
             ):
                 object_range_index += 1
             if (
-                object_range_index < len(object_ranges)
-                and object_ranges[object_range_index][0] <= start
-                and end <= object_ranges[object_range_index][1]
+                object_range_index < len(decoded_object_ranges)
+                and decoded_object_ranges[object_range_index][0] <= start
+                and end <= decoded_object_ranges[object_range_index][1]
             ):
                 continue
             decoded = _decode_json_candidate(
