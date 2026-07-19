@@ -44,7 +44,7 @@ Failed cycles are retained and must not be rewritten as passing cycles.
 | 5 | re-review | `49e8580ba30f1f6de1174ddd01e43ccf750168ac` against `origin/main` | Independent formal `/review` | `FAIL` | P2: context-limited generation could be published under the fixed 64-token contract. P2: reviewer ratings and their retained checksum came from separate file reads. | `codex review --base origin/main`; reviewer also reproduced 516 passed, 1 skipped |
 | 6 | repair | `6128ad2d185fe87f295576c68020c1d700ccdc78`; target merge through `00c404521089d7694608ee55ec2b1ddaa985dea1` | Reject context truncation and bind parsed score bytes to their digest | implemented | Rejected context-limited samples and parsed/hashed each score from one byte buffer | Focused HUMAN gate passed 23 tests; exact-head CPU gate passed 519 tests with 1 skip |
 | 7 | re-review | `00c404521089d7694608ee55ec2b1ddaa985dea1` against `origin/main` | Independent formal `/review` | `FAIL` | P1: cached prompt scans omitted transitive producer identity. P2: operational/volatile evidence changed assignment identity. P2: prompt parsing and hashing used separate reads. | `codex review --base origin/main`; reviewer independently reran 519 passed, 1 skipped |
-| 8 | repair | successor to `00c4045` | Close all cycle-7 identity and byte-binding gaps | in progress | Complete producer identity, stable assignment inputs, and one-buffer prompt parsing implemented with adversarial regressions | Focused HUMAN gate passes 25 tests; full gate and independent re-review pending |
+| 8 | repair | `f92dfe97cf46a3ce805523a6243259ef9aeed6af` | Close all cycle-7 identity and byte-binding gaps | implemented | Complete producer identity, stable assignment inputs, and one-buffer prompt parsing implemented with adversarial regressions | Focused HUMAN gate passes 25 tests; exact-head CPU gate passes 521 tests with 1 skip; independent re-review pending |
 
 ## Independent check selection and verdicts
 
@@ -191,7 +191,9 @@ Failed cycles are retained and must not be rewritten as passing cycles.
 - Change made: all repository Python producer bytes plus lock and relevant
   runtime now identity-bind prompt scans; study/bundle randomization excludes
   operational evidence; prompt parsing/hash share one byte buffer.
-- Validation rerun: focused HUMAN gate passes 25 tests; full gate pending.
+- Validation rerun: focused HUMAN gate passes 25 tests. Exact repair head
+  `f92dfe9` passes 521 tests with one skip plus Ruff, Hydra preflight, lock
+  drift, and offline smoke; 456 GB remained free.
 - Remaining risk: independent exact-head re-review pending.
 
 ## Independent re-review
