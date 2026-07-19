@@ -15,7 +15,7 @@
   as history. A final exact-head docs-only no-drift review remains pending after
   this record update.
 - Started (UTC): 2026-07-13
-- Last updated (UTC): 2026-07-13
+- Last updated (UTC): 2026-07-19
 - Model-run provenance: `docs/model-runs/WB-001-evidence-complete-wandb.md`
 
 ## Predeclared question and decision rule
@@ -128,6 +128,28 @@
   active and the run explicitly reported offline mode.
 - What remains uncertain: hot-path cost and watch overhead on DGX Spark require
   the R2 protocol below.
+
+## Online authentication and visibility smoke — PASS
+
+On 2026-07-19, the integrated WB-001 implementation completed a deliberately
+small three-step CPU run against the live W&B service:
+
+- run URL: <https://wandb.ai/sunday-research/llm-scratch/runs/fcblar36>;
+- run ID: `fcblar36`;
+- run name: `wb001-online-smoke-20260719`;
+- final state: `finished`;
+- recorded history rows: 3;
+- model artifacts: 0;
+- model watch: disabled; and
+- artifact policy: `none`.
+
+The run made compact training/memorization metrics and lineage visible in the
+configured `sunday-research/llm-scratch` project, then finished cleanly. This is
+evidence that current authentication, online initialization, scalar logging,
+visibility, and no-artifact completion work together. It is only a WB-001
+authentication/visibility smoke on a tiny CPU workload. It is not the
+`RUN-001` bounded real baseline, does not establish model quality, and does not
+exercise artifact quota, retention, or upload behavior.
 
 ## Integration QA audit and repair
 
@@ -560,16 +582,18 @@ missing. Human review and merge remain required; no self-merge is authorized.
   below 5% and all paired values are below 10%.
 - Evidence-backed conclusion: the implementation can preserve local metrics and
   checkpoints across disabled/offline W&B and tested external failure paths,
-  while the repaired exact-head measurement evidence remains valid. Cycle-13
+  while the repaired exact-head measurement evidence remains valid. The live
+  three-step smoke also confirms authenticated online scalar visibility and
+  clean no-artifact completion. Cycle-13
   quota, scalar-boundary, and watch-cleanup repairs pass local validation, a
   focused repair audit, the full fresh Attempt 9 matrix, and the mandatory heavy
   re-review. The ticket is technically accepted `PASS WITH NOTE` at the
   reviewed implementation/evidence head.
-- Uncertainty and limitations: no online service call, real quota consumption,
-  or artifact upload was performed; failed DGX evidence is retained, and no
-  cross-attempt performance claim is made. The positive R2 result is scoped to
-  the depth-26 target workload and the pinned runtime; quota reservation is
+- Uncertainty and limitations: the online smoke did not consume artifact quota
+  or exercise artifact retention/upload; failed DGX evidence is retained, and
+  no cross-attempt performance claim is made. The positive R2 result is scoped
+  to the depth-26 target workload and the pinned runtime; quota reservation is
   tracker-lifetime, and a stuck daemon SDK worker is process-lifetime bounded.
-- Exactly one next step: complete a final exact-head docs-only no-drift review,
-  then publish the prepared draft PR when the missing `gh` prerequisite is
-  available for human review and merge.
+- Exactly one next step: complete current-main integration validation and the
+  independent exact-head `/review`, then use the live PR handoff for the guarded
+  merge audit.

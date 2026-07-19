@@ -28,6 +28,16 @@ uv run python src/train.py profile=pretrain_streaming wandb.mode=offline
 uv run python src/train.py profile=pretrain_streaming wandb.mode=online
 ```
 
+### Verified online visibility smoke
+
+The live three-step CPU smoke
+[`wb001-online-smoke-20260719`](https://wandb.ai/sunday-research/llm-scratch/runs/fcblar36)
+finished successfully on 2026-07-19 as run `fcblar36`. W&B shows three history
+rows and zero model artifacts; model watch was disabled and artifact policy was
+`none`. This proves current authentication, online initialization, compact
+scalar visibility, and clean no-artifact completion. It is not the `RUN-001`
+real baseline and does not validate artifact quota, retention, or upload.
+
 Scalar logs occur only at the trainer's configured training-log and validation
 boundaries; W&B adds no independent cadence. A training boundary emits one
 compact dictionary containing step, target tokens, elapsed time, training
