@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import fcntl
+import itertools
 import json
+import math
 import os
 import platform
 import subprocess
@@ -27,12 +29,12 @@ from runtime.reproducibility import sha256_file
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 SHINGLE_CODEPOINTS = 48
-SCAN_REVISION = "BENCH-001-contamination-v19"
-NORMALIZATION_REVISION = "normalize-text-identity-nfc-strip-plus-json-object-v17"
+SCAN_REVISION = "BENCH-001-contamination-v20"
+NORMALIZATION_REVISION = "normalize-text-identity-nfc-strip-plus-json-object-v18"
 SCAN_INDEX_SCHEMA_VERSION = 2
 MATCHER_REVISION = "collision-verified-rolling-hash-codepoint-v1"
 JSON_OBJECT_NORMALIZATION_REVISION = (
-    "bounded-all-object-string-input-projection-json-nfc-sha256-v16"
+    "bounded-all-object-string-input-projection-json-nfc-sha256-v17"
 )
 PRODUCER_IDENTITY_REVISION = "contamination-producer-v1"
 PRODUCER_SOURCE_SCOPE_REVISION = "src-python-pyproject-lock-v1"
@@ -199,6 +201,10 @@ class _JsonTraversalLimitExceeded(RuntimeError):
         super().__init__(f"JSON traversal exhausted the {limit_name} limit")
 
 
+class _JsonObjectPairs(list[tuple[str, Any]]):
+    """A decoded JSON object that retains repeated keys in source order."""
+
+
 def scan_checkpoint_training_data(
     checkpoint_config: Mapping[str, Any],
     suite: LoadedSuite,
@@ -223,17 +229,20 @@ def scan_checkpoint_training_data(
     with lock_path.open("a+b") as lock:
         fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
         if index_path.is_file():
-            return _read_scan_index(
+            report = _read_scan_index(
                 index_path,
                 expected_identity=index_identity,
                 expected_identity_sha256=index_identity_sha256,
             )
+            _assert_scan_identity_stable(index_identity, sources=sources, suite=suite)
+            return report
         report = _scan_training_sources(
             sources,
             suite,
             training_cache=training_cache,
             index_identity_sha256=index_identity_sha256,
         )
+        _assert_scan_identity_stable(index_identity, sources=sources, suite=suite)
         _write_scan_index(
             index_path,
             index_identity=index_identity,
@@ -241,6 +250,20 @@ def scan_checkpoint_training_data(
             report=report,
         )
         return report
+
+
+def _assert_scan_identity_stable(
+    expected_identity: Mapping[str, Any],
+    *,
+    sources: list[dict[str, Any]],
+    suite: LoadedSuite,
+) -> None:
+    """Reject evidence when producer or immutable inputs changed during use."""
+
+    if _scan_index_identity(sources, suite) != expected_identity:
+        raise ContaminationScanError(
+            "contamination scan producer or immutable input identity changed during execution"
+        )
 
 
 def _scan_training_sources(
@@ -792,21 +815,19 @@ def _decode_json_candidate(
         ):
             return None
         budget.claim_parse(text, depth=depth)
-        value = json.loads(text)
+        pair_value = json.loads(text, object_pairs_hook=_JsonObjectPairs)
+        value = _json_pairs_last_wins(pair_value)
         decoded_values: list[tuple[str, int]] = []
         projections = tuple(
             projection
             for required_keys in projection_key_sets
-            if (
-                projection := _normalized_mapping_projection(
-                    value,
-                    required_keys=required_keys,
-                    budget=budget,
-                    depth=depth,
-                    decoded_values=decoded_values,
-                )
+            for projection in _normalized_mapping_projections(
+                pair_value,
+                required_keys=required_keys,
+                budget=budget,
+                depth=depth,
+                decoded_values=decoded_values,
             )
-            is not None
         )
         try:
             normalized = _normalize_decoded_json(
@@ -829,41 +850,64 @@ def _decode_json_candidate(
         return None
 
 
-def _normalized_mapping_projection(
+def _normalized_mapping_projections(
     value: Any,
     *,
     required_keys: tuple[str, ...],
     budget: _JsonTraversalBudget,
     depth: int,
     decoded_values: list[tuple[str, int]],
-) -> Mapping[str, Any] | None:
-    """Normalize only schema-owned fields, ignoring unrelated metadata conflicts."""
+) -> tuple[Mapping[str, Any], ...]:
+    """Normalize every bounded schema projection without dropping duplicate keys."""
 
-    if not isinstance(value, Mapping):
-        return None
+    if not isinstance(value, _JsonObjectPairs):
+        return ()
     required = set(required_keys)
-    selected: dict[str, Any] = {}
-    for key, item in value.items():
+    options: dict[str, list[Any]] = {key: [] for key in required_keys}
+    for key, item in value:
         if not isinstance(key, str):
-            return None
+            return ()
         normalized_key = unicodedata.normalize("NFC", key)
         if normalized_key not in required:
             continue
-        if normalized_key in selected:
-            return None
-        selected[normalized_key] = item
-    if set(selected) != required:
-        return None
-    try:
-        normalized = _normalize_decoded_json(
-            selected,
-            budget=budget,
-            depth=depth,
-            decoded_values=decoded_values,
-        )
-    except (TypeError, ValueError, UnicodeError, OverflowError):
-        return None
-    return normalized if isinstance(normalized, Mapping) else None
+        options[normalized_key].append(item)
+    if any(not values for values in options.values()):
+        return ()
+
+    combination_count = math.prod(len(options[key]) for key in required_keys)
+    if combination_count > budget.limits.nodes - budget.nodes:
+        raise _JsonTraversalLimitExceeded("nodes")
+    projections: list[Mapping[str, Any]] = []
+    seen: set[str] = set()
+    for values in itertools.product(*(options[key] for key in required_keys)):
+        selected = dict(zip(required_keys, values, strict=True))
+        try:
+            normalized = _normalize_decoded_json(
+                selected,
+                budget=budget,
+                depth=depth,
+                decoded_values=decoded_values,
+            )
+            if not isinstance(normalized, Mapping):
+                continue
+            identity = canonical_json_bytes(normalized).decode("utf-8", errors="strict")
+        except (RecursionError, TypeError, ValueError, UnicodeError, OverflowError):
+            continue
+        if identity in seen:
+            continue
+        seen.add(identity)
+        projections.append(normalized)
+    return tuple(projections)
+
+
+def _json_pairs_last_wins(value: Any) -> Any:
+    """Reconstruct ordinary JSON semantics while retaining pairs for projections."""
+
+    if isinstance(value, _JsonObjectPairs):
+        return {key: _json_pairs_last_wins(item) for key, item in value}
+    if isinstance(value, list):
+        return [_json_pairs_last_wins(item) for item in value]
+    return value
 
 
 def _json_structure_within_depth(text: str, *, max_depth: int) -> bool:

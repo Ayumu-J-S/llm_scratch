@@ -127,6 +127,10 @@
 | 104 | Repair | Complete | The JCommonsenseQA input-only projection now omits both `label` and source-only `q_id`, matching the exact question-plus-five-choice evaluator input. Direct all-selected and complete-scan regressions use that prompt-bearing shape, and every scan/cache identity was advanced |
 | 105 | Focused and canonical validation | PASS | The direct and complete-scan regressions pass; the broader benchmark/generation/config/reproducibility/tokenizer selection passes 145 tests. Pinned canonical development acceptance detects 128/128 prompt-bearing input records in both tasks after answer and source-only record-ID omission, key reordering, pretty printing, and ASCII-escaped NFD normalization |
 | 106 | Full validation | PASS | Official network-isolated CPU gate passes 501 tests with 1 skipped plus repository Ruff, resolved Hydra preflight, lock-drift rejection, and disabled/offline process-tree smoke. No GPU, online W&B, full-corpus scan, or large artifact was used; exact-head CI and independent re-review remain pending |
+| 107 | Exact-head independent `/review` | FAIL | Formal review of clean head `c31e96e` reran the 501-test gate (1 skipped), verified development/final formatted-prompt detection, then found three integrity gaps: duplicate JSON keys could overwrite earlier benchmark inputs before projection; producer/source identity was not rechecked after lazy scan execution; and relative benchmark cache resolution depended on caller filesystem state |
+| 108 | Repair | Complete | Structured scanning now preserves source-ordered object pairs and boundedly evaluates every required-key occurrence combination, so later duplicate values cannot erase an earlier selected input. The exact producer/immutable-input identity is recomputed after corpus or cached-evidence use and must remain equal before return/publication. Repository-owned cache paths now always resolve from the repository root. All scan/cache identities were advanced |
+| 109 | Focused and canonical validation | PASS | Duplicate-key direct and complete-scan regressions, post-scan identity-race rejection, stable installed-cache resolution, and duplicate-combination exhaustion pass. The broader benchmark/generation/config/reproducibility/tokenizer selection passes 149 tests. Pinned canonical development acceptance detects 128/128 duplicate-key input records in both tasks after later benign values overwrite ordinary parser views |
+| 110 | Full validation | PASS | Official network-isolated CPU gate passes 505 tests with 1 skipped plus repository Ruff, resolved Hydra preflight, lock-drift rejection, and disabled/offline process-tree smoke. No GPU, online W&B, full-corpus scan, or large artifact was used; exact-head CI and independent re-review remain pending |
 
 ## Resolved protocol
 
@@ -188,7 +192,7 @@
 
 ## Current conclusion
 
-All twenty-six failed review/audit cycles remain visible. Their forty-five findings are
+All twenty-seven failed review/audit cycles remain visible. Their forty-eight findings are
 repaired without weakening the fixed protocol or complete contamination gate:
 cheap context incompatibility precedes scanning, both tasks honor checkpoint
 precision, external records are pinned, evaluator/runtime and dirty source
@@ -212,7 +216,7 @@ key-order, whitespace, embedded wrapper, ASCII-escaped decoded-NFD variants,
 complete selected mappings augmented with scalar or nested provenance, and
 unlabeled question/input mappings whose answer field is absent or changed,
 including the exact prompt-bearing JCommonsenseQA mapping without source-only
-`q_id` metadata.
+`q_id` metadata, even when later duplicate JSON keys contain benign values.
 Decoded JSON strings are recursively inspected through object, array,
 double-serialized, and quoted-prose wrappers under strict per-document
 byte/node/depth/string caps; normalized-key collisions and parser recursion are
@@ -237,7 +241,9 @@ dirty-worktree bytes in addition to commit, dirty flag, and status paths.
 Benchmark execution now establishes and verifies its fixed strict deterministic
 CUDA/backend policy before checkpoint loading, and hashes that policy into every
 result identity rather than treating deterministic generation settings as a
-substitute for deterministic execution.
+substitute for deterministic execution. Scan identity is rechecked after lazy
+producer execution before evidence can be cached, and repository-owned benchmark
+cache paths have one stable repository-relative meaning independent of caller state.
 An extra repository-wide format diagnostic identified four pre-existing, unrelated
 files outside this ticket's diff; the configured Ruff lint gate and all changed
 benchmark paths pass, so those files were not rewritten here. Every repair's

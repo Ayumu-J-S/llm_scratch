@@ -101,7 +101,7 @@ def run_benchmark(
     checkpoint_path = _root_or_cwd_path(str(benchmark_cfg.checkpoint_path))
     configured_output_root, configured_output_path = _output_paths(benchmark_cfg)
     sampler, checkpoint_cfg = _load_benchmark_sampler(checkpoint_path, cfg=cfg)
-    cache_path = _root_or_cwd_path(str(benchmark_cfg.cache.dir))
+    cache_path = _repository_path(str(benchmark_cfg.cache.dir))
     output_path = (
         None
         if configured_output_path is None
@@ -435,7 +435,7 @@ def _maybe_log_wandb(
 
 
 def _benchmark_cache(cache_cfg: DictConfig) -> BoundedShardCache:
-    cache_path = _root_or_cwd_path(str(cache_cfg.dir))
+    cache_path = _repository_path(str(cache_cfg.dir))
     return BoundedShardCache(
         cache_path,
         max_size_bytes=int(cache_cfg.max_size_bytes),
@@ -471,6 +471,13 @@ def _root_or_cwd_path(value: str) -> Path:
         return path.resolve()
     root_candidate = (ROOT_DIR / path).resolve()
     return root_candidate if root_candidate.exists() else (Path.cwd() / path).resolve()
+
+
+def _repository_path(value: str) -> Path:
+    """Resolve a configured repository-owned path from one stable base."""
+
+    path = Path(value)
+    return path.resolve() if path.is_absolute() else (ROOT_DIR / path).resolve()
 
 
 def _write_json_atomic(path: Path, payload: Mapping[str, Any]) -> None:

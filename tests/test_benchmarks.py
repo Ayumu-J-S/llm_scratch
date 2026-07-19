@@ -21,6 +21,7 @@ from omegaconf import OmegaConf
 import benchmark as benchmark_cli
 import benchmarks.contamination as contamination_scans
 import benchmarks.external as external_records
+import benchmarks.runner as benchmark_runner
 from benchmarks.contamination import (
     SHINGLE_CODEPOINTS,
     ContaminationScanError,
@@ -420,10 +421,10 @@ def test_injected_contamination_reports_source_and_document_id(monkeypatch, tmp_
     index = json.loads(index_files[0].read_text(encoding="utf-8"))
     assert index["index_identity_sha256"] == evidence["scan_index_identity_sha256"]
     assert index["index_identity"]["normalization_revision"] == (
-        "normalize-text-identity-nfc-strip-plus-json-object-v17"
+        "normalize-text-identity-nfc-strip-plus-json-object-v18"
     )
     assert index["index_identity"]["json_object_normalization_revision"] == (
-        "bounded-all-object-string-input-projection-json-nfc-sha256-v16"
+        "bounded-all-object-string-input-projection-json-nfc-sha256-v17"
     )
     assert index["index_identity"]["matcher_revision"] == (
         "collision-verified-rolling-hash-codepoint-v1"
@@ -489,6 +490,50 @@ def test_injected_contamination_reports_source_and_document_id(monkeypatch, tmp_
     assert checkpoint.is_file()
 
 
+def test_scan_rejects_producer_identity_change_before_cache_publication(
+    monkeypatch,
+    tmp_path: Path,
+):
+    registry, fingerprint = _registry(tmp_path)
+    _, checkpoint_config = _pretraining_checkpoint(tmp_path)
+    suite = load_suite(
+        registry,
+        expected_fingerprint=fingerprint,
+        access="dev",
+        cache=BoundedShardCache(tmp_path / "benchmark-cache", max_size_bytes=10_000_000),
+        timeout_seconds=1.0,
+    )
+    before = contamination_scans._producer_identity()
+    after = copy.deepcopy(before)
+    after["runtime"]["packages"]["pyarrow"] += "-changed-during-scan"
+    observed = iter((before, after))
+    monkeypatch.setattr(contamination_scans, "_producer_identity", lambda: next(observed))
+
+    with pytest.raises(ContaminationScanError, match="identity changed during execution"):
+        scan_checkpoint_training_data(
+            checkpoint_config,
+            suite,
+            fallback_cache=BoundedShardCache(tmp_path / "fallback", max_size_bytes=10_000_000),
+        )
+
+    assert not list((tmp_path / "training-cache/contamination-scans").glob("*.json"))
+
+
+def test_relative_benchmark_cache_uses_repository_root(monkeypatch, tmp_path: Path):
+    repository = tmp_path / "repository"
+    caller = tmp_path / "caller"
+    repository.mkdir()
+    caller.mkdir()
+    monkeypatch.setattr(benchmark_runner, "ROOT_DIR", repository)
+    monkeypatch.chdir(caller)
+    config = compose("profile=benchmark", "benchmark.checkpoint_path=/tmp/checkpoint.pt")
+
+    cache = benchmark_runner._benchmark_cache(config.benchmark.cache)
+
+    assert cache.cache_dir == (repository / "outputs/benchmark_cache").resolve()
+    assert not (caller / "outputs/benchmark_cache").exists()
+
+
 def test_all_selected_source_records_match_verbatim_and_reordered_json():
     jcommonsenseqa_examples = []
     gsm8k_examples = []
@@ -547,6 +592,7 @@ def test_all_selected_source_records_match_verbatim_and_reordered_json():
         "metadata_collision": {"jcommonsenseqa": 0, "gsm8k": 0},
         "deep_metadata_enriched": {"jcommonsenseqa": 0, "gsm8k": 0},
         "unlabeled_input": {"jcommonsenseqa": 0, "gsm8k": 0},
+        "duplicate_key_input": {"jcommonsenseqa": 0, "gsm8k": 0},
         "quoted_prose": {"jcommonsenseqa": 0, "gsm8k": 0},
         "unterminated_quote_object": {"jcommonsenseqa": 0, "gsm8k": 0},
     }
@@ -573,6 +619,27 @@ def test_all_selected_source_records_match_verbatim_and_reordered_json():
                 + "\r\ntrailing metadata"
             )
             json_string_record = json.dumps(reordered, ensure_ascii=True)
+            input_only_record = {
+                key: value
+                for key, value in reordered_record.items()
+                if key not in ({"label", "q_id"} if task.name == "jcommonsenseqa" else {"answer"})
+            }
+            duplicate_key_input = (
+                "{"
+                + ",".join(
+                    [
+                        *(
+                            f"{json.dumps(key)}:{json.dumps(value, ensure_ascii=True)}"
+                            for key, value in input_only_record.items()
+                        ),
+                        *(
+                            f"{json.dumps(key)}:{json.dumps(f'benign-{key}')}"
+                            for key in input_only_record
+                        ),
+                    ]
+                )
+                + "}"
+            )
             decoded_wrappers = {
                 "double_serialized": json_string_record,
                 "nested_object_array": json.dumps(
@@ -609,20 +676,12 @@ def test_all_selected_source_records_match_verbatim_and_reordered_json():
                     + "}" * 40
                 ),
                 "unlabeled_input": json.dumps(
-                    {
-                        key: value
-                        for key, value in reordered_record.items()
-                        if key
-                        not in (
-                            {"label", "q_id"}
-                            if task.name == "jcommonsenseqa"
-                            else {"answer"}
-                        )
-                    },
+                    input_only_record,
                     ensure_ascii=True,
                     indent=2,
                     sort_keys=True,
                 ),
+                "duplicate_key_input": duplicate_key_input,
                 "quoted_prose": f"training payload {json_string_record} end",
                 "unterminated_quote_object": f'ordinary malformed " prefix {reordered} trailing',
             }
@@ -672,6 +731,7 @@ def test_all_selected_source_records_match_verbatim_and_reordered_json():
         "metadata_collision": {"jcommonsenseqa": 128, "gsm8k": 128},
         "deep_metadata_enriched": {"jcommonsenseqa": 128, "gsm8k": 128},
         "unlabeled_input": {"jcommonsenseqa": 128, "gsm8k": 128},
+        "duplicate_key_input": {"jcommonsenseqa": 128, "gsm8k": 128},
         "quoted_prose": {"jcommonsenseqa": 128, "gsm8k": 128},
         "unterminated_quote_object": {"jcommonsenseqa": 128, "gsm8k": 128},
     }
@@ -1118,9 +1178,11 @@ def test_full_scan_detects_metadata_enriched_selected_record(
     assert cached["report"]["matches"]
 
 
+@pytest.mark.parametrize("duplicate_keys", [False, True])
 def test_full_scan_cannot_cache_clean_evidence_for_unlabeled_selected_input(
     monkeypatch,
     tmp_path: Path,
+    duplicate_keys: bool,
 ):
     registry, fingerprint = _registry(tmp_path)
     _, checkpoint_config = _pretraining_checkpoint(tmp_path)
@@ -1137,7 +1199,22 @@ def test_full_scan_cannot_cache_clean_evidence_for_unlabeled_selected_input(
         for key, value in reversed(list(example.record.items()))
         if key not in {"label", "q_id"}
     }
-    text = json.dumps(unlabeled, ensure_ascii=True, indent=2, sort_keys=True)
+    if duplicate_keys:
+        text = (
+            "{"
+            + ",".join(
+                [
+                    *(
+                        f"{json.dumps(key)}:{json.dumps(value, ensure_ascii=True)}"
+                        for key, value in unlabeled.items()
+                    ),
+                    *(f"{json.dumps(key)}:{json.dumps(f'benign-{key}')}" for key in unlabeled),
+                ]
+            )
+            + "}"
+        )
+    else:
+        text = json.dumps(unlabeled, ensure_ascii=True, indent=2, sort_keys=True)
     document_id = "d" * 64
 
     monkeypatch.setattr(
@@ -1150,7 +1227,11 @@ def test_full_scan_cannot_cache_clean_evidence_for_unlabeled_selected_input(
                     metadata={
                         "document_id": document_id,
                         "content_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
-                        "upstream_id": "unlabeled-benchmark-input",
+                        "upstream_id": (
+                            "duplicate-key-benchmark-input"
+                            if duplicate_keys
+                            else "unlabeled-benchmark-input"
+                        ),
                     },
                 )
             ]
@@ -1184,6 +1265,28 @@ def test_many_leaf_json_strings_still_exhaust_the_shared_document_budget():
 
     with pytest.raises(_JsonTraversalLimitExceeded, match="decoded_strings"):
         list(_canonical_json_objects(text))
+
+
+def test_duplicate_key_projection_combinations_fail_closed_when_unbounded(tmp_path: Path):
+    registry, fingerprint = _registry(tmp_path)
+    suite = load_suite(
+        registry,
+        expected_fingerprint=fingerprint,
+        access="dev",
+        cache=BoundedShardCache(tmp_path / "benchmark-cache", max_size_bytes=10_000_000),
+        timeout_seconds=1.0,
+    )
+    probe_index = _build_probe_index(suite)
+    text = "{" + ",".join(f'"question":"candidate-{index}"' for index in range(32_769)) + "}"
+
+    with pytest.raises(ContaminationScanError, match="nodes limit exhausted"):
+        _document_matches(
+            text,
+            source_name="fixture_train",
+            document_id="duplicate-key-budget",
+            upstream_id=None,
+            probe_index=probe_index,
+        )
 
 
 def test_default_decoded_string_budget_exhaustion_fails_closed(tmp_path: Path):
