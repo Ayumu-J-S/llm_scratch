@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import copy
+import gc
 import hashlib
 import json
 import shutil
+import weakref
 from pathlib import Path
 from typing import Any
 
@@ -43,7 +45,11 @@ from generation.sampler import CheckpointSampler
 from models.simple_decoder_transformer import SimpleDecoderTransformer
 from runtime.config import ConfigPreflightError, validate_benchmark_config
 from tokenizer.canonical import CanonicalTokenizer
-from training.checkpoint import CheckpointManager, build_checkpoint_identity
+from training.checkpoint import (
+    CheckpointManager,
+    build_checkpoint_identity,
+    load_checkpoint_for_generation,
+)
 
 
 ROOT = Path(__file__).parents[1]
@@ -558,6 +564,59 @@ def test_runner_rejects_checkpoint_symlink_and_hardlink_aliases(tmp_path: Path):
         run_benchmark(hardlink_config)
 
     assert checkpoint.read_bytes() == checkpoint_bytes
+
+
+def test_runner_accepts_output_beside_repository_when_checkpoint_parent_is_broad(
+    monkeypatch, tmp_path: Path
+):
+    checkpoint, _ = _pretraining_checkpoint(tmp_path)
+    copied_checkpoint = tmp_path / "milestone.pt"
+    shutil.copy2(checkpoint, copied_checkpoint)
+    output = tmp_path / "repository" / "runs" / "benchmark.json"
+    output.parent.mkdir(parents=True)
+    config = _benchmark_config(tmp_path, copied_checkpoint)
+    config.benchmark.output_path = str(output)
+    monkeypatch.setattr(
+        "benchmarks.runner.load_suite",
+        lambda *_args, **_kwargs: pytest.fail(
+            "valid output path must reach suite loading after checkpoint preflight"
+        ),
+    )
+
+    with pytest.raises(pytest.fail.Exception, match="valid output path"):
+        run_benchmark(config)
+
+
+def test_runner_releases_loaded_checkpoint_before_suite_and_training_scan(
+    monkeypatch, tmp_path: Path
+):
+    checkpoint, _ = _pretraining_checkpoint(tmp_path)
+    config = _benchmark_config(tmp_path, checkpoint)
+    loaded_reference: weakref.ReferenceType[Any] | None = None
+    optimizer_tensor_reference: weakref.ReferenceType[torch.Tensor] | None = None
+
+    def tracked_load(path: Path):
+        nonlocal loaded_reference, optimizer_tensor_reference
+        loaded = load_checkpoint_for_generation(path)
+        optimizer_tensor = torch.ones(1)
+        loaded.payload["state"]["optimizer"] = {"retained_probe": optimizer_tensor}
+        loaded_reference = weakref.ref(loaded)
+        optimizer_tensor_reference = weakref.ref(optimizer_tensor)
+        return loaded
+
+    def assert_released(*_args, **_kwargs):
+        gc.collect()
+        assert loaded_reference is not None
+        assert optimizer_tensor_reference is not None
+        assert loaded_reference() is None
+        assert optimizer_tensor_reference() is None
+        raise RuntimeError("checkpoint payload released")
+
+    monkeypatch.setattr("benchmarks.runner.load_checkpoint_for_generation", tracked_load)
+    monkeypatch.setattr("benchmarks.runner.load_suite", assert_released)
+
+    with pytest.raises(RuntimeError, match="checkpoint payload released"):
+        run_benchmark(config)
 
 
 def test_fixture_checkpoint_scoring_and_result_identity_are_deterministic(

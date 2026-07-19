@@ -48,7 +48,10 @@
 | 25 | Repair | Complete | Deduplicated shingle matches by task/example/field identity inside each document; added a versioned SHA-256 over canonical-JSON generated token IDs without retaining raw IDs; rejected every tracked or untracked non-regular evaluator path before reading dirty content |
 | 26 | Focused validation | PASS | Bounded per-document reference identity, corrected versioned token-sequence golden, tracked/untracked symlink rejection (including target mutation), 27 benchmark/reproducibility tests, and Ruff pass |
 | 27 | Full validation | PASS | Official CPU gate: 351 passed, 1 skipped; Ruff, Hydra config preflight, lock drift, offline smoke, `uv lock --check`, changed-path format, and diff checks pass |
-| 28 | Independent re-review | Pending | Repeat against the exact committed seventh-repair head and preserve the verdict in the pull request |
+| 28 | Independent re-review | FAIL | Exact-head review of `974231e` reran the full 351-test gate (1 skipped), then found that the output guard treated every selected checkpoint parent as a checkpoint namespace and that the optimizer-bearing loaded checkpoint payload remained live throughout the complete contamination scan and scoring |
+| 29 | Repair | Complete | Restricted namespace protection to checkpoint-configured/recognized roots and exact symlink/hardlink aliases without treating an arbitrary selected file's parent as a checkpoint tree; constructed the sampler in a tight helper scope and proved both the loaded wrapper and an injected optimizer-state tensor are reclaimed before suite loading/scanning |
+| 30 | Focused validation and BENCH sweep | PASS | 29 benchmark/reproducibility tests, scoped Ruff/format, and diff checks pass. A systematic read-only sweep of runner lifetime/path isolation, protocol/result identity, large-scan retained state/complexity, W&B retention, and external aggregate isolation found no additional acceptance-blocking defect |
+| 31 | Full validation | PASS | Official CPU gate: 353 passed, 1 skipped; Ruff, Hydra config preflight, lock drift, offline smoke, `uv lock --check`, changed-path format, and diff checks pass |
 
 ## Resolved protocol
 
@@ -84,7 +87,7 @@
 
 ## Current conclusion
 
-All seven independent failed reviews remain visible. Their nineteen findings are
+All eight independent failed reviews remain visible. Their twenty-one findings are
 repaired without weakening the fixed protocol or complete contamination gate:
 cheap context incompatibility precedes scanning, both tasks honor checkpoint
 precision, external records are pinned, evaluator/runtime and dirty source
@@ -96,12 +99,16 @@ evidence is reused across milestones. Choice scoring now uses an exact joint
 encoding and offset-defined suffix, unsupported CUDA BF16 is rejected before
 the training scan, and external records prove sufficient no-truncation context.
 Normal training encoding remains ID-only, while local result paths cannot enter
-or alias the checkpoint-owned namespace. Per-document contamination evidence is
-reference-deduplicated, generation traces bind canonical token-sequence hashes,
-and evaluator identity rejects symlinked or special producer paths.
+or alias a configured/recognized checkpoint namespace or the selected
+checkpoint inode without misclassifying a broad ad hoc parent. Per-document
+contamination evidence is reference-deduplicated, generation traces bind
+canonical token-sequence hashes, evaluator identity rejects symlinked or special
+producer paths, and the full optimizer-bearing load is reclaimed before the
+suite and corpus scan.
 An extra
 repository-wide format diagnostic identified four pre-existing, unrelated
 files outside this ticket's diff; the configured Ruff lint gate and all changed
-benchmark paths pass, so those files were not rewritten here. The seventh repair's
-full gate passes and its exact-head independent review is pending. No
+benchmark paths pass, so those files were not rewritten here. The eighth repair's
+focused and full gates plus BENCH-only systematic sweep pass; exact-head independent
+re-review remains. No
 benchmark score from the zero-weight fixture is a model-quality result.
