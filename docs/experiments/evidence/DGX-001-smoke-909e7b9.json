@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "ticket": "DGX-001",
+  "scope": "real-data target wiring smoke; not candidate selection evidence",
+  "verdict": "PASS",
+  "git_commit": "909e7b91650fc2a03bc1693300ca90baf8e54687",
+  "image_id": "sha256:23a1bee69fe189e77105cdddeee9aeff6ef0763d58a691625fbfcab64efd1887",
+  "environment": {
+    "architecture": "aarch64",
+    "base_image": "nvcr.io/nvidia/pytorch@sha256:43c018d6a12963f1a1bad85ef8574b5c2a978eec2be0ebcacfb87f69e0d210e1",
+    "base_arm64_manifest": "sha256:dcae8df08ef61b019b8eb109113428cba4ef0e37484c6e722406150dd5ada759",
+    "os": "Ubuntu 24.04.4 LTS",
+    "python": "3.12.3",
+    "torch": "2.13.0a0+8145d630e8.nv26.06",
+    "compiled_cuda": "13.3",
+    "driver": "580.159.03",
+    "gpu": "NVIDIA GB10",
+    "compute_capability": [12, 1],
+    "bf16_supported": true,
+    "unified_memory_bytes": 130596048896
+  },
+  "profile": {
+    "name": "dgx_smoke",
+    "parameters": 70828682,
+    "layers": 18,
+    "width": 384,
+    "heads": 6,
+    "sequence_length": 1024,
+    "micro_batch": 2,
+    "gradient_accumulation_steps": 2,
+    "precision": "bf16",
+    "deterministic": true,
+    "optimizer_steps": 12,
+    "trained_targets": 49152,
+    "warmup_optimizer_steps": 10,
+    "measured_optimizer_steps": 2
+  },
+  "measurement": {
+    "measured_trained_targets": 8192,
+    "trained_targets_per_second": 12891.486163856582,
+    "step_time_seconds": {
+      "median": 0.3177290769999672,
+      "p95": 0.3223172256997714,
+      "max": 0.3228270199997496
+    },
+    "data_wait_seconds": 0.019892363001417834,
+    "data_wait_fraction": 0.03130397001943245,
+    "cuda_phase_seconds": {
+      "forward": 0.1396914863586426,
+      "backward": 0.3331533737182617,
+      "optimizer": 0.05703817558288574
+    },
+    "pytorch_peak_allocated_bytes": 3881366016,
+    "pytorch_peak_reserved_bytes": 4527751168,
+    "host_min_available_memory_bytes": 115982901248,
+    "host_peak_process_rss_bytes": 3432509440,
+    "host_min_free_disk_bytes": 524767113216,
+    "max_temperature_c": 48.0,
+    "swap_in_pages": 0,
+    "swap_out_pages": 0,
+    "checkpoint_size_bytes": 851865721,
+    "checkpoint_seconds": 5.22536636499899,
+    "validation_seconds": 7.094194753999545,
+    "sampler_coverage": 0.9494520366721984
+  },
+  "gates": {
+    "run_succeeded": true,
+    "measurement_complete": true,
+    "cuda_events": true,
+    "measured_steps": true,
+    "finite_training": true,
+    "telemetry_error_free": true,
+    "sampler_coverage": true,
+    "available_memory": true,
+    "free_disk": true,
+    "swap_in": true,
+    "swap_out": true,
+    "thermal": true,
+    "allocator_stable": true,
+    "data_wait": true,
+    "checkpoint_verified": true
+  },
+  "raw_evidence": {
+    "root": "/tmp/dgx-001-smoke-909e7b9",
+    "run_json_sha256": "db9a6afa981dda8f258d245f8bf45be5738a43bc3000d9a47445d025d8ec4fed",
+    "measurement_json_sha256": "1a258f888f6a303abc11a8394068c57c4ba0d05892839272353be677f6e76073",
+    "resolved_config_sha256": "ca3aff35e7c2b02d36bf0f225623d2d7ed68404cbd01b3dc775cf9c7af9e206e",
+    "run_manifest_sha256": "cd82db7c6e4c3d071f03996b38b114f5214c9be3657df089211bcae74ed535ee",
+    "system_jsonl_sha256": "0238ac9f955a48329128a8545c7a18d2e353ff6514787f199848e4b565217d3d",
+    "final_checkpoint_sha256": "e8e2a87af2d303cfc855ec32fc8ed17bda54a800a2297e81e607ffbff35f1856"
+  }
+}

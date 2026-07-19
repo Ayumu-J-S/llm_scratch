@@ -2,9 +2,12 @@ FROM nvcr.io/nvidia/pytorch@sha256:43c018d6a12963f1a1bad85ef8574b5c2a978eec2be0e
 
 ARG BASE_IMAGE="nvcr.io/nvidia/pytorch@sha256:43c018d6a12963f1a1bad85ef8574b5c2a978eec2be0ebcacfb87f69e0d210e1"
 ARG BASE_ARM64_MANIFEST="sha256:dcae8df08ef61b019b8eb109113428cba4ef0e37484c6e722406150dd5ada759"
+ARG RUNTIME_SPEC_SHA256
+RUN test -n "${RUNTIME_SPEC_SHA256}"
 LABEL org.opencontainers.image.title="llm-scratch DGX Spark runtime" \
       org.opencontainers.image.base.name="${BASE_IMAGE}" \
-      io.llm-scratch.base.arm64-manifest="${BASE_ARM64_MANIFEST}"
+      io.llm-scratch.base.arm64-manifest="${BASE_ARM64_MANIFEST}" \
+      io.llm-scratch.runtime-spec-sha256="${RUNTIME_SPEC_SHA256}"
 ENV LLM_SCRATCH_BASE_IMAGE="${BASE_IMAGE}" \
     LLM_SCRATCH_BASE_ARM64_MANIFEST="${BASE_ARM64_MANIFEST}" \
     PATH="/opt/llm-scratch-venv/bin:${PATH}" \
@@ -79,5 +82,4 @@ if after["cuda"] is None:
 print(json.dumps(after, sort_keys=True))
 PY
 
-COPY . /workspace
-CMD ["python", "scripts/diagnose_environment.py"]
+CMD ["python", "-c", "import torch; print(torch.__version__, torch.version.cuda)"]

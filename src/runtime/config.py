@@ -470,6 +470,9 @@ def validate_training_config(config: Mapping[str, Any] | DictConfig) -> dict[str
         "pretrain_streaming": ("streaming", "pretraining"),
         "stability_smoke": ("streaming", "pretraining"),
         "gate_overfit": ("streaming", "memorization_gate"),
+        "dgx_smoke": ("streaming", "pretraining"),
+        "dgx_candidate": ("streaming", "pretraining"),
+        "pretrain_baseline": ("streaming", "pretraining"),
     }.get(profile_name)
     if expected_profile is None:
         raise ConfigPreflightError(f"unknown training profile: {profile_name!r}")

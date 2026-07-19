@@ -1405,10 +1405,37 @@ def test_blocking_summary_update_is_bounded_and_opens_circuit_breaker(tmp_path: 
     failure = next(
         json.loads(line)
         for line in (tmp_path / "wandb_events.jsonl").read_text(encoding="utf-8").splitlines()
-        if '"action": "summary"' in line and '"outcome": "failed"' in line
+        if '"action": "runtime_summary"' in line and '"outcome": "failed"' in line
     )
     assert failure["error"]["type"] == "TimeoutError"
     assert failure["circuit_breaker"] == "opened"
+
+
+def test_successful_scalar_runtime_and_final_summaries_are_recorded(tmp_path: Path):
+    fake = FakeWandb()
+    tracker = _tracker(tmp_path, _config(mode="offline", policy="none"), fake)
+
+    tracker.start(object())
+    tracker.log({"optimizer_step": 25, "train/loss": 1.0})
+    tracker.update_summary({"run/final_optimizer_step": 25})
+    tracker.finish()
+
+    events = [
+        json.loads(line)
+        for line in (tmp_path / "wandb_events.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+    assert any(
+        event["action"] == "runtime_summary" and event["outcome"] == "succeeded" for event in events
+    )
+    assert any(
+        event["action"] == "log"
+        and event["outcome"] == "succeeded"
+        and event["optimizer_step"] == 25
+        for event in events
+    )
+    assert any(
+        event["action"] == "final_summary" and event["outcome"] == "succeeded" for event in events
+    )
 
 
 def test_scalar_log_worker_exits_after_normal_finish(tmp_path: Path):

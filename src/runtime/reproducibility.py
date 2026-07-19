@@ -154,6 +154,18 @@ def _experiment_identity_config(cfg: Mapping[str, Any]) -> dict[str, Any]:
     return normalized
 
 
+def canonical_config_sha256(cfg: Mapping[str, Any]) -> str:
+    """Hash every resolved configuration field using canonical JSON."""
+
+    return sha256_bytes(canonical_json_bytes(_plain(cfg)))
+
+
+def experiment_config_sha256(cfg: Mapping[str, Any]) -> str:
+    """Hash the scientific experiment identity after documented operational exclusions."""
+
+    return sha256_bytes(canonical_json_bytes(_experiment_identity_config(cfg)))
+
+
 def _manifest_payload(path: Path, expected_fingerprint: str | None = None) -> dict[str, Any]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -303,7 +315,7 @@ def write_run_manifest(
         # Recovery selection and optional measurement instrumentation are
         # operational evidence controls, so neither manufactures a new
         # training experiment identity.
-        "config_sha256": sha256_bytes(canonical_json_bytes(_experiment_identity_config(cfg))),
+        "config_sha256": experiment_config_sha256(cfg),
         "lock_sha256": lock_hash,
         "seed": int(cfg.get("reproducibility", {}).get("seed", 0)),
         "tokenizer_fingerprint": tokenizer_snapshot["fingerprint"],

@@ -1,9 +1,11 @@
 .PHONY: help sync activate train smoke pretrain-streaming config-check \
-	runtime-lock diagnose dgx-build dgx-diagnose dgx-smoke test-cpu \
+	runtime-lock diagnose dgx-build dgx-diagnose dgx-smoke dgx-plan \
+	dgx-measurements dgx-summarize dgx-decompose dgx-pilot test-cpu \
 	ci-sync ci-lint ci-test ci-config ci-lock ci-offline-smoke ci-cpu
 
 DGX_IMAGE := llm-scratch:env-001
 DGX_RUN_FLAGS := --rm --gpus all --ipc=host --ulimit memlock=-1 --ulimit stack=67108864
+DGX_SOURCE_FLAGS := --volume $(CURDIR):$(CURDIR):ro --workdir $(CURDIR) --env PYTHONPATH=$(CURDIR)/src
 
 help:
 	@printf '%s\n' \
@@ -19,6 +21,11 @@ help:
 		'  make dgx-build        - Build the pinned ARM64 DGX Spark image without cache' \
 		'  make dgx-diagnose     - Require CUDA and BF16 in the DGX Spark image' \
 		'  make dgx-smoke        - Run exactly ten BF16 CUDA optimizer steps' \
+		'  make dgx-plan         - Print the DGX-001 repeated candidate matrix' \
+		'  make dgx-measurements - Run matrix (plus EXPECTED_COMMIT/OUTPUT_ROOT/CACHE_ROOT)' \
+		'  make dgx-summarize    - Gate/select matrix (OUTPUT_ROOT=...)' \
+		'  make dgx-decompose    - Run selected model/loader decomposition (same vars plus SELECTED)' \
+		'  make dgx-pilot        - Run selected 30-minute pilot (same vars plus SELECTED)' \
 		'  make test-cpu         - Run the explicit CPU development test suite' \
 		'  make ci-cpu           - Run the network-free pull-request quality gate'
 
@@ -49,13 +56,39 @@ diagnose:
 	PYTHONPATH=src uv run python scripts/diagnose_environment.py
 
 dgx-build:
-	docker build --platform linux/arm64 --no-cache -t $(DGX_IMAGE) .
+	docker build --platform linux/arm64 --no-cache \
+		--build-arg RUNTIME_SPEC_SHA256=$$(python3 src/dgx/runtime_image.py --sha256) \
+		-t $(DGX_IMAGE) .
 
 dgx-diagnose:
-	docker run $(DGX_RUN_FLAGS) $(DGX_IMAGE) python scripts/diagnose_environment.py --require-cuda --require-bf16
+	docker run $(DGX_RUN_FLAGS) $(DGX_SOURCE_FLAGS) $(DGX_IMAGE) python scripts/diagnose_environment.py --require-cuda --require-bf16
 
 dgx-smoke:
-	docker run $(DGX_RUN_FLAGS) $(DGX_IMAGE) python scripts/cuda_smoke.py
+	docker run $(DGX_RUN_FLAGS) $(DGX_SOURCE_FLAGS) $(DGX_IMAGE) python scripts/cuda_smoke.py
+
+dgx-plan:
+	PYTHONPATH=src uv run python scripts/run_dgx_measurements.py mode=plan
+
+dgx-measurements:
+	PYTHONPATH=src uv run python scripts/run_dgx_measurements.py \
+		mode=matrix expected_commit=$(EXPECTED_COMMIT) output_root=$(OUTPUT_ROOT) \
+		cache_root=$(CACHE_ROOT)
+
+dgx-summarize:
+	PYTHONPATH=src uv run python scripts/summarize_dgx_measurements.py \
+		output_root=$(OUTPUT_ROOT)
+
+dgx-decompose:
+	PYTHONPATH=src uv run python scripts/run_dgx_measurements.py \
+		mode=decompose expected_commit=$(EXPECTED_COMMIT) output_root=$(OUTPUT_ROOT) \
+		cache_root=$(CACHE_ROOT) selected_candidate=$(SELECTED) \
+		matrix_summary_path=$(MATRIX_SUMMARY)
+
+dgx-pilot:
+	PYTHONPATH=src uv run python scripts/run_dgx_measurements.py \
+		mode=pilot expected_commit=$(EXPECTED_COMMIT) output_root=$(OUTPUT_ROOT) \
+		cache_root=$(CACHE_ROOT) selected_candidate=$(SELECTED) \
+		matrix_summary_path=$(MATRIX_SUMMARY)
 
 test-cpu:
 	uv run pytest -q

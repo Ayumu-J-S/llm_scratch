@@ -40,7 +40,12 @@ rejects Torch, Triton, NVIDIA, and CUDA provider packages in the overlay, then
 installs the complete export with `pip --require-hashes --no-deps`. Build-time
 guards compare the NGC Torch version, CUDA build, and resolved module path before
 and after installation, along with a SHA-256 over Torch's installed `METADATA`
-and `RECORD` files.
+and `RECORD` files. The dependency image never copies the repository source or
+its own configured pin. `make dgx-build` hashes the Dockerfile, runtime lock,
+overlay guard, and hash implementation into a committed runtime-spec identity,
+passes it as an image label, and the runner verifies that label before binding
+the observed exact image ID into a plan. Every execution mounts the exact clean
+source commit read-only.
 
 ## Diagnose the actual runtime
 
@@ -53,7 +58,9 @@ make dgx-diagnose
 Machine-readable evidence is available with:
 
 ```bash
-docker run --rm --gpus all --entrypoint python llm-scratch:env-001 \
+docker run --rm --gpus all --entrypoint python \
+  --volume "$(pwd):$(pwd):ro" --workdir "$(pwd)" \
+  --env "PYTHONPATH=$(pwd)/src" llm-scratch:env-001 \
   scripts/diagnose_environment.py --json --require-cuda --require-bf16
 ```
 
@@ -67,12 +74,28 @@ Spark has unified CPU/GPU memory: allocator values are not total available
 memory, and unsupported `nvidia-smi` Memory-Usage must not be interpreted as
 spare capacity.
 
+DGX-001 measurement is narrower than generic CUDA diagnosis. Every matrix,
+decomposition, and pilot role must observe one `NVIDIA GB10` device on
+`aarch64`, compute capability 12.1, and a 120–140 GB memory total reported
+identically by the host and CUDA device. The summarizer revalidates that raw
+identity before accepting evidence. It also retains the physical GPU UUID,
+driver, CUDA runtime, Torch build, and host OS/kernel identity and requires every
+decomposition and pilot phase to match the matrix authority exactly; CUDA/BF16
+support on another GPU or after an unreviewed runtime change is not DGX Spark
+evidence. Before an auxiliary plan can trust `dgx-summary.json`, the runner
+re-derives its candidate statistics, selection, and hardware/software identity
+from all 27 physical matrix run directories. Auxiliary summarization repeats
+that derivation, so editing a PASS summary before or after plan creation cannot
+relabel measurements from another DGX.
+
 Both negative checks must exit nonzero when no GPU is passed:
 
 ```bash
-docker run --rm llm-scratch:env-001 \
+docker run --rm --volume "$(pwd):$(pwd):ro" --workdir "$(pwd)" \
+  --env "PYTHONPATH=$(pwd)/src" llm-scratch:env-001 \
   python scripts/diagnose_environment.py --require-cuda --require-bf16
-docker run --rm llm-scratch:env-001 python scripts/cuda_smoke.py
+docker run --rm --volume "$(pwd):$(pwd):ro" --workdir "$(pwd)" \
+  --env "PYTHONPATH=$(pwd)/src" llm-scratch:env-001 python scripts/cuda_smoke.py
 ```
 
 ## Exact ten-step CUDA proof
@@ -101,3 +124,100 @@ make test-cpu
 ```
 
 There is no `auto` setting and no silent CUDA-to-CPU fallback.
+
+## DGX-001 profile measurement and selection
+
+`config/dgx.yaml` predeclares a nine-arm matrix: the conventional width-384
+decoder at 18, 26, and 34 layers, crossed with 1,024, 2,048, and 4,096-token
+contexts. Micro-batch size scales 8, 4, and 2 respectively, so every arm trains
+exactly 32,768 targets per optimizer update at accumulation 4. This compares
+model size, useful context, throughput, and UMA pressure without changing the
+objective or architecture.
+
+Inspect the plan without starting a container:
+
+```bash
+make dgx-plan
+```
+
+Run all arms three times at one exact clean commit and the pinned ENV-001 image:
+
+```bash
+HEAD=$(git rev-parse HEAD)
+make dgx-measurements \
+  EXPECTED_COMMIT="$HEAD" \
+  OUTPUT_ROOT="/tmp/dgx-001-$HEAD" \
+  CACHE_ROOT="/absolute/path/to/hash-verified/stream_loader_cache"
+make dgx-summarize OUTPUT_ROOT="/tmp/dgx-001-$HEAD"
+```
+
+Every arm excludes ten warm-up updates, retains twenty measured updates, uses
+CUDA events only at measurement boundaries, exercises the pinned bilingual
+train/validation path, writes a verified final checkpoint, and samples host/GPU
+state out of band. The summarizer fails closed on incomplete repetitions,
+commit/image drift, non-finite training, unavailable CUDA events, sampler gaps,
+UMA or disk floors, swap growth, temperature above 80 C, allocated or reserved
+allocator-baseline growth, or a missing verified checkpoint. Allocated and
+reserved observations must themselves be nonnegative integers; malformed
+allocator evidence cannot pass as a stable zero-growth baseline. It reports
+median and spread, step median/p95/max,
+trained-target tokens/s, phase/data-wait decomposition, memory, validation and
+checkpoint overhead, and conservative 1-hour/24-hour/7-day budgets.
+
+Hydra may make a safety threshold stricter, but configuration validation rejects
+any override that weakens the committed UMA, telemetry, temperature, swap,
+allocator, data-wait, loader-supply, storage, repeatability, or selection gates.
+The 120 GB live disk floor and independent 100 GB post-plan reserve remain exact.
+Storage forecasting retains at least the full verified existing cache footprint
+when it is larger than the configured cache maximum; an immutable oversized
+cache is never treated as space that the measurement will reclaim. The cache
+integrity record must also prove exact `before == after` identity; an
+`unchanged` flag cannot override differing content or size evidence.
+
+Matrix preselection is deterministic: a candidate must pass every gate and project at
+least one billion targets in seven days from its slowest repetition. Among
+candidates no more than 20% slower than the fastest, choose the deepest model;
+then choose the longest context retaining at least 85% of that model's fastest
+throughput. A non-unique result is rejected instead of being resolved by an
+undeclared tie breaker. This leaves quality/storage headroom instead of
+selecting the largest arm that merely avoids OOM.
+
+That preselection is not final deployment authority. The online W&B pilot must
+observe a scheduled scalar-log boundary, then recompute the 1-hour, 24-hour,
+and 7-day token budgets for every matrix candidate using the worse of matrix
+and online event latency. Any selected-shape compute slowdown observed in the
+online pilot is applied conservatively to every matrix candidate before the
+same seven-day floor and 20%/85% rule run again; a changed selection or failed
+floor makes the pilot fail closed.
+
+After reviewing `dgx-summary.json`, run the selected arm for the required
+30-minute thermal/storage pilot and retain its verified checkpoint plus two
+labeled base-model continuations:
+
+```bash
+make dgx-pilot \
+  EXPECTED_COMMIT="$HEAD" \
+  OUTPUT_ROOT="/tmp/dgx-001-pilot-$HEAD" \
+  CACHE_ROOT="/absolute/path/to/hash-verified/stream_loader_cache" \
+  SELECTED="p85-ctx2048" \
+  MATRIX_SUMMARY="/tmp/dgx-001-$HEAD/dgx-summary.json"
+```
+
+The committed `profile=pretrain_baseline` has a 3,480-second optimizer-work cap
+plus a 120-second finalization reserve inside its one-hour wall budget. Matrix
+evidence must show that one worst observed update/event tail and the final
+checkpoint fit that reserve with a 2x margin. It uses
+the same per-update CUDA-event/synchronization protocol as the matrix, plus
+online W&B scalar logging with watch disabled and artifact policy `none`, while
+validation, rotating recovery checkpoints, and milestones run every 5M, 2.5M,
+and 100M trained targets. A final DGX-001 record must show that its model/context
+shape agrees with the exact-head summary before the profile is treated as
+selected. Decomposition likewise requires three repeatable measurements per
+role before it may pass or name a bottleneck. Pilot telemetry remains active
+through final-checkpoint loading and verification, continuation sampling, and
+W&B evidence capture so that their overlapping UMA, swap, thermal, and storage
+pressure is included in the resource verdict.
+For every role, the sampler persists and gate-checks an initial resource sample
+before model placement, optimizer allocation, tokenizer/data preview, or loader
+construction begins, so setup is inside the live UMA/swap/thermal/storage
+envelope rather than hidden between preflight and training.
