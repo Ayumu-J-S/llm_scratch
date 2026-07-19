@@ -153,17 +153,19 @@ be called a baseline until the following gates exist:
 
 ## Current progress snapshot
 
-Updated 2026-07-18 against `origin/main` at `f33f95a`:
+Updated 2026-07-19 against `origin/main` at `3bd46dc`:
 
-- 17 of 24 roadmap tickets are **Done**. All P0 tickets, `GEN-001`,
-  `GATE-001`, and `DATA-004` have merged with acceptance evidence.
+- 18 of 24 roadmap tickets are **Done**. All P0 tickets, `GEN-001`,
+  `GATE-001`, `DATA-004`, and `VAL-001` have merged with acceptance evidence.
 - `DATA-004` was accepted and merged in [PR #41](https://github.com/Ayumu-J-S/llm_scratch/pull/41)
   as merge commit `f33f95af7e6e5d7e22f29e9f43d6e7bf626ae757`.
-- `VAL-001` is the next critical-path ticket now that its data, loop, and
-  checkpoint dependencies are Done.
-- `WB-001` remains **Ready** because `REP-001`, `LOOP-001`, and `CKPT-001` are
-  Done.
-- `DGX-001` remains **Blocked** until its explicit `WB-001` dependency is Done.
+- `VAL-001` was accepted and merged in [PR #45](https://github.com/Ayumu-J-S/llm_scratch/pull/45)
+  as squash commit `3bd46dccbc5fd2dfa1726e2d63cf13b0250d475a`.
+- `WB-001` is the active **Ready** ticket; its `REP-001`, `LOOP-001`, and
+  `CKPT-001` dependencies are Done.
+- `BENCH-001` and `DGX-001` remain **Blocked** only on `WB-001`; both become
+  **Ready** when this ticket merges. `OPS-001` then remains blocked on
+  `BENCH-001`.
 - Five tickets remain blocked by the dependencies shown below.
 - A real pretraining baseline remains prohibited until wave 4 completes.
 
@@ -188,7 +190,7 @@ Updated 2026-07-18 against `origin/main` at `f33f95a`:
 | 14 | GEN-001 | P1 | Done | MODEL-001, TOK-001, CKPT-001 | Minimal base-model continuation CLI |
 | 15 | GATE-001 | P1 | Done | ENV-001, MODEL-001, TOK-001, LOOP-001, STAB-001, CKPT-001, GEN-001 | Reproducible bilingual overfit proof |
 | 16 | DATA-004 | P1 | Done | TOK-001, DATA-002, DATA-003, GATE-001 | Pinned Japanese/English mixture with QA |
-| 17 | VAL-001 | P1 | Ready | DATA-004, LOOP-001, CKPT-001 | Trustworthy lightweight held-out validation |
+| 17 | VAL-001 | P1 | Done | DATA-004, LOOP-001, CKPT-001 | Trustworthy lightweight held-out validation |
 | 18 | WB-001 | P1 | Ready | REP-001, LOOP-001, CKPT-001 | Evidence-complete, quota-safe W&B runs |
 | 19 | BENCH-001 | P1 | Blocked | GEN-001, VAL-001, WB-001 | Versioned Japanese/general benchmark suite |
 | 20 | DGX-001 | P1 | Blocked | STAB-001, GATE-001, DATA-004, WB-001 | Measured model profile and time/token budget |

@@ -201,7 +201,7 @@ The durable summary is
 supersedes Attempt 8 as repaired-code performance evidence; Attempt 8 and all
 failed or aborted earlier attempts remain in the experiment record.
 
-The mandatory independent heavy re-review of exact clean
+The independent re-review of exact clean
 implementation/evidence head `5a0a7437e9f94fe56f0ed2dd4cad622cd9d9e25e`
 returned `PASS WITH NOTE` and closed all six findings from the retained prior
 `FAIL`. It independently confirmed the byte-identical Attempt 9 summary and

@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import runpy
+from contextlib import nullcontext
 from dataclasses import replace
 from pathlib import Path
 
@@ -14,7 +15,10 @@ import torch
 from omegaconf import OmegaConf, open_dict
 
 import evaluate as evaluate_module
+import evaluation.scoring as scoring_module
+import train as train_module
 import training.checkpoint as checkpoint_module
+from data.stream_loader.cache import BoundedShardCache
 from data.streaming_dataset import causal_lm_collate_fn, target_sources_from_spans
 from evaluation.scoring import CausalLMScorer, manifest_identities
 from models.simple_decoder_transformer import SimpleDecoderTransformer
@@ -104,7 +108,11 @@ def _batch(labels, sources=None):
 
 
 def _scorer():
-    return CausalLMScorer(device=torch.device("cpu"), precision="fp32")
+    return CausalLMScorer(
+        device=torch.device("cpu"),
+        precision="fp32",
+        measure_phase_timing=True,
+    )
 
 
 def _compose(*overrides: str):
@@ -127,6 +135,12 @@ def _streaming_checkpoint_config(*, split_field: str = "sources"):
         config.training.gradient_accumulation_steps = 1
         config.training.max_grad_norm = None
         config.wandb.mode = "disabled"
+        config.data.streaming.cache = {
+            "dir": "data/stream_loader_cache",
+            "max_size_bytes": 4096,
+            "min_free_bytes": 0,
+            "wait_timeout_seconds": 1.0,
+        }
         if split_field == "datasets":
             for split_name in ("train", "validation"):
                 split = config.data.streaming[split_name]
@@ -188,6 +202,125 @@ def test_known_logits_match_token_weighted_nll_and_perplexity():
         "validation_seconds",
     ):
         assert result.timing[field] >= 0.0
+
+
+def test_cuda_phase_timing_uses_events_and_one_completion_boundary(monkeypatch):
+    calls: list[str] = []
+    events = []
+    batches = [
+        _batch([[0, 1]], [["ja", "en"]]),
+        _batch([[1, 0]], [["en", "ja"]]),
+    ]
+    expected = _scorer().score(FixedLogitModel([0.0, 1.0]), lambda: batches)
+
+    class FakeEvent:
+        def __init__(self, *, enable_timing):
+            assert enable_timing is True
+            self.ordinal = len(events)
+            events.append(self)
+
+        def record(self):
+            calls.append(f"record:{self.ordinal}")
+
+        def elapsed_time(self, end_event):
+            assert "synchronize" in calls
+            calls.append(f"elapsed:{self.ordinal}:{end_event.ordinal}")
+            return 3.0 if self.ordinal % 4 == 0 else 7.0
+
+    original_to = torch.Tensor.to
+    original_cpu = torch.Tensor.cpu
+
+    def fake_to(tensor, *args, **kwargs):
+        if args and isinstance(args[0], torch.device) and args[0].type == "cuda":
+            return tensor
+        return original_to(tensor, *args, **kwargs)
+
+    def guarded_cpu(tensor, *args, **kwargs):
+        assert "synchronize" in calls, "CUDA result materialized before the score boundary"
+        calls.append("cpu")
+        return original_cpu(tensor, *args, **kwargs)
+
+    monkeypatch.setattr(torch.Tensor, "to", fake_to)
+    monkeypatch.setattr(torch.Tensor, "cpu", guarded_cpu)
+    monkeypatch.setattr(
+        torch.Tensor,
+        "item",
+        lambda *_args, **_kwargs: pytest.fail("CUDA scoring must not call Tensor.item()"),
+    )
+    monkeypatch.setattr(scoring_module, "autocast_context", lambda *_args: nullcontext())
+    monkeypatch.setattr(scoring_module.torch.cuda, "Event", FakeEvent)
+
+    def synchronize(device):
+        assert device == torch.device("cuda")
+        calls.append("synchronize")
+
+    monkeypatch.setattr(scoring_module.torch.cuda, "synchronize", synchronize)
+    scorer = CausalLMScorer(
+        device=torch.device("cuda"),
+        precision="bf16",
+        measure_phase_timing=True,
+        cuda_events=True,
+    )
+
+    result = scorer.score(
+        FixedLogitModel([0.0, 1.0]),
+        lambda: batches,
+    )
+
+    assert result.timing["phase_timing_method"] == "cuda_events"
+    assert result.timing["forward_seconds"] == pytest.approx(0.006)
+    assert result.timing["loss_seconds"] == pytest.approx(0.014)
+    assert len(events) == 8
+    assert calls.count("synchronize") == 1
+    assert calls.count("cpu") == 2
+    synchronize_index = calls.index("synchronize")
+    assert all(
+        index > synchronize_index for index, call in enumerate(calls) if call.startswith("elapsed:")
+    )
+    assert result.evaluated_window_sha256 == expected.evaluated_window_sha256
+    assert result.evaluated_token_sha256 == expected.evaluated_token_sha256
+    assert result.target_tokens == expected.target_tokens
+    assert result.nll == pytest.approx(expected.nll)
+    assert result.by_corpus["ja"].nll == pytest.approx(expected.by_corpus["ja"].nll)
+    assert result.by_corpus["en"].nll == pytest.approx(expected.by_corpus["en"].nll)
+
+
+@pytest.mark.parametrize(
+    ("measure_phase_timing", "cuda_events"),
+    [(False, True), (True, False)],
+)
+def test_cuda_phase_timing_without_effective_events_adds_no_cuda_overhead(
+    monkeypatch, measure_phase_timing, cuda_events
+):
+    original_to = torch.Tensor.to
+
+    def fake_to(tensor, *args, **kwargs):
+        if args and isinstance(args[0], torch.device) and args[0].type == "cuda":
+            return tensor
+        return original_to(tensor, *args, **kwargs)
+
+    monkeypatch.setattr(torch.Tensor, "to", fake_to)
+    monkeypatch.setattr(scoring_module, "autocast_context", lambda *_args: nullcontext())
+    monkeypatch.setattr(
+        scoring_module.torch.cuda,
+        "Event",
+        lambda **_kwargs: pytest.fail("disabled phase timing must not create CUDA events"),
+    )
+    monkeypatch.setattr(
+        scoring_module.torch.cuda,
+        "synchronize",
+        lambda *_args: pytest.fail("disabled phase timing must not synchronize CUDA"),
+    )
+    scorer = CausalLMScorer(
+        device=torch.device("cuda"),
+        precision="bf16",
+        measure_phase_timing=measure_phase_timing,
+        cuda_events=cuda_events,
+    )
+
+    result = scorer.score(FixedLogitModel([0.0, 1.0]), lambda: [_batch([[0, 1]])])
+
+    assert result.timing == {}
 
 
 def test_partial_and_ignored_labels_reconcile_by_corpus():
@@ -344,6 +477,7 @@ def test_training_metrics_preserve_overflow_and_reconstruct_standalone_parity(tm
     local_record = json.loads((tmp_path / "metrics.jsonl").read_text(encoding="utf-8"))
     assert local_record["validation/perplexity"] is None
     assert local_record["validation/perplexity_overflow"] is True
+    assert local_record["validation/scorer_revision"] == result.scorer_revision
     assert compact_record["validation/perplexity"] is None
     assert compact_record["validation/perplexity_overflow"] is True
     assert all(
@@ -363,6 +497,7 @@ def test_training_metrics_preserve_overflow_and_reconstruct_standalone_parity(tm
     standalone = result.as_dict()
     assert reconstructed["aggregate"] == standalone["aggregate"]
     assert reconstructed["by_corpus"] == standalone["by_corpus"]
+    assert reconstructed["scorer_revision"] == standalone["scorer_revision"]
 
 
 def test_scoring_closes_iterator_when_model_fails():
@@ -444,7 +579,9 @@ def test_trainer_memorization_metrics_have_no_validation_namespace(tmp_path):
 
 
 @pytest.mark.parametrize("split_field", ["sources", "datasets"])
-def test_standalone_milestone_matches_shared_training_time_score(tmp_path, split_field):
+def test_standalone_milestone_matches_shared_training_time_score(
+    tmp_path, monkeypatch, split_field
+):
     checkpoint, checkpoint_config, model, identity, counters = _milestone_checkpoint(
         tmp_path / "checkpoints", split_field=split_field
     )
@@ -464,6 +601,25 @@ def test_standalone_milestone_matches_shared_training_time_score(tmp_path, split
         evaluation_config.evaluation.checkpoint_path = str(checkpoint)
         evaluation_config.evaluation.output_path = str(tmp_path / "standalone.json")
         evaluation_config.evaluation.device = "cpu"
+    foreign_cwd = tmp_path / "foreign-cwd"
+    foreign_cwd.mkdir()
+    observed_cache_dirs: list[Path] = []
+    observed_loader_roots: list[tuple[str, Path | None]] = []
+    original_cache_init = BoundedShardCache.__init__
+    original_build_streaming_dataloader = train_module.build_streaming_dataloader
+
+    def record_cache_dir(self, cache_dir, *args, **kwargs):
+        observed_cache_dirs.append(Path(cache_dir))
+        original_cache_init(self, cache_dir, *args, **kwargs)
+
+    def record_loader_root(cfg, split_name, **kwargs):
+        observed_loader_roots.append((split_name, kwargs.get("data_root")))
+        return original_build_streaming_dataloader(cfg, split_name, **kwargs)
+
+    monkeypatch.setattr(BoundedShardCache, "__init__", record_cache_dir)
+    monkeypatch.setattr(train_module, "build_streaming_dataloader", record_loader_root)
+    monkeypatch.setattr(evaluate_module, "build_streaming_dataloader", record_loader_root)
+    monkeypatch.chdir(foreign_cwd)
     result_path = evaluate_module.evaluate_checkpoint(evaluation_config)
     standalone = json.loads(result_path.read_text(encoding="utf-8"))
     result = standalone["result"]
@@ -475,14 +631,25 @@ def test_standalone_milestone_matches_shared_training_time_score(tmp_path, split
     assert result["evaluated_window_sha256"] == live_result.evaluated_window_sha256
     assert result["evaluated_token_sha256"] == live_result.evaluated_token_sha256
     assert result["manifest_identity"] == live_result.manifest_identity
+    assert result["scorer_revision"] == live_result.scorer_revision
     assert standalone["checkpoint"]["kind"] == "milestone"
     assert standalone["checkpoint"]["logical"] == live_result.logical_checkpoint_identity
     assert standalone["checkpoint"]["physical"]["path"] == str(checkpoint.resolve())
     assert len(standalone["checkpoint"]["physical"]["sha256"]) == 64
+    assert standalone["evaluation"]["checkpoint_config_sha256"] == identity["config_sha256"]
+    expected_cache = evaluate_module.ROOT_DIR / "data" / "stream_loader_cache"
+    assert {split for split, _root in observed_loader_roots} == {"train", "validation"}
+    assert all(root == evaluate_module.ROOT_DIR for _split, root in observed_loader_roots)
+    assert observed_cache_dirs
+    assert set(observed_cache_dirs) == {expected_cache}
+    assert not (foreign_cwd / "data" / "stream_loader_cache").exists()
     evaluator_run = standalone["evaluator_run"]
     assert len(evaluator_run["git"]["sha"]) == 40
     assert isinstance(evaluator_run["git"]["dirty"], bool)
     assert evaluator_run["resolved_config"]["evaluation"]["checkpoint_path"] == str(checkpoint)
+    assert evaluator_run["resolved_config"]["measurement"] == OmegaConf.to_container(
+        evaluation_config.measurement, resolve=True
+    )
     assert len(evaluator_run["resolved_config_sha256"]) == 64
     assert evaluator_run["lock"]["path"].endswith("uv.lock")
     assert len(evaluator_run["lock"]["sha256"]) == 64
@@ -551,6 +718,26 @@ def test_standalone_rejects_output_checkpoint_collisions_before_evaluation(
         evaluate_module.evaluate_checkpoint(evaluation_config)
 
     assert checkpoint.read_bytes() == original
+
+
+def test_standalone_rejects_invalid_measurement_before_checkpoint_or_device(tmp_path, monkeypatch):
+    evaluation_config = _compose("profile=evaluation")
+    with open_dict(evaluation_config):
+        evaluation_config.evaluation.checkpoint_path = str(tmp_path / "unused.pt")
+        evaluation_config.measurement.enabled = "false"
+    monkeypatch.setattr(
+        evaluate_module,
+        "load_checkpoint_for_generation",
+        lambda *_args, **_kwargs: pytest.fail("invalid measurement must fail before checkpoint IO"),
+    )
+    monkeypatch.setattr(
+        evaluate_module,
+        "select_device",
+        lambda *_args, **_kwargs: pytest.fail("invalid measurement must fail before device setup"),
+    )
+
+    with pytest.raises(ConfigPreflightError, match="measurement.enabled"):
+        evaluate_module.evaluate_checkpoint(evaluation_config)
 
 
 def test_standalone_wandb_summary_records_compact_identities_and_local_hash(tmp_path, monkeypatch):

@@ -20,7 +20,7 @@ dependencies = [
 llm-scratch-train = "cli:train"
 llm-scratch-config-check = "cli:config_check"
 llm-scratch-generate = "generate:main"
-llm-scratch-evaluate = "evaluate:main"
+llm-scratch-evaluate = "cli:evaluate"
 
 [build-system]
 requires = ["setuptools>=75"]

@@ -1,22 +1,16 @@
 # WB-001 — Quota-safe W&B preserves local training evidence
 
 - Roadmap ticket: `WB-001`
-- Branch: `codex/wb-001-evidence-safe-wandb`
-- Draft PR: unavailable because the `gh` publication prerequisite is missing;
-  complete body prepared at `/tmp/WB-001-pr-body.md`
-- Experiment owner: implementation agent
-- Status: mandatory independent heavy re-review `PASS WITH NOTE` at exact clean
-  implementation/evidence head
-  `5a0a7437e9f94fe56f0ed2dd4cad622cd9d9e25e`; all six findings from the
-  retained prior `FAIL` are closed with no actionable blocker. R1 and the
-  repaired-code, depth-26 DGX Attempt 9 result are `PASS WITH NOTE`; all 168
-  applicable dynamically emitted measurement gates pass. Attempt 9 supersedes
-  Attempt 8 as repaired-code performance evidence, while Attempt 8 is retained
-  as history. A final exact-head docs-only no-drift review remains pending after
-  this record update.
+- Branch: `codex/wb-001-main-integration`
+- Draft PR: recorded in the live pull-request handoff.
+- Status: current-main integration and exact-head review in progress. The
+  retained pre-integration review was `PASS WITH NOTE`; all six findings from
+  its prior `FAIL` were closed. R1 and the repaired-code depth-26 DGX Attempt 9
+  result are `PASS WITH NOTE`, with all 168 applicable measurement gates
+  passing. Attempt 9 supersedes Attempt 8 as repaired-code performance evidence,
+  while Attempt 8 remains as history.
 - Started (UTC): 2026-07-13
 - Last updated (UTC): 2026-07-19
-- Model-run provenance: `docs/model-runs/WB-001-evidence-complete-wandb.md`
 
 ## Predeclared question and decision rule
 
@@ -545,15 +539,13 @@ evidence, and decoded W&B binary records prove only local history/watch content.
 The mandatory heavy re-review accepted this evidence and the repaired
 implementation with the nonblocking limitations below.
 
-## Mandatory heavy re-review — PASS WITH NOTE
+## Independent implementation re-review — PASS WITH NOTE
 
-The independent reviewer requested as `gpt-5.6-sol` / Extra High (`xhigh`)
-reviewed exact clean implementation/evidence head
+An independent review covered exact clean implementation/evidence head
 `5a0a7437e9f94fe56f0ed2dd4cad622cd9d9e25e` against baseline
 `74d9e24c251b62b23892b11ba0c1c9c723cd8a12`, repaired implementation
 `e507a3447ab0895960530cdb207ca0702ec41f85`, and the retained mandatory `FAIL`
-at `23b6d2120f1a3738d4a3baf92e50c9b8f3c227f9`. The runtime did not expose the
-actual model identifier or reasoning mode.
+at `23b6d2120f1a3738d4a3baf92e50c9b8f3c227f9`.
 
 The verdict is `PASS WITH NOTE` with no actionable blocker. All six prior
 findings are closed. The reviewer regenerated Attempt 9 byte-identically at
@@ -562,9 +554,7 @@ SHA-256
 and confirmed 168/168 applicable gates: 159 required gates plus nine declared
 data-wait-note gates, with zero failures. The review output is
 `/tmp/WB-001-heavy-rereview.txt`, SHA-256
-`586bfe867db9373c82b693c1083339d8a8b5b6e1f1e887928daf8d3f2d879605`;
-durable provenance is in
-`docs/model-runs/evidence/WB-001-heavy-rereview-provenance.json`.
+`586bfe867db9373c82b693c1083339d8a8b5b6e1f1e887928daf8d3f2d879605`.
 
 The notes are bounded: per-arm data wait remains 6.3273–8.1949%; network
 isolation plus artifact policy `none` support no online/cloud claim; quota

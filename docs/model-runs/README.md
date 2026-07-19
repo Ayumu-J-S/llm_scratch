@@ -39,4 +39,3 @@ engineering context, findings, outcomes, and evidence.
 - `STAB-001-stable-training.md`
 - `TOK-001-canonical-tokenizer.md`
 - `VAL-001-held-out-validation.md`
-- `WB-001-evidence-complete-wandb.md`

@@ -9,7 +9,10 @@ from __future__ import annotations
 
 import json
 import math
+import os
+import tempfile
 import time
+import uuid
 from pathlib import Path
 from typing import Any, Callable
 
@@ -33,6 +36,57 @@ from training.checkpoint import (
 )
 from training.optimization import autocast_context, get_learning_rate
 from training.wandb_tracking import WandbTracker
+
+
+_CHECKPOINT_KINDS = {"recovery", "best", "final", "milestone"}
+_MEASUREMENT_BOUNDARY_KEYS = {
+    "boundary_index",
+    "boundary_id",
+    "evidence_id",
+    "segment_index",
+    "kind",
+    "counters",
+}
+_MEASUREMENT_SEGMENT_KEYS = {
+    "segment_index",
+    "start_counters",
+    "end_counters",
+    "resumed_from",
+    "parent_boundary_id",
+    "measurement",
+    "complete",
+    "rows",
+}
+
+
+def _resolve_measurement_output_path(checkpoint_dir: Path, configured_output_path: Any) -> Path:
+    """Resolve a measurement artifact outside every checkpoint namespace."""
+
+    checkpoint_root = Path(checkpoint_dir).resolve()
+    if configured_output_path:
+        output_path = Path(str(configured_output_path))
+        if not output_path.is_absolute():
+            output_path = checkpoint_root.parent / output_path
+    else:
+        output_path = checkpoint_root.parent / "measurement.json"
+    output_path = output_path.resolve()
+    if output_path == checkpoint_root or checkpoint_root in output_path.parents:
+        raise ValueError("measurement.output_path must resolve outside the checkpoint directory")
+    if output_path.exists() and checkpoint_root.is_dir():
+        for checkpoint_path in checkpoint_root.rglob("*"):
+            if checkpoint_path.is_file() and output_path.samefile(checkpoint_path):
+                raise ValueError(
+                    "measurement.output_path must not share an inode with a checkpoint artifact"
+                )
+    return output_path
+
+
+def _fsync_directory(directory: Path) -> None:
+    descriptor = os.open(directory, os.O_RDONLY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
 
 
 class Trainer:
@@ -92,19 +146,19 @@ class Trainer:
             and measurement.get("cuda_events", True)
             and self.device.type == "cuda"
         )
-        configured_measurement_path = measurement.get("output_path")
-        measurement_path = (
-            Path(configured_measurement_path)
-            if configured_measurement_path
-            else self.checkpoint_dir / "measurement.json"
-        )
-        self._measurement_path = (
-            measurement_path
-            if measurement_path.is_absolute() or not configured_measurement_path
-            else self.checkpoint_dir / measurement_path
+        self._measurement_path = _resolve_measurement_output_path(
+            self.checkpoint_dir, measurement.get("output_path")
         )
         self._measurement_rows: list[dict[str, Any]] = []
+        self._measurement_segments: list[dict[str, Any]] = []
+        self._measurement_segment: dict[str, Any] | None = None
+        self._measurement_checkpoint_boundaries: list[dict[str, Any]] = []
+        self._active_measurement_checkpoint_boundary: dict[str, Any] | None = None
         self._measurement_completed = False
+        self._measurement_evidence_id = uuid.uuid4().hex if self._measurement_enabled else None
+        self._resume_measurement_config: dict[str, Any] | None = None
+        self._resume_measurement_evidence_id: str | None = None
+        self._resume_measurement_checkpoint_boundary: dict[str, Any] | None = None
 
         self.max_steps = self._positive_budget("max_steps")
         self.max_tokens = self._positive_budget("max_tokens")
@@ -146,6 +200,8 @@ class Trainer:
             device=self.device,
             precision=self.precision,
             ignore_index=int(self._training_value("ignore_index", -100)),
+            measure_phase_timing=self._measurement_enabled,
+            cuda_events=self._measurement_cuda_events,
         )
         if self.resume_path is not None:
             self._restore_checkpoint(self.resume_path)
@@ -159,16 +215,16 @@ class Trainer:
     def fit(self) -> list[dict[str, Any]]:
         """Run training and return the local metric records."""
 
-        # A checkpoint directory can be reused by a later run. Metrics and W&B
-        # decisions are run-local evidence, not append-only checkpoint state.
+        # A checkpoint directory can be reused by a later run. Metrics are
+        # run-local evidence, not append-only checkpoint state. Validate local
+        # measurement evidence before starting an external tracker.
         self.metrics.clear()
         self._latest_wandb_scalars.clear()
         if self._resumed_from is None:
             self._reset_local_metrics()
             self.wandb.reset_local_evidence()
+        self._initialize_measurements()
         self.wandb.start(self.model)
-        self._measurement_rows.clear()
-        self._measurement_completed = False
         self._start_time = time.monotonic() - self.elapsed_seconds
         saw_batch = False
 
@@ -779,6 +835,7 @@ class Trainer:
             f"{namespace}/loss": validation_result.nll,
             f"{namespace}/perplexity": validation_result.perplexity,
             f"{namespace}/perplexity_overflow": validation_result.aggregate.perplexity_overflow,
+            f"{namespace}/scorer_revision": validation_result.scorer_revision,
             f"{namespace}/target_tokens": validation_result.target_tokens,
             f"{namespace}/evaluated_windows": validation_result.evaluated_windows,
             f"{namespace}/evaluated_window_sha256": validation_result.evaluated_window_sha256,
@@ -813,9 +870,7 @@ class Trainer:
         for name, score in sorted(validation_result.by_corpus.items()):
             compact[f"{namespace}/corpus/{name}/nll"] = score.nll
             compact[f"{namespace}/corpus/{name}/perplexity"] = score.perplexity
-            compact[f"{namespace}/corpus/{name}/perplexity_overflow"] = (
-                score.perplexity_overflow
-            )
+            compact[f"{namespace}/corpus/{name}/perplexity_overflow"] = score.perplexity_overflow
             compact[f"{namespace}/corpus/{name}/target_tokens"] = score.target_tokens
         self._latest_wandb_scalars.update(compact)
         self._record_metrics(
@@ -993,21 +1048,415 @@ class Trainer:
     def _flush_measurements(self) -> None:
         if not self._measurement_enabled:
             return
+        if self._measurement_segment is None:
+            raise RuntimeError("enabled measurement has no active evidence segment")
+        self._measurement_segment["end_counters"] = dict(self.counters)
+        self._measurement_segment["complete"] = self._measurement_completed
         payload = {
-            "schema_version": 1,
-            "enabled": True,
-            "warmup_optimizer_steps": self._measurement_warmup_steps,
-            "cuda_events": self._measurement_cuda_events,
-            "device": str(self.device),
+            "schema_version": 3,
+            "checkpoint_identity": self.checkpoint_identity,
+            "measurement_evidence_id": self._measurement_evidence_id,
             "complete": self._measurement_completed,
-            "rows": self._measurement_rows,
+            "segments": self._measurement_segments,
+            "checkpoint_boundaries": self._measurement_checkpoint_boundaries,
         }
         self._measurement_path.parent.mkdir(parents=True, exist_ok=True)
-        temporary_path = self._measurement_path.with_name(f".{self._measurement_path.name}.tmp")
-        temporary_path.write_text(
-            json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        descriptor, temporary_name = tempfile.mkstemp(
+            prefix=f".{self._measurement_path.name}.",
+            suffix=".tmp",
+            dir=str(self._measurement_path.parent),
         )
-        temporary_path.replace(self._measurement_path)
+        temporary_path = Path(temporary_name)
+        try:
+            with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+                json.dump(payload, handle, indent=2, sort_keys=True, allow_nan=False)
+                handle.write("\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary_path, self._measurement_path)
+            _fsync_directory(self._measurement_path.parent)
+        except BaseException:
+            temporary_path.unlink(missing_ok=True)
+            raise
+
+    def _initialize_measurements(self) -> None:
+        self._measurement_rows.clear()
+        self._measurement_segments.clear()
+        self._measurement_checkpoint_boundaries.clear()
+        self._measurement_segment = None
+        self._active_measurement_checkpoint_boundary = None
+        self._measurement_completed = False
+        if not self._measurement_enabled:
+            return
+
+        prior_path: Path | None = None
+        prior_status = "fresh"
+        if self._resumed_from is not None:
+            prior_config = self._resume_measurement_config or {}
+            if bool(prior_config.get("enabled", False)):
+                if self._resume_measurement_evidence_id is None:
+                    raise ValueError("resume checkpoint has no measurement evidence identity")
+                self._measurement_evidence_id = self._resume_measurement_evidence_id
+                prior_path = _resolve_measurement_output_path(
+                    self._resumed_from.path.parent,
+                    prior_config.get("output_path"),
+                )
+                segments, boundaries = self._load_measurement_evidence(prior_path)
+                self._measurement_segments.extend(segments)
+                self._measurement_checkpoint_boundaries.extend(boundaries)
+                prior_status = "verified"
+            else:
+                prior_status = "disabled"
+
+        if self._measurement_path.exists() and self._measurement_path != prior_path:
+            raise ValueError(
+                "measurement output already exists without matching resume evidence: "
+                f"{self._measurement_path}"
+            )
+
+        start_counters = dict(self.counters)
+        resumed_from = None
+        if self._resumed_from is not None:
+            resumed_from = {
+                "path": str(self._resumed_from.path.resolve()),
+                "counters": start_counters,
+                "prior_measurement": {
+                    "status": prior_status,
+                    "path": str(prior_path) if prior_path is not None else None,
+                },
+            }
+        self._measurement_segment = {
+            "segment_index": len(self._measurement_segments),
+            "start_counters": start_counters,
+            "end_counters": start_counters,
+            "resumed_from": resumed_from,
+            "parent_boundary_id": (
+                self._resume_measurement_checkpoint_boundary["boundary_id"]
+                if prior_status == "verified"
+                and self._resume_measurement_checkpoint_boundary is not None
+                else None
+            ),
+            "measurement": {
+                "warmup_optimizer_steps": self._measurement_warmup_steps,
+                "cuda_events": self._measurement_cuda_events,
+                "device": str(self.device),
+                "output_path": str(self._measurement_path),
+            },
+            "complete": False,
+            "rows": self._measurement_rows,
+        }
+        self._measurement_segments.append(self._measurement_segment)
+
+    def _load_measurement_evidence(
+        self, path: Path
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except FileNotFoundError as error:
+            raise ValueError(
+                f"resume checkpoint requires prior measurement evidence at {path}"
+            ) from error
+        except (OSError, json.JSONDecodeError) as error:
+            raise ValueError(f"prior measurement evidence is unreadable: {path}") from error
+        if not isinstance(payload, dict) or payload.get("schema_version") != 3:
+            raise ValueError("prior measurement evidence has an unsupported schema")
+        if payload.get("checkpoint_identity") != self.checkpoint_identity:
+            raise ValueError("prior measurement evidence checkpoint identity does not match")
+        if payload.get("measurement_evidence_id") != self._resume_measurement_evidence_id:
+            raise ValueError("prior measurement evidence chain identity does not match")
+        raw_segments = payload.get("segments")
+        if not isinstance(raw_segments, list) or not raw_segments:
+            raise ValueError("prior measurement evidence has no segments")
+
+        segments: list[dict[str, Any]] = []
+        for expected_index, segment in enumerate(raw_segments):
+            if (
+                not isinstance(segment, dict)
+                or set(segment) != _MEASUREMENT_SEGMENT_KEYS
+                or segment.get("segment_index") != expected_index
+            ):
+                raise ValueError("prior measurement evidence has invalid segment ordering")
+            start = self._validated_measurement_counters(
+                segment.get("start_counters"), f"segment {expected_index} start"
+            )
+            end = self._validated_measurement_counters(
+                segment.get("end_counters"), f"segment {expected_index} end"
+            )
+            if (
+                end["optimizer_step"] < start["optimizer_step"]
+                or end["target_tokens"] < start["target_tokens"]
+                or end["elapsed_seconds"] < start["elapsed_seconds"]
+            ):
+                raise ValueError("prior measurement evidence segment counters move backwards")
+            if not isinstance(segment.get("complete"), bool):
+                raise ValueError("prior measurement evidence segment completion is invalid")
+            measurement = segment.get("measurement")
+            if (
+                not isinstance(measurement, dict)
+                or set(measurement)
+                != {"warmup_optimizer_steps", "cuda_events", "device", "output_path"}
+                or isinstance(measurement["warmup_optimizer_steps"], bool)
+                or not isinstance(measurement["warmup_optimizer_steps"], int)
+                or measurement["warmup_optimizer_steps"] < 0
+                or not isinstance(measurement["cuda_events"], bool)
+                or not isinstance(measurement["device"], str)
+                or not measurement["device"]
+                or not isinstance(measurement["output_path"], str)
+                or not measurement["output_path"]
+            ):
+                raise ValueError("prior measurement evidence segment settings are invalid")
+            self._validate_measurement_segment_resume(segment, start, expected_index)
+            rows = segment.get("rows")
+            if not isinstance(rows, list):
+                raise ValueError("prior measurement evidence segment rows are invalid")
+            previous_step = start["optimizer_step"]
+            previous_tokens = start["target_tokens"]
+            for row in rows:
+                if not isinstance(row, dict):
+                    raise ValueError("prior measurement evidence contains an invalid row")
+                step = row.get("optimizer_step")
+                tokens = row.get("target_tokens")
+                if (
+                    isinstance(step, bool)
+                    or not isinstance(step, int)
+                    or isinstance(tokens, bool)
+                    or not isinstance(tokens, int)
+                    or step < previous_step
+                    or tokens < previous_tokens
+                    or step > end["optimizer_step"]
+                    or tokens > end["target_tokens"]
+                ):
+                    raise ValueError("prior measurement evidence row counters are invalid")
+                previous_step = step
+                previous_tokens = tokens
+            segments.append(segment)
+
+        raw_boundaries = payload.get("checkpoint_boundaries")
+        if not isinstance(raw_boundaries, list):
+            raise ValueError("prior measurement checkpoint boundaries are invalid")
+        boundaries = self._validated_measurement_checkpoint_boundaries(
+            raw_boundaries,
+            segments,
+        )
+        self._validate_measurement_segment_lineage(segments, boundaries)
+
+        complete = payload.get("complete")
+        if not isinstance(complete, bool) or complete != segments[-1]["complete"]:
+            raise ValueError("prior measurement evidence completion state is inconsistent")
+        assert self._resumed_from is not None
+        selected = self._resume_measurement_checkpoint_boundary
+        if not isinstance(selected, dict):
+            raise ValueError("resume checkpoint has no measurement boundary binding")
+        selected_binding = self._validated_measurement_checkpoint_binding(
+            selected,
+            label="selected checkpoint",
+        )
+        if selected_binding["kind"] != self._resumed_from.payload["kind"]:
+            raise ValueError("selected checkpoint kind differs from its measurement boundary")
+        if selected_binding["counters"] != self._validated_measurement_counters(
+            self.counters,
+            "selected checkpoint",
+        ):
+            raise ValueError("selected checkpoint counters differ from its measurement boundary")
+        matching = [
+            boundary
+            for boundary in boundaries
+            if {key: boundary[key] for key in _MEASUREMENT_BOUNDARY_KEYS} == selected_binding
+        ]
+        if len(matching) != 1 or matching[0]["status"] not in {"pending", "committed"}:
+            raise ValueError(
+                "prior measurement evidence does not contain an accepted selected resume boundary"
+            )
+        return segments, boundaries
+
+    def _validate_measurement_segment_resume(
+        self,
+        segment: dict[str, Any],
+        start: dict[str, int | float],
+        segment_index: int,
+    ) -> None:
+        resumed_from = segment["resumed_from"]
+        parent_boundary_id = segment["parent_boundary_id"]
+        if resumed_from is None:
+            if segment_index != 0 or parent_boundary_id is not None:
+                raise ValueError("prior measurement segment has invalid fresh lineage")
+            return
+        if not isinstance(resumed_from, dict) or set(resumed_from) != {
+            "path",
+            "counters",
+            "prior_measurement",
+        }:
+            raise ValueError("prior measurement segment resume metadata is invalid")
+        if not isinstance(resumed_from["path"], str) or not resumed_from["path"]:
+            raise ValueError("prior measurement segment resume path is invalid")
+        if (
+            self._validated_measurement_counters(
+                resumed_from["counters"], f"segment {segment_index} resume"
+            )
+            != start
+        ):
+            raise ValueError("prior measurement segment resume counters differ from its start")
+        prior = resumed_from["prior_measurement"]
+        if not isinstance(prior, dict) or set(prior) != {"status", "path"}:
+            raise ValueError("prior measurement segment resume evidence metadata is invalid")
+        status = prior["status"]
+        prior_path = prior["path"]
+        if status == "verified":
+            if (
+                not isinstance(parent_boundary_id, str)
+                or not parent_boundary_id
+                or not isinstance(prior_path, str)
+                or not prior_path
+            ):
+                raise ValueError("verified measurement resume has invalid parent evidence")
+        elif status == "disabled":
+            if parent_boundary_id is not None or prior_path is not None:
+                raise ValueError("disabled measurement resume has unexpected parent evidence")
+        else:
+            raise ValueError("prior measurement segment resume status is invalid")
+
+    def _validate_measurement_segment_lineage(
+        self,
+        segments: list[dict[str, Any]],
+        boundaries: list[dict[str, Any]],
+    ) -> None:
+        boundaries_by_id = {boundary["boundary_id"]: boundary for boundary in boundaries}
+        for segment in segments:
+            parent_boundary_id = segment["parent_boundary_id"]
+            if parent_boundary_id is None:
+                continue
+            parent = boundaries_by_id.get(parent_boundary_id)
+            if (
+                parent is None
+                or parent["status"] not in {"pending", "committed"}
+                or parent["segment_index"] >= segment["segment_index"]
+                or self._validated_measurement_counters(
+                    parent["counters"],
+                    f"segment {segment['segment_index']} parent",
+                )
+                != self._validated_measurement_counters(
+                    segment["start_counters"],
+                    f"segment {segment['segment_index']} start",
+                )
+            ):
+                raise ValueError("prior measurement segment parent lineage is invalid")
+
+    def _validated_measurement_checkpoint_boundaries(
+        self,
+        raw_boundaries: list[Any],
+        segments: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        boundaries: list[dict[str, Any]] = []
+        boundary_ids: set[str] = set()
+        for expected_index, boundary in enumerate(raw_boundaries):
+            if not isinstance(boundary, dict) or set(boundary) != (
+                _MEASUREMENT_BOUNDARY_KEYS | {"status", "checkpoint_path"}
+            ):
+                raise ValueError("prior measurement checkpoint boundary is invalid")
+            binding = self._validated_measurement_checkpoint_binding(
+                {key: boundary[key] for key in _MEASUREMENT_BOUNDARY_KEYS},
+                label=f"checkpoint boundary {expected_index}",
+            )
+            if binding["boundary_index"] != expected_index:
+                raise ValueError("prior measurement checkpoint boundary ordering is invalid")
+            boundary_id = binding["boundary_id"]
+            if boundary_id in boundary_ids:
+                raise ValueError("prior measurement checkpoint boundary IDs are not unique")
+            boundary_ids.add(boundary_id)
+            segment_index = binding["segment_index"]
+            if segment_index >= len(segments):
+                raise ValueError("prior measurement checkpoint boundary segment is invalid")
+            segment = segments[segment_index]
+            counters = binding["counters"]
+            start = self._validated_measurement_counters(
+                segment["start_counters"], f"segment {segment_index} start"
+            )
+            end = self._validated_measurement_counters(
+                segment["end_counters"], f"segment {segment_index} end"
+            )
+            if any(
+                not start[key] <= counters[key] <= end[key]
+                for key in ("optimizer_step", "target_tokens", "elapsed_seconds")
+            ):
+                raise ValueError("prior measurement checkpoint boundary counters are out of range")
+            status = boundary["status"]
+            checkpoint_path = boundary["checkpoint_path"]
+            if status not in {"pending", "committed", "failed"}:
+                raise ValueError("prior measurement checkpoint boundary status is invalid")
+            if status == "committed":
+                if not isinstance(checkpoint_path, str) or not checkpoint_path:
+                    raise ValueError("committed measurement checkpoint boundary has no path")
+            elif checkpoint_path is not None:
+                raise ValueError("uncommitted measurement checkpoint boundary has a path")
+            boundaries.append(boundary)
+        return boundaries
+
+    def _validated_measurement_checkpoint_binding(
+        self,
+        value: Any,
+        *,
+        label: str,
+        expected_evidence_id: str | None = None,
+    ) -> dict[str, Any]:
+        if not isinstance(value, dict) or set(value) != _MEASUREMENT_BOUNDARY_KEYS:
+            raise ValueError(f"measurement evidence {label} boundary binding is invalid")
+        boundary_index = value["boundary_index"]
+        boundary_id = value["boundary_id"]
+        evidence_id = value["evidence_id"]
+        expected_evidence_id = (
+            self._resume_measurement_evidence_id
+            if expected_evidence_id is None
+            else expected_evidence_id
+        )
+        segment_index = value["segment_index"]
+        kind = value["kind"]
+        if (
+            isinstance(boundary_index, bool)
+            or not isinstance(boundary_index, int)
+            or boundary_index < 0
+            or not isinstance(boundary_id, str)
+            or not boundary_id
+            or evidence_id != expected_evidence_id
+            or isinstance(segment_index, bool)
+            or not isinstance(segment_index, int)
+            or segment_index < 0
+            or kind not in _CHECKPOINT_KINDS
+        ):
+            raise ValueError(f"measurement evidence {label} boundary binding is invalid")
+        return {
+            "boundary_index": boundary_index,
+            "boundary_id": boundary_id,
+            "evidence_id": evidence_id,
+            "segment_index": segment_index,
+            "kind": kind,
+            "counters": self._validated_measurement_counters(value["counters"], label),
+        }
+
+    @staticmethod
+    def _validated_measurement_counters(value: Any, label: str) -> dict[str, int | float]:
+        if not isinstance(value, dict):
+            raise ValueError(f"prior measurement evidence {label} counters are invalid")
+        optimizer_step = value.get("optimizer_step")
+        target_tokens = value.get("target_tokens")
+        elapsed_seconds = value.get("elapsed_seconds")
+        if (
+            isinstance(optimizer_step, bool)
+            or not isinstance(optimizer_step, int)
+            or optimizer_step < 0
+            or isinstance(target_tokens, bool)
+            or not isinstance(target_tokens, int)
+            or target_tokens < 0
+            or isinstance(elapsed_seconds, bool)
+            or not isinstance(elapsed_seconds, (int, float))
+            or not math.isfinite(float(elapsed_seconds))
+            or elapsed_seconds < 0
+        ):
+            raise ValueError(f"prior measurement evidence {label} counters are invalid")
+        return {
+            "optimizer_step": optimizer_step,
+            "target_tokens": target_tokens,
+            "elapsed_seconds": float(elapsed_seconds),
+        }
 
     def _event_trigger(self, prefix: str, epoch_end: bool) -> str:
         if epoch_end:
@@ -1018,16 +1467,64 @@ class Trainer:
         return "target_tokens"
 
     def _save_checkpoint(self) -> Path:
-        return self.checkpoints.save_recovery(self._checkpoint_state())
+        return self._save_checkpoint_with_measurement_boundary(
+            "recovery", self.checkpoints.save_recovery
+        )
 
     def _save_best_checkpoint(self) -> Path:
-        return self.checkpoints.save_best(self._checkpoint_state())
+        return self._save_checkpoint_with_measurement_boundary("best", self.checkpoints.save_best)
 
     def _save_final_checkpoint(self) -> Path:
-        return self.checkpoints.save_final(self._checkpoint_state())
+        return self._save_checkpoint_with_measurement_boundary("final", self.checkpoints.save_final)
 
     def _save_milestone_checkpoint(self) -> Path:
-        return self.checkpoints.save_milestone(self._checkpoint_state())
+        return self._save_checkpoint_with_measurement_boundary(
+            "milestone", self.checkpoints.save_milestone
+        )
+
+    def _save_checkpoint_with_measurement_boundary(
+        self,
+        kind: str,
+        save: Callable[[dict[str, Any]], Path],
+    ) -> Path:
+        if not self._measurement_enabled:
+            return save(self._checkpoint_state())
+        if self._measurement_segment is None or self._measurement_evidence_id is None:
+            raise RuntimeError("measurement checkpoint save has no active evidence segment")
+        binding = {
+            "boundary_index": len(self._measurement_checkpoint_boundaries),
+            "boundary_id": uuid.uuid4().hex,
+            "evidence_id": self._measurement_evidence_id,
+            "segment_index": int(self._measurement_segment["segment_index"]),
+            "kind": kind,
+            "counters": dict(self.counters),
+        }
+        boundary = {
+            **binding,
+            "counters": dict(binding["counters"]),
+            "status": "pending",
+            "checkpoint_path": None,
+        }
+        self._measurement_checkpoint_boundaries.append(boundary)
+        self._active_measurement_checkpoint_boundary = binding
+        self._flush_measurements()
+        try:
+            checkpoint_path = save(self._checkpoint_state())
+        except BaseException as error:
+            boundary["status"] = "failed"
+            self._active_measurement_checkpoint_boundary = None
+            try:
+                self._flush_measurements()
+            except BaseException as flush_error:
+                error.add_note(
+                    f"measurement boundary could not be durably marked failed: {flush_error!r}"
+                )
+            raise
+        self._active_measurement_checkpoint_boundary = None
+        boundary["status"] = "committed"
+        boundary["checkpoint_path"] = str(checkpoint_path.resolve())
+        self._flush_measurements()
+        return checkpoint_path
 
     def _checkpoint_measurement_metrics(self) -> dict[str, float | int]:
         measurement = self.checkpoints.last_write_measurement
@@ -1062,6 +1559,18 @@ class Trainer:
             "stream_cursor": self._stream_cursor_state(),
             "resolved_config": OmegaConf.to_container(self.cfg, resolve=True),
             "run_identity": dict(self.checkpoint_identity),
+            "measurement_evidence": {
+                "enabled": self._measurement_enabled,
+                "evidence_id": self._measurement_evidence_id,
+                "checkpoint_boundary": (
+                    {
+                        **self._active_measurement_checkpoint_boundary,
+                        "counters": dict(self._active_measurement_checkpoint_boundary["counters"]),
+                    }
+                    if self._active_measurement_checkpoint_boundary is not None
+                    else None
+                ),
+            },
         }
 
     def _restore_checkpoint(self, resume_path: str | Path) -> None:
@@ -1079,6 +1588,7 @@ class Trainer:
             "stream_cursor",
             "resolved_config",
             "run_identity",
+            "measurement_evidence",
         }
         missing = required.difference(state)
         if missing:
@@ -1092,6 +1602,34 @@ class Trainer:
             raise CheckpointCompatibilityError(
                 "checkpoint run/data/tokenizer identity differs from this run"
             )
+        resolved_config = state["resolved_config"]
+        if not isinstance(resolved_config, dict):
+            raise CheckpointCompatibilityError("checkpoint resolved config is invalid")
+        resume_measurement_config = resolved_config.get("measurement", {}) or {}
+        if not isinstance(resume_measurement_config, dict):
+            raise CheckpointCompatibilityError("checkpoint measurement config is invalid")
+        measurement_evidence = state["measurement_evidence"]
+        if not isinstance(measurement_evidence, dict) or set(measurement_evidence) != {
+            "enabled",
+            "evidence_id",
+            "checkpoint_boundary",
+        }:
+            raise CheckpointCompatibilityError("checkpoint measurement evidence state is invalid")
+        prior_measurement_enabled = measurement_evidence.get("enabled")
+        prior_measurement_id = measurement_evidence.get("evidence_id")
+        prior_measurement_boundary = measurement_evidence.get("checkpoint_boundary")
+        if (
+            not isinstance(prior_measurement_enabled, bool)
+            or prior_measurement_enabled != bool(resume_measurement_config.get("enabled", False))
+            or (
+                prior_measurement_enabled
+                and (not isinstance(prior_measurement_id, str) or not prior_measurement_id)
+            )
+            or (not prior_measurement_enabled and prior_measurement_id is not None)
+            or (prior_measurement_enabled and not isinstance(prior_measurement_boundary, dict))
+            or (not prior_measurement_enabled and prior_measurement_boundary is not None)
+        ):
+            raise CheckpointCompatibilityError("checkpoint measurement evidence state is invalid")
         counters = state["counters"]
         if not isinstance(counters, dict):
             raise CheckpointCompatibilityError("checkpoint counters are invalid")
@@ -1109,6 +1647,29 @@ class Trainer:
             or elapsed_seconds < 0
         ):
             raise CheckpointCompatibilityError("checkpoint counters are invalid")
+        if prior_measurement_enabled:
+            try:
+                checkpoint_boundary = self._validated_measurement_checkpoint_binding(
+                    prior_measurement_boundary,
+                    label="checkpoint payload",
+                    expected_evidence_id=prior_measurement_id,
+                )
+            except ValueError as error:
+                raise CheckpointCompatibilityError(
+                    "checkpoint measurement boundary binding is invalid"
+                ) from error
+            if checkpoint_boundary["kind"] != resumed.payload["kind"]:
+                raise CheckpointCompatibilityError(
+                    "checkpoint kind differs from its measurement boundary binding"
+                )
+            if checkpoint_boundary["counters"] != self._validated_measurement_counters(
+                counters,
+                "checkpoint payload",
+            ):
+                raise CheckpointCompatibilityError(
+                    "checkpoint counters differ from its measurement boundary binding"
+                )
+            prior_measurement_boundary = checkpoint_boundary
         self._load_stream_cursor(dict(state["stream_cursor"]))
         self.model.load_state_dict(state["model"], strict=True)
         self.optimizer.load_state_dict(state["optimizer"])
@@ -1152,6 +1713,9 @@ class Trainer:
         best_path = self.checkpoint_dir / "best.pt"
         self._best_checkpoint_path = best_path if best_path.is_file() else None
         restore_rng_state(state["rng"])
+        self._resume_measurement_config = dict(resume_measurement_config)
+        self._resume_measurement_evidence_id = prior_measurement_id
+        self._resume_measurement_checkpoint_boundary = prior_measurement_boundary
         self._resumed_from = resumed
         if resumed.rejected_paths:
             logger.warning(

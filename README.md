@@ -113,8 +113,16 @@ uv run python src/train.py profile=pretrain_streaming \
   artifacts.resume_path=recovery-step-000000001000.pt
 ```
 
-`artifacts.resume_path` is an operational selector, not an experiment change.
-The checkpoint rejects model, tokenizer, data, resolved-config, precision, or
+`artifacts.resume_path` and the complete top-level `measurement` section are
+operational controls, not experiment changes. Both remain in the byte-exact
+resolved-config evidence, while run/checkpoint experiment identity excludes
+them so enabling timing or changing its output path cannot invalidate resume.
+Standalone evaluator-run identity still records and hashes its full resolved
+evaluation config, including `measurement`; the exclusion applies only to the
+training experiment/checkpoint identity.
+
+The checkpoint rejects model, tokenizer, data, experiment-affecting
+resolved-config, precision, or
 run-identity mismatch before the train loader opens. Exact resume currently
 requires the cursor-aware manifest-backed streaming path; a local map-style
 loader without persisted sampler state is rejected rather than replaying a

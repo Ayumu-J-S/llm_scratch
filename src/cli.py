@@ -24,3 +24,9 @@ def config_check() -> None:
     from train import run_config_check
 
     run_config_check(_compose())
+
+
+def evaluate() -> None:
+    from evaluate import main as evaluate_main
+
+    evaluate_main.__wrapped__(_compose())

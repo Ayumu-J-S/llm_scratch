@@ -199,6 +199,49 @@ def test_evaluation_preflight_accepts_only_explicit_operational_controls():
 
 
 @pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("enabled", "false", "measurement.enabled"),
+        ("cuda_events", "true", "measurement.cuda_events"),
+        ("warmup_optimizer_steps", True, "warmup_optimizer_steps"),
+        ("warmup_optimizer_steps", -1, "warmup_optimizer_steps"),
+        ("output_path", "   ", "measurement.output_path"),
+    ],
+)
+def test_evaluation_preflight_rejects_malformed_measurement_controls(field, value, message):
+    config = compose(
+        "profile=evaluation",
+        "evaluation.checkpoint_path=/tmp/milestone.pt",
+    )
+    OmegaConf.update(config, f"measurement.{field}", value, force_add=True)
+
+    with pytest.raises(ConfigPreflightError, match=message):
+        validate_evaluation_config(config)
+
+
+def test_evaluation_preflight_rejects_unknown_measurement_key():
+    config = compose(
+        "profile=evaluation",
+        "evaluation.checkpoint_path=/tmp/milestone.pt",
+    )
+    OmegaConf.update(config, "measurement.cuda_event", True, force_add=True)
+
+    with pytest.raises(ConfigPreflightError, match="unknown critical.*cuda_event"):
+        validate_evaluation_config(config)
+
+
+def test_evaluation_preflight_rejects_non_mapping_measurement_section():
+    config = compose(
+        "profile=evaluation",
+        "evaluation.checkpoint_path=/tmp/milestone.pt",
+    )
+    OmegaConf.update(config, "measurement", "enabled", force_add=True)
+
+    with pytest.raises(ConfigPreflightError, match="measurement must be a mapping"):
+        validate_evaluation_config(config)
+
+
+@pytest.mark.parametrize(
     ("device", "precision"),
     [("cpu", "fp32"), ("cuda", "fp32"), ("cuda", "bf16")],
 )

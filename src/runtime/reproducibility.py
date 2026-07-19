@@ -139,11 +139,12 @@ def _plain(value: Any) -> Any:
 
 
 def _experiment_identity_config(cfg: Mapping[str, Any]) -> dict[str, Any]:
-    """Exclude operational recovery and W&B controls from experiment identity."""
+    """Exclude operational recovery, measurement, and W&B controls from identity."""
 
     normalized = _plain(cfg)
     if not isinstance(normalized, dict):
         raise ReproducibilityError("run identity requires a mapping configuration")
+    normalized.pop("measurement", None)
     artifacts = normalized.get("artifacts")
     if isinstance(artifacts, Mapping):
         normalized_artifacts = dict(artifacts)
@@ -298,10 +299,10 @@ def write_run_manifest(
     lock_hash = sha256_file(lock_path)
     identity_payload = {
         "git_sha": git["sha"],
-        # The resolved config file remains recorded byte-for-byte below. Only
-        # the explicit operational recovery selector is normalized for the
-        # experiment ID, so resuming the same run does not manufacture a new
-        # identity while every experiment-affecting config change still does.
+        # The resolved config file remains recorded byte-for-byte below.
+        # Recovery selection and optional measurement instrumentation are
+        # operational evidence controls, so neither manufactures a new
+        # training experiment identity.
         "config_sha256": sha256_bytes(canonical_json_bytes(_experiment_identity_config(cfg))),
         "lock_sha256": lock_hash,
         "seed": int(cfg.get("reproducibility", {}).get("seed", 0)),
@@ -316,7 +317,7 @@ def write_run_manifest(
         "config": {"path": config_path.name, "sha256": config_hash},
         "experiment_identity": {
             "config_sha256": identity_payload["config_sha256"],
-            "operational_exclusions": ["artifacts.resume_path", "wandb"],
+            "operational_exclusions": ["artifacts.resume_path", "measurement", "wandb"],
         },
         "lock": {"path": "uv.lock", "sha256": lock_hash},
         "seed": int(cfg.get("reproducibility", {}).get("seed", 0)),

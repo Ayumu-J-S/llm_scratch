@@ -22,7 +22,7 @@ import torch.nn.functional as F
 from training.optimization import autocast_context
 
 
-SCORER_REVISION = "VAL-001-causal-lm-scorer-v1"
+SCORER_REVISION = "VAL-001-causal-lm-scorer-v3"
 _DEFAULT_SOURCE = "aggregate"
 
 
@@ -61,7 +61,7 @@ class EvaluationResult:
     physical_checkpoint_identity: dict[str, Any] | None
     scorer_revision: str
     pause_seconds: float
-    timing: dict[str, float] = field(default_factory=dict)
+    timing: dict[str, Any] = field(default_factory=dict)
 
     @property
     def nll(self) -> float:
@@ -108,10 +108,16 @@ class CausalLMScorer:
         device: torch.device,
         precision: str = "fp32",
         ignore_index: int = -100,
+        measure_phase_timing: bool = False,
+        cuda_events: bool = False,
     ) -> None:
         self.device = device
         self.precision = precision
         self.ignore_index = int(ignore_index)
+        self.measure_phase_timing = bool(measure_phase_timing)
+        self.cuda_events = bool(
+            self.measure_phase_timing and cuda_events and self.device.type == "cuda"
+        )
 
     def score(
         self,
@@ -133,9 +139,14 @@ class CausalLMScorer:
         if namespace not in {"validation", "memorization"}:
             raise ValueError("evaluation namespace must be validation or memorization")
         started = time.perf_counter()
-        loader_started = time.perf_counter()
+        phase_timing_enabled = self.measure_phase_timing and (
+            self.device.type != "cuda" or self.cuda_events
+        )
+        loader_started = time.perf_counter() if phase_timing_enabled else None
         loader = loader_factory()
-        loader_construction_seconds = time.perf_counter() - loader_started
+        loader_construction_seconds = (
+            time.perf_counter() - loader_started if loader_started is not None else 0.0
+        )
         actual_manifest_identity, loader_configured_fingerprints = _manifest_identity_from_loader(
             loader, namespace=namespace
         )
@@ -164,50 +175,92 @@ class CausalLMScorer:
                 raise ValueError(
                     "actual validation loader manifests do not match ordered configured manifests"
                 )
-        iterator_started = time.perf_counter()
+        iterator_started = time.perf_counter() if phase_timing_enabled else None
         iterator = iter(loader)
-        iterator_creation_seconds = time.perf_counter() - iterator_started
+        iterator_creation_seconds = (
+            time.perf_counter() - iterator_started if iterator_started is not None else 0.0
+        )
         was_training = model.training
         model.eval()
         aggregate_loss = 0.0
         aggregate_tokens = 0
         corpus_loss: dict[str, float] = {}
         corpus_tokens: dict[str, int] = {}
+        cuda_aggregate_loss: torch.Tensor | None = None
+        cuda_corpus_loss: dict[str, torch.Tensor] = {}
+        cuda_finite_flags: list[torch.Tensor] = []
         window_digest = hashlib.sha256()
         token_digest = hashlib.sha256()
         evaluated_windows = 0
-        timing = {
-            "loader_construction_seconds": loader_construction_seconds,
-            "iterator_creation_seconds": iterator_creation_seconds,
-            "data_wait_seconds": 0.0,
-            "host_device_preparation_seconds": 0.0,
-            "forward_seconds": 0.0,
-            "loss_seconds": 0.0,
-            "validation_seconds": 0.0,
-            "iterator_close_seconds": 0.0,
+        timing: dict[str, Any] = {}
+        if phase_timing_enabled:
+            timing = {
+                "phase_timing_method": "cuda_events" if self.cuda_events else "host_wall",
+                "loader_construction_seconds": loader_construction_seconds,
+                "iterator_creation_seconds": iterator_creation_seconds,
+                "data_wait_seconds": 0.0,
+                "host_device_preparation_seconds": 0.0,
+                "forward_seconds": 0.0,
+                "loss_seconds": 0.0,
+                "validation_seconds": 0.0,
+                "iterator_close_seconds": 0.0,
+            }
+        cuda_phase_events: dict[str, list[tuple[Any, Any]]] = {
+            "forward_seconds": [],
+            "loss_seconds": [],
         }
         try:
             with torch.no_grad():
                 batch_index = 0
                 while True:
-                    wait_started = time.perf_counter()
+                    wait_started = time.perf_counter() if phase_timing_enabled else None
                     try:
                         batch = next(iterator)
                     except StopIteration:
                         break
-                    timing["data_wait_seconds"] += time.perf_counter() - wait_started
+                    if wait_started is not None:
+                        timing["data_wait_seconds"] += time.perf_counter() - wait_started
                     batch_index += 1
-                    preparation_started = time.perf_counter()
-                    inputs = batch["inputs"].to(self.device)
-                    labels = batch["labels"].to(self.device)
-                    timing["host_device_preparation_seconds"] += (
-                        time.perf_counter() - preparation_started
+                    host_inputs = batch["inputs"]
+                    host_labels = batch["labels"]
+                    (
+                        source_rows,
+                        host_source_masks,
+                        batch_corpus_tokens,
+                        batch_target_tokens,
+                        batch_windows,
+                    ) = _record_host_batch_identity(
+                        host_inputs,
+                        host_labels,
+                        batch.get("target_sources"),
+                        ignore_index=self.ignore_index,
+                        window_digest=window_digest,
+                        token_digest=token_digest,
                     )
-                    forward_started = time.perf_counter()
+                    aggregate_tokens += batch_target_tokens
+                    evaluated_windows += batch_windows
+                    for source, count in batch_corpus_tokens.items():
+                        corpus_tokens[source] = corpus_tokens.get(source, 0) + count
+                    preparation_started = time.perf_counter() if phase_timing_enabled else None
+                    inputs = host_inputs.to(self.device)
+                    labels = host_labels.to(self.device)
+                    source_masks = {
+                        source: mask.to(self.device) for source, mask in host_source_masks.items()
+                    }
+                    if preparation_started is not None:
+                        timing["host_device_preparation_seconds"] += (
+                            time.perf_counter() - preparation_started
+                        )
+                    forward_phase = self._start_compute_phase(phase_timing_enabled)
                     with autocast_context(self.device, self.precision):
                         logits = model(inputs)
-                    timing["forward_seconds"] += time.perf_counter() - forward_started
-                    loss_started = time.perf_counter()
+                    self._end_compute_phase(
+                        timing,
+                        cuda_phase_events,
+                        "forward_seconds",
+                        forward_phase,
+                    )
+                    loss_phase = self._start_compute_phase(phase_timing_enabled)
                     with autocast_context(self.device, self.precision):
                         flat_labels = labels.reshape(-1)
                         flat_losses = F.cross_entropy(
@@ -216,63 +269,54 @@ class CausalLMScorer:
                             reduction="none",
                             ignore_index=self.ignore_index,
                         )
-                    timing["loss_seconds"] += time.perf_counter() - loss_started
-                    if not torch.isfinite(flat_losses).all():
-                        error = FloatingPointError(
-                            f"non-finite {namespace} loss at validation batch {batch_index}"
+                    if self.device.type == "cuda":
+                        cuda_finite_flags.append(torch.isfinite(flat_losses).all())
+                        batch_loss_sum = flat_losses.sum()
+                        cuda_aggregate_loss = (
+                            batch_loss_sum
+                            if cuda_aggregate_loss is None
+                            else cuda_aggregate_loss + batch_loss_sum
                         )
-                        error.batch_index = batch_index
-                        raise error
-
-                    source_rows = _target_source_rows(batch.get("target_sources"), labels)
-                    batch_inputs = inputs.detach().cpu().tolist()
-                    batch_labels = labels.detach().cpu().tolist()
-                    batch_losses = flat_losses.detach().cpu().reshape(labels.shape).tolist()
-                    for row_index, (input_row, label_row) in enumerate(
-                        zip(batch_inputs, batch_labels)
-                    ):
-                        sources = source_rows[row_index]
-                        if len(sources) != len(label_row):
-                            raise ValueError(
-                                "target_sources must be label-aligned with every validation window"
+                        for source, source_mask in source_masks.items():
+                            source_loss_sum = flat_losses[source_mask.reshape(-1)].sum()
+                            cuda_corpus_loss[source] = (
+                                source_loss_sum
+                                if source not in cuda_corpus_loss
+                                else cuda_corpus_loss[source] + source_loss_sum
                             )
-                        for token_index, (label, loss) in enumerate(
-                            zip(label_row, batch_losses[row_index])
-                        ):
-                            if int(label) == self.ignore_index:
-                                continue
-                            if not math.isfinite(float(loss)):
-                                error = FloatingPointError(
-                                    f"non-finite {namespace} loss at validation batch "
-                                    f"{batch_index}, row {row_index}"
-                                )
-                                error.batch_index = batch_index
-                                raise error
-                            source = str(sources[token_index])
-                            if not source:
-                                raise ValueError("every valid validation target needs a source")
-                            value = float(loss)
-                            token_id = int(label)
-                            aggregate_loss += value
-                            aggregate_tokens += 1
-                            corpus_loss[source] = corpus_loss.get(source, 0.0) + value
-                            corpus_tokens[source] = corpus_tokens.get(source, 0) + 1
-                            _update_int(token_digest, token_id)
-                            _update_text(token_digest, source)
-                        _update_window_digest(
-                            window_digest,
-                            input_row,
-                            label_row,
-                            sources,
-                            self.ignore_index,
-                        )
-                        evaluated_windows += 1
+                    else:
+                        if not torch.isfinite(flat_losses).all():
+                            error = FloatingPointError(
+                                f"non-finite {namespace} loss at validation batch {batch_index}"
+                            )
+                            error.batch_index = batch_index
+                            raise error
+                        batch_losses = flat_losses.detach().reshape(labels.shape).tolist()
+                        host_label_rows = host_labels.detach().tolist()
+                        for row_index, label_row in enumerate(host_label_rows):
+                            sources = source_rows[row_index]
+                            for token_index, (label, loss) in enumerate(
+                                zip(label_row, batch_losses[row_index])
+                            ):
+                                if int(label) == self.ignore_index:
+                                    continue
+                                value = float(loss)
+                                source = sources[token_index]
+                                aggregate_loss += value
+                                corpus_loss[source] = corpus_loss.get(source, 0.0) + value
+                    self._end_compute_phase(
+                        timing,
+                        cuda_phase_events,
+                        "loss_seconds",
+                        loss_phase,
+                    )
         finally:
-            close_started = time.perf_counter()
+            close_started = time.perf_counter() if phase_timing_enabled else None
             try:
                 _close_evaluation_iterator(iterator)
             finally:
-                timing["iterator_close_seconds"] += time.perf_counter() - close_started
+                if close_started is not None:
+                    timing["iterator_close_seconds"] += time.perf_counter() - close_started
                 if was_training:
                     model.train()
                 else:
@@ -290,13 +334,47 @@ class CausalLMScorer:
                 )
         if sum(corpus_tokens.values()) != aggregate_tokens:
             raise RuntimeError("per-corpus validation target counts do not reconcile")
+        cuda_loss_sums: torch.Tensor | None = None
+        cuda_batch_finite: torch.Tensor | None = None
+        if self.device.type == "cuda":
+            if cuda_aggregate_loss is None or not cuda_finite_flags:
+                raise RuntimeError("CUDA validation did not retain its device reductions")
+            cuda_loss_sums = torch.stack(
+                [cuda_aggregate_loss, *(cuda_corpus_loss[source] for source in corpus_tokens)]
+            )
+            cuda_batch_finite = torch.stack(cuda_finite_flags)
+        if self.cuda_events:
+            # One score-boundary synchronization makes all recorded event
+            # durations completion-aware without imposing a barrier per batch.
+            torch.cuda.synchronize(self.device)
+            for phase_name, pairs in cuda_phase_events.items():
+                timing[phase_name] = sum(
+                    start_event.elapsed_time(end_event) / 1000.0 for start_event, end_event in pairs
+                )
+        if cuda_loss_sums is not None and cuda_batch_finite is not None:
+            finite_flags = cuda_batch_finite.detach().cpu().tolist()
+            for index, finite in enumerate(finite_flags, start=1):
+                if not finite:
+                    error = FloatingPointError(
+                        f"non-finite {namespace} loss at validation batch {index}"
+                    )
+                    error.batch_index = index
+                    raise error
+            loss_sums = cuda_loss_sums.detach().cpu().tolist()
+            aggregate_loss = float(loss_sums[0])
+            corpus_loss = {
+                source: float(loss_sums[index])
+                for index, source in enumerate(corpus_tokens, start=1)
+            }
         aggregate = _make_score(aggregate_loss, aggregate_tokens)
         by_corpus = {
             source: _make_score(corpus_loss[source], corpus_tokens[source])
             for source in corpus_tokens
         }
         total_seconds = max(0.0, time.perf_counter() - started)
-        timing["validation_seconds"] = total_seconds
+        if phase_timing_enabled:
+            timing["validation_seconds"] = total_seconds
+            timing["total_seconds"] = total_seconds
         return EvaluationResult(
             namespace=namespace,
             aggregate=aggregate,
@@ -317,11 +395,34 @@ class CausalLMScorer:
             ),
             scorer_revision=SCORER_REVISION,
             pause_seconds=total_seconds,
-            timing={
-                **timing,
-                "total_seconds": total_seconds,
-            },
+            timing=timing,
         )
+
+    def _start_compute_phase(self, phase_timing_enabled: bool) -> float | tuple[Any, Any] | None:
+        if not phase_timing_enabled:
+            return None
+        if not self.cuda_events:
+            return time.perf_counter()
+        start_event = torch.cuda.Event(enable_timing=True)
+        end_event = torch.cuda.Event(enable_timing=True)
+        start_event.record()
+        return start_event, end_event
+
+    def _end_compute_phase(
+        self,
+        timing: dict[str, Any],
+        cuda_phase_events: dict[str, list[tuple[Any, Any]]],
+        phase_name: str,
+        phase: float | tuple[Any, Any] | None,
+    ) -> None:
+        if phase is None:
+            return
+        if isinstance(phase, float):
+            timing[phase_name] += time.perf_counter() - phase
+            return
+        start_event, end_event = phase
+        end_event.record()
+        cuda_phase_events[phase_name].append((start_event, end_event))
 
 
 def manifest_identities(manifests: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -426,6 +527,60 @@ def _target_source_rows(value: Any, labels: torch.Tensor) -> list[list[str]]:
             raise ValueError("target_sources must be label-aligned with validation labels")
         result.append([str(source) for source in row])
     return result
+
+
+def _record_host_batch_identity(
+    inputs: torch.Tensor,
+    labels: torch.Tensor,
+    target_sources: Any,
+    *,
+    ignore_index: int,
+    window_digest: "hashlib._Hash",
+    token_digest: "hashlib._Hash",
+) -> tuple[list[list[str]], dict[str, torch.Tensor], dict[str, int], int, int]:
+    """Hash/count one host batch and build source masks without device reads."""
+
+    if inputs.device.type != "cpu" or labels.device.type != "cpu":
+        raise ValueError("evaluation loaders must yield host inputs and labels")
+    input_rows = inputs.detach().tolist()
+    label_rows = labels.detach().tolist()
+    if len(input_rows) != len(label_rows):
+        raise ValueError("evaluation inputs and labels must contain the same number of windows")
+    source_rows = _target_source_rows(target_sources, labels)
+    flat_sources: list[str | None] = []
+    corpus_tokens: dict[str, int] = {}
+    target_tokens = 0
+    for row_index, (input_row, label_row) in enumerate(zip(input_rows, label_rows)):
+        sources = source_rows[row_index]
+        if len(sources) != len(label_row):
+            raise ValueError("target_sources must be label-aligned with every validation window")
+        for token_index, label in enumerate(label_row):
+            if int(label) == ignore_index:
+                flat_sources.append(None)
+                continue
+            source = str(sources[token_index])
+            if not source:
+                raise ValueError("every valid validation target needs a source")
+            flat_sources.append(source)
+            target_tokens += 1
+            corpus_tokens[source] = corpus_tokens.get(source, 0) + 1
+            _update_int(token_digest, int(label))
+            _update_text(token_digest, source)
+        _update_window_digest(
+            window_digest,
+            input_row,
+            label_row,
+            sources,
+            ignore_index,
+        )
+    source_masks = {
+        source: torch.tensor(
+            [observed_source == source for observed_source in flat_sources],
+            dtype=torch.bool,
+        )
+        for source in corpus_tokens
+    }
+    return source_rows, source_masks, corpus_tokens, target_tokens, len(input_rows)
 
 
 def _make_score(loss_sum: float, target_tokens: int) -> CorpusScore:

@@ -47,6 +47,26 @@ evaluation additionally records the physical checkpoint file. Same-corpus
 smoke and memorization-gate profiles use only the `memorization/*` namespace and
 do not create a best-validation checkpoint.
 
+Both local training metrics and W&B records include the scorer revision so a
+training-time result can be compared with standalone evidence only when their
+scoring implementations match. Validation phase timing is opt-in through
+`measurement.enabled`. CPU phase values are host wall time. On CUDA,
+`forward_seconds` and `loss_seconds` are reported only when
+`measurement.cuda_events=true`; they use CUDA events plus one explicit
+synchronization at the end of the scoring pass, not host enqueue latency. With
+measurement disabled (or CUDA events disabled on CUDA), the scorer returns no
+phase-timing map and adds no CUDA events or explicit synchronization.
+`pause_seconds` remains the full observed validation pause in every mode.
+
+CUDA scoring hashes input/label/source identity from the loader's host tensors
+before transfer. Loss sums and finite flags remain device tensors throughout
+the bounded validation pass; there is no per-batch `.cpu()`, `.item()`, or
+device-valued Python condition. When CUDA-event timing is enabled, the scorer
+records every phase end, performs its one explicit end-of-pass synchronization,
+and only then materializes the bounded aggregate/per-corpus sums and finite
+flags. Without event timing, the same bounded final materialization is the only
+required completion boundary.
+
 To write an optional compact W&B summary after the local JSON succeeds:
 
 ```bash

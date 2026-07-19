@@ -235,6 +235,35 @@ def _sources(split: Mapping[str, Any], path: str) -> list[dict[str, Any]]:
     return result
 
 
+def validate_measurement_config(config: Mapping[str, Any] | DictConfig) -> dict[str, Any]:
+    """Validate the shared training/evaluation measurement controls."""
+
+    value = (
+        OmegaConf.to_container(config, resolve=True) if isinstance(config, DictConfig) else config
+    )
+    if not isinstance(value, Mapping):
+        raise ConfigPreflightError("measurement must be a mapping")
+    measurement = dict(value)
+    _check_keys(measurement, _MEASUREMENT, "measurement")
+    if not measurement:
+        return measurement
+    for key in ("enabled", "cuda_events"):
+        field = measurement.get(key)
+        if not isinstance(field, bool):
+            raise ConfigPreflightError(f"measurement.{key} must be boolean")
+    warmup_steps = measurement.get("warmup_optimizer_steps")
+    if isinstance(warmup_steps, bool) or not isinstance(warmup_steps, int) or warmup_steps < 0:
+        raise ConfigPreflightError(
+            "measurement.warmup_optimizer_steps must be a non-negative integer"
+        )
+    output_path = measurement.get("output_path")
+    if output_path is not None and (not isinstance(output_path, str) or not output_path.strip()):
+        raise ConfigPreflightError(
+            "measurement.output_path must be null or a non-empty path string"
+        )
+    return measurement
+
+
 def validate_evaluation_config(config: Mapping[str, Any] | DictConfig) -> dict[str, Any]:
     """Validate standalone operational controls without overriding checkpoint authority."""
 
@@ -272,6 +301,7 @@ def validate_evaluation_config(config: Mapping[str, Any] | DictConfig) -> dict[s
             or float(timeout) <= 0
         ):
             raise ConfigPreflightError(f"evaluation.wandb.{key} must be positive")
+    validate_measurement_config(cfg.get("measurement", {}))
     return cfg
 
 
@@ -309,7 +339,6 @@ def validate_training_config(config: Mapping[str, Any] | DictConfig) -> dict[str
         ("artifacts", _ARTIFACTS),
         ("wandb", _WANDB),
         ("evaluation", _EVALUATION),
-        ("measurement", _MEASUREMENT),
     ):
         _check_nested(cfg, key, allowed, "<root>")
 
@@ -322,24 +351,7 @@ def validate_training_config(config: Mapping[str, Any] | DictConfig) -> dict[str
     ):
         raise ConfigPreflightError("reproducibility.seed must be a non-negative integer")
 
-    measurement = _plain(cfg.get("measurement", {}))
-    if measurement:
-        for key in ("enabled", "cuda_events"):
-            value = measurement.get(key)
-            if not isinstance(value, bool):
-                raise ConfigPreflightError(f"measurement.{key} must be boolean")
-        warmup_steps = measurement.get("warmup_optimizer_steps")
-        if isinstance(warmup_steps, bool) or not isinstance(warmup_steps, int) or warmup_steps < 0:
-            raise ConfigPreflightError(
-                "measurement.warmup_optimizer_steps must be a non-negative integer"
-            )
-        output_path = measurement.get("output_path")
-        if output_path is not None and (
-            not isinstance(output_path, str) or not output_path.strip()
-        ):
-            raise ConfigPreflightError(
-                "measurement.output_path must be null or a non-empty path string"
-            )
+    validate_measurement_config(cfg.get("measurement", {}))
 
     wandb_config = _plain(cfg.get("wandb", {}))
     _required(

@@ -164,7 +164,7 @@ def _validation_payload(row: dict[str, Any]) -> dict[str, Any]:
             value.get("perplexity_overflow", value.get("perplexity") is None)
             for value in by_corpus.values()
         )
-    return {
+    payload = {
         "aggregate": {
             "nll": row["validation/loss"],
             "nll_sum": nll_sum,
@@ -180,6 +180,9 @@ def _validation_payload(row: dict[str, Any]) -> dict[str, Any]:
         "manifest_identity": row["validation/manifest_identity"],
         "training_time_optimizer_step": row["optimizer_step"],
     }
+    if "validation/scorer_revision" in row:
+        payload["scorer_revision"] = row["validation/scorer_revision"]
+    return payload
 
 
 def verify_record(record_path: Path, summary_path: Path) -> dict[str, Any]:
@@ -327,18 +330,18 @@ def verify_record(record_path: Path, summary_path: Path) -> dict[str, Any]:
     )
     training_payload = _validation_payload(validation_rows["1-on"][50])
     standalone_result = standalone["payload"]["result"]
-    standalone_exact = all(
-        training_payload[key] == standalone_result[key]
-        for key in (
-            "aggregate",
-            "by_corpus",
-            "evaluated_token_sha256",
-            "evaluated_window_sha256",
-            "evaluated_windows",
-            "logical_checkpoint_identity",
-            "manifest_identity",
-        )
-    )
+    parity_keys = [
+        "aggregate",
+        "by_corpus",
+        "evaluated_token_sha256",
+        "evaluated_window_sha256",
+        "evaluated_windows",
+        "logical_checkpoint_identity",
+        "manifest_identity",
+    ]
+    if "scorer_revision" in training_payload:
+        parity_keys.append("scorer_revision")
+    standalone_exact = all(training_payload[key] == standalone_result[key] for key in parity_keys)
     check(
         "standalone_score_identity_exact",
         standalone_exact == summary["standalone_parity"]["exact"],

@@ -67,12 +67,16 @@ artifacts:
   # Use a recovery file/directory or `latest` for this run's checkpoint dir.
   resume_path: null
 
-# Benchmark-only phase/resource capture. Disabled runs do not create CUDA
-# events, synchronize, or write a separate measurement artifact.
+# Benchmark-only operational phase/resource capture. The full section remains
+# in resolved evidence but is excluded from training/checkpoint experiment
+# identity. Disabled runs do not create CUDA events, call an explicit CUDA
+# synchronization, or write a separate measurement artifact.
 measurement:
   enabled: false
   warmup_optimizer_steps: 10
   cuda_events: true
+  # Relative paths resolve beside artifacts.checkpoints_dir, never beneath it.
+  # Any checkpoint-directory path or hardlink to a checkpoint is rejected.
   output_path: null
 
 wandb:

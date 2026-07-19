@@ -163,10 +163,13 @@ def build_streaming_dataloader(
     split_name: str,
     *,
     device: torch.device | None = None,
+    data_root: Path | None = None,
 ):
     reproducibility_cfg = cfg.get("reproducibility", {})
     base_seed = int(reproducibility_cfg.get("seed", 0))
     stream_config = streaming_split_config(cfg.data.streaming, split_name)
+    if data_root is not None:
+        _bind_streaming_loader_paths(stream_config, root=data_root)
     if stream_config.get("require_manifests") is False:
         raise ValueError("streaming training cannot set require_manifests=false")
     stream_config["require_manifests"] = True
@@ -188,17 +191,49 @@ def build_streaming_dataloader(
     )
 
 
+def _bind_streaming_loader_paths(config: dict, *, root: Path) -> None:
+    """Bind checkpoint-owned relative loader paths to one recorded data root."""
+
+    root = root.resolve()
+    for field in ("sources", "datasets"):
+        entries = config.get(field, [])
+        if not isinstance(entries, list):
+            continue
+        for source in entries:
+            if not isinstance(source, dict):
+                continue
+            if source.get("type", source.get("source", "hf")) != "manifest":
+                continue
+            manifest_path = Path(str(source["manifest_path"]))
+            if not manifest_path.is_absolute():
+                manifest_path = root / manifest_path
+            source["manifest_path"] = str(manifest_path.resolve())
+    cache = config.get("cache")
+    if not isinstance(cache, dict) or cache.get("dir") is None:
+        return
+    cache_dir = Path(str(cache["dir"]))
+    if not cache_dir.is_absolute():
+        cache_dir = root / cache_dir
+    cache["dir"] = str(cache_dir.resolve())
+
+
 def build_validation_loader_factory(
     cfg: DictConfig,
     *,
     tokenizer=None,
     device: torch.device | None = None,
+    data_root: Path | None = None,
 ):
     """Return a fresh fixed-window validation loader for each scoring event."""
 
     data_mode = cfg.data.get("mode")
     if data_mode == "streaming":
-        return lambda: build_streaming_dataloader(cfg, "validation", device=device)
+        return lambda: build_streaming_dataloader(
+            cfg,
+            "validation",
+            device=device,
+            data_root=data_root,
+        )
     if data_mode != "memorization_smoke":
         raise ValueError("data.mode must be either 'memorization_smoke' or 'streaming'")
     if tokenizer is None:
