@@ -27,11 +27,13 @@ from runtime.reproducibility import sha256_file
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 SHINGLE_CODEPOINTS = 48
-SCAN_REVISION = "BENCH-001-contamination-v6"
-NORMALIZATION_REVISION = "normalize-text-identity-nfc-strip-plus-json-object-v4"
+SCAN_REVISION = "BENCH-001-contamination-v7"
+NORMALIZATION_REVISION = "normalize-text-identity-nfc-strip-plus-json-object-v5"
 SCAN_INDEX_SCHEMA_VERSION = 2
 MATCHER_REVISION = "collision-verified-rolling-hash-codepoint-v1"
-JSON_OBJECT_NORMALIZATION_REVISION = "normalized-embedded-canonical-json-object-sha256-v3"
+JSON_OBJECT_NORMALIZATION_REVISION = (
+    "normalized-embedded-decoded-nfc-canonical-json-object-sha256-v4"
+)
 PRODUCER_IDENTITY_REVISION = "contamination-producer-v1"
 PRODUCER_SOURCE_SCOPE_REVISION = "src-python-pyproject-lock-v1"
 _PRODUCER_PACKAGES = ("pyarrow",)
@@ -604,9 +606,30 @@ def _canonical_json_object(text: str) -> str | None:
         value = json.loads(stripped)
         if not isinstance(value, Mapping):
             return None
-        return canonical_json_bytes(value).decode("utf-8", errors="strict")
+        normalized = _normalize_decoded_json(value)
+        return canonical_json_bytes(normalized).decode("utf-8", errors="strict")
     except (json.JSONDecodeError, TypeError, ValueError, UnicodeError):
         return None
+
+
+def _normalize_decoded_json(value: Any) -> Any:
+    """Apply NFC inside decoded JSON while rejecting normalized-key collisions."""
+
+    if isinstance(value, str):
+        return unicodedata.normalize("NFC", value)
+    if isinstance(value, list):
+        return [_normalize_decoded_json(item) for item in value]
+    if isinstance(value, Mapping):
+        normalized: dict[str, Any] = {}
+        for key, item in value.items():
+            if not isinstance(key, str):
+                raise TypeError("decoded JSON object keys must be strings")
+            normalized_key = unicodedata.normalize("NFC", key)
+            if normalized_key in normalized:
+                raise ValueError("decoded JSON object keys collide after NFC normalization")
+            normalized[normalized_key] = _normalize_decoded_json(item)
+        return normalized
+    return value
 
 
 def _canonical_json_objects(text: str) -> Iterable[str]:

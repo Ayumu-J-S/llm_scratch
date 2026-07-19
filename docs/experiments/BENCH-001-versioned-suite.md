@@ -72,6 +72,10 @@
 | 49 | Current-main integration and repair | Complete | Replayed the BENCH-only history onto WB-001 main `8791bb7`; directly adopted its `mode=disabled\|offline\|online` W&B schema and bounded failure-isolated SDK calls. The contamination scanner now extracts disjoint innermost JSON objects from prose/JSON wrappers in linear document work, invalidates stale scan evidence, and choice scoring rejects non-finite normalized probabilities or sums |
 | 50 | Focused validation | PASS | 76 benchmark/generation/config/reproducibility tests plus scoped Ruff, format, and diff checks pass. All 256 selected fixture records are detected after key reordering, pretty printing, CRLF/BOM normalization, and embedding inside both prose and an outer JSON object; W&B compact-table and post-commit failure isolation regressions pass |
 | 51 | Full validation | PASS | Current-main official CPU gate: 480 passed, 1 skipped; repository Ruff, resolved Hydra config preflight, lock-drift detection, disabled/offline process-tree-isolated smoke, `uv lock --check`, changed-path format, and diff checks pass. The resolved benchmark profile contains only the direct WB-001 mode and timeout schema |
+| 52 | Independent re-review | FAIL | Exact-head review of `97acc5c` reran 480 tests (1 skipped), 124 focused tests, canonical source/context checks, and adversarial contamination probes, then found that ASCII-escaped NFD JSON strings were decoded only after document-level NFC. Reordered/pretty variants therefore escaped every match path for 102/128 selected JCommonsenseQA records |
+| 53 | Repair | Complete | Recursively NFC-normalized decoded JSON keys and values before canonical hashing, rejected keys that collide after normalization, and revised the scan/cache identity. The all-selected wrapper regression now emits every string through ASCII-escaped NFD before structured matching |
+| 54 | Focused and canonical validation | PASS | 76 benchmark/generation/config/reproducibility tests plus scoped Ruff and diff checks pass. An adversarial run against the pinned canonical development suite detects 128/128 JCommonsenseQA and 128/128 GSM8K records after key reordering, pretty printing, ASCII-escaped NFD strings, and prose wrapping |
+| 55 | Full validation | PASS | Repaired current-main official CPU gate: 480 passed, 1 skipped; repository Ruff, resolved Hydra preflight, lock-drift detection, and disabled/offline process-tree-isolated smoke pass |
 
 ## Resolved protocol
 
@@ -112,7 +116,7 @@
 
 ## Current conclusion
 
-All thirteen independent failed reviews remain visible. Their thirty findings are
+All fourteen independent failed reviews remain visible. Their thirty-one findings are
 repaired without weakening the fixed protocol or complete contamination gate:
 cheap context incompatibility precedes scanning, both tasks honor checkpoint
 precision, external records are pinned, evaluator/runtime and dirty source
@@ -132,12 +136,12 @@ producer paths, and the full optimizer-bearing load is reclaimed before the
 suite and corpus scan. Selected examples now retain and hash the pinned source
 record representation, while text normalization composes with a
 structure-normalized JSON identity to detect BOM, newline, Unicode,
-key-order, whitespace, and embedded wrapper variants; canonical acceptance
-covers every selected development record in both tasks. External comparisons
-separately attest the compiled prompt and scorer hashes, and generation rejects
-non-finite logits before any GSM8K token or score is accepted; choice scoring
-rejects non-finite raw logits before normalization or extraction and non-finite
-normalized scores after log-softmax. Benchmark W&B calls use the shared
+key-order, whitespace, embedded wrapper, and ASCII-escaped decoded-NFD variants;
+canonical acceptance covers every selected development record in both tasks.
+External comparisons separately attest the compiled prompt and scorer hashes,
+and generation rejects non-finite logits before any GSM8K token or score is
+accepted; choice scoring rejects non-finite raw logits before normalization or
+extraction and non-finite normalized scores after log-softmax. Benchmark W&B calls use the shared
 mode/timeout contract, are wall-clock bounded, and cannot invalidate committed
 local evidence. Internal and external results are exclusive, no-overwrite
 publications in dedicated output namespaces, and default checkpoint-owned

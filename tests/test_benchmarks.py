@@ -5,6 +5,7 @@ import gc
 import hashlib
 import json
 import shutil
+import unicodedata
 import weakref
 from pathlib import Path
 from typing import Any
@@ -374,10 +375,10 @@ def test_injected_contamination_reports_source_and_document_id(monkeypatch, tmp_
     index = json.loads(index_files[0].read_text(encoding="utf-8"))
     assert index["index_identity_sha256"] == evidence["scan_index_identity_sha256"]
     assert index["index_identity"]["normalization_revision"] == (
-        "normalize-text-identity-nfc-strip-plus-json-object-v4"
+        "normalize-text-identity-nfc-strip-plus-json-object-v5"
     )
     assert index["index_identity"]["json_object_normalization_revision"] == (
-        "normalized-embedded-canonical-json-object-sha256-v3"
+        "normalized-embedded-decoded-nfc-canonical-json-object-sha256-v4"
     )
     assert index["index_identity"]["matcher_revision"] == (
         "collision-verified-rolling-hash-codepoint-v1"
@@ -449,7 +450,7 @@ def test_all_selected_source_records_match_verbatim_and_reordered_json():
     for index in range(128):
         jcommonsenseqa_record = {
             "q_id": 10_000 + index,
-            "question": f"短い質問{index}",
+            "question": f"が短い質問{index}",
             "choice0": "甲",
             "choice1": "乙",
             "choice2": "丙",
@@ -503,11 +504,11 @@ def test_all_selected_source_records_match_verbatim_and_reordered_json():
                 upstream_id=None,
                 probe_index=probe_index,
             )
-            reordered = json.dumps(
-                dict(reversed(list(example.record.items()))),
-                ensure_ascii=False,
-                indent=2,
-            )
+            reordered_record = {
+                key: unicodedata.normalize("NFD", value) if isinstance(value, str) else value
+                for key, value in reversed(list(example.record.items()))
+            }
+            reordered = json.dumps(reordered_record, ensure_ascii=True, indent=2)
             embedded = (
                 "\ufefftraining metadata\r\n"
                 + '{"payload":'
