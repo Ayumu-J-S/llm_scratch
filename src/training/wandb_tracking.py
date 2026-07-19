@@ -11,6 +11,7 @@ import json
 import math
 import os
 import queue
+import re
 import threading
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -47,6 +48,64 @@ DATA_REFERENCE_FIELDS = {
     "data_files",
     "ratio",
 }
+
+_CREDENTIAL_ASSIGNMENT = re.compile(
+    r"(?i)\b(api[_-]?key|access[_-]?token|authorization|password|passwd|secret|token|key)"
+    r"(\s*[:=]\s*)(?:bearer\s+)?(?:\"[^\"]*\"|'[^']*'|[^\s,;]+)"
+)
+_BEARER_CREDENTIAL = re.compile(r"(?i)\bbearer\s+[^\s,;]+")
+
+
+def safe_external_error(error: Exception) -> dict[str, str]:
+    """Return bounded external-service failure evidence with credentials removed."""
+
+    message = str(error)
+    sensitive_names = (
+        "WANDB_API_KEY",
+        "WANDB_ACCESS_TOKEN",
+        "WANDB_TOKEN",
+        "WANDB_PASSWORD",
+    )
+    for name in sensitive_names:
+        value = os.environ.get(name)
+        if value:
+            message = message.replace(value, "[REDACTED]")
+    message = _CREDENTIAL_ASSIGNMENT.sub(
+        lambda match: f"{match.group(1)}{match.group(2)}[REDACTED]",
+        message,
+    )
+    message = _BEARER_CREDENTIAL.sub("Bearer [REDACTED]", message)
+    return {"type": type(error).__name__, "message": message[:500]}
+
+
+def append_wandb_evidence(
+    path: str | Path,
+    *,
+    action: str,
+    outcome: str,
+    details: Mapping[str, Any] | None = None,
+) -> None:
+    """Append one fsynced W&B lifecycle record for standalone evaluators."""
+
+    evidence_path = Path(path)
+    evidence_path.parent.mkdir(parents=True, exist_ok=True)
+    record = {
+        "schema_version": 1,
+        "recorded_at_utc": datetime.now(timezone.utc).isoformat(),
+        "action": action,
+        "outcome": outcome,
+        **dict(details or {}),
+    }
+    descriptor = os.open(
+        evidence_path,
+        os.O_APPEND | os.O_CREAT | os.O_WRONLY,
+        0o600,
+    )
+    try:
+        os.write(descriptor, (json.dumps(record, sort_keys=True) + "\n").encode("utf-8"))
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
 
 
 @dataclass(frozen=True)
@@ -1059,7 +1118,7 @@ class WandbTracker:
 
     @staticmethod
     def _safe_error(error: Exception) -> dict[str, str]:
-        return {"type": type(error).__name__, "message": str(error)[:500]}
+        return safe_external_error(error)
 
     def _record(
         self,
@@ -1073,6 +1132,7 @@ class WandbTracker:
             "recorded_at_utc": datetime.now(timezone.utc).isoformat(),
             "action": action,
             "outcome": outcome,
+            "mode": self.mode,
             **dict(details or {}),
         }
         descriptor = os.open(

@@ -12,6 +12,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import math
 import os
 import random
 import re
@@ -31,6 +32,19 @@ from data.identity import canonical_json_bytes
 
 CHECKPOINT_SCHEMA_VERSION = 1
 _RECOVERY_PATTERN = re.compile(r"^recovery-step-(\d{12})\.pt$")
+FULL_RESUME_STATE_ENTRIES = {
+    "model",
+    "optimizer",
+    "scheduler",
+    "precision",
+    "counters",
+    "event_state",
+    "rng",
+    "stream_cursor",
+    "resolved_config",
+    "run_identity",
+    "measurement_evidence",
+}
 
 
 class CheckpointError(RuntimeError):
@@ -53,6 +67,398 @@ def require_exact_stream_resume_state(state: Mapping[str, Any]) -> None:
         raise CheckpointCompatibilityError(
             "exact resume requires a cursor-aware streaming train loader; "
             "this checkpoint has no stream cursor"
+        )
+
+
+def require_full_resume_state(
+    state: Mapping[str, Any], *, checkpoint_kind: str | None = None
+) -> None:
+    """Reject structurally incomplete state before resume constructs training."""
+
+    missing = FULL_RESUME_STATE_ENTRIES.difference(state)
+    if missing:
+        raise CheckpointCompatibilityError(
+            f"checkpoint is missing full-state entries {sorted(missing)}"
+        )
+    require_exact_stream_resume_state(state)
+    for key in ("model", "optimizer", "event_state", "rng", "resolved_config", "run_identity"):
+        if not isinstance(state[key], Mapping):
+            raise CheckpointCompatibilityError(f"checkpoint {key} state is invalid")
+    if not state["model"]:
+        raise CheckpointCompatibilityError("checkpoint model state is empty")
+    optimizer = state["optimizer"]
+    if (
+        set(optimizer) != {"state", "param_groups"}
+        or not isinstance(optimizer["state"], Mapping)
+        or not isinstance(optimizer["param_groups"], list)
+    ):
+        raise CheckpointCompatibilityError("checkpoint optimizer state is invalid")
+    scheduler = state["scheduler"]
+    if scheduler is not None and not isinstance(scheduler, Mapping):
+        raise CheckpointCompatibilityError("checkpoint scheduler state is invalid")
+    precision = state["precision"]
+    if (
+        not isinstance(precision, Mapping)
+        or not isinstance(precision.get("mode"), str)
+        or not precision["mode"]
+        or "grad_scaler" not in precision
+    ):
+        raise CheckpointCompatibilityError("checkpoint precision state is invalid")
+    counters = state["counters"]
+    if not isinstance(counters, Mapping):
+        raise CheckpointCompatibilityError("checkpoint counters are invalid")
+    optimizer_step = counters.get("optimizer_step")
+    target_tokens = counters.get("target_tokens")
+    elapsed_seconds = counters.get("elapsed_seconds")
+    if (
+        isinstance(optimizer_step, bool)
+        or not isinstance(optimizer_step, int)
+        or optimizer_step < 0
+        or isinstance(target_tokens, bool)
+        or not isinstance(target_tokens, int)
+        or target_tokens < 0
+        or isinstance(elapsed_seconds, bool)
+        or not isinstance(elapsed_seconds, (int, float))
+        or not math.isfinite(float(elapsed_seconds))
+        or elapsed_seconds < 0
+    ):
+        raise CheckpointCompatibilityError("checkpoint counters are invalid")
+    rng = state["rng"]
+    required_rng = {"python", "numpy", "torch_cpu", "torch_cuda"}
+    missing_rng = required_rng.difference(rng)
+    if missing_rng:
+        raise CheckpointCompatibilityError(f"checkpoint RNG state is missing {sorted(missing_rng)}")
+    if set(rng) != required_rng:
+        raise CheckpointCompatibilityError("checkpoint RNG state has unexpected entries")
+    try:
+        random.Random().setstate(rng["python"])
+        np.random.RandomState().set_state(rng["numpy"])
+    except (TypeError, ValueError) as error:
+        raise CheckpointCompatibilityError(
+            "checkpoint Python/NumPy RNG state is invalid"
+        ) from error
+    torch_cpu_rng = rng["torch_cpu"]
+    if (
+        not isinstance(torch_cpu_rng, torch.Tensor)
+        or torch_cpu_rng.device.type != "cpu"
+        or torch_cpu_rng.dtype != torch.uint8
+        or torch_cpu_rng.ndim != 1
+    ):
+        raise CheckpointCompatibilityError("checkpoint Torch CPU RNG state is invalid")
+    try:
+        torch.Generator(device="cpu").set_state(torch_cpu_rng)
+    except RuntimeError as error:
+        raise CheckpointCompatibilityError(
+            "checkpoint Torch CPU RNG state cannot be restored"
+        ) from error
+    torch_cuda_rng = rng["torch_cuda"]
+    if torch_cuda_rng is not None and (
+        not isinstance(torch_cuda_rng, (list, tuple))
+        or not all(
+            isinstance(item, torch.Tensor)
+            and item.device.type == "cpu"
+            and item.dtype == torch.uint8
+            and item.ndim == 1
+            for item in torch_cuda_rng
+        )
+    ):
+        raise CheckpointCompatibilityError("checkpoint Torch CUDA RNG state is invalid")
+    if torch_cuda_rng is not None:
+        if not torch.cuda.is_available() or len(torch_cuda_rng) != torch.cuda.device_count():
+            raise CheckpointCompatibilityError(
+                "checkpoint Torch CUDA RNG state cannot be restored on available devices"
+            )
+        try:
+            for device_index, item in enumerate(torch_cuda_rng):
+                torch.Generator(device=f"cuda:{device_index}").set_state(item)
+        except RuntimeError as error:
+            raise CheckpointCompatibilityError(
+                "checkpoint Torch CUDA RNG state cannot be restored"
+            ) from error
+    resolved_config = state["resolved_config"]
+    measurement_config = resolved_config.get("measurement", {})
+    if not isinstance(measurement_config, Mapping):
+        raise CheckpointCompatibilityError("checkpoint measurement config is invalid")
+    measurement = state["measurement_evidence"]
+    if not isinstance(measurement, Mapping) or set(measurement) != {
+        "enabled",
+        "evidence_id",
+        "checkpoint_boundary",
+    }:
+        raise CheckpointCompatibilityError("checkpoint measurement evidence state is invalid")
+    enabled = measurement.get("enabled")
+    evidence_id = measurement.get("evidence_id")
+    boundary = measurement.get("checkpoint_boundary")
+    if (
+        not isinstance(enabled, bool)
+        or enabled != bool(measurement_config.get("enabled", False))
+        or (enabled and (not isinstance(evidence_id, str) or not evidence_id))
+        or (not enabled and evidence_id is not None)
+        or (enabled and not isinstance(boundary, Mapping))
+        or (not enabled and boundary is not None)
+    ):
+        raise CheckpointCompatibilityError("checkpoint measurement evidence state is invalid")
+    if enabled:
+        _require_resume_measurement_boundary(
+            boundary,
+            evidence_id=str(evidence_id),
+            checkpoint_kind=checkpoint_kind,
+            counters=counters,
+        )
+    event_state = state["event_state"]
+    required_event_state = {
+        "last_validation_step",
+        "last_checkpoint_step",
+        "last_milestone_step",
+        "last_log_step",
+        "last_token_event_boundary",
+        "best_validation_loss",
+        "best_checkpoint_step",
+    }
+    if set(event_state) != required_event_state:
+        raise CheckpointCompatibilityError("checkpoint event state entries are invalid")
+    for key in (
+        "last_validation_step",
+        "last_checkpoint_step",
+        "last_milestone_step",
+        "last_log_step",
+    ):
+        value = event_state[key]
+        if value is not None and (
+            isinstance(value, bool)
+            or not isinstance(value, int)
+            or value < 0
+            or value > optimizer_step
+        ):
+            raise CheckpointCompatibilityError(f"checkpoint {key} state is invalid")
+    token_boundaries = event_state.get("last_token_event_boundary", {})
+    if not isinstance(token_boundaries, Mapping):
+        raise CheckpointCompatibilityError("checkpoint token-event state is invalid")
+    if any(
+        not isinstance(key, str)
+        or not key
+        or isinstance(value, bool)
+        or not isinstance(value, int)
+        or value < 0
+        or value > target_tokens
+        for key, value in token_boundaries.items()
+    ):
+        raise CheckpointCompatibilityError("checkpoint token-event state is invalid")
+    best = event_state.get("best_validation_loss")
+    best_step = event_state.get("best_checkpoint_step")
+    if best is not None:
+        try:
+            best_value = float(best)
+        except (TypeError, ValueError, OverflowError) as error:
+            raise CheckpointCompatibilityError(
+                "checkpoint best validation score is invalid"
+            ) from error
+        if not math.isfinite(best_value):
+            raise CheckpointCompatibilityError("checkpoint best validation score is invalid")
+        if best_step is None:
+            raise CheckpointCompatibilityError(
+                "checkpoint with a best validation score is missing its checkpoint step"
+            )
+    if best is None and best_step is not None:
+        raise CheckpointCompatibilityError(
+            "checkpoint without a best validation score has a checkpoint step"
+        )
+    if best_step is not None and (
+        isinstance(best_step, bool)
+        or not isinstance(best_step, int)
+        or best_step < 0
+        or best_step > optimizer_step
+    ):
+        raise CheckpointCompatibilityError("checkpoint best-checkpoint step is invalid")
+    configured_training = resolved_config.get("training", {})
+    if not isinstance(configured_training, Mapping) or precision["mode"] != configured_training.get(
+        "precision"
+    ):
+        raise CheckpointCompatibilityError("checkpoint precision mode differs from resolved config")
+    scheduler_config = configured_training.get("scheduler", {})
+    if not isinstance(scheduler_config, Mapping):
+        raise CheckpointCompatibilityError("checkpoint scheduler config is invalid")
+    scheduler_enabled = bool(scheduler_config.get("enabled", True))
+    if scheduler_enabled != (scheduler is not None):
+        raise CheckpointCompatibilityError(
+            "checkpoint scheduler state differs from resolved config"
+        )
+    if scheduler_enabled:
+        assert isinstance(scheduler, Mapping)
+        expected_scheduler = {
+            "warmup_steps": scheduler_config.get("warmup_steps"),
+            "decay_steps": scheduler_config.get("decay_steps"),
+            "min_lr_ratio": scheduler_config.get("min_lr_ratio"),
+        }
+        if (
+            any(scheduler.get(key) != value for key, value in expected_scheduler.items())
+            or not isinstance(scheduler.get("base_lrs"), list)
+            or not scheduler["base_lrs"]
+            or any(
+                isinstance(value, bool) or not isinstance(value, (int, float))
+                for value in scheduler["base_lrs"]
+            )
+            or isinstance(scheduler.get("optimizer_steps"), bool)
+            or not isinstance(scheduler.get("optimizer_steps"), int)
+            or scheduler["optimizer_steps"] < 0
+        ):
+            raise CheckpointCompatibilityError(
+                "checkpoint scheduler state differs from resolved schedule"
+            )
+    _require_checkpoint_stream_cursor(state["stream_cursor"], resolved_config)
+
+
+def _require_checkpoint_stream_cursor(
+    cursor: Mapping[str, Any], resolved_config: Mapping[str, Any]
+) -> None:
+    if not cursor:
+        raise CheckpointCompatibilityError("checkpoint stream cursor is empty")
+    data = resolved_config.get("data", {})
+    if not isinstance(data, Mapping) or data.get("mode") != "streaming":
+        return
+    streaming = data.get("streaming", {})
+    train = streaming.get("train", {}) if isinstance(streaming, Mapping) else {}
+    sources = train.get("sources", train.get("datasets", [])) if isinstance(train, Mapping) else []
+    reproducibility = resolved_config.get("reproducibility", {})
+    expected_seed = reproducibility.get("seed") if isinstance(reproducibility, Mapping) else None
+    expected_names = [source.get("name") for source in sources if isinstance(source, Mapping)]
+    source_states = cursor.get("source_states")
+    if (
+        cursor.get("version") != 1
+        or cursor.get("seed") != expected_seed
+        or cursor.get("dataset_names") != expected_names
+        or not isinstance(source_states, Mapping)
+        or set(source_states) != set(expected_names)
+    ):
+        raise CheckpointCompatibilityError(
+            "checkpoint stream cursor differs from checkpoint-owned streaming config"
+        )
+    try:
+        random.Random().setstate(_nested_tuple(cursor.get("rng_state")))
+    except (TypeError, ValueError) as error:
+        raise CheckpointCompatibilityError(
+            "checkpoint stream cursor RNG state is invalid"
+        ) from error
+    required_source_state = {
+        "source_position",
+        "epoch",
+        "emitted_tokens",
+        "trained_targets",
+        "quota_truncated_fragments",
+        "quota_removed_tokens",
+        "exhausted",
+        "shuffle_buffer",
+        "shuffle_rng_state",
+    }
+    for name in expected_names:
+        source_state = source_states[name]
+        if not isinstance(source_state, Mapping) or not required_source_state.issubset(
+            source_state
+        ):
+            raise CheckpointCompatibilityError(
+                f"checkpoint stream cursor source state is invalid for {name}"
+            )
+        for key in (
+            "source_position",
+            "epoch",
+            "emitted_tokens",
+            "trained_targets",
+            "quota_truncated_fragments",
+            "quota_removed_tokens",
+        ):
+            value = source_state[key]
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise CheckpointCompatibilityError(
+                    f"checkpoint stream cursor source counters are invalid for {name}"
+                )
+        if not isinstance(source_state["exhausted"], bool) or not isinstance(
+            source_state["shuffle_buffer"], list
+        ):
+            raise CheckpointCompatibilityError(
+                f"checkpoint stream cursor source state is invalid for {name}"
+            )
+        try:
+            random.Random().setstate(_nested_tuple(source_state["shuffle_rng_state"]))
+        except (TypeError, ValueError) as error:
+            raise CheckpointCompatibilityError(
+                f"checkpoint stream cursor source RNG state is invalid for {name}"
+            ) from error
+
+
+def _nested_tuple(value: Any) -> Any:
+    if isinstance(value, list):
+        return tuple(_nested_tuple(item) for item in value)
+    return value
+
+
+def _require_resume_measurement_boundary(
+    value: Any,
+    *,
+    evidence_id: str,
+    checkpoint_kind: str | None,
+    counters: Mapping[str, Any],
+) -> None:
+    required = {
+        "boundary_index",
+        "boundary_id",
+        "evidence_id",
+        "segment_index",
+        "kind",
+        "counters",
+    }
+    if not isinstance(value, Mapping) or set(value) != required:
+        raise CheckpointCompatibilityError("checkpoint measurement boundary binding is invalid")
+    boundary_index = value["boundary_index"]
+    boundary_id = value["boundary_id"]
+    segment_index = value["segment_index"]
+    kind = value["kind"]
+    if (
+        isinstance(boundary_index, bool)
+        or not isinstance(boundary_index, int)
+        or boundary_index < 0
+        or not isinstance(boundary_id, str)
+        or not boundary_id
+        or value["evidence_id"] != evidence_id
+        or isinstance(segment_index, bool)
+        or not isinstance(segment_index, int)
+        or segment_index < 0
+        or kind not in {"recovery", "best", "final", "milestone"}
+    ):
+        raise CheckpointCompatibilityError("checkpoint measurement boundary binding is invalid")
+    if checkpoint_kind is not None and kind != checkpoint_kind:
+        raise CheckpointCompatibilityError(
+            "checkpoint kind differs from its measurement boundary binding"
+        )
+    boundary_counters = value["counters"]
+    if not isinstance(boundary_counters, Mapping):
+        raise CheckpointCompatibilityError("checkpoint measurement boundary counters are invalid")
+    normalized = {
+        "optimizer_step": counters["optimizer_step"],
+        "target_tokens": counters["target_tokens"],
+        "elapsed_seconds": float(counters["elapsed_seconds"]),
+    }
+    observed = {
+        "optimizer_step": boundary_counters.get("optimizer_step"),
+        "target_tokens": boundary_counters.get("target_tokens"),
+        "elapsed_seconds": boundary_counters.get("elapsed_seconds"),
+    }
+    elapsed = observed["elapsed_seconds"]
+    if (
+        isinstance(observed["optimizer_step"], bool)
+        or not isinstance(observed["optimizer_step"], int)
+        or observed["optimizer_step"] < 0
+        or isinstance(observed["target_tokens"], bool)
+        or not isinstance(observed["target_tokens"], int)
+        or observed["target_tokens"] < 0
+        or isinstance(elapsed, bool)
+        or not isinstance(elapsed, (int, float))
+        or not math.isfinite(float(elapsed))
+    ):
+        raise CheckpointCompatibilityError("checkpoint measurement boundary counters are invalid")
+    observed["elapsed_seconds"] = float(elapsed)
+    if observed != normalized:
+        raise CheckpointCompatibilityError(
+            "checkpoint counters differ from measurement boundary binding"
         )
 
 

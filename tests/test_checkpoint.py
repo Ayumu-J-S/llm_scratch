@@ -17,6 +17,7 @@ from training.checkpoint import (
     CheckpointVerificationError,
     build_checkpoint_identity,
     require_exact_stream_resume_state,
+    require_full_resume_state,
 )
 from training.optimization import WarmupCosineScheduler
 from training.trainer import Trainer
@@ -123,7 +124,14 @@ def _trainer(
                 "validation_every_n_steps": None,
                 "checkpoint_every_n_steps": 1,
                 "milestone_every_n_steps": 2,
-                "scheduler": {"interval": "step"},
+                "scheduler": {
+                    "enabled": True,
+                    "interval": "step",
+                    "_target_": "training.optimization.WarmupCosineScheduler",
+                    "warmup_steps": 1,
+                    "decay_steps": 6,
+                    "min_lr_ratio": 0.1,
+                },
             },
             "artifacts": {"checkpoints_dir": "checkpoints", "keep_last_n": 2, "resume_path": None},
             "wandb": {"mode": "disabled"},
@@ -610,6 +618,90 @@ def test_incompatible_identity_rejects_before_model_or_optimizer_state_is_applie
 def test_resume_without_a_stream_cursor_is_rejected_before_training():
     with pytest.raises(CheckpointCompatibilityError, match="cursor-aware streaming"):
         require_exact_stream_resume_state({"stream_cursor": None})
+
+
+def test_full_resume_state_rejects_invalid_token_event_boundary(tmp_path: Path):
+    state = _trainer(tmp_path / "checkpoint")._checkpoint_state()
+    state["event_state"]["last_token_event_boundary"] = {"validation": "not-an-int"}
+
+    with pytest.raises(CheckpointCompatibilityError, match="token-event"):
+        require_full_resume_state(state, checkpoint_kind="recovery")
+
+
+def test_full_resume_state_rejects_empty_enabled_measurement_boundary(tmp_path: Path):
+    state = _trainer(tmp_path / "checkpoint")._checkpoint_state()
+    state["resolved_config"]["measurement"] = {"enabled": True}
+    state["measurement_evidence"] = {
+        "enabled": True,
+        "evidence_id": "measurement-chain",
+        "checkpoint_boundary": {},
+    }
+
+    with pytest.raises(CheckpointCompatibilityError, match="boundary binding"):
+        require_full_resume_state(state, checkpoint_kind="recovery")
+
+
+def test_full_resume_state_rejects_rng_values_that_cannot_restore(tmp_path: Path):
+    state = _trainer(tmp_path / "checkpoint")._checkpoint_state()
+    state["rng"] = {
+        "python": None,
+        "numpy": None,
+        "torch_cpu": None,
+        "torch_cuda": None,
+    }
+
+    with pytest.raises(CheckpointCompatibilityError, match="RNG state is invalid"):
+        require_full_resume_state(state, checkpoint_kind="recovery")
+
+
+def test_full_resume_state_rejects_incomplete_event_state(tmp_path: Path):
+    state = _trainer(tmp_path / "checkpoint")._checkpoint_state()
+    state["event_state"] = {}
+
+    with pytest.raises(CheckpointCompatibilityError, match="event state entries"):
+        require_full_resume_state(state, checkpoint_kind="recovery")
+
+
+def test_full_resume_state_rejects_malformed_torch_rng_state(tmp_path: Path):
+    state = _trainer(tmp_path / "checkpoint")._checkpoint_state()
+    state["rng"]["torch_cpu"] = torch.zeros(1, dtype=torch.uint8)
+
+    with pytest.raises(CheckpointCompatibilityError, match="cannot be restored"):
+        require_full_resume_state(state, checkpoint_kind="recovery")
+
+
+def test_full_resume_state_rejects_empty_stream_cursor(tmp_path: Path):
+    state = _trainer(tmp_path / "checkpoint")._checkpoint_state()
+    state["stream_cursor"] = {}
+
+    with pytest.raises(CheckpointCompatibilityError, match="stream cursor is empty"):
+        require_full_resume_state(state, checkpoint_kind="recovery")
+
+
+def test_full_resume_state_rejects_scheduler_config_mismatch(tmp_path: Path):
+    state = _trainer(tmp_path / "checkpoint")._checkpoint_state()
+    state["scheduler"] = None
+
+    with pytest.raises(CheckpointCompatibilityError, match="scheduler state differs"):
+        require_full_resume_state(state, checkpoint_kind="recovery")
+
+
+@pytest.mark.parametrize(
+    ("key", "value", "message"),
+    [
+        ("best_validation_loss", float("nan"), "best validation score"),
+        ("last_validation_step", 99, "last_validation_step"),
+        ("last_token_event_boundary", {"validation": 999}, "token-event"),
+    ],
+)
+def test_full_resume_state_rejects_nonfinite_or_future_event_state(
+    tmp_path: Path, key: str, value: object, message: str
+):
+    state = _trainer(tmp_path / "checkpoint")._checkpoint_state()
+    state["event_state"][key] = value
+
+    with pytest.raises(CheckpointCompatibilityError, match=message):
+        require_full_resume_state(state, checkpoint_kind="recovery")
 
 
 def test_resume_and_measurement_are_operational_but_model_config_remains_critical(

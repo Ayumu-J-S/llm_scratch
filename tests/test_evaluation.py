@@ -920,11 +920,14 @@ def test_standalone_preflight_rejects_cpu_for_bf16_checkpoint(tmp_path, monkeypa
 
 def test_standalone_wandb_failure_cannot_erase_or_fail_local_result(tmp_path, monkeypatch):
     checkpoint, *_ = _milestone_checkpoint(tmp_path / "checkpoints")
+    secret = "OPS_FAKE_EVALUATION_WANDB_SECRET"
+    evidence_path = tmp_path / "evaluation-wandb-events.jsonl"
 
     def fail_init(**kwargs):
-        raise RuntimeError("simulated W&B outage")
+        raise RuntimeError(f"simulated W&B outage token={secret}")
 
     monkeypatch.setattr(evaluate_module.wandb, "init", fail_init)
+    monkeypatch.setenv("LLM_SCRATCH_WANDB_EVIDENCE_PATH", str(evidence_path))
     evaluation_config = _compose("profile=evaluation")
     output_path = tmp_path / "wandb-failure-local-result.json"
     with open_dict(evaluation_config):
@@ -937,6 +940,10 @@ def test_standalone_wandb_failure_cannot_erase_or_fail_local_result(tmp_path, mo
 
     assert result_path == output_path
     assert json.loads(result_path.read_text(encoding="utf-8"))["result"]["scorer_revision"]
+    evidence = evidence_path.read_text(encoding="utf-8")
+    assert secret not in evidence
+    assert '"action": "init"' in evidence
+    assert '"outcome": "failed"' in evidence
 
 
 def test_checkpoint_resolved_config_tampering_is_rejected_before_evaluation(tmp_path):
