@@ -87,7 +87,7 @@ def write_external_comparison(
             f"{PROTOCOL_MINIMUM_CONTEXT_LENGTH} tokens"
         )
     for field in ("training_compute", "tokenizer", "data_access"):
-        if not isinstance(subject[field], str) or not subject[field]:
+        if not isinstance(subject[field], str) or not subject[field].strip():
             raise ExternalComparisonError(f"external {field} disclosure must be non-empty")
     _validate_context_preflight(subject, suite_identity=suite_identity)
     tasks = _mapping(payload["tasks"], "tasks")

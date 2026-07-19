@@ -131,6 +131,10 @@
 | 108 | Repair | Complete | Structured scanning now preserves source-ordered object pairs and boundedly evaluates every required-key occurrence combination, so later duplicate values cannot erase an earlier selected input. The exact producer/immutable-input identity is recomputed after corpus or cached-evidence use and must remain equal before return/publication. Repository-owned cache paths now always resolve from the repository root. All scan/cache identities were advanced |
 | 109 | Focused and canonical validation | PASS | Duplicate-key direct and complete-scan regressions, post-scan identity-race rejection, stable installed-cache resolution, and duplicate-combination exhaustion pass. The broader benchmark/generation/config/reproducibility/tokenizer selection passes 149 tests. Pinned canonical development acceptance detects 128/128 duplicate-key input records in both tasks after later benign values overwrite ordinary parser views |
 | 110 | Full validation | PASS | Official network-isolated CPU gate passes 505 tests with 1 skipped plus repository Ruff, resolved Hydra preflight, lock-drift rejection, and disabled/offline process-tree smoke. No GPU, online W&B, full-corpus scan, or large artifact was used; exact-head CI and independent re-review remain pending |
+| 111 | Exact-head and cross-ticket independent `/review` | FAIL | Formal review of clean head `425b7b6` reproduced that a backslash-escaped unmatched quote before a reordered, ASCII-escaped, input-only JCommonsenseQA mapping made every escaped-prefix lexer pass treat the record's opening brace as string content, including after recursive JSON-string decoding. A separate review found that external comparison disclosures accepted whitespace-only compute, tokenizer, and data-access context |
+| 112 | Repair | Complete | Object extraction now runs a fixed five linear hypotheses: all three JSON string-automaton states plus both escape-agnostic malformed-prefix parities, switching to exact escape semantics as soon as an object opens and deduplicating physical ranges. External disclosures require non-whitespace text. Scan, normalization, and JSON-object identities were advanced |
+| 113 | Focused and canonical validation | PASS | Direct, recursive, all-selected, and complete-scan escaped-prefix regressions plus the external-disclosure regression pass. Pinned canonical development acceptance detects 128/128 direct and 128/128 recursively wrapped escaped-prefix records in each task; scoped Ruff and diff checks pass. Full validation and exact-head re-review remain pending |
+| 114 | Full validation | PASS | Official network-isolated CPU gate passes 507 tests with 1 skipped plus repository Ruff, resolved Hydra preflight, lock-drift rejection, and disabled/offline process-tree smoke. The broader BENCH/generation/config/reproducibility/tokenizer selection passes 151 tests. No GPU, online W&B, full-corpus scan, or large artifact was used; exact-head re-review remains pending |
 
 ## Resolved protocol
 
@@ -192,7 +196,7 @@
 
 ## Current conclusion
 
-All twenty-seven failed review/audit cycles remain visible. Their forty-eight findings are
+All twenty-eight failed review/audit cycles remain visible. Their fifty findings are
 repaired without weakening the fixed protocol or complete contamination gate:
 cheap context incompatibility precedes scanning, both tasks honor checkpoint
 precision, external records are pinned, evaluator/runtime and dirty source
@@ -216,7 +220,8 @@ key-order, whitespace, embedded wrapper, ASCII-escaped decoded-NFD variants,
 complete selected mappings augmented with scalar or nested provenance, and
 unlabeled question/input mappings whose answer field is absent or changed,
 including the exact prompt-bearing JCommonsenseQA mapping without source-only
-`q_id` metadata, even when later duplicate JSON keys contain benign values.
+`q_id` metadata, even when later duplicate JSON keys contain benign values or
+an escaped unmatched prose quote precedes the record directly or recursively.
 Decoded JSON strings are recursively inspected through object, array,
 double-serialized, and quoted-prose wrappers under strict per-document
 byte/node/depth/string caps; normalized-key collisions and parser recursion are
@@ -228,6 +233,7 @@ extractor prevents deep enclosing objects or arrays from hiding a safe innermost
 or intermediate benchmark record, enriched mapping, or serialized record string;
 canonical acceptance covers every selected development record in both tasks.
 External comparisons separately attest the compiled prompt and scorer hashes,
+require substantive non-whitespace compute, tokenizer, and data-access disclosures,
 and generation rejects non-finite logits before any GSM8K token or score is
 accepted; choice scoring rejects non-finite raw logits before normalization or
 extraction and non-finite normalized scores after log-softmax. Benchmark W&B calls use the shared

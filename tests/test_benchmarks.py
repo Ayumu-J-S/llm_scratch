@@ -421,10 +421,10 @@ def test_injected_contamination_reports_source_and_document_id(monkeypatch, tmp_
     index = json.loads(index_files[0].read_text(encoding="utf-8"))
     assert index["index_identity_sha256"] == evidence["scan_index_identity_sha256"]
     assert index["index_identity"]["normalization_revision"] == (
-        "normalize-text-identity-nfc-strip-plus-json-object-v18"
+        "normalize-text-identity-nfc-strip-plus-json-object-v19"
     )
     assert index["index_identity"]["json_object_normalization_revision"] == (
-        "bounded-all-object-string-input-projection-json-nfc-sha256-v17"
+        "bounded-all-object-string-input-projection-json-nfc-sha256-v18"
     )
     assert index["index_identity"]["matcher_revision"] == (
         "collision-verified-rolling-hash-codepoint-v1"
@@ -595,6 +595,8 @@ def test_all_selected_source_records_match_verbatim_and_reordered_json():
         "duplicate_key_input": {"jcommonsenseqa": 0, "gsm8k": 0},
         "quoted_prose": {"jcommonsenseqa": 0, "gsm8k": 0},
         "unterminated_quote_object": {"jcommonsenseqa": 0, "gsm8k": 0},
+        "escaped_unterminated_quote_object": {"jcommonsenseqa": 0, "gsm8k": 0},
+        "recursive_escaped_unterminated_quote_object": {"jcommonsenseqa": 0, "gsm8k": 0},
     }
 
     for task in suite.tasks:
@@ -684,6 +686,13 @@ def test_all_selected_source_records_match_verbatim_and_reordered_json():
                 "duplicate_key_input": duplicate_key_input,
                 "quoted_prose": f"training payload {json_string_record} end",
                 "unterminated_quote_object": f'ordinary malformed " prefix {reordered} trailing',
+                "escaped_unterminated_quote_object": (
+                    f'ordinary malformed \\" prefix {reordered} trailing'
+                ),
+                "recursive_escaped_unterminated_quote_object": json.dumps(
+                    {"payload": f'ordinary malformed \\" prefix {reordered} trailing'},
+                    ensure_ascii=True,
+                ),
             }
             structured = _document_matches(
                 embedded,
@@ -734,6 +743,11 @@ def test_all_selected_source_records_match_verbatim_and_reordered_json():
         "duplicate_key_input": {"jcommonsenseqa": 128, "gsm8k": 128},
         "quoted_prose": {"jcommonsenseqa": 128, "gsm8k": 128},
         "unterminated_quote_object": {"jcommonsenseqa": 128, "gsm8k": 128},
+        "escaped_unterminated_quote_object": {"jcommonsenseqa": 128, "gsm8k": 128},
+        "recursive_escaped_unterminated_quote_object": {
+            "jcommonsenseqa": 128,
+            "gsm8k": 128,
+        },
     }
 
 
@@ -1065,9 +1079,18 @@ def test_full_scan_detects_serialized_record_used_as_valid_json_object_key(
     assert cached["report"]["matches"]
 
 
+@pytest.mark.parametrize(
+    "wrapper_name",
+    [
+        "unterminated_quote",
+        "escaped_unterminated_quote",
+        "recursive_escaped_unterminated_quote",
+    ],
+)
 def test_full_scan_detects_reordered_record_after_unterminated_quote(
     monkeypatch,
     tmp_path: Path,
+    wrapper_name: str,
 ):
     registry, fingerprint = _registry(tmp_path)
     _, checkpoint_config = _pretraining_checkpoint(tmp_path)
@@ -1079,7 +1102,11 @@ def test_full_scan_detects_reordered_record_after_unterminated_quote(
         timeout_seconds=1.0,
     )
     example = next(task for task in suite.tasks if task.name == "jcommonsenseqa").examples[0]
-    text = f'ordinary malformed " prefix {_structured_adversarial_record(example)} trailing'
+    target = _structured_adversarial_record(example)
+    prefix = '\\"' if "escaped" in wrapper_name else '"'
+    text = f"ordinary malformed {prefix} prefix {target} trailing"
+    if wrapper_name.startswith("recursive"):
+        text = json.dumps({"payload": text}, ensure_ascii=True)
     document_id = "b" * 64
 
     monkeypatch.setattr(
@@ -1092,7 +1119,7 @@ def test_full_scan_detects_reordered_record_after_unterminated_quote(
                     metadata={
                         "document_id": document_id,
                         "content_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
-                        "upstream_id": "unterminated-quote-wrapper",
+                        "upstream_id": wrapper_name,
                     },
                 )
             ]
@@ -2021,6 +2048,15 @@ def test_external_baseline_record_is_aggregate_only_and_isolated(monkeypatch, tm
     )
     with pytest.raises(ExternalComparisonError, match="must not overwrite an existing file"):
         write_external_comparison(payload, output_path="external.json")
+
+    for field in ("training_compute", "tokenizer", "data_access"):
+        missing_disclosure = copy.deepcopy(payload)
+        missing_disclosure["subject"][field] = " \t\n"
+        with pytest.raises(ExternalComparisonError, match=f"external {field} disclosure"):
+            write_external_comparison(
+                missing_disclosure,
+                output_path=f"whitespace-{field}.json",
+            )
 
     contaminated = copy.deepcopy(payload)
     contaminated["tasks"]["gsm8k"]["completions"] = ["raw output"]
