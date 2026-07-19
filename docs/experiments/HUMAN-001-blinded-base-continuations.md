@@ -24,11 +24,11 @@
   rate all eight items; bundle/mapping integrity passes; every score maps to the
   exact checkpoint after unblinding; no evaluation material enters training.
 - Failure condition / stop condition: stop before evaluation if checkpoint
-  identity, reconstruction, separation, key permissions, namespace isolation,
-  balance, or leakage checks fail. Treat incomplete/duplicate reviewer files,
-  bundle/mapping tampering, or fewer than two real reviewers as incomplete, not
-  evidence. Do not make a quality claim when agreement or effect evidence is
-  insufficient.
+  identity, reconstruction, separation, fixed 64-token context capacity, key
+  permissions, namespace isolation, balance, or leakage checks fail. Treat
+  incomplete/duplicate reviewer files, bundle/mapping tampering, or fewer than
+  two real reviewers as incomplete, not evidence. Do not make a quality claim
+  when agreement or effect evidence is insufficient.
 - Relevant baseline commit and run: BENCH-001 exact head
   `dcab48eee00eb82a195cc6d2cd9006bb62a8517f`; RUN-001 run/checkpoints pending.
 - Baseline metrics and evidence link: pending RUN-001; no human baseline result

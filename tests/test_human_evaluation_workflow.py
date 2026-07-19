@@ -139,6 +139,8 @@ def deterministic_private_evidence(monkeypatch):
 
 class FakeSampler:
     completion_variant = ""
+    max_new_tokens_allowed_by_context = 64
+    stop_reason = "max_new_tokens"
 
     def __init__(self, slot: str, physical_identity: dict | None = None):
         self.slot = slot
@@ -173,7 +175,11 @@ class FakeSampler:
         assert precision == "fp32"
         text = "続きの文章です。" if prompt.startswith("東") else " generated continuation."
         suffix = " First." if self.slot == "earlier" else " Second."
-        return SimpleNamespace(completion=text + suffix + self.completion_variant)
+        return SimpleNamespace(
+            completion=text + suffix + self.completion_variant,
+            max_new_tokens_allowed_by_context=self.max_new_tokens_allowed_by_context,
+            stop_reason=self.stop_reason,
+        )
 
 
 def _loaded(slot: str, *, target_tokens: int, optimizer_step: int) -> LoadedCheckpoint:
@@ -441,6 +447,44 @@ def test_score_import_round_trip_agreement_and_exact_unblinding(prepared_study):
     assert result["evaluators"]["import"]["identity"]["resolved_config"] == OPERATIONAL_CONFIG
     assert result["determinism_policy"] == workflow.EVALUATION_DETERMINISM_POLICY
     assert stat.S_IMODE(result_path.stat().st_mode) == 0o600
+
+
+def test_score_import_hashes_the_exact_bytes_it_parsed(prepared_study, monkeypatch):
+    workspace, key, paths = prepared_study
+    public = json.loads(paths["public_bundle"].read_text(encoding="utf-8"))
+    score_paths = _write_scores(
+        workspace,
+        _score(public, "reviewer-one"),
+        _score(public, "reviewer-two", offset=1),
+    )
+    first_path = score_paths[0]
+    parsed_bytes = first_path.read_bytes()
+    original_loader = workflow._load_score_file
+    replaced = False
+
+    def replace_after_read(path, **kwargs):
+        nonlocal replaced
+        loaded = original_loader(path, **kwargs)
+        if Path(path) == first_path and not replaced:
+            replaced = True
+            first_path.write_text(
+                json.dumps(_score(public, "replacement-reviewer"), ensure_ascii=False),
+                encoding="utf-8",
+            )
+            first_path.chmod(0o600)
+        return loaded
+
+    monkeypatch.setattr(workflow, "_load_score_file", replace_after_read)
+    result_path = import_scores(
+        workspace_dir=workspace,
+        blinding_key_path=key,
+        score_paths=score_paths,
+    )
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+
+    assert result["reviewers"] == ["reviewer-one", "reviewer-two"]
+    assert result["score_files"][0]["sha256"] == hashlib.sha256(parsed_bytes).hexdigest()
+    assert result["score_files"][0]["sha256"] != hashlib.sha256(first_path.read_bytes()).hexdigest()
 
 
 def test_score_import_requires_two_distinct_complete_human_reviewers(prepared_study):
@@ -805,6 +849,39 @@ def test_prompt_contamination_blocks_before_generation_and_retains_private_evide
     assert report["matches"][0]["training_document_id"] == "document-17"
     for prompt in load_prompt_set(PROMPT_SET_PATH).prompts:
         assert prompt.text not in evidence_text
+
+
+def test_prepare_rejects_context_limited_generation_before_writing_a_bundle(
+    tmp_path: Path, monkeypatch
+):
+    workspace = tmp_path / "human-evaluation" / "context-limited"
+    key = create_blinding_key(tmp_path / "secret" / "context-limited.key")
+
+    def fake_loader(path: str | Path):
+        slot = "earlier" if "earlier" in str(path) else "later"
+        return _loaded(
+            slot,
+            target_tokens=1_000_000 if slot == "earlier" else 1_500_000,
+            optimizer_step=100 if slot == "earlier" else 150,
+        )
+
+    class ContextLimitedSampler(FakeSampler):
+        max_new_tokens_allowed_by_context = 63
+        stop_reason = "context_limit"
+
+    monkeypatch.setattr(workflow, "load_checkpoint_for_generation", fake_loader)
+    monkeypatch.setattr(workflow, "CheckpointSampler", ContextLimitedSampler)
+    with pytest.raises(HumanEvaluationError, match="fixed 64-token generation budget"):
+        prepare_evaluation(
+            prompt_set_path=PROMPT_SET_PATH,
+            workspace_dir=workspace,
+            blinding_key_path=key,
+            earlier_checkpoint="/synthetic/earlier.pt",
+            later_checkpoint="/synthetic/later.pt",
+            generation_seed=20260719,
+            device="cpu",
+        )
+    assert not workspace.exists()
 
 
 def test_prepare_rejects_checkpoint_bytes_changed_after_pair_validation(

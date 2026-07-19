@@ -217,17 +217,26 @@ def prepare_evaluation(
                 f"{slot} sampler physical identity differs from its verified checkpoint"
             )
         del loaded
-        completions_by_slot[slot] = {
-            prompt.id: sampler.generate(
+        slot_completions: dict[str, str] = {}
+        for prompt in prompt_set.prompts:
+            result = sampler.generate(
                 prompt.text,
                 max_new_tokens=MAX_NEW_TOKENS,
                 temperature=TEMPERATURE,
                 top_k=TOP_K,
                 seed=generation_seeds[prompt.id],
                 precision=candidates[slot]["precision"],
-            ).completion
-            for prompt in prompt_set.prompts
-        }
+            )
+            if (
+                result.max_new_tokens_allowed_by_context != MAX_NEW_TOKENS
+                or result.stop_reason == "context_limit"
+            ):
+                raise HumanEvaluationError(
+                    f"{slot} checkpoint cannot preserve the fixed {MAX_NEW_TOKENS}-token "
+                    f"generation budget for prompt {prompt.id}"
+                )
+            slot_completions[prompt.id] = result.completion
+        completions_by_slot[slot] = slot_completions
         del sampler
 
     randomized_prompts = sorted(
@@ -386,7 +395,7 @@ def import_scores(
         raise HumanEvaluationError("public and private study IDs differ")
 
     item_ids = [item["item_id"] for item in public_bundle["items"]]
-    scores = [
+    loaded_scores = [
         _load_score_file(
             path,
             study_id=public_bundle["study_id"],
@@ -395,6 +404,8 @@ def import_scores(
         )
         for path in score_paths
     ]
+    scores = [score for score, _evidence in loaded_scores]
+    score_files = [evidence for _score, evidence in loaded_scores]
     normalized_reviewer_ids = [score["reviewer_id"].casefold() for score in scores]
     if len(set(normalized_reviewer_ids)) != len(normalized_reviewer_ids):
         raise HumanEvaluationError("score files must come from distinct human reviewers")
@@ -428,9 +439,6 @@ def import_scores(
                 }
             )
 
-    score_files = [
-        {"path": str(Path(path).resolve()), "sha256": _sha256_file(path)} for path in score_paths
-    ]
     result = {
         "schema_version": RESULT_SCHEMA_VERSION,
         "study_id": public_bundle["study_id"],
@@ -771,8 +779,15 @@ def _validate_public_bundle(bundle: dict[str, Any]) -> None:
 
 def _load_score_file(
     path: str | Path, *, study_id: str, bundle_id: str, item_ids: Sequence[str]
-) -> dict[str, Any]:
-    score = _read_json_object(path, "score file")
+) -> tuple[dict[str, Any], dict[str, str]]:
+    score_path = Path(path).expanduser().absolute()
+    try:
+        score_bytes = score_path.read_bytes()
+        score = json.loads(score_bytes.decode("utf-8", errors="strict"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise HumanEvaluationError(f"cannot read score file: {error}") from error
+    if not isinstance(score, dict):
+        raise HumanEvaluationError("score file must be an object")
     _exact_fields(score, _SCORE_FIELDS, "score file")
     if score["schema_version"] != SCORE_SCHEMA_VERSION:
         raise HumanEvaluationError("score schema_version is unsupported")
@@ -801,7 +816,11 @@ def _load_score_file(
             raise HumanEvaluationError("rating comment must be a string")
     if len(set(rating_ids)) != len(rating_ids) or set(rating_ids) != set(item_ids):
         raise HumanEvaluationError("score ratings must match every public item exactly once")
-    return score
+    evidence = {
+        "path": str(score_path),
+        "sha256": hashlib.sha256(score_bytes).hexdigest(),
+    }
+    return score, evidence
 
 
 def _validate_candidate_score(score: Any, label: str) -> None:

@@ -19,7 +19,9 @@ denominator. The real Hydra workflow defaults to `device=cuda` for canonical
 BF16 RUN-001 checkpoints. Sampling uses the checkpoint-owned `training.precision`
 and the exact physical SHA-256 verified for the private mapping. It loads and
 finishes one checkpoint before loading the other, so it does not keep two
-models resident on the DGX Spark.
+models resident on the DGX Spark. If any encoded prompt leaves fewer than 64
+context positions, preparation fails instead of publishing a context-truncated
+continuation under the fixed generation contract.
 
 Before either model is loaded for generation, the workflow scans every document
 in every checkpoint-owned training manifest for exact and normalized occurrences
@@ -147,7 +149,9 @@ The private result retains each score-file checksum, unblinds every rating to
 the exact earlier/later checkpoint identity, reports per-checkpoint rubric
 means and preferences, and computes reviewer-pair denominators, exact
 preference agreement, exact rating agreement, and rating mean absolute
-difference. It also retains preparation/import evaluator identities, the fixed
+difference. Each checksum is derived from the same one-time byte read that was
+parsed into ratings, so a later file replacement cannot relabel parsed scores.
+It also retains preparation/import evaluator identities, the fixed
 determinism policy, and the complete prompt-contamination report. A new
 score-file set receives a new immutable result filename.
 

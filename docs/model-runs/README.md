@@ -10,6 +10,10 @@ The directory name is retained so historical links continue to resolve. For a
 new optional durable review record, use `TEMPLATE.md`, which contains only
 engineering context, findings, outcomes, and evidence.
 
+## Current durable review records
+
+- `HUMAN-001-blinded-base-continuations.md`
+
 ## Preserved records
 
 - `CFG-001-canonical-hydra.md`
