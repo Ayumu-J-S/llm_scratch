@@ -153,15 +153,18 @@ be called a baseline until the following gates exist:
 
 ## Current progress snapshot
 
-Updated 2026-07-12 against `origin/main` at `2e2c4f4`:
+Updated 2026-07-18 against `origin/main` at `f33f95a`:
 
-- 16 of 24 roadmap tickets are **Done**. All P0 tickets, `GEN-001`, and
-  `GATE-001` have merged with acceptance evidence.
-- `DATA-004` is **Ready** after the GATE-001 bounded bilingual overfit proof
-  merged with exact resume and checkpoint-backed continuation evidence.
-- `WB-001` is **Ready** because `REP-001`, `LOOP-001`, and `CKPT-001` are Done.
-- `DATA-004` is the next critical-path ticket; `WB-001` must not displace it.
-- The remaining six tickets are blocked by the dependencies shown below.
+- 17 of 24 roadmap tickets are **Done**. All P0 tickets, `GEN-001`,
+  `GATE-001`, and `DATA-004` have merged with acceptance evidence.
+- `DATA-004` was accepted and merged in [PR #41](https://github.com/Ayumu-J-S/llm_scratch/pull/41)
+  as merge commit `f33f95af7e6e5d7e22f29e9f43d6e7bf626ae757`.
+- `VAL-001` is the next critical-path ticket now that its data, loop, and
+  checkpoint dependencies are Done.
+- `WB-001` remains **Ready** because `REP-001`, `LOOP-001`, and `CKPT-001` are
+  Done.
+- `DGX-001` remains **Blocked** until its explicit `WB-001` dependency is Done.
+- Five tickets remain blocked by the dependencies shown below.
 - A real pretraining baseline remains prohibited until wave 4 completes.
 
 ## Backlog overview
@@ -184,8 +187,8 @@ Updated 2026-07-12 against `origin/main` at `2e2c4f4`:
 | 13 | CI-001 | P0 | Done | CFG-001, MODEL-001 | Network-free CPU quality gate |
 | 14 | GEN-001 | P1 | Done | MODEL-001, TOK-001, CKPT-001 | Minimal base-model continuation CLI |
 | 15 | GATE-001 | P1 | Done | ENV-001, MODEL-001, TOK-001, LOOP-001, STAB-001, CKPT-001, GEN-001 | Reproducible bilingual overfit proof |
-| 16 | DATA-004 | P1 | Ready | TOK-001, DATA-002, DATA-003, GATE-001 | Pinned Japanese/English mixture with QA |
-| 17 | VAL-001 | P1 | Blocked | DATA-004, LOOP-001, CKPT-001 | Trustworthy lightweight held-out validation |
+| 16 | DATA-004 | P1 | Done | TOK-001, DATA-002, DATA-003, GATE-001 | Pinned Japanese/English mixture with QA |
+| 17 | VAL-001 | P1 | Ready | DATA-004, LOOP-001, CKPT-001 | Trustworthy lightweight held-out validation |
 | 18 | WB-001 | P1 | Ready | REP-001, LOOP-001, CKPT-001 | Evidence-complete, quota-safe W&B runs |
 | 19 | BENCH-001 | P1 | Blocked | GEN-001, VAL-001, WB-001 | Versioned Japanese/general benchmark suite |
 | 20 | DGX-001 | P1 | Blocked | STAB-001, GATE-001, DATA-004, WB-001 | Measured model profile and time/token budget |
@@ -421,8 +424,8 @@ work.
   packed-cursor resume defect was recorded in PR [#30](https://github.com/Ayumu-J-S/llm_scratch/pull/30), then repaired,
   independently audited, and merged in PR [#31](https://github.com/Ayumu-J-S/llm_scratch/pull/31)
   as `cf82701635cab23657a05ea80a03ef5a657abe1f`. DATA-003 is **Done**.
-  DATA-001, DATA-002, REP-001, LOOP-001, and CKPT-001 remain `Done`;
-  DATA-004 is `Ready` after GATE-001 merged.
+  DATA-001, DATA-002, REP-001, LOOP-001, and CKPT-001 remain `Done`.
+  DATA-004 later merged in PR #41 and is `Done`; `VAL-001` is now `Ready`.
 
 ### LOOP-001 — Introduce step/token budgets and correct metrics
 
