@@ -27,12 +27,12 @@ from runtime.reproducibility import sha256_file
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 SHINGLE_CODEPOINTS = 48
-SCAN_REVISION = "BENCH-001-contamination-v15"
-NORMALIZATION_REVISION = "normalize-text-identity-nfc-strip-plus-json-object-v13"
+SCAN_REVISION = "BENCH-001-contamination-v16"
+NORMALIZATION_REVISION = "normalize-text-identity-nfc-strip-plus-json-object-v14"
 SCAN_INDEX_SCHEMA_VERSION = 2
 MATCHER_REVISION = "collision-verified-rolling-hash-codepoint-v1"
 JSON_OBJECT_NORMALIZATION_REVISION = (
-    "constant-memory-leaf-object-string-fail-closed-json-nfc-sha256-v12"
+    "constant-memory-leaf-object-string-superset-projection-json-nfc-sha256-v13"
 )
 PRODUCER_IDENTITY_REVISION = "contamination-producer-v1"
 PRODUCER_SOURCE_SCOPE_REVISION = "src-python-pyproject-lock-v1"
@@ -63,6 +63,7 @@ class _ProbeIndex:
     exact: dict[str, list[Reference]]
     normalized: dict[str, list[Reference]]
     structured_json: dict[str, list[Reference]]
+    structured_json_projections: dict[tuple[str, ...], dict[str, list[Reference]]]
     shingles: _ShingleMatcher
 
 
@@ -589,6 +590,7 @@ def _build_probe_index(suite: LoadedSuite) -> _ProbeIndex:
     exact: dict[str, list[Reference]] = {}
     normalized_index: dict[str, list[Reference]] = {}
     structured_json: dict[str, list[Reference]] = {}
+    structured_json_projections: dict[tuple[str, ...], dict[str, list[Reference]]] = {}
     shingle_patterns: dict[str, list[Reference]] = {}
     for task in suite.tasks:
         for example in task.examples:
@@ -603,12 +605,23 @@ def _build_probe_index(suite: LoadedSuite) -> _ProbeIndex:
                 _append(normalized_index, _sha256(normalized), reference)
                 if field == "canonical_record":
                     _append(structured_json, _sha256(text), reference)
+                    normalized_record = _normalize_decoded_json(example.record)
+                    if not isinstance(normalized_record, Mapping):
+                        raise ContaminationScanError("benchmark canonical record must be a mapping")
+                    required_keys = tuple(sorted(normalized_record))
+                    projection_index = structured_json_projections.setdefault(required_keys, {})
+                    _append(
+                        projection_index,
+                        _sha256(canonical_json_bytes(normalized_record).decode("utf-8")),
+                        reference,
+                    )
                 for shingle in _iter_shingles(normalized):
                     _append_unique(shingle_patterns, shingle, reference)
     return _ProbeIndex(
         exact=exact,
         normalized=normalized_index,
         structured_json=structured_json,
+        structured_json_projections=structured_json_projections,
         shingles=_ShingleMatcher(shingle_patterns),
     )
 
@@ -629,13 +642,27 @@ def _document_matches(
         ("shingle_48", probe_index.shingles.references_in(normalized)),
     ]
     try:
-        for structured_json in _canonical_json_objects(normalized):
+        for structured_json, mapping in _canonical_json_candidates(normalized):
             observed.append(
                 (
                     "structured_json",
                     probe_index.structured_json.get(_sha256(structured_json), []),
                 )
             )
+            mapping_keys = set(mapping)
+            for required_keys, projection_index in probe_index.structured_json_projections.items():
+                if not set(required_keys).issubset(mapping_keys):
+                    continue
+                projected = {key: mapping[key] for key in required_keys}
+                observed.append(
+                    (
+                        "structured_json",
+                        projection_index.get(
+                            _sha256(canonical_json_bytes(projected).decode("utf-8")),
+                            [],
+                        ),
+                    )
+                )
     except _JsonTraversalLimitExceeded as error:
         raise ContaminationScanError(
             "complete contamination scan aborted: "
@@ -787,7 +814,7 @@ def _json_structure_within_depth(text: str, *, max_depth: int) -> bool:
     return True
 
 
-def _canonical_mappings(value: Any) -> Iterable[str]:
+def _canonical_mappings(value: Any) -> Iterable[tuple[str, Mapping[str, Any]]]:
     """Yield identities for every mapping in an already bounded normalized value."""
 
     pending = [value]
@@ -795,7 +822,7 @@ def _canonical_mappings(value: Any) -> Iterable[str]:
         candidate = pending.pop()
         if isinstance(candidate, Mapping):
             try:
-                yield canonical_json_bytes(candidate).decode("utf-8", errors="strict")
+                yield canonical_json_bytes(candidate).decode("utf-8", errors="strict"), candidate
             except (RecursionError, TypeError, ValueError, UnicodeError, OverflowError):
                 pass
             pending.extend(reversed(tuple(candidate.values())))
@@ -803,12 +830,12 @@ def _canonical_mappings(value: Any) -> Iterable[str]:
             pending.extend(reversed(candidate))
 
 
-def _canonical_json_objects(
+def _canonical_json_candidates(
     text: str,
     *,
     limits: _JsonTraversalLimits | None = None,
-) -> Iterable[str]:
-    """Yield bounded canonical objects, including recursively JSON-encoded strings.
+) -> Iterable[tuple[str, Mapping[str, Any]]]:
+    """Yield bounded canonical mappings, including recursively JSON-encoded strings.
 
     Direct candidate substrings remain disjoint and linear in each scanned text.
     Decoded JSON string values are traversed iteratively under one per-document
@@ -847,6 +874,7 @@ def _canonical_json_objects(
                 decoded_values,
                 limits=budget.limits,
             )
+        decoded_object_ranges.sort()
         object_range_index = 0
         for start, end, structural_depth in _json_string_literal_ranges(candidate_text):
             while (
@@ -873,6 +901,17 @@ def _canonical_json_objects(
                 decoded[1],
                 limits=budget.limits,
             )
+
+
+def _canonical_json_objects(
+    text: str,
+    *,
+    limits: _JsonTraversalLimits | None = None,
+) -> Iterable[str]:
+    """Yield only canonical object identities for diagnostics and boundary tests."""
+
+    for canonical, _mapping in _canonical_json_candidates(text, limits=limits):
+        yield canonical
 
 
 def _queue_decoded_json_strings(
@@ -908,11 +947,11 @@ def _may_contain_json(text: str) -> bool:
 def _embedded_json_object_ranges(
     text: str,
 ) -> Iterable[tuple[int, int, int]]:
-    """Yield leaf objects under both lexical parities to recover malformed prose quotes."""
+    """Yield leaf and outer objects under both malformed-prose lexical parities."""
 
     observed: set[tuple[int, int]] = set()
     for initial_in_string in (False, True):
-        for start, end in _leaf_json_object_ranges(
+        for start, end in _json_object_candidate_ranges(
             text,
             initial_in_string=initial_in_string,
         ):
@@ -923,14 +962,15 @@ def _embedded_json_object_ranges(
             yield start, end, 0
 
 
-def _leaf_json_object_ranges(
+def _json_object_candidate_ranges(
     text: str,
     *,
     initial_in_string: bool,
 ) -> Iterable[tuple[int, int]]:
-    """Extract disjoint leaf objects with one constant-state lexical interpretation."""
+    """Extract leaf plus enclosing root objects with one constant-state interpretation."""
 
     object_depth = 0
+    outer_start: int | None = None
     leaf_start: int | None = None
     leaf_depth = 0
     in_string = initial_in_string
@@ -945,6 +985,7 @@ def _leaf_json_object_ranges(
                 in_string = False
             elif character in "\r\n":
                 object_depth = 0
+                outer_start = None
                 leaf_start = None
                 leaf_depth = 0
                 in_string = False
@@ -953,20 +994,27 @@ def _leaf_json_object_ranges(
         if character == '"':
             in_string = True
         elif character == "{":
+            if object_depth == 0:
+                outer_start = index
             object_depth += 1
             leaf_start = index
             leaf_depth = object_depth
         elif character == "}":
             if object_depth == 0:
                 continue
+            ranges: list[tuple[int, int]] = []
             if leaf_start is not None and object_depth == leaf_depth:
-                yield leaf_start, index + 1
+                ranges.append((leaf_start, index + 1))
                 leaf_start = None
                 leaf_depth = 0
+            if object_depth == 1 and outer_start is not None:
+                ranges.append((outer_start, index + 1))
             object_depth -= 1
             if object_depth == 0:
+                outer_start = None
                 in_string = False
                 escaped = False
+            yield from dict.fromkeys(ranges)
 
 
 def _json_string_literal_ranges(

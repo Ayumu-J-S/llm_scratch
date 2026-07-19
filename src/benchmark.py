@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 import hydra
 from omegaconf import DictConfig
@@ -11,14 +12,17 @@ from benchmarks.runner import run_benchmark
 from benchmarks.suite import FINAL_ACKNOWLEDGEMENT
 
 
-@hydra.main(version_base=None, config_path="../config", config_name="train")
+CONFIG_DIR = str(Path(__file__).resolve().parents[1] / "config")
+
+
+@hydra.main(version_base=None, config_path=CONFIG_DIR, config_name="train")
 def main(cfg: DictConfig) -> None:
     """Run the deterministic development subsets; final access is impossible here."""
 
     run_benchmark(cfg, access="dev")
 
 
-@hydra.main(version_base=None, config_path="../config", config_name="train")
+@hydra.main(version_base=None, config_path=CONFIG_DIR, config_name="train")
 def _final_hydra(cfg: DictConfig) -> None:
     acknowledgement = os.environ.get("BENCHMARK_FINAL_ACK")
     run_benchmark(
