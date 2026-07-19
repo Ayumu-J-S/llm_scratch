@@ -192,9 +192,9 @@ See `data/manifests/README.md`.
 - `ROADMAP.md`: dependency-ordered engineering and research tickets
 - `PHILOSOPHY.md`: project decision policy and research principles
 - `CHECK.md`: selective post-implementation ML-system review catalog
-- `docs/agent-model-workflow.md`: required implementation, heavy-review, repair, and handoff flow
+- `docs/agent-model-workflow.md`: required implementation, `/review`, repair, and handoff flow
 - `docs/experiments/`: predeclared experiment plans, per-attempt evidence, and conclusions
-- `docs/model-runs/`: per-PR model execution records and aggregate model outcomes
+- `docs/model-runs/`: historical review archive retained for existing links
 - `src/train.py`: Hydra-based decoder-only training script using the canonical tokenizer
 - `src/training/trainer.py`: decoder-only trainer loop, validation, checkpointing, and W&B logging
 - `src/models/embedding.py`: token embedding and sinusoidal positional encoding

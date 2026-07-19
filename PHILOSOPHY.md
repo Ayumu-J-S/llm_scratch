@@ -253,8 +253,8 @@ Autonomy includes responsibility. An agent must:
 Agents may create branches, commit, push, and open pull requests. Human review
 and merge is the default. A human may explicitly authorize an agent to merge one
 named pull request or a bounded ticket or goal series. The authorization must
-identify that scope and be recorded in both the pull request and model-run
-record; it cannot be inferred from tool access or a general desire for autonomy.
+identify that scope and be recorded in the pull request; it cannot be inferred
+from tool access or a general desire for autonomy.
 The most recent human instruction controls, and ambiguity or revocation restores
 the human-merge default.
 
@@ -275,8 +275,8 @@ below is satisfied for the exact head commit:
   because the current status list is empty;
 - the pull request is up to date with its target branch, conflict-free, and
   reported mergeable;
-- the model-run record, ledger, pull-request execution trail, validation
-  evidence, risks, and authorization evidence are complete and agree; and
+- the pull-request implementation and review trail, validation evidence, risks,
+  and authorization evidence are complete and agree; and
 - the merging agent performs and records a final audit of these gates in the PR
   at the exact reviewed head, without creating a new unreviewed commit; and
 - immediately before invoking merge, the merging agent re-fetches authorization,
@@ -302,8 +302,8 @@ The pull request remains the handoff: it should be possible to review the
 hypothesis, diff, run status, plots, result, integrity checks, and proposed next
 step in a short session. This matters because routine human attention may be
 limited to one or two hours per week. A policy-changing pull request that first
-introduces agent self-merge cannot bootstrap its own authority; the preceding
-human-only policy governs until a human merges that policy change.
+introduces guarded agent self-merge cannot bootstrap its own authority; the
+preceding human-only policy governs until a human merges that policy change.
 
 ## Simple does not mean improvised
 
