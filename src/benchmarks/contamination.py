@@ -27,16 +27,20 @@ from runtime.reproducibility import sha256_file
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 SHINGLE_CODEPOINTS = 48
-SCAN_REVISION = "BENCH-001-contamination-v17"
-NORMALIZATION_REVISION = "normalize-text-identity-nfc-strip-plus-json-object-v15"
+SCAN_REVISION = "BENCH-001-contamination-v18"
+NORMALIZATION_REVISION = "normalize-text-identity-nfc-strip-plus-json-object-v16"
 SCAN_INDEX_SCHEMA_VERSION = 2
 MATCHER_REVISION = "collision-verified-rolling-hash-codepoint-v1"
 JSON_OBJECT_NORMALIZATION_REVISION = (
-    "bounded-all-object-string-superset-projection-json-nfc-sha256-v14"
+    "bounded-all-object-string-input-projection-json-nfc-sha256-v15"
 )
 PRODUCER_IDENTITY_REVISION = "contamination-producer-v1"
 PRODUCER_SOURCE_SCOPE_REVISION = "src-python-pyproject-lock-v1"
 _PRODUCER_PACKAGES = ("pyarrow",)
+_INPUT_ONLY_OMITTED_FIELDS = {
+    "jcommonsenseqa": frozenset({"label"}),
+    "gsm8k": frozenset({"answer"}),
+}
 _ROLLING_BASE = 1_000_000_007
 _ROLLING_MASK = (1 << 64) - 1
 JSON_TRAVERSAL_MAX_TOTAL_BYTES = 8 * 1024 * 1024
@@ -608,13 +612,27 @@ def _build_probe_index(suite: LoadedSuite) -> _ProbeIndex:
                     normalized_record = _normalize_decoded_json(example.record)
                     if not isinstance(normalized_record, Mapping):
                         raise ContaminationScanError("benchmark canonical record must be a mapping")
-                    required_keys = tuple(sorted(normalized_record))
-                    projection_index = structured_json_projections.setdefault(required_keys, {})
-                    _append(
-                        projection_index,
-                        _sha256(canonical_json_bytes(normalized_record).decode("utf-8")),
-                        reference,
-                    )
+                    projections = [normalized_record]
+                    omitted_fields = _INPUT_ONLY_OMITTED_FIELDS.get(task.name)
+                    if omitted_fields is not None:
+                        input_only = {
+                            key: value
+                            for key, value in normalized_record.items()
+                            if key not in omitted_fields
+                        }
+                        if len(input_only) == len(normalized_record):
+                            raise ContaminationScanError(
+                                f"benchmark task {task.name} lacks its expected answer field"
+                            )
+                        projections.append(input_only)
+                    for projection in projections:
+                        required_keys = tuple(sorted(projection))
+                        projection_index = structured_json_projections.setdefault(required_keys, {})
+                        _append(
+                            projection_index,
+                            _sha256(canonical_json_bytes(projection).decode("utf-8")),
+                            reference,
+                        )
                 for shingle in _iter_shingles(normalized):
                     _append_unique(shingle_patterns, shingle, reference)
     return _ProbeIndex(
