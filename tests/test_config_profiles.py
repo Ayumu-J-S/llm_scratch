@@ -42,6 +42,7 @@ def test_canonical_profiles_compose_with_real_root_sections():
     assert benchmark.profile.name == "benchmark"
     assert benchmark.profile.task == "benchmark_checkpoint"
     assert benchmark.benchmark.device == "cuda"
+    assert benchmark.benchmark.cache.dir == "outputs/benchmark_cache"
     assert "access" not in benchmark.benchmark
 
 

@@ -12,7 +12,9 @@ benchmark:
   output_path: benchmark.json
   device: cuda
   cache:
-    dir: data/benchmark_cache
+    # Generated source/cache entries live under the repository's ignored
+    # output tree, so evaluation cannot dirty the Git identity it records.
+    dir: outputs/benchmark_cache
     max_size_bytes: 100000000
     min_free_bytes: 1000000000
     wait_timeout_seconds: 120.0

@@ -30,10 +30,11 @@ specification has its own SHA-256 in addition to its readable revision.
 Decoding configuration, source identity, selected-example identity, checkpoint
 logical and physical identity, tokenizer fingerprint, device, and
 checkpoint-owned precision are all attached to the stable evaluation identity.
-The identity also binds the executable evaluator's Git commit and dirty state,
-dependency-lock hash, OS/Python/PyTorch/CUDA stack, visible device identity, and
-container-image metadata so code or runtime changes cannot masquerade as an
-identical comparison.
+The identity also binds the executable evaluator's Git commit, status, and a
+content digest over its tracked diff plus every non-ignored untracked file,
+along with the dependency-lock hash, OS/Python/PyTorch/CUDA stack, visible
+device identity, and container-image metadata. Different dirty evaluator bytes
+therefore cannot masquerade as an identical comparison.
 
 ## Commands and reserved-test boundary
 
@@ -79,8 +80,17 @@ document in every checkpoint-owned manifest selected as `train`. It records:
 The report contains no benchmark or training text. Any match writes an atomic
 `blocked_contamination` result and exits without scoring, so the evidence is
 retained while a contaminated score cannot be mistaken for a valid result.
-The complete scan may read all pinned training shards and is intentionally a
-milestone operation rather than a training hot-path check.
+The first complete scan may read all pinned training shards and is intentionally
+an index-building operation rather than a training hot-path check. Its atomic
+artifact is keyed by the full suite identity, ordered training manifest
+fingerprints, normalization/scanner revision, and exact scanner/data-loader
+implementation hashes, and carries its own checksum. Later milestones with the
+same corpus and suite reuse that verified report without opening or
+materializing the corpus again. A corrupt or mismatched index fails closed.
+
+Generated benchmark source shards use the ignored `outputs/benchmark_cache`
+directory, so populating the cache does not change evaluator Git identity or
+block a later clean pretraining run.
 
 ## Evidence and W&B policy
 
