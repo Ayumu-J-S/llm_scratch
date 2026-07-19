@@ -328,12 +328,24 @@ def test_selected_entry_requires_a_passing_summary_for_current_commit(monkeypatc
     cfg["selected_candidate"] = selected["candidate_id"]
     cfg["matrix_summary_path"] = str(summary_path)
     monkeypatch.setattr(RUNNER, "_git", lambda *args: commit)
+    validation_calls = []
+
+    def validate_summary(path, matrix_plan):
+        validation_calls.append((Path(path), matrix_plan["plan_id"]))
+        return json.loads(Path(path).read_text(encoding="utf-8"))
+
+    monkeypatch.setattr(
+        RUNNER,
+        "validate_matrix_summary_against_evidence",
+        validate_summary,
+    )
     with pytest.raises(RuntimeError, match="exact passing matrix"):
         _selected_entry(cfg, plan, image_id=IMAGE)
 
     summary["git_commit"] = commit
     summary_path.write_text(json.dumps(summary), encoding="utf-8")
     assert _selected_entry(cfg, plan, image_id=IMAGE) == selected
+    assert validation_calls[-1] == (summary_path, matrix_plan["plan_id"])
     assert cfg["matrix_summary_identity"]["target_hardware"] == target_hardware
 
     summary["plan_id"] = "f" * 64

@@ -11,6 +11,7 @@ from dgx.planning import (
     PROTOCOL_CONFIG_KEYS,
     _decomposition_conclusion,
     _decomposition_decision,
+    _load_plan,
     _online_adjusted_projection,
     _project_token_budget,
     _require_matrix_hardware_identity,
@@ -22,6 +23,7 @@ from dgx.planning import (
     summarize_evidence,
     summarize_run,
     validate_dgx_config,
+    validate_matrix_summary_against_evidence,
 )
 from runtime.config import validate_training_config
 from runtime.reproducibility import canonical_config_sha256, experiment_config_sha256
@@ -653,6 +655,27 @@ def test_summary_gates_exact_matrix_and_selects_committed_profile(tmp_path, monk
     assert summary["selected"]["projected_overhead_seconds"]["scheduled_log_each"] == 0.1
 
 
+def test_matrix_summary_authority_must_rederive_from_physical_runs(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "dgx.planning.shutil.disk_usage", lambda _path: SimpleNamespace(free=1_000_000_000_000)
+    )
+    config, plan = _matrix_fixture(tmp_path)
+    summary = summarize_evidence(tmp_path, config)
+    summary_path = tmp_path / "dgx-summary.json"
+    _write_json(summary_path, summary)
+    assert validate_matrix_summary_against_evidence(summary_path, plan) == summary
+
+    summary["measurement_conditions"]["target_hardware"] = {
+        **summary["measurement_conditions"]["target_hardware"],
+        "gpu_uuid": "GPU-forged-other-dgx",
+        "driver_version": "999.1",
+        "os_kernel": "forged-kernel",
+    }
+    _write_json(summary_path, summary)
+    with pytest.raises(ValueError, match="cannot be re-derived"):
+        validate_matrix_summary_against_evidence(summary_path, plan)
+
+
 def test_summary_fails_explicit_low_storage_without_weakening_gate(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "dgx.planning.shutil.disk_usage", lambda _path: SimpleNamespace(free=1_000_000)
@@ -738,6 +761,24 @@ def test_oversized_immutable_cache_is_preserved_in_storage_forecast(tmp_path, mo
     assert reports[("cache",)]["planned_bytes"] == oversized
     assert reports[("cache",)]["post_plan_reserve_passed"] is False
     assert summary["verdict"] == "FAIL"
+
+
+def test_cache_integrity_rejects_inconsistent_unchanged_flag(tmp_path):
+    config = compose_dgx(["mode=matrix"])
+    plan = _write_plan(tmp_path, config)
+    before = plan["cache_before"]
+    after = {
+        **before,
+        "size_bytes": int(before["size_bytes"]) + 70_000_000_000,
+        "sha256": "changed",
+    }
+    _write_json(
+        tmp_path / "cache-integrity.json",
+        {"before": before, "after": after, "unchanged": True},
+    )
+
+    with pytest.raises(ValueError, match="before/after identity"):
+        _load_plan(tmp_path, config)
 
 
 def test_primary_denominator_includes_scheduled_pauses_exactly_once(tmp_path):
@@ -1212,6 +1253,24 @@ def test_reserved_allocator_growth_is_a_hard_gate(tmp_path):
     assert result["gates"]["allocator_stable"] is False
 
 
+@pytest.mark.parametrize("key", ["pytorch_allocated_bytes", "pytorch_reserved_bytes"])
+@pytest.mark.parametrize("value", [-1, True, "1", 1.5])
+def test_allocator_observations_must_be_nonnegative_integers(tmp_path, key, value):
+    config = OmegaConf.to_container(compose_dgx(), resolve=True)
+    plan = _write_plan(tmp_path, config)
+    entry = build_matrix_plan(config)[0]
+    run_dir = _fake_run(tmp_path, entry, plan, 18_000)
+    measurement_path = run_dir / "measurement.json"
+    measurement = json.loads(measurement_path.read_text())
+    for row in measurement["segments"][0]["rows"]:
+        if row.get("event") == "optimizer_step" and row.get("warmup") is False:
+            row[key] = value
+    _write_json(measurement_path, measurement)
+
+    with pytest.raises(ValueError, match=f"{key} must be a nonnegative integer"):
+        summarize_run(run_dir, config["gates"], expected=entry, plan=plan)
+
+
 def test_selection_requires_all_runs_repeatability_and_exact_rule():
     base = {
         "all_runs_passed": True,
@@ -1255,7 +1314,13 @@ def test_selection_requires_all_runs_repeatability_and_exact_rule():
         )
 
 
-def test_auxiliary_authority_requires_exact_matrix_plan_protocol_and_selection(tmp_path):
+def test_auxiliary_authority_requires_exact_matrix_plan_protocol_and_selection(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(
+        "dgx.planning.validate_matrix_summary_against_evidence",
+        lambda summary_path, _matrix_plan: json.loads(Path(summary_path).read_text()),
+    )
     matrix_root = tmp_path / "matrix"
     matrix_config = OmegaConf.to_container(compose_dgx(["mode=matrix"]), resolve=True)
     matrix_plan = _write_plan(matrix_root, matrix_config)

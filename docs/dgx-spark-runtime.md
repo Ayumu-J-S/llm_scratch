@@ -82,7 +82,11 @@ identity before accepting evidence. It also retains the physical GPU UUID,
 driver, CUDA runtime, Torch build, and host OS/kernel identity and requires every
 decomposition and pilot phase to match the matrix authority exactly; CUDA/BF16
 support on another GPU or after an unreviewed runtime change is not DGX Spark
-evidence.
+evidence. Before an auxiliary plan can trust `dgx-summary.json`, the runner
+re-derives its candidate statistics, selection, and hardware/software identity
+from all 27 physical matrix run directories. Auxiliary summarization repeats
+that derivation, so editing a PASS summary before or after plan creation cannot
+relabel measurements from another DGX.
 
 Both negative checks must exit nonzero when no GPU is passed:
 
@@ -153,8 +157,10 @@ train/validation path, writes a verified final checkpoint, and samples host/GPU
 state out of band. The summarizer fails closed on incomplete repetitions,
 commit/image drift, non-finite training, unavailable CUDA events, sampler gaps,
 UMA or disk floors, swap growth, temperature above 80 C, allocated or reserved
-allocator-baseline growth, or a missing verified checkpoint. It reports median
-and spread, step median/p95/max,
+allocator-baseline growth, or a missing verified checkpoint. Allocated and
+reserved observations must themselves be nonnegative integers; malformed
+allocator evidence cannot pass as a stable zero-growth baseline. It reports
+median and spread, step median/p95/max,
 trained-target tokens/s, phase/data-wait decomposition, memory, validation and
 checkpoint overhead, and conservative 1-hour/24-hour/7-day budgets.
 
@@ -164,7 +170,9 @@ allocator, data-wait, loader-supply, storage, repeatability, or selection gates.
 The 120 GB live disk floor and independent 100 GB post-plan reserve remain exact.
 Storage forecasting retains at least the full verified existing cache footprint
 when it is larger than the configured cache maximum; an immutable oversized
-cache is never treated as space that the measurement will reclaim.
+cache is never treated as space that the measurement will reclaim. The cache
+integrity record must also prove exact `before == after` identity; an
+`unchanged` flag cannot override differing content or size evidence.
 
 Matrix preselection is deterministic: a candidate must pass every gate and project at
 least one billion targets in seven days from its slowest repetition. Among

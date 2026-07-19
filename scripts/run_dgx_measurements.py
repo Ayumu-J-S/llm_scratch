@@ -21,6 +21,7 @@ from dgx.planning import (
     summarize_pilot,
     training_overrides,
     validate_dgx_config,
+    validate_matrix_summary_against_evidence,
 )
 from dgx.runtime_image import RUNTIME_SPEC_LABEL, runtime_image_spec_sha256
 from runtime.reproducibility import canonical_config_sha256, experiment_config_sha256
@@ -294,6 +295,12 @@ def _selected_entry(cfg: dict, plan: list[dict], *, image_id: str) -> dict:
     matrix_plan_id = unsigned_matrix_plan.pop("plan_id", None)
     if matrix_plan_id != _canonical_sha256(unsigned_matrix_plan):
         raise RuntimeError("matrix selection authority has an invalid immutable plan hash")
+    try:
+        summary = validate_matrix_summary_against_evidence(summary_path, matrix_plan)
+    except ValueError as error:
+        raise RuntimeError(
+            "matrix selection authority cannot be re-derived from exact run evidence"
+        ) from error
     active_protocol = {key: cfg[key] for key in PROTOCOL_CONFIG_KEYS}
     matrix_protocol = {key: matrix_plan.get("config", {}).get(key) for key in PROTOCOL_CONFIG_KEYS}
     measurement_conditions = summary.get("measurement_conditions")

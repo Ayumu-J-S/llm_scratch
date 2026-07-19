@@ -973,8 +973,17 @@ def summarize_run(
     for row in measured:
         for key, value in _validated_cuda_timings(row).items():
             phase_cuda[key] += value / 1000.0
-    allocated = [int(row["pytorch_allocated_bytes"]) for row in measured]
-    reserved = [int(row["pytorch_reserved_bytes"]) for row in measured]
+    def allocator_observations(key: str) -> list[int]:
+        values = []
+        for row in measured:
+            value = row.get(key)
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ValueError(f"DGX measurement {key} must be a nonnegative integer")
+            values.append(value)
+        return values
+
+    allocated = allocator_observations("pytorch_allocated_bytes")
+    reserved = allocator_observations("pytorch_reserved_bytes")
     allocator_window = min(5, max(1, len(allocated) // 2))
     allocated_growth = max(
         0, min(allocated[-allocator_window:]) - min(allocated[:allocator_window])
@@ -1432,7 +1441,12 @@ def _load_plan(evidence_root: Path, cfg: Mapping[str, Any]) -> dict[str, Any]:
     if planned_protocol != active_protocol:
         raise ValueError("DGX summary config differs from the executed protocol")
     cache = _read_json(evidence_root / "cache-integrity.json")
-    if cache.get("unchanged") is not True or cache.get("before") != plan.get("cache_before"):
+    if (
+        set(cache) != {"before", "after", "unchanged"}
+        or cache.get("unchanged") is not True
+        or cache.get("before") != plan.get("cache_before")
+        or cache.get("after") != cache.get("before")
+    ):
         raise ValueError("DGX cache before/after identity did not remain exact")
     expected_runs = build_matrix_plan(plan["config"])
     if plan.get("runs") != expected_runs:
@@ -1549,7 +1563,7 @@ def _validate_matrix_authority(plan: Mapping[str, Any]) -> dict[str, Any]:
         or matrix_plan.get("matrix_summary_identity") is not None
     ):
         raise ValueError("matrix selection source plan differs from auxiliary protocol authority")
-    summary = _read_json(summary_path)
+    summary = validate_matrix_summary_against_evidence(summary_path, matrix_plan)
     measurement_conditions = summary.get("measurement_conditions")
     target_hardware = (
         measurement_conditions.get("target_hardware")
@@ -1608,12 +1622,13 @@ def _committed_profile_matches(
     )
 
 
-def summarize_evidence(
-    evidence_root: Path, config: Mapping[str, Any] | DictConfig
+def _matrix_measurement_authority(
+    root: Path,
+    cfg: Mapping[str, Any],
+    plan: Mapping[str, Any],
 ) -> dict[str, Any]:
-    cfg = validate_dgx_config(config)
-    root = Path(evidence_root)
-    plan = _load_plan(root, cfg)
+    """Re-derive the scientific matrix result from its physical run evidence."""
+
     expected_entries = build_matrix_plan(cfg)
     expected_by_key = {
         (entry["candidate_id"], entry["repetition"]): entry for entry in expected_entries
@@ -1643,7 +1658,6 @@ def summarize_evidence(
     hardware_identities = {_canonical_sha256(run["target_hardware"]) for run in runs}
     if len(hardware_identities) != 1:
         raise ValueError("DGX matrix repetitions do not share one target hardware identity")
-    target_hardware = runs[0]["target_hardware"]
     grouped: defaultdict[str, list[dict[str, Any]]] = defaultdict(list)
     for run in runs:
         grouped[run["candidate_id"]].append(run)
@@ -1652,6 +1666,58 @@ def summarize_evidence(
         for _, items in sorted(grouped.items())
     ]
     selected, finalists = select_candidate(candidates, cfg["selection"])
+    return {
+        "target_hardware": runs[0]["target_hardware"],
+        "candidates": candidates,
+        "selection_finalists": [item["candidate_id"] for item in finalists],
+        "selected": selected,
+    }
+
+
+def validate_matrix_summary_against_evidence(
+    summary_path: Path,
+    expected_plan: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Reject a matrix summary whose authority cannot be re-derived from its runs."""
+
+    summary_path = Path(summary_path).resolve()
+    cfg = validate_dgx_config(expected_plan["config"])
+    plan = _load_plan(summary_path.parent, cfg)
+    if plan != dict(expected_plan):
+        raise ValueError("matrix summary source plan differs from the expected physical plan")
+    derived = _matrix_measurement_authority(summary_path.parent, cfg, plan)
+    summary = _read_json(summary_path)
+    measurement_conditions = summary.get("measurement_conditions")
+    target_hardware = (
+        measurement_conditions.get("target_hardware")
+        if isinstance(measurement_conditions, Mapping)
+        else None
+    )
+    if (
+        target_hardware != derived["target_hardware"]
+        or summary.get("candidates") != derived["candidates"]
+        or summary.get("selection_finalists") != derived["selection_finalists"]
+        or summary.get("selected") != derived["selected"]
+    ):
+        raise ValueError("matrix summary authority cannot be re-derived from physical run evidence")
+    return summary
+
+
+def summarize_evidence(
+    evidence_root: Path, config: Mapping[str, Any] | DictConfig
+) -> dict[str, Any]:
+    cfg = validate_dgx_config(config)
+    root = Path(evidence_root)
+    plan = _load_plan(root, cfg)
+    authority = _matrix_measurement_authority(root, cfg, plan)
+    target_hardware = authority["target_hardware"]
+    candidates = authority["candidates"]
+    selected = authority["selected"]
+    finalists = [
+        candidate
+        for candidate in candidates
+        if candidate["candidate_id"] in authority["selection_finalists"]
+    ]
     full_tokens = int(selected["token_budgets"]["7_days"])
     checkpoint_size = int(selected["checkpoint_size_bytes_max"])
     milestone_copies = math.ceil(full_tokens / int(cfg["pilot"]["milestone_every_target_tokens"]))
