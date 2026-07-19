@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from contextlib import nullcontext
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -92,7 +93,14 @@ class NonFiniteValidationModel(FixedLogitModel):
         return logits.expand(*inputs.shape, -1)
 
 
-def _trainer(tmp_path: Path, batches, **training_overrides) -> Trainer:
+def _trainer(
+    tmp_path: Path,
+    batches,
+    *,
+    measurement: dict | None = None,
+    checkpoint_dir: Path | None = None,
+    **training_overrides,
+) -> Trainer:
     model = FixedLogitModel()
     cfg = OmegaConf.create(
         {
@@ -109,6 +117,7 @@ def _trainer(tmp_path: Path, batches, **training_overrides) -> Trainer:
                 **training_overrides,
             },
             "wandb": {"enabled": False},
+            "measurement": measurement or {"enabled": False},
         }
     )
     return Trainer(
@@ -116,8 +125,8 @@ def _trainer(tmp_path: Path, batches, **training_overrides) -> Trainer:
         optimizer=torch.optim.SGD(model.parameters(), lr=0.0),
         scheduler=None,
         train_loader=ListLoader(batches),
-        validation_loader=ListLoader(batches),
-        checkpoint_dir=tmp_path,
+        validation_loader_factory=lambda: ListLoader(batches),
+        checkpoint_dir=checkpoint_dir or tmp_path,
         cfg=cfg,
         device=torch.device("cpu"),
     )
@@ -164,7 +173,7 @@ def _recipe_trainer(
         optimizer=optimizer,
         scheduler=scheduler,
         train_loader=ListLoader(batches),
-        validation_loader=ListLoader(batches),
+        validation_loader_factory=lambda: ListLoader(batches),
         checkpoint_dir=tmp_path,
         cfg=cfg,
         device=torch.device("cpu"),
@@ -184,6 +193,127 @@ def test_partial_batch_metric_is_token_weighted(tmp_path: Path):
     assert step_record["train/loss_step"] == pytest.approx(expected)
     assert step_record["train/target_tokens_step"] == 4
     assert trainer.target_tokens == 4
+    assert "timing" not in step_record
+    assert not (tmp_path / "measurement.json").exists()
+
+
+def test_benchmark_measurement_is_explicit_and_flushed_once(tmp_path: Path):
+    trainer = _trainer(
+        tmp_path,
+        [_batch([[0, 1]]) for _ in range(2)],
+        max_steps=2,
+        measurement={
+            "enabled": True,
+            "warmup_optimizer_steps": 1,
+            "cuda_events": True,
+            "output_path": str(tmp_path / "timing.json"),
+        },
+        checkpoint_dir=tmp_path / "checkpoints",
+    )
+
+    trainer.fit()
+
+    payload = json.loads((tmp_path / "timing.json").read_text(encoding="utf-8"))
+    assert payload["schema_version"] == 3
+    assert payload["complete"] is True
+    assert len(payload["segments"]) == 1
+    segment = payload["segments"][0]
+    assert segment["complete"] is True
+    assert segment["measurement"]["cuda_events"] is False
+    steps = [row for row in segment["rows"] if row["event"] == "optimizer_step"]
+    assert [row["optimizer_step"] for row in steps] == [1, 2]
+    assert [row["warmup"] for row in steps] == [True, False]
+    assert all(row["data_wait_calls"] == 1 for row in steps)
+    assert all(row["step_wall_seconds"] >= row["host_seconds"]["data_wait"] for row in steps)
+    assert all(row["cuda_milliseconds"] == {} for row in steps)
+    assert not (tmp_path / "timing.jsonl").exists()
+
+
+def test_benchmark_measurement_separates_validation_from_optimizer_steps(tmp_path: Path):
+    trainer = _trainer(
+        tmp_path,
+        [_batch([[0, 1]]) for _ in range(2)],
+        max_steps=2,
+        validation_every_n_steps=1,
+        measurement={
+            "enabled": True,
+            "warmup_optimizer_steps": 0,
+            "cuda_events": False,
+            "output_path": str(tmp_path / "timing.json"),
+        },
+        checkpoint_dir=tmp_path / "checkpoints",
+    )
+
+    trainer.fit()
+
+    payload = json.loads((tmp_path / "timing.json").read_text(encoding="utf-8"))
+    rows = payload["segments"][0]["rows"]
+    steps = [row for row in rows if row["event"] == "optimizer_step"]
+    validations = [row for row in rows if row["event"] == "validation"]
+    assert len(steps) == len(validations) == 2
+    assert all(
+        step["wall_end_unix_ns"] <= validation["wall_start_unix_ns"]
+        for step, validation in zip(steps, validations, strict=True)
+    )
+    assert all(validation["full_event_pause_seconds"] >= 0.0 for validation in validations)
+    assert all(
+        abs(validation["unattributed_seconds"])
+        <= max(0.005, validation["full_event_pause_seconds"] * 0.01)
+        for validation in validations
+    )
+
+
+@pytest.mark.parametrize(
+    "artifact_name",
+    [
+        "final.pt",
+        "best.pt",
+        "recovery-step-000000000001.pt",
+        "milestone-step-000000000001.pt",
+        ".final.pt.review.tmp",
+    ],
+)
+def test_measurement_output_rejects_every_checkpoint_namespace_before_training(
+    tmp_path: Path, artifact_name: str
+):
+    checkpoint_dir = tmp_path / "checkpoints"
+    checkpoint_dir.mkdir()
+    artifact = checkpoint_dir / artifact_name
+    artifact.write_bytes(b"checkpoint sentinel")
+
+    with pytest.raises(ValueError, match="outside the checkpoint directory"):
+        _trainer(
+            tmp_path,
+            [_batch([[0, 1]])],
+            measurement={"enabled": True, "output_path": str(artifact)},
+            checkpoint_dir=checkpoint_dir,
+            max_steps=1,
+        )
+
+    assert artifact.read_bytes() == b"checkpoint sentinel"
+
+
+def test_measurement_output_rejects_external_checkpoint_hardlink_before_training(
+    tmp_path: Path,
+):
+    checkpoint_dir = tmp_path / "checkpoints"
+    checkpoint_dir.mkdir()
+    artifact = checkpoint_dir / "final.pt"
+    artifact.write_bytes(b"checkpoint sentinel")
+    measurement_path = tmp_path / "timing.json"
+    os.link(artifact, measurement_path)
+
+    with pytest.raises(ValueError, match="share an inode"):
+        _trainer(
+            tmp_path,
+            [_batch([[0, 1]])],
+            measurement={"enabled": True, "output_path": str(measurement_path)},
+            checkpoint_dir=checkpoint_dir,
+            max_steps=1,
+        )
+
+    assert artifact.read_bytes() == b"checkpoint sentinel"
+    assert measurement_path.read_bytes() == b"checkpoint sentinel"
 
 
 def test_max_steps_boundary_does_not_fetch_or_update_extra_batch(tmp_path: Path):

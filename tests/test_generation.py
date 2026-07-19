@@ -11,7 +11,11 @@ import generate
 from generation.sampler import BASE_MODEL_CONTINUATION_LABEL, CheckpointSampler, SamplingError
 from models.simple_decoder_transformer import SimpleDecoderTransformer
 from tokenizer.canonical import CanonicalTokenizer
-from training.checkpoint import CheckpointManager
+from training.checkpoint import (
+    CheckpointCompatibilityError,
+    CheckpointManager,
+    build_checkpoint_identity,
+)
 
 
 TOKENIZER_CONFIG = {
@@ -32,13 +36,8 @@ def _checkpoint(
         "training": {"sequence_length": max_len},
         "tokenizer": TOKENIZER_CONFIG,
     }
-    identity = {
-        "schema_version": 1,
-        "config_sha256": "fixture-config",
-        "model_config": config["model"],
-        "tokenizer_fingerprint": tokenizer.fingerprint,
-        "data_fingerprints": ["fixture-data"],
-    }
+    identity = build_checkpoint_identity(config)
+    identity["tokenizer_fingerprint"] = tokenizer.fingerprint
     model = SimpleDecoderTransformer(
         vocab_size=tokenizer.vocab_size,
         embed_size=8,
@@ -181,5 +180,5 @@ def test_sampler_rejects_checkpoint_config_that_disagrees_with_its_identity(tmp_
     payload["state"]["resolved_config"]["model"]["dropout"] = 0.2
     torch.save(payload, checkpoint)
 
-    with pytest.raises(SamplingError, match="model identity does not match"):
+    with pytest.raises(CheckpointCompatibilityError, match="config_sha256"):
         CheckpointSampler.from_checkpoint(checkpoint)

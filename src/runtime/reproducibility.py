@@ -55,7 +55,8 @@ def seed_everything(seed: int, *, deterministic: bool = True) -> torch.Generator
 
     Model construction must happen after this call.  ``torch.Generator`` is
     returned so each DataLoader can use an explicit, inspectable RNG rather
-    than depending on process-global state.
+    than depending on process-global state.  Deterministic mode fails on an
+    operation without a deterministic implementation.
     """
 
     seed = _positive_seed(seed)
@@ -66,11 +67,9 @@ def seed_everything(seed: int, *, deterministic: bool = True) -> torch.Generator
         torch.cuda.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
     if deterministic:
-        # CPU fixture runs use deterministic kernels.  ``warn_only`` avoids
-        # making an otherwise valid GPU run fail on a kernel that has no
-        # deterministic implementation; GPU bitwise determinism is explicitly
-        # outside REP-001's scope.
-        torch.use_deterministic_algorithms(True, warn_only=True)
+        # Fail rather than silently weakening the requested deterministic mode.
+        # This does not promise bitwise equality across platforms or versions.
+        torch.use_deterministic_algorithms(True, warn_only=False)
         if hasattr(torch.backends, "cudnn"):
             torch.backends.cudnn.deterministic = True
             torch.backends.cudnn.benchmark = False
@@ -125,6 +124,12 @@ def _git(root_dir: Path) -> dict[str, Any]:
     }
 
 
+def collect_git_identity(root_dir: str | Path) -> dict[str, Any]:
+    """Return the observable commit and dirty state for an evaluator or run."""
+
+    return _git(Path(root_dir).resolve())
+
+
 def _plain(value: Any) -> Any:
     if isinstance(value, Mapping):
         return {str(key): _plain(item) for key, item in value.items()}
@@ -134,11 +139,12 @@ def _plain(value: Any) -> Any:
 
 
 def _experiment_identity_config(cfg: Mapping[str, Any]) -> dict[str, Any]:
-    """Normalize only the explicit operational resume selector for run identity."""
+    """Remove operational controls that do not define the training experiment."""
 
     normalized = _plain(cfg)
     if not isinstance(normalized, dict):
         raise ReproducibilityError("run identity requires a mapping configuration")
+    normalized.pop("measurement", None)
     artifacts = normalized.get("artifacts")
     if isinstance(artifacts, Mapping):
         normalized_artifacts = dict(artifacts)
@@ -292,10 +298,10 @@ def write_run_manifest(
     lock_hash = sha256_file(lock_path)
     identity_payload = {
         "git_sha": git["sha"],
-        # The resolved config file remains recorded byte-for-byte below. Only
-        # the explicit operational recovery selector is normalized for the
-        # experiment ID, so resuming the same run does not manufacture a new
-        # identity while every experiment-affecting config change still does.
+        # The resolved config file remains recorded byte-for-byte below.
+        # Recovery selection and optional measurement instrumentation are
+        # operational evidence controls, so neither manufactures a new
+        # training experiment identity.
         "config_sha256": sha256_bytes(canonical_json_bytes(_experiment_identity_config(cfg))),
         "lock_sha256": lock_hash,
         "seed": int(cfg.get("reproducibility", {}).get("seed", 0)),
@@ -310,7 +316,7 @@ def write_run_manifest(
         "config": {"path": config_path.name, "sha256": config_hash},
         "experiment_identity": {
             "config_sha256": identity_payload["config_sha256"],
-            "operational_exclusions": ["artifacts.resume_path"],
+            "operational_exclusions": ["artifacts.resume_path", "measurement"],
         },
         "lock": {"path": "uv.lock", "sha256": lock_hash},
         "seed": int(cfg.get("reproducibility", {}).get("seed", 0)),

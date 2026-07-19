@@ -5,7 +5,12 @@ import pytest
 from omegaconf import OmegaConf
 
 import train as train_module
-from runtime.config import ConfigPreflightError, validate_training_config
+from runtime.config import (
+    ConfigPreflightError,
+    validate_evaluation_checkpoint_runtime,
+    validate_evaluation_config,
+    validate_training_config,
+)
 
 
 CONFIG_DIR = Path(__file__).parents[1] / "config"
@@ -31,6 +36,8 @@ def test_canonical_profiles_compose_with_real_root_sections():
     assert gate.data.mode == "streaming"
     assert evaluation.profile.name == "evaluation"
     assert evaluation.profile.task == "evaluate_checkpoint"
+    assert evaluation.evaluation.device == "cuda"
+    assert evaluation.runtime.device == "cuda"
 
 
 def test_streaming_profile_has_distinct_manifest_selections():
@@ -72,6 +79,22 @@ def test_stability_smoke_exposes_the_bf16_update_recipe():
     assert config.training.scheduler.interval == "step"
     assert config.training.scheduler.warmup_steps == 10
     assert config.training.scheduler.decay_steps == 100
+
+
+def test_benchmark_measurement_is_disabled_by_default_and_strict():
+    config = compose("profile=pretrain_streaming")
+    assert config.measurement.enabled is False
+    validate_training_config(config)
+
+    config.measurement.enabled = True
+    config.measurement.warmup_optimizer_steps = 0
+    config.measurement.cuda_events = False
+    config.measurement.output_path = "/tmp/measurement.json"
+    validate_training_config(config)
+
+    config.measurement.warmup_optimizer_steps = -1
+    with pytest.raises(ConfigPreflightError, match="warmup_optimizer_steps"):
+        validate_training_config(config)
 
 
 def test_gate_overfit_uses_versioned_distinct_fixture_manifests_without_validation_events():
@@ -124,9 +147,97 @@ def test_evaluation_profile_is_rejected_by_training_preflight(monkeypatch):
         raise AssertionError("evaluation profile must stop before tokenizer initialization")
 
     monkeypatch.setattr(train_module.CanonicalTokenizer, "from_config", fail_if_tokenizer_is_loaded)
-    with pytest.raises(ConfigPreflightError, match="composition-only"):
+    with pytest.raises(ConfigPreflightError, match="standalone-only"):
         train_module.main.__wrapped__(config)
     assert not tokenizer_touched
+
+
+def test_evaluation_preflight_accepts_only_explicit_operational_controls():
+    config = compose(
+        "profile=evaluation",
+        "evaluation.checkpoint_path=/tmp/milestone.pt",
+    )
+    validate_evaluation_config(config)
+
+    OmegaConf.set_struct(config, False)
+    config.evaluation.wandb.raw_documents = True
+    with pytest.raises(ConfigPreflightError, match="unknown critical"):
+        validate_evaluation_config(config)
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("enabled", "false", "measurement.enabled"),
+        ("cuda_events", "true", "measurement.cuda_events"),
+        ("warmup_optimizer_steps", True, "warmup_optimizer_steps"),
+        ("warmup_optimizer_steps", -1, "warmup_optimizer_steps"),
+        ("output_path", "   ", "measurement.output_path"),
+    ],
+)
+def test_evaluation_preflight_rejects_malformed_measurement_controls(field, value, message):
+    config = compose(
+        "profile=evaluation",
+        "evaluation.checkpoint_path=/tmp/milestone.pt",
+    )
+    OmegaConf.update(config, f"measurement.{field}", value, force_add=True)
+
+    with pytest.raises(ConfigPreflightError, match=message):
+        validate_evaluation_config(config)
+
+
+def test_evaluation_preflight_rejects_unknown_measurement_key():
+    config = compose(
+        "profile=evaluation",
+        "evaluation.checkpoint_path=/tmp/milestone.pt",
+    )
+    OmegaConf.update(config, "measurement.cuda_event", True, force_add=True)
+
+    with pytest.raises(ConfigPreflightError, match="unknown critical.*cuda_event"):
+        validate_evaluation_config(config)
+
+
+def test_evaluation_preflight_rejects_non_mapping_measurement_section():
+    config = compose(
+        "profile=evaluation",
+        "evaluation.checkpoint_path=/tmp/milestone.pt",
+    )
+    OmegaConf.update(config, "measurement", "enabled", force_add=True)
+
+    with pytest.raises(ConfigPreflightError, match="measurement must be a mapping"):
+        validate_evaluation_config(config)
+
+
+@pytest.mark.parametrize(
+    ("device", "precision"),
+    [("cpu", "fp32"), ("cuda", "fp32"), ("cuda", "bf16")],
+)
+def test_evaluation_checkpoint_runtime_accepts_compatible_precision(device, precision):
+    evaluation = compose(
+        "profile=evaluation",
+        "evaluation.checkpoint_path=/tmp/milestone.pt",
+        f"evaluation.device={device}",
+    )
+    checkpoint = compose("profile=pretrain_streaming", f"training.precision={precision}")
+
+    validate_evaluation_config(evaluation)
+    validate_training_config(checkpoint)
+    validate_evaluation_checkpoint_runtime(evaluation, checkpoint)
+
+
+def test_evaluation_checkpoint_runtime_rejects_cpu_bf16_without_fallback():
+    evaluation = compose(
+        "profile=evaluation",
+        "evaluation.checkpoint_path=/tmp/milestone.pt",
+        "evaluation.device=cpu",
+    )
+    checkpoint = compose("profile=pretrain_streaming", "training.precision=bf16")
+
+    with pytest.raises(
+        ConfigPreflightError,
+        match=r"evaluation\.device=cpu.*checkpoint-owned training\.precision=bf16",
+    ):
+        validate_evaluation_checkpoint_runtime(evaluation, checkpoint)
 
 
 @pytest.mark.parametrize(

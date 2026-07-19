@@ -1,13 +1,28 @@
 # @package _global_
-# Reserved composition profile for future checkpoint evaluation. Evaluation is
-# intentionally not implemented by the training entrypoint yet.
+# Standalone checkpoint evaluation profile. The evaluator takes model/data
+# authority from the checkpoint's resolved Hydra config; these values are
+# operational output/device/W&B controls only.
 profile:
   name: evaluation
   purpose: evaluation
   task: evaluate_checkpoint
 
+evaluation:
+  checkpoint_path: null
+  output_path: evaluation.json
+  # Canonical pretraining checkpoints own BF16 precision, so standalone
+  # evaluation defaults to the compatible CUDA path. FP32 fixture checkpoints
+  # may opt into CPU explicitly with evaluation.device=cpu.
+  device: cuda
+  wandb:
+    enabled: false
+    project: llm-scratch
+    entity: sunday-research
+    name: null
+    mode: online
+
 runtime:
-  device: cpu
+  device: ${evaluation.device}
 
 data:
   mode: streaming
