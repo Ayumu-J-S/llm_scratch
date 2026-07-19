@@ -101,3 +101,64 @@ make test-cpu
 ```
 
 There is no `auto` setting and no silent CUDA-to-CPU fallback.
+
+## DGX-001 profile measurement and selection
+
+`config/dgx.yaml` predeclares a nine-arm matrix: the conventional width-384
+decoder at 18, 26, and 34 layers, crossed with 1,024, 2,048, and 4,096-token
+contexts. Micro-batch size scales 8, 4, and 2 respectively, so every arm trains
+exactly 32,768 targets per optimizer update at accumulation 4. This compares
+model size, useful context, throughput, and UMA pressure without changing the
+objective or architecture.
+
+Inspect the plan without starting a container:
+
+```bash
+make dgx-plan
+```
+
+Run all arms three times at one exact clean commit and the pinned ENV-001 image:
+
+```bash
+HEAD=$(git rev-parse HEAD)
+make dgx-measurements \
+  EXPECTED_COMMIT="$HEAD" \
+  OUTPUT_ROOT="/tmp/dgx-001-$HEAD"
+make dgx-summarize OUTPUT_ROOT="/tmp/dgx-001-$HEAD"
+```
+
+Every arm excludes ten warm-up updates, retains twenty measured updates, uses
+CUDA events only at measurement boundaries, exercises the pinned bilingual
+train/validation path, writes a verified final checkpoint, and samples host/GPU
+state out of band. The summarizer fails closed on incomplete repetitions,
+commit/image drift, non-finite training, unavailable CUDA events, sampler gaps,
+UMA or disk floors, swap growth, temperature above 80 C, allocator growth, or a
+missing verified checkpoint. It reports median and spread, step median/p95/max,
+trained-target tokens/s, phase/data-wait decomposition, memory, validation and
+checkpoint overhead, and conservative 1-hour/24-hour/7-day budgets.
+
+Selection is deterministic: a candidate must pass every gate and project at
+least one billion targets in seven days from its slowest repetition. Among
+candidates no more than 20% slower than the fastest, choose the deepest model;
+then choose the longest context retaining at least 85% of that model's fastest
+throughput. Within a 3% tie, lower measured allocator use wins. This leaves
+quality/storage headroom instead of selecting the largest arm that merely
+avoids OOM.
+
+After reviewing `dgx-summary.json`, run the selected arm for the required
+30-minute thermal/storage pilot and retain its verified checkpoint plus two
+labeled base-model continuations:
+
+```bash
+make dgx-pilot \
+  EXPECTED_COMMIT="$HEAD" \
+  OUTPUT_ROOT="/tmp/dgx-001-pilot-$HEAD" \
+  SELECTED="p85-ctx2048"
+```
+
+The committed `profile=pretrain_baseline` is a separate one-hour cap. It uses
+online W&B scalar logging with watch disabled and artifact policy `none`, while
+validation, rotating recovery checkpoints, and milestones run every 5M, 2.5M,
+and 100M trained targets. A final DGX-001 record must show that its model/context
+shape agrees with the exact-head summary before the profile is treated as
+selected.
