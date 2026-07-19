@@ -133,6 +133,10 @@ path must already exist; otherwise preflight rejects the launch. The same mount
 manifest is consumed by the Git probe and the created training container.
 Writable run/cache paths may not equal or descend from Git metadata, and a
 duplicate path with conflicting access modes is rejected rather than weakened.
+Ignored repository-internal cache directories are created empty during
+container preflight when absent, so a fresh checkout can use the canonical
+container path. Missing external cache directories still fail closed rather
+than causing Docker to manufacture a root-owned bind source.
 
 ## Storage safety
 
@@ -164,5 +168,13 @@ path, size, and SHA-256 with their verification error; failed handoff validation
 does not reinterpret those bytes as a valid checkpoint.
 
 `SIGTERM` and `SIGHUP` are captured by the operator and routed through the same
+attempt lifecycle beginning immediately after attempt creation, including
+configuration and preflight. A signal before child launch commits a stopped
+result and validated handoff; a signal after launch is routed through the same
 exact-owned process/container cleanup path. The terminal result and event log
 record the signal name rather than bypassing checkpoint/result finalization.
+
+Handoff validation binds the result schema, run ID, attempt ID, action, and
+outcome to the terminal attempt state. Attempts that reached child execution
+must retain both stdout and stderr logs, and a referenced structured metrics
+stream is required to remain inside the attempt with its recorded SHA-256.

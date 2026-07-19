@@ -526,6 +526,56 @@ def test_signal_capture_records_first_request_and_restores_handlers():
     assert signal.getsignal(signal.SIGHUP) == previous_hup
 
 
+def test_dispatch_captures_preflight_signal_and_terminalizes_attempt(tmp_path, monkeypatch):
+    args = SimpleNamespace(
+        action="smoke",
+        retry_from=None,
+        run_root=tmp_path,
+        run_id="run-001",
+        attempt_id="attempt-signaled",
+        executor="host",
+        device="cpu",
+        image=None,
+        checkpoint=None,
+        experiment_record=None,
+    )
+
+    def signal_during_preflight(*_args, **_kwargs):
+        handler = signal.getsignal(signal.SIGTERM)
+        assert callable(handler), "SIGTERM must be captured throughout preflight"
+        handler(signal.SIGTERM, None)
+        return {}
+
+    monkeypatch.setattr(runner, "run_preflight", signal_during_preflight)
+    monkeypatch.setattr(
+        runner,
+        "_execute_with_stop_request",
+        lambda *_args, **_kwargs: pytest.fail("child must not launch after preflight signal"),
+    )
+
+    assert runner.dispatch(args, [], root_dir=ROOT_DIR) == 128 + signal.SIGTERM
+
+    attempt = runner.Attempt(tmp_path, "run-001", "attempt-signaled")
+    state = attempt.state()
+    result = json.loads((attempt.path / "result.json").read_text(encoding="utf-8"))
+    assert state["status"] == "stopped"
+    assert result["outcome"] == "stopped"
+    assert result["watchdog"] == {
+        "triggered": True,
+        "reason": "external_signal",
+        "signal": signal.SIGTERM,
+        "signal_name": "SIGTERM",
+    }
+    signal_events = [
+        json.loads(path.read_text(encoding="utf-8"))
+        for path in attempt.events_dir.glob("*.json")
+        if json.loads(path.read_text(encoding="utf-8"))["kind"]
+        == "external_signal_recorded"
+    ]
+    assert signal_events[-1]["phase"] == "prelaunch"
+    generate_handoff(attempt, root_dir=ROOT_DIR)
+
+
 def test_container_label_anomaly_still_stops_immutable_created_id(tmp_path, monkeypatch):
     attempt = _attempt(tmp_path)
     calls = []

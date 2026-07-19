@@ -516,6 +516,70 @@ def test_container_mount_plan_rejects_unbound_missing_external_cache(tmp_path):
         )
 
 
+def test_container_mount_plan_creates_missing_repository_internal_cache(tmp_path, monkeypatch):
+    root = tmp_path / "checkout"
+    git_dir = root / ".git"
+    git_dir.mkdir(parents=True)
+    tokenizer = root / "tokenizer.json"
+    tokenizer.write_text("fixture", encoding="utf-8")
+    internal_cache = root / "ignored" / "stream-loader-cache"
+    plain = OmegaConf.to_container(_cfg(), resolve=True)
+    plain["tokenizer"]["manifest_path"] = str(tokenizer)
+
+    monkeypatch.setattr(
+        preflight_module,
+        "_git_absolute_path",
+        lambda _root, _argument: git_dir,
+    )
+    monkeypatch.setattr(preflight_module, "_git_ignored", lambda _root, _path: True)
+
+    result = _container_mount_check(
+        OmegaConf.create(plain),
+        root_dir=root,
+        run_root=root / "runs",
+        executor="container",
+        checkpoint_path=None,
+        manifests={"data_manifests": []},
+        cache={"caches": [{"path": str(internal_cache)}]},
+    )
+
+    assert internal_cache.is_dir()
+    mounts = {record["source"]: record for record in result["mounts"]}
+    assert mounts[str(internal_cache.resolve())]["read_only"] is False
+
+
+def test_container_mount_plan_refuses_to_create_nonignored_internal_cache(
+    tmp_path, monkeypatch
+):
+    root = tmp_path / "checkout"
+    git_dir = root / ".git"
+    git_dir.mkdir(parents=True)
+    tokenizer = root / "tokenizer.json"
+    tokenizer.write_text("fixture", encoding="utf-8")
+    internal_cache = root / "tracked-location" / "cache"
+    plain = OmegaConf.to_container(_cfg(), resolve=True)
+    plain["tokenizer"]["manifest_path"] = str(tokenizer)
+    monkeypatch.setattr(
+        preflight_module,
+        "_git_absolute_path",
+        lambda _root, _argument: git_dir,
+    )
+    monkeypatch.setattr(preflight_module, "_git_ignored", lambda _root, _path: False)
+
+    with pytest.raises(PreflightError, match="must be Git-ignored"):
+        _container_mount_check(
+            OmegaConf.create(plain),
+            root_dir=root,
+            run_root=root / "runs",
+            executor="container",
+            checkpoint_path=None,
+            manifests={"data_manifests": []},
+            cache={"caches": [{"path": str(internal_cache)}]},
+        )
+
+    assert not internal_cache.exists()
+
+
 @pytest.mark.parametrize("writable_kind", ["cache", "run_root"])
 @pytest.mark.parametrize("nested", [False, True])
 def test_container_mount_plan_rejects_writable_git_metadata_overlap(

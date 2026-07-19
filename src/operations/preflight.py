@@ -651,8 +651,21 @@ def _container_mount_check(
     cache_record = cache if isinstance(cache, Mapping) else {}
     for item in cache_record.get("caches", []):
         if isinstance(item, Mapping):
+            cache_path = Path(str(item["path"])).expanduser().resolve()
+            if not cache_path.exists() and cache_path.is_relative_to(root):
+                if not _git_ignored(root, cache_path):
+                    raise PreflightError(
+                        "missing repository-internal cache directory must be Git-ignored "
+                        f"before preflight can create it: {cache_path}"
+                    )
+                try:
+                    cache_path.mkdir(parents=True, mode=0o700)
+                except OSError as error:
+                    raise PreflightError(
+                        f"cannot create repository-internal cache directory: {cache_path}"
+                    ) from error
             add(
-                Path(str(item["path"])),
+                cache_path,
                 read_only=False,
                 purpose="cache",
                 require_directory=True,
@@ -698,6 +711,19 @@ def _container_mount_check(
         key=lambda item: (len(Path(str(item["destination"])).parts), str(item["destination"])),
     )
     return {"required": True, "mounts": mounts}
+
+
+def _git_ignored(root_dir: Path, path: Path) -> bool:
+    result = subprocess.run(
+        ["git", "check-ignore", "--quiet", "--", str(path)],
+        cwd=root_dir,
+        capture_output=True,
+    )
+    if result.returncode not in {0, 1}:
+        raise PreflightError(
+            f"cannot verify Git-ignore policy for repository-internal cache: {path}"
+        )
+    return result.returncode == 0
 
 
 def reject_writable_git_overlap(root_dir: Path, path: Path, *, purpose: str) -> None:

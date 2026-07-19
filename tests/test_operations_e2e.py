@@ -11,7 +11,7 @@ import operate
 from operations import runner
 from operations.artifacts import Attempt, sha256_file
 from operations import preflight as preflight_module
-from operations.handoff import HandoffValidationError, validate_handoff
+from operations.handoff import HandoffValidationError, generate_handoff, validate_handoff
 
 
 def _prefix(tmp_path, action, attempt_id):
@@ -192,6 +192,62 @@ def test_config_check_prints_login_prompt_after_local_checks(tmp_path, monkeypat
     report = json.loads((attempt / "preflight.json").read_text(encoding="utf-8"))
     assert report["local_checks_complete"] is True
     assert report["ready"] is True
+
+
+def test_handoff_requires_state_bound_result_logs_and_metrics(tmp_path):
+    command = [
+        *_prefix(tmp_path, "smoke", "attempt-integrity"),
+        "--",
+        *_small_smoke_overrides(),
+    ]
+    assert operate.main(command) == 0
+
+    attempt = Attempt(tmp_path, "OPS-001-fixture", "attempt-integrity")
+    result_path = attempt.path / "result.json"
+    result_bytes = result_path.read_bytes()
+    result = json.loads(result_bytes)
+    for field, value, match in (
+        ("schema_version", 2, "result schema_version"),
+        ("run_id", "different-run", "result run ID differs"),
+        ("attempt_id", "different-attempt", "result attempt ID differs"),
+        ("action", "config-check", "result action differs"),
+        ("outcome", "failed", "result outcome differs"),
+    ):
+        contradictory = copy.deepcopy(result)
+        contradictory[field] = value
+        if field == "action":
+            contradictory["checkpoint_status"] = {
+                "directory": None,
+                "files": [],
+                "last_verified": None,
+            }
+        result_path.write_text(json.dumps(contradictory), encoding="utf-8")
+        with pytest.raises(HandoffValidationError, match=match):
+            generate_handoff(attempt, root_dir=Path(__file__).resolve().parents[1])
+        result_path.write_bytes(result_bytes)
+
+    for evidence_path, match in (
+        (attempt.path / "stdout.log", "execution log is missing"),
+        (attempt.path / "stderr.log", "execution log is missing"),
+        (
+            Path(str(result["metrics"]["path"])),
+            "metrics evidence file is missing",
+        ),
+    ):
+        evidence_bytes = evidence_path.read_bytes()
+        evidence_path.unlink()
+        with pytest.raises(HandoffValidationError, match=match):
+            generate_handoff(attempt, root_dir=Path(__file__).resolve().parents[1])
+        evidence_path.write_bytes(evidence_bytes)
+
+    metrics_path = Path(str(result["metrics"]["path"]))
+    metrics_bytes = metrics_path.read_bytes()
+    metrics_path.write_bytes(metrics_bytes + b"{}\n")
+    with pytest.raises(HandoffValidationError, match="metrics evidence hash changed"):
+        generate_handoff(attempt, root_dir=Path(__file__).resolve().parents[1])
+    metrics_path.write_bytes(metrics_bytes)
+
+    generate_handoff(attempt, root_dir=Path(__file__).resolve().parents[1])
 
 
 def test_failed_child_and_successful_retry_retain_hash_bound_evidence(tmp_path, monkeypatch):

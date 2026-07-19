@@ -20,8 +20,8 @@ _IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 _TERMINAL = {"succeeded", "failed", "stopped"}
 _TRANSITIONS = {
     "created": {"preflighting"},
-    "preflighting": {"ready", "failed"},
-    "ready": {"running", "succeeded", "failed"},
+    "preflighting": {"ready", "failed", "stopped"},
+    "ready": {"running", "succeeded", "failed", "stopped"},
     "running": _TERMINAL,
 }
 

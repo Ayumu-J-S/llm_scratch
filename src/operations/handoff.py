@@ -54,6 +54,7 @@ _RESULTS = {
     "watchdog",
     "lifecycle_errors",
 }
+_RESULT_FILE = {"schema_version", "run_id", "attempt_id", "action", *_RESULTS}
 _INTEGRITY = {
     "git",
     "resolved_config_sha256",
@@ -84,6 +85,7 @@ def generate_handoff(attempt: Attempt, *, root_dir: Path) -> Path:
     preflight = load_json(attempt.path / "preflight.json")
     plan = load_json(attempt.path / "plan.json")
     declaration = load_json(attempt.path / "declaration.json")
+    _validate_result_identity(result, state=state, attempt=attempt)
     _validate_attempt_artifacts(result, preflight=preflight, attempt=attempt)
     run_manifest = _run_manifest_evidence(
         attempt,
@@ -264,11 +266,12 @@ def validate_handoff(
         if top["planned_budget"] != declaration.get("planned_budget"):
             raise HandoffValidationError("handoff budget differs from declaration.json")
         actual_result = load_json(attempt.path / "result.json")
+        state = load_json(attempt.state_path)
+        _validate_result_identity(actual_result, state=state, attempt=attempt)
         if {field: actual_result[field] for field in _RESULTS} != dict(results):
             raise HandoffValidationError("handoff results differ from result.json")
         preflight = load_json(attempt.path / "preflight.json")
         _validate_attempt_artifacts(actual_result, preflight=preflight, attempt=attempt)
-        state = load_json(attempt.state_path)
         command = load_json(attempt.path / "command.json")
         expected_launch = {
             "run_id": attempt.run_id,
@@ -366,7 +369,14 @@ def _evidence_files(attempt: Attempt) -> list[dict[str, Any]]:
         attempt.path / "checkpoint_status.json",
         attempt.path / "diagnosis.json",
     ]
-    for optional in ("stdout.log", "stderr.log", "pid.json", "container.json"):
+    state = attempt.state()
+    if state.get("started_at") is not None:
+        for required_log in ("stdout.log", "stderr.log"):
+            path = attempt.path / required_log
+            if not path.is_file():
+                raise HandoffValidationError(f"execution log is missing: {path}")
+            paths.append(path)
+    for optional in ("pid.json", "container.json"):
         path = attempt.path / optional
         if path.is_file():
             paths.append(path)
@@ -378,6 +388,13 @@ def _evidence_files(attempt: Attempt) -> list[dict[str, Any]]:
         if optional.is_file():
             paths.append(optional)
     result = load_json(attempt.path / "result.json")
+    metrics = _mapping(result.get("metrics", {}), "result metrics")
+    metrics_path = metrics.get("path")
+    if metrics_path is not None:
+        path = _attempt_owned_path(metrics_path, attempt, "metrics evidence")
+        if not path.is_file():
+            raise HandoffValidationError(f"metrics evidence file is missing: {path}")
+        paths.append(path)
     outputs = _mapping(result.get("outputs"), "result outputs")
     for record in outputs.get("files", []):
         item = _mapping(record, "result output file")
@@ -400,8 +417,18 @@ def _validate_attempt_artifacts(
     preflight: Mapping[str, Any],
     attempt: Attempt,
 ) -> None:
-    action = str(result.get("action", attempt.state().get("action", "")))
+    action = str(attempt.state().get("action", ""))
     outcome = str(result.get("outcome", ""))
+    metrics = _mapping(result.get("metrics", {}), "result metrics")
+    metrics_path = metrics.get("path")
+    if metrics_path is not None:
+        path = _attempt_owned_path(metrics_path, attempt, "metrics evidence")
+        if not path.is_file():
+            raise HandoffValidationError(f"metrics evidence file is missing: {path}")
+        digest = metrics.get("sha256")
+        _sha256(digest, "metrics evidence SHA-256")
+        if sha256_file(path) != digest:
+            raise HandoffValidationError(f"metrics evidence hash changed: {path}")
     checkpoint_status = _mapping(result.get("checkpoint_status"), "checkpoint status")
     checkpoint_files = checkpoint_status.get("files", [])
     if not isinstance(checkpoint_files, list):
@@ -475,6 +502,27 @@ def _validate_attempt_artifacts(
             raise HandoffValidationError(
                 "unverified input-checkpoint evidence requires a verification error"
             )
+
+
+def _validate_result_identity(
+    result: Mapping[str, Any],
+    *,
+    state: Mapping[str, Any],
+    attempt: Attempt,
+) -> None:
+    actual = _exact(result, _RESULT_FILE, "result.json")
+    if actual["schema_version"] != 1:
+        raise HandoffValidationError("result schema_version must be 1")
+    if actual["run_id"] != attempt.run_id or actual["run_id"] != state.get("run_id"):
+        raise HandoffValidationError("result run ID differs from attempt state")
+    if actual["attempt_id"] != attempt.attempt_id or actual["attempt_id"] != state.get(
+        "attempt_id"
+    ):
+        raise HandoffValidationError("result attempt ID differs from attempt state")
+    if actual["action"] != state.get("action"):
+        raise HandoffValidationError("result action differs from attempt state")
+    if actual["outcome"] != state.get("outcome"):
+        raise HandoffValidationError("result outcome differs from attempt state")
 
 
 def _run_manifest_evidence(

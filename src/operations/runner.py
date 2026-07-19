@@ -114,6 +114,24 @@ def dispatch(args: Namespace, overrides: list[str], *, root_dir: Path) -> int:
         device=args.device,
         retry_from=args.retry_from,
     )
+    with _capture_stop_signals() as stop_request:
+        return _dispatch_created_attempt(
+            attempt,
+            args=args,
+            overrides=overrides,
+            root_dir=root_dir,
+            stop_request=stop_request,
+        )
+
+
+def _dispatch_created_attempt(
+    attempt: Attempt,
+    *,
+    args: Namespace,
+    overrides: list[str],
+    root_dir: Path,
+    stop_request: dict[str, Any],
+) -> int:
     try:
         initial_command = {
             "schema_version": 1,
@@ -134,7 +152,9 @@ def dispatch(args: Namespace, overrides: list[str], *, root_dir: Path) -> int:
             "created_at": utc_now(),
         }
         atomic_write_json(attempt.path / "command.json", initial_command)
+        _raise_if_stop_requested(stop_request)
         selected_profile = _selected_profile(args, root_dir=root_dir)
+        _raise_if_stop_requested(stop_request)
         composed_overrides = _operational_overrides(
             args,
             overrides,
@@ -142,6 +162,7 @@ def dispatch(args: Namespace, overrides: list[str], *, root_dir: Path) -> int:
             selected_profile=selected_profile,
         )
         cfg = _compose(root_dir, composed_overrides)
+        _raise_if_stop_requested(stop_request)
         resolved_path = attempt.path / "resolved_config.yaml"
         OmegaConf.save(cfg, resolved_path, resolve=True)
         command_record = {
@@ -163,6 +184,7 @@ def dispatch(args: Namespace, overrides: list[str], *, root_dir: Path) -> int:
         command_record["declaration_sha256"] = sha256_file(attempt.path / "declaration.json")
         command_record["experiment_record"] = declaration["source"]
         atomic_write_json(attempt.path / "command.json", command_record)
+        _raise_if_stop_requested(stop_request)
         attempt.transition("preflighting")
         checkpoint_path = getattr(args, "checkpoint", None)
         preflight = run_preflight(
@@ -175,6 +197,7 @@ def dispatch(args: Namespace, overrides: list[str], *, root_dir: Path) -> int:
             image=args.image,
             checkpoint_path=checkpoint_path,
         )
+        _raise_if_stop_requested(stop_request)
         atomic_write_json(attempt.path / "preflight.json", preflight)
         atomic_write_json(
             attempt.path / "plan.json",
@@ -188,6 +211,7 @@ def dispatch(args: Namespace, overrides: list[str], *, root_dir: Path) -> int:
                 + "; ".join(preflight["local_errors"] + preflight["online_errors"])
             )
         attempt.transition("ready")
+        _raise_if_stop_requested(stop_request)
         if args.action in {"config-check", "preflight"}:
             result = _nonexecution_result(attempt, preflight)
             atomic_write_json(attempt.path / "result.json", result)
@@ -195,15 +219,24 @@ def dispatch(args: Namespace, overrides: list[str], *, root_dir: Path) -> int:
             print(attempt.path)
             return 0
         require_ready(preflight)
-        return _execute(
+        return _execute_with_stop_request(
             attempt,
             args=args,
             root_dir=root_dir,
             command_record=command_record,
             preflight=preflight,
+            stop_request=stop_request,
         )
     except BaseException as error:
-        _record_prelaunch_failure(attempt, error, args=args, root_dir=root_dir)
+        _record_prelaunch_failure(
+            attempt,
+            error,
+            args=args,
+            root_dir=root_dir,
+            stop_request=stop_request,
+        )
+        if stop_request.get("signal") is not None:
+            return 128 + int(stop_request["signal"])
         if isinstance(error, KeyboardInterrupt):
             return 130
         print(f"OPS attempt failed: {error}", file=sys.stderr)
@@ -305,25 +338,6 @@ def _operational_overrides(
     return values
 
 
-def _execute(
-    attempt: Attempt,
-    *,
-    args: Namespace,
-    root_dir: Path,
-    command_record: dict[str, Any],
-    preflight: dict[str, Any],
-) -> int:
-    with _capture_stop_signals() as stop_request:
-        return _execute_with_stop_request(
-            attempt,
-            args=args,
-            root_dir=root_dir,
-            command_record=command_record,
-            preflight=preflight,
-            stop_request=stop_request,
-        )
-
-
 def _execute_with_stop_request(
     attempt: Attempt,
     *,
@@ -333,6 +347,7 @@ def _execute_with_stop_request(
     preflight: dict[str, Any],
     stop_request: dict[str, Any],
 ) -> int:
+    _raise_if_stop_requested(stop_request)
     inner_command = [
         sys.executable,
         str(root_dir / _ENTRYPOINT[args.action]),
@@ -498,6 +513,13 @@ def _capture_stop_signals():
     finally:
         for signum, handler in previous.items():
             signal.signal(signum, handler)
+
+
+def _raise_if_stop_requested(stop_request: Mapping[str, Any]) -> None:
+    if stop_request.get("signal") is not None:
+        raise AttemptError(
+            f"attempt stopped before child launch by {stop_request.get('signal_name', 'signal')}"
+        )
 
 
 def _apply_pending_signal(
@@ -822,6 +844,7 @@ def _record_prelaunch_failure(
     *,
     args: Namespace,
     root_dir: Path,
+    stop_request: Mapping[str, Any] | None = None,
 ) -> None:
     try:
         state = attempt.state()
@@ -836,9 +859,26 @@ def _record_prelaunch_failure(
         root_dir=root_dir,
         state=state,
     )
+    stopped = stop_request is not None and stop_request.get("signal") is not None
+    outcome = "stopped" if stopped else "failed"
+    exit_code = 128 + int(stop_request["signal"]) if stopped else None
+    watchdog = (
+        {
+            "triggered": True,
+            "reason": "external_signal",
+            "signal": int(stop_request["signal"]),
+            "signal_name": str(stop_request.get("signal_name", "unknown")),
+        }
+        if stopped
+        else {"triggered": False}
+    )
     diagnosis = {
-        "category": "preflight_or_launch",
-        "summary": str(error),
+        "category": "external_signal" if stopped else "preflight_or_launch",
+        "summary": (
+            f"attempt stopped before child launch by {watchdog['signal_name']}"
+            if stopped
+            else str(error)
+        ),
         "retry_recommended": True,
     }
     checkpoint_status = _checkpoint_status(attempt.path / "work" / "checkpoints")
@@ -847,8 +887,8 @@ def _record_prelaunch_failure(
         "run_id": attempt.run_id,
         "attempt_id": attempt.attempt_id,
         "action": state.get("action"),
-        "outcome": "failed",
-        "exit_code": None,
+        "outcome": outcome,
+        "exit_code": exit_code,
         "started_at": state.get("created_at"),
         "ended_at": utc_now(),
         "elapsed_seconds": 0.0,
@@ -857,7 +897,7 @@ def _record_prelaunch_failure(
         "checkpoint_status": checkpoint_status,
         "outputs": {"complete": False, "files": []},
         "diagnosis": diagnosis,
-        "watchdog": {"triggered": False},
+        "watchdog": watchdog,
         "lifecycle_errors": [],
     }
     for name, value in (
@@ -869,9 +909,16 @@ def _record_prelaunch_failure(
         if not path.exists():
             atomic_write_json(path, value)
     try:
+        if stopped:
+            attempt.event(
+                "external_signal_recorded",
+                signal=watchdog["signal"],
+                signal_name=watchdog["signal_name"],
+                phase="prelaunch",
+            )
         if state["status"] == "created":
             attempt.transition("preflighting")
-        attempt.transition("failed", outcome="failed")
+        attempt.transition(outcome, outcome=outcome, exit_code=exit_code)
     except AttemptError:
         pass
 
