@@ -324,7 +324,7 @@ def test_training_metrics_preserve_overflow_and_reconstruct_standalone_parity(tm
                 "milestone_every_n_steps": None,
                 "scheduler": {"interval": "step"},
             },
-            "wandb": {"enabled": False},
+            "wandb": {"mode": "disabled"},
         }
     )
     trainer_model = FixedLogitModel([0.0, 1.0])
@@ -339,21 +339,18 @@ def test_training_metrics_preserve_overflow_and_reconstruct_standalone_parity(tm
         device=torch.device("cpu"),
     )
 
-    class RecordingRun:
-        def __init__(self):
-            self.records = []
-
-        def log(self, record):
-            self.records.append(json.loads(json.dumps(record, allow_nan=False)))
-
-    run = RecordingRun()
-    trainer.run = run
-    trainer._record_validation_metrics(result)
+    compact_record = trainer._record_validation_metrics(result)
 
     local_record = json.loads((tmp_path / "metrics.jsonl").read_text(encoding="utf-8"))
     assert local_record["validation/perplexity"] is None
     assert local_record["validation/perplexity_overflow"] is True
-    assert run.records == [local_record]
+    assert compact_record["validation/perplexity"] is None
+    assert compact_record["validation/perplexity_overflow"] is True
+    assert all(
+        compact_record[f"validation/corpus/{name}/perplexity"] is None
+        and compact_record[f"validation/corpus/{name}/perplexity_overflow"] is True
+        for name in ("en", "ja")
+    )
     assert all(
         score["perplexity"] is None and score["perplexity_overflow"] is True
         for score in local_record["validation/by_corpus"].values()
