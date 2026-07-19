@@ -331,11 +331,10 @@ class Trainer:
                     validation_loss = self._latest_validation_loss
                     if isinstance(self.scheduler, ReduceLROnPlateau):
                         if validation_loss is None:
-                            validation_result = self._evaluate()
-                            self._update_elapsed()
-                            validation_loss = validation_result.nll
-                            self._latest_validation_loss = validation_loss
-                            self._record_validation_metrics(validation_result)
+                            self._run_events(epoch_end=True, force_validation=True)
+                            validation_loss = self._latest_validation_loss
+                            if validation_loss is None:
+                                raise RuntimeError("ReduceLROnPlateau validation produced no loss")
                         self._step_scheduler(validation_loss)
                     else:
                         self._step_scheduler()
@@ -565,6 +564,7 @@ class Trainer:
         *,
         epoch_end: bool,
         train_loss: float | None = None,
+        force_validation: bool = False,
     ) -> None:
         step = self.optimizer_step
         if step < 1:
@@ -574,9 +574,10 @@ class Trainer:
         should_log = self._event_due("log_every_n_steps", "log_every_n_tokens", epoch_end)
         scheduled_log_pending = should_log and self._last_log_step != step
 
-        should_validate = self._event_due(
+        should_validate = force_validation or self._event_due(
             "validation_every_n_steps", "validation_every_n_tokens", epoch_end
         )
+        validation_for_scheduled_log: dict[str, Any] = {}
         if should_validate and self._last_validation_step != step:
             validation_event_started = time.perf_counter() if self._measurement_enabled else None
             validation_wall_start_unix_ns = time.time_ns() if self._measurement_enabled else None
@@ -620,7 +621,9 @@ class Trainer:
                 )
             validation_metrics_started = time.perf_counter() if self._measurement_enabled else None
             compact_validation = self._record_validation_metrics(validation_result)
-            if not scheduled_log_pending:
+            if scheduled_log_pending:
+                validation_for_scheduled_log = compact_validation
+            else:
                 validation_log_started = time.perf_counter() if self._measurement_enabled else None
                 self.wandb.log(
                     {
@@ -697,8 +700,7 @@ class Trainer:
             latest_scalars = {
                 key: value
                 for key, value in self._latest_wandb_scalars.items()
-                if self._last_validation_step == step
-                or not (key.startswith("validation/") or key.startswith("memorization/"))
+                if not (key.startswith("validation/") or key.startswith("memorization/"))
             }
             values = {
                 "event": "log",
@@ -706,6 +708,7 @@ class Trainer:
                 "target_tokens": self.target_tokens,
                 "elapsed_seconds": self.elapsed_seconds,
                 **latest_scalars,
+                **validation_for_scheduled_log,
                 **self._system_wandb_scalars(),
             }
             scheduled_log_started = time.perf_counter() if self._measurement_enabled else None

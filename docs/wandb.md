@@ -17,6 +17,13 @@ behavior](https://docs.wandb.ai/support/models/articles/what-is-the-difference-b
 [`wandb.login`](https://docs.wandb.ai/models/ref/python/functions/login)
 references.
 
+Login and entity verification run behind a tracker-owned wall-clock boundary
+using `wandb.init_timeout_seconds`. This outer boundary is intentional: the
+SDK's login `timeout` controls interactive input and does not itself bound all
+credential-verification retries. A timeout fails closed without starting an
+offline run or delaying local training indefinitely. Standalone evaluation
+uses the same boundary after committing its local result.
+
 ```bash
 # Local repository evidence only
 uv run python src/train.py profile=pretrain_streaming wandb.mode=disabled
@@ -100,6 +107,10 @@ The tracker reserves candidate bytes under one lock before cloud submission,
 so serial or concurrent milestones cannot each spend the same visible
 headroom. A reservation is retained when submission or completion is ambiguous;
 operator review is required rather than assuming the service stored nothing.
+If artifact construction or local file preparation demonstrably fails before
+any upload request, the reservation is rolled back so the same checkpoint can
+be retried without phantom quota use. Artifact submission plus completion are
+covered by one wall-clock `upload_timeout_seconds` boundary.
 Snapshot refreshes can only tighten the tracker ledger: lower observed usage or
 a higher observed limit never relaxes a prior stricter observation.
 

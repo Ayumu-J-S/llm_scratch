@@ -17,6 +17,7 @@ from training.checkpoint import CheckpointManager, build_checkpoint_identity
 from training.wandb_tracking import (
     WandbTracker,
     artifact_uploads_forbidden,
+    call_bounded,
     finish_run_bounded,
     load_usage_snapshot,
     wandb_run_config,
@@ -263,6 +264,76 @@ def test_usage_snapshot_requires_fresh_attributable_visible_values(tmp_path: Pat
     _snapshot(path, entity="wrong-team")
     with pytest.raises(ValueError, match="entity"):
         load_usage_snapshot(path, expected_entity="research-team", max_age_seconds=900)
+
+
+def test_bounded_call_enforces_wall_clock_timeout():
+    release = threading.Event()
+    started = time.monotonic()
+
+    with pytest.raises(TimeoutError, match="verification exceeded"):
+        call_bounded(
+            lambda: release.wait(1.0),
+            timeout_seconds=0.01,
+            operation="verification",
+        )
+    release.set()
+
+    assert time.monotonic() - started < 0.2
+
+
+def test_online_login_verification_is_wall_clock_bounded(tmp_path: Path):
+    release = threading.Event()
+
+    class BlockingLoginWandb(FakeWandb):
+        def login(self, **kwargs):
+            self.login_calls.append(kwargs)
+            release.wait(1.0)
+            return True
+
+    cfg = _config()
+    cfg.wandb.init_timeout_seconds = 0.01
+    fake = BlockingLoginWandb()
+    tracker = _tracker(tmp_path, cfg, fake)
+    started = time.monotonic()
+
+    tracker.start(object())
+    release.set()
+
+    assert time.monotonic() - started < 0.2
+    assert tracker.run is None
+    failure = next(
+        json.loads(line)
+        for line in (tmp_path / "wandb_events.jsonl").read_text(encoding="utf-8").splitlines()
+        if '"action": "init"' in line and '"outcome": "failed"' in line
+    )
+    assert failure["error"]["type"] == "TimeoutError"
+
+
+def test_artifact_entity_verification_is_wall_clock_bounded(tmp_path: Path):
+    release = threading.Event()
+
+    class BlockingEntityWandb(FakeWandb):
+        def Api(self, timeout):
+            release.wait(1.0)
+            return super().Api(timeout)
+
+    snapshot = tmp_path / "usage.json"
+    _snapshot(snapshot, limit_bytes=10_000_000)
+    cfg = _config(snapshot_path=snapshot)
+    cfg.wandb.init_timeout_seconds = 0.01
+    fake = BlockingEntityWandb()
+    tracker = _tracker(tmp_path, cfg, fake)
+    tracker.start(object())
+    checkpoint = _checkpoint(tmp_path / "checkpoint", tracker=tracker, kind="final", step=5)
+    started = time.monotonic()
+
+    decision = tracker.consider_artifact(reason="final", checkpoint_path=checkpoint, step=5)
+    release.set()
+
+    assert time.monotonic() - started < 0.2
+    assert decision["block_reason"] == "authentication_or_entity_mismatch"
+    assert decision["error"]["type"] == "TimeoutError"
+    assert fake.artifacts == []
 
 
 def test_wandb_config_keeps_dataset_references_but_never_inline_documents():
@@ -527,6 +598,70 @@ def test_cloud_submission_failure_retains_quota_reservation(tmp_path: Path):
     assert first["outcome"] == "upload_failed"
     assert second["block_reason"] == "visible_quota_insufficient"
     assert second["quota"]["reserved_by_tracker_bytes"] == first_checkpoint.stat().st_size
+
+
+def test_blocking_cloud_submission_is_bounded_and_retains_reservation(tmp_path: Path):
+    release = threading.Event()
+
+    class BlockingUploadRun(FakeRun):
+        def log_artifact(self, artifact, aliases):
+            release.wait(1.0)
+            return self.artifact_result
+
+    snapshot = tmp_path / "usage.json"
+    _snapshot(snapshot, limit_bytes=10_000_000)
+    cfg = _config(policy="milestone", snapshot_path=snapshot)
+    cfg.wandb.artifact.upload_timeout_seconds = 0.01
+    fake = FakeWandb()
+    fake.run = BlockingUploadRun()
+    tracker = _tracker(tmp_path, cfg, fake)
+    tracker.start(object())
+    checkpoint = _checkpoint(tmp_path / "checkpoint", tracker=tracker, kind="milestone", step=5)
+    started = time.monotonic()
+
+    decision = tracker.consider_artifact(reason="milestone", checkpoint_path=checkpoint, step=5)
+    release.set()
+
+    assert time.monotonic() - started < 0.2
+    assert decision["outcome"] == "upload_failed"
+    assert tracker._reserved_bytes_by_tracker == checkpoint.stat().st_size
+    failure = next(
+        json.loads(line)
+        for line in (tmp_path / "wandb_events.jsonl").read_text(encoding="utf-8").splitlines()
+        if '"action": "artifact"' in line and '"outcome": "upload_failed"' in line
+    )
+    assert failure["error"]["type"] == "TimeoutError"
+
+
+def test_local_artifact_preparation_failure_releases_quota_for_retry(tmp_path: Path):
+    snapshot = tmp_path / "usage.json"
+    _snapshot(snapshot, limit_bytes=10_000_000)
+    fake = FakeWandb()
+    tracker = _tracker(tmp_path, _config(policy="milestone", snapshot_path=snapshot), fake)
+    tracker.start(object())
+    checkpoint = _checkpoint(tmp_path / "checkpoint", tracker=tracker, kind="milestone", step=5)
+    original_artifact = fake.Artifact
+    attempts = 0
+
+    def artifact(*args, **kwargs):
+        nonlocal attempts
+        attempts += 1
+        prepared = original_artifact(*args, **kwargs)
+        if attempts == 1:
+            prepared.add_file = lambda *args, **kwargs: (_ for _ in ()).throw(
+                OSError("local staging failed")
+            )
+        return prepared
+
+    fake.Artifact = artifact
+
+    first = tracker.consider_artifact(reason="milestone", checkpoint_path=checkpoint, step=5)
+    second = tracker.consider_artifact(reason="milestone", checkpoint_path=checkpoint, step=5)
+
+    assert first["outcome"] == "upload_failed"
+    assert second["outcome"] == "uploaded"
+    assert tracker._reserved_bytes_by_tracker == checkpoint.stat().st_size
+    assert len(fake.run.uploads) == 1
 
 
 def test_quota_ledger_retains_strictest_values_across_snapshot_refreshes(tmp_path: Path):

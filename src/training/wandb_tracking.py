@@ -90,21 +90,33 @@ def artifact_uploads_forbidden(
 def finish_run_bounded(run: Any, *, timeout_seconds: float) -> None:
     """Finish a W&B run without allowing an unbounded service wait."""
 
-    errors: list[Exception] = []
+    call_bounded(
+        run.finish,
+        timeout_seconds=timeout_seconds,
+        operation="W&B finish",
+    )
 
-    def finish() -> None:
+
+def call_bounded(call, *, timeout_seconds: float, operation: str) -> Any:
+    """Run one external SDK call behind an actual wall-clock timeout."""
+
+    errors: list[Exception] = []
+    results: list[Any] = []
+
+    def invoke() -> None:
         try:
-            run.finish()
+            results.append(call())
         except Exception as error:
             errors.append(error)
 
-    thread = threading.Thread(target=finish, name="wandb-finish", daemon=True)
+    thread = threading.Thread(target=invoke, name="wandb-bounded-call", daemon=True)
     thread.start()
     thread.join(timeout_seconds)
     if thread.is_alive():
-        raise TimeoutError(f"W&B finish exceeded {timeout_seconds:.3f} seconds")
+        raise TimeoutError(f"{operation} exceeded {timeout_seconds:.3f} seconds")
     if errors:
         raise errors[0]
+    return results[0]
 
 
 def wandb_run_config(cfg: DictConfig) -> dict[str, Any]:
@@ -270,21 +282,26 @@ class WandbTracker:
             self._record("init", "disabled")
             return
         try:
-            if self.mode == "online" and not self.wandb.login(
-                force=True,
-                verify=True,
-                timeout=int(self.wandb_cfg.get("init_timeout_seconds", 10)),
-            ):
-                raise RuntimeError("verified W&B login did not succeed")
+            init_timeout = float(self.wandb_cfg.get("init_timeout_seconds", 10.0))
+            if self.mode == "online":
+                login_succeeded = call_bounded(
+                    lambda: self.wandb.login(
+                        force=True,
+                        verify=True,
+                        timeout=max(1, math.ceil(init_timeout)),
+                    ),
+                    timeout_seconds=init_timeout,
+                    operation="W&B login verification",
+                )
+                if not login_succeeded:
+                    raise RuntimeError("verified W&B login did not succeed")
             self.run = self.wandb.init(
                 project=self.wandb_cfg.get("project"),
                 entity=self.wandb_cfg.get("entity"),
                 name=self.wandb_cfg.get("name"),
                 mode=self.mode,
                 config=wandb_run_config(self.cfg),
-                settings=self.wandb.Settings(
-                    init_timeout=float(self.wandb_cfg.get("init_timeout_seconds", 10.0))
-                ),
+                settings=self.wandb.Settings(init_timeout=init_timeout),
             )
             if self.run is None:
                 raise RuntimeError("wandb.init returned no run")
@@ -471,6 +488,8 @@ class WandbTracker:
         except Exception as error:
             return self._artifact_blocked(decision, "usage_snapshot_invalid", error)
 
+        reservation_created = False
+        cloud_submission_started = False
         try:
             block_reason = None
             auth_error = None
@@ -493,7 +512,12 @@ class WandbTracker:
                     block_reason = "duplicate_checkpoint"
                 else:
                     try:
-                        auth = self._authenticated_entity()
+                        timeout = float(self.wandb_cfg.get("init_timeout_seconds", 10.0))
+                        auth = call_bounded(
+                            self._authenticated_entity,
+                            timeout_seconds=timeout,
+                            operation="W&B entity verification",
+                        )
                         decision["auth"] = {"outcome": "verified", **auth}
                     except Exception as error:
                         auth_error = error
@@ -524,6 +548,7 @@ class WandbTracker:
                         else:
                             self._reserved_sha256.add(candidate.sha256)
                             self._reserved_bytes_by_tracker += candidate.size_bytes
+                            reservation_created = True
             if block_reason is not None:
                 return self._artifact_blocked(decision, block_reason, auth_error)
 
@@ -558,14 +583,24 @@ class WandbTracker:
             ):
                 raise RuntimeError("checkpoint changed while W&B captured the artifact")
 
-            logged = self.run.log_artifact(
-                artifact,
-                aliases=[reason, f"step-{step}", "latest"],
+            upload_timeout = float(artifact_cfg.get("upload_timeout_seconds", 600))
+            cloud_submission_started = True
+
+            def submit_and_wait():
+                logged = self.run.log_artifact(
+                    artifact,
+                    aliases=[reason, f"step-{step}", "latest"],
+                )
+                wait = getattr(logged, "wait", None)
+                if not callable(wait):
+                    raise RuntimeError("W&B artifact upload exposes no completion wait")
+                return wait(timeout=upload_timeout)
+
+            committed = call_bounded(
+                submit_and_wait,
+                timeout_seconds=upload_timeout,
+                operation="W&B artifact upload",
             )
-            wait = getattr(logged, "wait", None)
-            if not callable(wait):
-                raise RuntimeError("W&B artifact upload exposes no completion wait")
-            committed = wait(timeout=int(artifact_cfg.get("upload_timeout_seconds", 600)))
             if getattr(committed, "state", None) != "COMMITTED":
                 raise RuntimeError("W&B artifact did not reach COMMITTED state")
             with self._artifact_lock:
@@ -582,6 +617,10 @@ class WandbTracker:
             self._record("artifact", "uploaded", decision)
             self._update_artifact_summary(decision)
         except Exception as error:
+            if reservation_created and not cloud_submission_started:
+                with self._artifact_lock:
+                    self._reserved_sha256.discard(candidate.sha256)
+                    self._reserved_bytes_by_tracker -= candidate.size_bytes
             decision["outcome"] = "upload_failed"
             decision["retry_outcome"] = "operator_retry_required"
             self._record_failure("artifact", error, decision)
@@ -703,7 +742,12 @@ class WandbTracker:
         entity = self.wandb_cfg.get("entity")
         if not isinstance(entity, str) or not entity:
             raise ValueError("wandb.entity is required for artifact uploads")
-        api = self.wandb.Api(timeout=int(self.wandb_cfg.get("init_timeout_seconds", 10)))
+        timeout = float(self.wandb_cfg.get("init_timeout_seconds", 10.0))
+        api = call_bounded(
+            lambda: self.wandb.Api(timeout=max(1, math.ceil(timeout))),
+            timeout_seconds=timeout,
+            operation="W&B entity authentication",
+        )
         viewer = api.viewer
         username = getattr(viewer, "username", None)
         team_names = sorted(

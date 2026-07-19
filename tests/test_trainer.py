@@ -334,6 +334,51 @@ def test_wandb_logs_epoch_end_validation_after_a_same_step_training_log(tmp_path
     assert "train/nll" not in final_validation
 
 
+def test_wandb_does_not_repeat_last_step_validation_in_the_epoch_log(tmp_path: Path):
+    trainer = _trainer(
+        tmp_path,
+        [_batch([[0, 1]]) for _ in range(3)],
+        max_steps=3,
+        log_every_n_steps=None,
+        validation_every_n_steps=3,
+    )
+    tracking = RecordingWandbTracker()
+    trainer.wandb = tracking
+
+    trainer.fit()
+
+    assert [(row["event"], row["optimizer_step"]) for row in tracking.logs] == [
+        ("validation_log", 3),
+        ("log", 3),
+    ]
+    assert tracking.logs[0]["validation/nll"] > 0
+    assert not any(key.startswith(("validation/", "memorization/")) for key in tracking.logs[1])
+
+
+def test_wandb_logs_reduce_on_plateau_validation_at_the_epoch_boundary(tmp_path: Path):
+    trainer = _trainer(
+        tmp_path,
+        [_batch([[0, 1]]) for _ in range(2)],
+        max_steps=2,
+        log_every_n_steps=1,
+        validation_every_n_steps=3,
+    )
+    trainer.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(trainer.optimizer)
+    trainer.scheduler_interval = "epoch"
+    tracking = RecordingWandbTracker()
+    trainer.wandb = tracking
+
+    trainer.fit()
+
+    assert [(row["event"], row["optimizer_step"]) for row in tracking.logs] == [
+        ("log", 1),
+        ("log", 2),
+        ("validation_log", 2),
+    ]
+    assert tracking.logs[-1]["validation/nll"] > 0
+    assert "train/nll" not in tracking.logs[-1]
+
+
 def test_benchmark_measurement_is_explicit_and_flushed_once(tmp_path: Path):
     trainer = _trainer(
         tmp_path,

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import tempfile
 from collections.abc import Mapping
@@ -35,7 +36,7 @@ from training.checkpoint import (
     configured_manifest_fingerprints,
     load_checkpoint_for_generation,
 )
-from training.wandb_tracking import finish_run_bounded
+from training.wandb_tracking import call_bounded, finish_run_bounded
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -258,20 +259,25 @@ def _maybe_log_wandb(
         return
     run = None
     try:
-        if mode == "online" and not wandb.login(
-            force=True,
-            verify=True,
-            timeout=int(wandb_cfg.get("init_timeout_seconds", 10)),
-        ):
-            raise RuntimeError("verified W&B login did not succeed")
+        init_timeout = float(wandb_cfg.get("init_timeout_seconds", 10.0))
+        if mode == "online":
+            login_succeeded = call_bounded(
+                lambda: wandb.login(
+                    force=True,
+                    verify=True,
+                    timeout=max(1, math.ceil(init_timeout)),
+                ),
+                timeout_seconds=init_timeout,
+                operation="W&B evaluation login verification",
+            )
+            if not login_succeeded:
+                raise RuntimeError("verified W&B login did not succeed")
         run = wandb.init(
             project=wandb_cfg.get("project"),
             entity=wandb_cfg.get("entity"),
             name=wandb_cfg.get("name"),
             mode=mode,
-            settings=wandb.Settings(
-                init_timeout=float(wandb_cfg.get("init_timeout_seconds", 10.0))
-            ),
+            settings=wandb.Settings(init_timeout=init_timeout),
         )
         if run is None:
             raise RuntimeError("wandb.init returned no run")
