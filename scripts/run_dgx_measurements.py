@@ -38,7 +38,7 @@ def _write_json(path: Path, payload: object) -> None:
     temporary.replace(path)
 
 
-def _preflight(cfg: dict) -> tuple[str, str, Path]:
+def _preflight(cfg: dict) -> tuple[str, str, Path, Path]:
     commit = _git("rev-parse", "HEAD")
     if cfg.get("expected_commit") != commit:
         raise RuntimeError(f"expected_commit must match the exact current head: {commit}")
@@ -54,7 +54,12 @@ def _preflight(cfg: dict) -> tuple[str, str, Path]:
         raise RuntimeError("output_root is required outside plan mode")
     output_root = Path(str(cfg["output_root"])).resolve()
     output_root.mkdir(parents=True, exist_ok=True)
-    return commit, image_id, output_root
+    if not cfg.get("cache_root"):
+        raise RuntimeError("cache_root is required for network-isolated real-data measurement")
+    cache_root = Path(str(cfg["cache_root"])).resolve()
+    if not cache_root.is_dir():
+        raise RuntimeError(f"cache_root does not exist: {cache_root}")
+    return commit, image_id, output_root, cache_root
 
 
 def _container_command(
@@ -64,6 +69,7 @@ def _container_command(
     commit: str,
     image_id: str,
     output_root: Path,
+    cache_root: Path,
     pilot: bool = False,
 ) -> list[str]:
     run_name = (
@@ -73,8 +79,6 @@ def _container_command(
     )
     run_dir = output_root / run_name
     run_dir.mkdir(parents=False, exist_ok=False)
-    cache_dir = ROOT / "data" / "stream_loader_cache"
-    cache_dir.mkdir(parents=True, exist_ok=True)
     git_common_dir = Path(_git("rev-parse", "--git-common-dir")).resolve()
     gates = cfg["gates"]
     warmup = int(
@@ -134,7 +138,7 @@ def _container_command(
         "--volume",
         f"{git_common_dir}:{git_common_dir}:ro",
         "--volume",
-        f"{cache_dir}:/cache",
+        f"{cache_root}:/cache",
         "--volume",
         f"{run_dir}:/evidence",
         "--workdir",
@@ -175,7 +179,7 @@ def main(config: DictConfig) -> None:
         return
     if cfg.get("mode") not in {"matrix", "pilot"}:
         raise RuntimeError("mode must be plan, matrix, or pilot")
-    commit, image_id, output_root = _preflight(cfg)
+    commit, image_id, output_root, cache_root = _preflight(cfg)
     _write_json(
         output_root / "plan.json",
         {
@@ -197,6 +201,7 @@ def main(config: DictConfig) -> None:
                 commit=commit,
                 image_id=image_id,
                 output_root=output_root,
+                cache_root=cache_root,
                 pilot=True,
             )
         ]
@@ -208,6 +213,7 @@ def main(config: DictConfig) -> None:
                 commit=commit,
                 image_id=image_id,
                 output_root=output_root,
+                cache_root=cache_root,
             )
             for entry in plan
         ]

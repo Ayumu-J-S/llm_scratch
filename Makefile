@@ -21,9 +21,9 @@ help:
 		'  make dgx-diagnose     - Require CUDA and BF16 in the DGX Spark image' \
 		'  make dgx-smoke        - Run exactly ten BF16 CUDA optimizer steps' \
 		'  make dgx-plan         - Print the DGX-001 repeated candidate matrix' \
-		'  make dgx-measurements - Run matrix (EXPECTED_COMMIT=... OUTPUT_ROOT=...)' \
+		'  make dgx-measurements - Run matrix (plus EXPECTED_COMMIT/OUTPUT_ROOT/CACHE_ROOT)' \
 		'  make dgx-summarize    - Gate/select matrix (OUTPUT_ROOT=...)' \
-		'  make dgx-pilot        - Run selected 30-minute pilot (plus SELECTED=...)' \
+		'  make dgx-pilot        - Run selected 30-minute pilot (same vars plus SELECTED)' \
 		'  make test-cpu         - Run the explicit CPU development test suite' \
 		'  make ci-cpu           - Run the network-free pull-request quality gate'
 
@@ -67,7 +67,8 @@ dgx-plan:
 
 dgx-measurements:
 	PYTHONPATH=src uv run python scripts/run_dgx_measurements.py \
-		mode=matrix expected_commit=$(EXPECTED_COMMIT) output_root=$(OUTPUT_ROOT)
+		mode=matrix expected_commit=$(EXPECTED_COMMIT) output_root=$(OUTPUT_ROOT) \
+		cache_root=$(CACHE_ROOT)
 
 dgx-summarize:
 	PYTHONPATH=src uv run python scripts/summarize_dgx_measurements.py \
@@ -76,7 +77,7 @@ dgx-summarize:
 dgx-pilot:
 	PYTHONPATH=src uv run python scripts/run_dgx_measurements.py \
 		mode=pilot expected_commit=$(EXPECTED_COMMIT) output_root=$(OUTPUT_ROOT) \
-		selected_candidate=$(SELECTED)
+		cache_root=$(CACHE_ROOT) selected_candidate=$(SELECTED)
 
 test-cpu:
 	uv run pytest -q

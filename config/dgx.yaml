@@ -60,6 +60,7 @@ selection:
   near_fastest_fraction: 0.03
 
 output_root: null
+cache_root: null
 expected_commit: null
 mode: plan  # plan | matrix | pilot
 selected_candidate: null

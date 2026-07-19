@@ -123,7 +123,8 @@ Run all arms three times at one exact clean commit and the pinned ENV-001 image:
 HEAD=$(git rev-parse HEAD)
 make dgx-measurements \
   EXPECTED_COMMIT="$HEAD" \
-  OUTPUT_ROOT="/tmp/dgx-001-$HEAD"
+  OUTPUT_ROOT="/tmp/dgx-001-$HEAD" \
+  CACHE_ROOT="/absolute/path/to/hash-verified/stream_loader_cache"
 make dgx-summarize OUTPUT_ROOT="/tmp/dgx-001-$HEAD"
 ```
 
@@ -153,6 +154,7 @@ labeled base-model continuations:
 make dgx-pilot \
   EXPECTED_COMMIT="$HEAD" \
   OUTPUT_ROOT="/tmp/dgx-001-pilot-$HEAD" \
+  CACHE_ROOT="/absolute/path/to/hash-verified/stream_loader_cache" \
   SELECTED="p85-ctx2048"
 ```
 

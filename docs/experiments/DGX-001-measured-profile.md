@@ -70,10 +70,14 @@ Target matrix, summary, and 30-minute pilot:
 
 ```text
 HEAD=$(git rev-parse HEAD)
-make dgx-measurements EXPECTED_COMMIT="$HEAD" OUTPUT_ROOT="/tmp/dgx-001-$HEAD"
+make dgx-measurements EXPECTED_COMMIT="$HEAD" \
+  OUTPUT_ROOT="/tmp/dgx-001-$HEAD" \
+  CACHE_ROOT="/absolute/path/to/hash-verified/stream_loader_cache"
 make dgx-summarize OUTPUT_ROOT="/tmp/dgx-001-$HEAD"
 make dgx-pilot EXPECTED_COMMIT="$HEAD" \
-  OUTPUT_ROOT="/tmp/dgx-001-pilot-$HEAD" SELECTED="<summary candidate_id>"
+  OUTPUT_ROOT="/tmp/dgx-001-pilot-$HEAD" \
+  CACHE_ROOT="/absolute/path/to/hash-verified/stream_loader_cache" \
+  SELECTED="<summary candidate_id>"
 ```
 
 The target result section remains open until the exact-head matrix and pilot
@@ -87,6 +91,8 @@ used to claim the measured profile is selected.
 | 1 | Implementation | in progress | Thin profiles/runner/summarizer over the canonical trainer and VAL/WB measurement hooks | Focused tests and plan composition |
 | 2 | Target smoke attempt 1 | failed before data/model construction | Container Git rejected the read-only host worktree as dubious ownership; runner needs an ephemeral exact-path safe-directory setting | `/tmp/dgx-001-smoke-eb043b4/run.json` |
 | 3 | Repair | implemented | Pass a container-only `safe.directory` value for the exact mounted worktree; clean status and exact commit remain required | Runner command and repeat target smoke |
+| 4 | Target smoke attempt 2 | failed before model construction | Exact Git identity passed; the isolated worktree cache was empty and network isolation rejected an implicit corpus download | `/tmp/dgx-001-smoke-6a80d43/run.json` |
+| 5 | Repair | implemented | Require an explicit existing `cache_root` and mount that hash-verified cache read/write into every matrix/pilot container | Runner preflight and repeat target smoke |
 
 Independent `/review` will cover `PHILOSOPHY.md`, DGX-001 acceptance, and the
 applicable `CHECK.md` minimum, comparison, data supply, DGX/UMA, training-health,
