@@ -1,4 +1,6 @@
+import fcntl
 import json
+import os
 import subprocess
 from copy import deepcopy
 from pathlib import Path
@@ -172,6 +174,7 @@ def test_run_manifest_is_self_contained_and_mutation_is_explicit(tmp_path):
     payload = verify_run_manifest(run_dir)
     assert run_path.name == "run_manifest.json"
     assert payload["experiment_id"].startswith("exp-")
+    assert payload["run_lineage_id"].startswith("run-")
     assert (run_dir / "resolved_config.yaml").is_file()
     assert (run_dir / "tokenizer_manifest.json").is_file()
     assert (run_dir / "data_manifest_0.json").is_file()
@@ -182,7 +185,9 @@ def test_run_manifest_is_self_contained_and_mutation_is_explicit(tmp_path):
         verify_run_manifest(run_dir)
 
 
-def test_operational_controls_do_not_change_run_identity(monkeypatch, tmp_path):
+def test_operational_controls_preserve_recipe_but_not_independent_run_lineage(
+    monkeypatch, tmp_path
+):
     config = _manifest_config()
     config["artifacts"] = {
         "checkpoints_dir": "checkpoints",
@@ -245,15 +250,136 @@ def test_operational_controls_do_not_change_run_identity(monkeypatch, tmp_path):
 
     assert first_manifest["config"]["sha256"] != resumed_manifest["config"]["sha256"]
     assert first_manifest["experiment_id"] == resumed_manifest["experiment_id"]
+    assert first_manifest["run_lineage_id"] != resumed_manifest["run_lineage_id"]
     assert first_manifest["experiment_identity"] == resumed_manifest["experiment_identity"]
     assert first_manifest["experiment_identity"]["operational_exclusions"] == [
         "artifacts.resume_path",
         "measurement",
         "wandb",
     ]
-    assert build_checkpoint_identity(config, run_manifest_path=first_manifest_path) == (
+    assert build_checkpoint_identity(config, run_manifest_path=first_manifest_path) != (
         build_checkpoint_identity(resumed, run_manifest_path=resumed_manifest_path)
     )
+
+    inherited_run = tmp_path / "inherited-resume-run"
+    inherited_manifest_path = write_run_manifest(
+        cfg=resumed,
+        run_dir=inherited_run,
+        root_dir=ROOT,
+        resolved_config_path=resumed_resolved,
+        tokenizer_manifest_path=TOKENIZER,
+        tokenizer_expected_fingerprint=TOKENIZER_FINGERPRINT,
+        run_lineage_id=first_manifest["run_lineage_id"],
+    )
+    inherited_manifest = json.loads(inherited_manifest_path.read_text(encoding="utf-8"))
+    assert inherited_manifest["run_lineage_id"] == first_manifest["run_lineage_id"]
+    assert build_checkpoint_identity(config, run_manifest_path=first_manifest_path) == (
+        build_checkpoint_identity(resumed, run_manifest_path=inherited_manifest_path)
+    )
+
+    with pytest.raises(ReproducibilityError, match="fresh launch.*already contains"):
+        write_run_manifest(
+            cfg=resumed,
+            run_dir=first_run,
+            root_dir=ROOT,
+            resolved_config_path=resumed_resolved,
+            tokenizer_manifest_path=TOKENIZER,
+            tokenizer_expected_fingerprint=TOKENIZER_FINGERPRINT,
+        )
+    retained_manifest_path = write_run_manifest(
+        cfg=resumed,
+        run_dir=first_run,
+        root_dir=ROOT,
+        resolved_config_path=resumed_resolved,
+        tokenizer_manifest_path=TOKENIZER,
+        tokenizer_expected_fingerprint=TOKENIZER_FINGERPRINT,
+        run_lineage_id=first_manifest["run_lineage_id"],
+    )
+    retained_manifest = json.loads(retained_manifest_path.read_text(encoding="utf-8"))
+    assert retained_manifest["run_lineage_id"] == first_manifest["run_lineage_id"]
+
+
+def test_prepare_trainer_rejects_fresh_launch_into_existing_run(tmp_path: Path, monkeypatch):
+    with hydra.initialize_config_dir(version_base=None, config_dir=str(ROOT / "config")):
+        config = hydra.compose(config_name="train", overrides=["profile=smoke_overfit"])
+    run_dir = tmp_path / "occupied-run"
+    run_dir.mkdir()
+    (run_dir / "run_manifest.json").write_text("{}\n", encoding="utf-8")
+    monkeypatch.setattr(
+        train_module,
+        "save_resolved_config",
+        lambda *_args, **_kwargs: pytest.fail("occupied run must fail before evidence mutation"),
+    )
+
+    with pytest.raises(train_module.ConfigPreflightError, match="fresh launch into an occupied run"):
+        train_module.prepare_trainer(config, run_dir=run_dir)
+
+
+def test_prepare_trainer_rejects_foreign_resume_before_evidence_mutation(
+    tmp_path: Path, monkeypatch
+):
+    with hydra.initialize_config_dir(version_base=None, config_dir=str(ROOT / "config")):
+        config = hydra.compose(
+            config_name="train",
+            overrides=["profile=smoke_overfit", "artifacts.resume_path=/synthetic/resume.pt"],
+        )
+    run_dir = tmp_path / "occupied-resume-run"
+    run_dir.mkdir()
+    existing_lineage = "run-11111111111111111111111111111111"
+    (run_dir / "run_manifest.json").write_text(
+        json.dumps({"run_lineage_id": existing_lineage}) + "\n", encoding="utf-8"
+    )
+    resolved_config = run_dir / "resolved_config.yaml"
+    original_bytes = b"prior run evidence\n"
+    resolved_config.write_bytes(original_bytes)
+    monkeypatch.setattr(
+        train_module,
+        "load_run_lineage_from_resume",
+        lambda *_args, **_kwargs: "run-22222222222222222222222222222222",
+    )
+    monkeypatch.setattr(
+        train_module,
+        "save_resolved_config",
+        lambda *_args, **_kwargs: pytest.fail("foreign resume must fail before evidence mutation"),
+    )
+
+    with pytest.raises(ReproducibilityError, match="lineage differs"):
+        train_module.prepare_trainer(config, run_dir=run_dir)
+
+    assert resolved_config.read_bytes() == original_bytes
+
+
+def test_prepare_trainer_rejects_concurrent_same_directory_launch(tmp_path: Path, monkeypatch):
+    with hydra.initialize_config_dir(version_base=None, config_dir=str(ROOT / "config")):
+        config = hydra.compose(config_name="train", overrides=["profile=smoke_overfit"])
+    run_dir = tmp_path / "colliding-run"
+    run_dir.mkdir()
+    descriptor = os.open(
+        run_dir / ".run-preparation.lock", os.O_RDWR | os.O_CREAT, 0o600
+    )
+    fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    monkeypatch.setattr(
+        train_module,
+        "save_resolved_config",
+        lambda *_args, **_kwargs: pytest.fail("colliding run must fail before evidence mutation"),
+    )
+
+    try:
+        with pytest.raises(train_module.ConfigPreflightError, match="already being prepared"):
+            train_module.prepare_trainer(config, run_dir=run_dir)
+    finally:
+        fcntl.flock(descriptor, fcntl.LOCK_UN)
+        os.close(descriptor)
+
+
+def test_run_preparation_reclaims_unlocked_marker_after_process_death(tmp_path: Path):
+    run_dir = tmp_path / "interrupted-run"
+    run_dir.mkdir()
+    lock_path = run_dir / ".run-preparation.lock"
+    lock_path.write_bytes(b"stale marker bytes")
+
+    with train_module._exclusive_run_preparation(run_dir):
+        assert lock_path.is_file()
 
 
 def test_operational_wandb_controls_do_not_change_checkpoint_compatibility():

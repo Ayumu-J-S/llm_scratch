@@ -16,6 +16,7 @@ from training.checkpoint import (
     CheckpointManager,
     CheckpointVerificationError,
     build_checkpoint_identity,
+    load_run_lineage_from_resume,
     require_exact_stream_resume_state,
 )
 from training.optimization import WarmupCosineScheduler
@@ -86,6 +87,7 @@ def _identity() -> dict[str, object]:
         "tokenizer_fingerprint": "fixture-tokenizer",
         "data_fingerprints": ["fixture-data"],
         "experiment_id": "fixture-run",
+        "run_lineage_id": "run-11111111111111111111111111111111",
     }
 
 
@@ -662,6 +664,7 @@ def test_checkpoint_identity_requires_recorded_run_identity_fields(tmp_path: Pat
     )
     manifest = {
         "experiment_id": "exp-recorded-run",
+        "run_lineage_id": "run-11111111111111111111111111111111",
         "git": {"sha": "a" * 40},
         "lock": {"sha256": "b" * 64},
         "tokenizer": {"fingerprint": "tokenizer"},
@@ -677,6 +680,11 @@ def test_checkpoint_identity_requires_recorded_run_identity_fields(tmp_path: Pat
 
     for name, mutation, expected_field in (
         ("experiment", ("experiment_id", "exp-different-run"), "experiment_id"),
+        (
+            "lineage",
+            ("run_lineage_id", "run-22222222222222222222222222222222"),
+            "run_lineage_id",
+        ),
         ("git", ("git", {"sha": "c" * 40}), "git_sha"),
         ("lock", ("lock", {"sha256": "d" * 64}), "lock_sha256"),
     ):
@@ -720,6 +728,7 @@ def test_checkpoint_identity_reconciles_configured_manifest_order(tmp_path: Path
     )
     manifest = {
         "experiment_id": "exp-ordered-manifests",
+        "run_lineage_id": "run-11111111111111111111111111111111",
         "git": {"sha": "a" * 40},
         "lock": {"sha256": "b" * 64},
         "tokenizer": {"fingerprint": "tokenizer"},
@@ -735,7 +744,7 @@ def test_checkpoint_identity_reconciles_configured_manifest_order(tmp_path: Path
 def test_checkpoint_identity_rejects_incomplete_run_manifest(tmp_path: Path):
     path = tmp_path / "incomplete.json"
     path.write_text(json.dumps({"experiment_id": "exp-only"}), encoding="utf-8")
-    with pytest.raises(CheckpointError, match="experiment_id, git.sha, and lock.sha256"):
+    with pytest.raises(CheckpointError, match="experiment_id, run_lineage_id"):
         build_checkpoint_identity(OmegaConf.create({}), run_manifest_path=path)
 
 
@@ -744,6 +753,16 @@ def test_relative_resume_path_is_resolved_from_checkpoint_directory(tmp_path: Pa
     path = manager.save_recovery(_state(1))
 
     assert manager.load_resume(path.name).path == path
+
+
+def test_verified_resume_exposes_the_recorded_unique_run_lineage(tmp_path: Path):
+    manager = CheckpointManager(tmp_path / "original", keep_last_n=2, identity=_identity())
+    path = manager.save_recovery(_state(1))
+
+    assert (
+        load_run_lineage_from_resume(path, checkpoint_dir=tmp_path / "new-run" / "checkpoints")
+        == _identity()["run_lineage_id"]
+    )
 
 
 def test_streaming_dataset_cursor_replays_exact_next_prefetched_batch():

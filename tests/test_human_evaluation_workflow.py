@@ -1,0 +1,1379 @@
+from __future__ import annotations
+
+import copy
+import hashlib
+import hmac
+import json
+import os
+import stat
+from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+
+from human_evaluation import workflow
+from human_evaluation.schema import SCORE_SCHEMA_VERSION, load_prompt_set
+from human_evaluation.workflow import (
+    HumanEvaluationError,
+    _load_checkpoint_candidates,
+    create_blinding_key,
+    import_scores as _import_scores,
+    prepare_evaluation as _prepare_evaluation,
+)
+from training.checkpoint import LoadedCheckpoint
+
+
+PROMPT_SET_PATH = Path("evaluation/human/prompts-v1.json").resolve()
+TOKENIZER_FINGERPRINT = "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b"
+SHARED_IDENTITY = {
+    "schema_version": 1,
+    "experiment_id": "RUN-001-synthetic-human-fixture",
+    "run_lineage_id": "run-11111111111111111111111111111111",
+    "git_sha": "1" * 40,
+    "lock_sha256": "2" * 64,
+    "config_sha256": "3" * 64,
+    "model_config": {"embed_size": 8, "num_heads": 2, "num_layers": 1, "dropout": 0.0},
+    "tokenizer_fingerprint": TOKENIZER_FINGERPRINT,
+    "data_fingerprints": ["5" * 64, "6" * 64],
+}
+
+OPERATIONAL_CONFIG = {
+    "action": "fixture",
+    "contamination": {
+        "cache": {
+            "dir": "/tmp/human-evaluation-test-cache",
+            "max_size_bytes": 10_000_000,
+            "min_free_bytes": 100_000_000_000,
+            "wait_timeout_seconds": 1.0,
+        }
+    },
+}
+
+
+def prepare_evaluation(**kwargs):
+    return _prepare_evaluation(operational_config=OPERATIONAL_CONFIG, **kwargs)
+
+
+def import_scores(**kwargs):
+    return _import_scores(operational_config=OPERATIONAL_CONFIG, **kwargs)
+
+
+@pytest.fixture(autouse=True)
+def deterministic_private_evidence(monkeypatch):
+    monkeypatch.setattr(
+        workflow,
+        "apply_evaluation_determinism_policy",
+        lambda: copy.deepcopy(workflow.EVALUATION_DETERMINISM_POLICY),
+    )
+
+    def evaluator_identity(_root, *, resolved_config):
+        return {
+            "git": {
+                "sha": "e" * 40,
+                "dirty": False,
+                "status": [],
+                "worktree_content_sha256": "f" * 64,
+            },
+            "resolved_config": copy.deepcopy(dict(resolved_config)),
+            "resolved_config_sha256": hashlib.sha256(
+                workflow.canonical_json_bytes(dict(resolved_config))
+            ).hexdigest(),
+            "lock": {"path": "/fixture/uv.lock", "sha256": "a" * 64},
+            "environment": {
+                "os": "fixture",
+                "os_release": {},
+                "architecture": "fixture",
+                "python": "3.fixture",
+                "torch": {},
+                "cuda": {},
+                "container_image": {},
+            },
+        }
+
+    def clean_scan(
+        _checkpoint_config,
+        checkpoint_identity,
+        prompts,
+        *,
+        prompt_set_version,
+        prompt_set_sha256,
+        evaluated_checkpoints,
+        **_kwargs,
+    ):
+        identity = {
+            "prompt_set": {
+                "version": prompt_set_version,
+                "sha256": prompt_set_sha256,
+                "prompts": [prompt.id for prompt in prompts],
+            },
+            "checkpoint": copy.deepcopy(dict(checkpoint_identity)),
+            "evaluated_checkpoints": sorted(
+                [
+                    {
+                        "slot": checkpoint["slot"],
+                        "sha256": checkpoint["sha256"],
+                        "optimizer_step": checkpoint["optimizer_step"],
+                        "target_tokens": checkpoint["target_tokens"],
+                    }
+                    for checkpoint in evaluated_checkpoints
+                ],
+                key=lambda checkpoint: checkpoint["slot"],
+            ),
+        }
+        return {
+            "scan_revision": "fixture",
+            "scan_complete": True,
+            "identity": identity,
+            "identity_sha256": hashlib.sha256(workflow.canonical_json_bytes(identity)).hexdigest(),
+            "training_sources": [],
+            "scanned_documents": 1,
+            "scanned_utf8_bytes": 1,
+            "scanned_document_order_sha256": "b" * 64,
+            "match_counts": {"exact": 0, "normalized": 0},
+            "matches": [],
+            "contaminated": False,
+        }
+
+    monkeypatch.setattr(workflow, "collect_evaluator_identity", evaluator_identity)
+    monkeypatch.setattr(workflow, "scan_checkpoint_training_prompts", clean_scan)
+
+
+class FakeSampler:
+    completion_variant = ""
+    max_new_tokens_allowed_by_context = 64
+    stop_reason = "max_new_tokens"
+
+    def __init__(self, slot: str, physical_identity: dict | None = None):
+        self.slot = slot
+        self.physical_checkpoint_identity = physical_identity
+
+    @classmethod
+    def from_checkpoint(cls, path: str | Path, *, device: str):
+        assert device in {"cpu", "cuda"}
+        return cls("earlier" if "earlier" in str(path) else "later")
+
+    @classmethod
+    def from_loaded_checkpoint(cls, path: str | Path, loaded: LoadedCheckpoint, *, device: str):
+        assert loaded.physical_identity["path"] == str(Path(path).resolve())
+        assert device in {"cpu", "cuda"}
+        return cls(
+            "earlier" if "earlier" in str(path) else "later",
+            dict(loaded.physical_identity),
+        )
+
+    def generate(
+        self,
+        prompt: str,
+        *,
+        max_new_tokens: int,
+        temperature: float,
+        top_k: int,
+        seed: int,
+        precision: str,
+    ):
+        assert (max_new_tokens, temperature, top_k) == (64, 0.8, 40)
+        assert isinstance(seed, int) and seed >= 0
+        assert precision == "fp32"
+        text = "続きの文章です。" if prompt.startswith("東") else " generated continuation."
+        suffix = " First." if self.slot == "earlier" else " Second."
+        return SimpleNamespace(
+            completion=text + suffix + self.completion_variant,
+            max_new_tokens_allowed_by_context=self.max_new_tokens_allowed_by_context,
+            stop_reason=self.stop_reason,
+        )
+
+
+def _loaded(
+    slot: str,
+    *,
+    target_tokens: int,
+    optimizer_step: int,
+    precision: str = "fp32",
+    sequence_length: int = 2048,
+) -> LoadedCheckpoint:
+    identity = copy.deepcopy(SHARED_IDENTITY)
+    return LoadedCheckpoint(
+        payload={
+            "kind": "milestone",
+            "identity": identity,
+            "state": {
+                "counters": {
+                    "optimizer_step": optimizer_step,
+                    "target_tokens": target_tokens,
+                },
+                "resolved_config": {
+                    "training": {
+                        "precision": precision,
+                        "sequence_length": sequence_length,
+                    },
+                    "tokenizer": {
+                        "manifest_path": "assets/tokenizers/llm-jp-v1/manifest.json",
+                        "expected_fingerprint": TOKENIZER_FINGERPRINT,
+                    },
+                },
+            },
+        },
+        physical_identity={
+            "path": f"/synthetic/{slot}.pt",
+            "sha256": ("a" if slot == "earlier" else "b") * 64,
+            "size_bytes": 1024,
+        },
+    )
+
+
+@pytest.fixture
+def prepared_study(tmp_path: Path, monkeypatch):
+    workspace = tmp_path / "human-evaluation" / "study"
+    key = create_blinding_key(tmp_path / "secret" / "human.key")
+    key.write_bytes(b"HUMAN-001 deterministic fixture key")
+    key.chmod(0o600)
+
+    def fake_loader(path: str | Path):
+        slot = "earlier" if "earlier" in str(path) else "later"
+        return _loaded(
+            slot,
+            target_tokens=1_000_000 if slot == "earlier" else 1_500_000,
+            optimizer_step=100 if slot == "earlier" else 150,
+        )
+
+    monkeypatch.setattr(workflow, "load_checkpoint_for_generation", fake_loader)
+    monkeypatch.setattr(workflow, "CheckpointSampler", FakeSampler)
+    paths = prepare_evaluation(
+        prompt_set_path=PROMPT_SET_PATH,
+        workspace_dir=workspace,
+        blinding_key_path=key,
+        earlier_checkpoint="/synthetic/earlier.pt",
+        later_checkpoint="/synthetic/later.pt",
+        generation_seed=20260719,
+    )
+    return workspace, key, paths
+
+
+def _score(bundle: dict, reviewer_id: str, *, offset: int = 0) -> dict:
+    ratings = []
+    for index, item in enumerate(bundle["items"]):
+        value = 3 + ((index + offset) % 2)
+        ratings.append(
+            {
+                "item_id": item["item_id"],
+                "candidate_a": {
+                    "fluency": value,
+                    "coherence": value,
+                    "naturalness": value,
+                },
+                "candidate_b": {
+                    "fluency": value,
+                    "coherence": value,
+                    "naturalness": value,
+                },
+                "preference": ("A", "B", "tie")[(index + offset) % 3],
+                "comment": "",
+            }
+        )
+    return {
+        "schema_version": SCORE_SCHEMA_VERSION,
+        "study_id": bundle["study_id"],
+        "bundle_id": bundle["bundle_id"],
+        "reviewer_id": reviewer_id,
+        "ratings": ratings,
+    }
+
+
+def _write_scores(workspace: Path, *scores: dict) -> list[Path]:
+    review_dir = workspace / "reviews"
+    review_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    review_dir.chmod(0o700)
+    paths = []
+    for index, score in enumerate(scores, start=1):
+        path = review_dir / f"review-{index}.json"
+        path.write_text(json.dumps(score, ensure_ascii=False), encoding="utf-8")
+        path.chmod(0o600)
+        paths.append(path)
+    return paths
+
+
+def test_prepare_is_reproducible_balanced_and_public_bundle_has_no_identity_leak(
+    prepared_study, tmp_path: Path, monkeypatch
+):
+    workspace, key, paths = prepared_study
+    public = json.loads(paths["public_bundle"].read_text(encoding="utf-8"))
+    private = json.loads(paths["private_mapping"].read_text(encoding="utf-8"))
+
+    assert [item["language"] for item in public["items"]].count("ja") == 4
+    assert [item["language"] for item in public["items"]].count("en") == 4
+    assert set(public) == {
+        "schema_version",
+        "study_id",
+        "bundle_id",
+        "prompt_set_version",
+        "evaluation_type",
+        "protocol",
+        "sampling",
+        "rubric",
+        "items",
+    }
+    assert public["protocol"]["determinism_policy_revision"] == "strict-math-sdpa-v1"
+    serialized_public = paths["public_bundle"].read_text(encoding="utf-8")
+    for private_value in (
+        "/synthetic/earlier.pt",
+        "/synthetic/later.pt",
+        "a" * 64,
+        "b" * 64,
+        "1000000",
+        "1500000",
+        "RUN-001-synthetic-human-fixture",
+        "run-11111111111111111111111111111111",
+        "5" * 64,
+        "6" * 64,
+    ):
+        assert private_value not in serialized_public
+    forbidden_key_fragments = {
+        "checkpoint",
+        "path",
+        "sha",
+        "hash",
+        "token_count",
+        "target_tokens",
+        "optimizer_step",
+        "seed",
+        "mapping",
+        "order",
+    }
+    public_keys = set()
+
+    def collect_keys(value):
+        if isinstance(value, dict):
+            public_keys.update(key.casefold() for key in value)
+            for child in value.values():
+                collect_keys(child)
+        elif isinstance(value, list):
+            for child in value:
+                collect_keys(child)
+
+    collect_keys(public)
+    assert not any(fragment in key for fragment in forbidden_key_fragments for key in public_keys)
+
+    assignments = private["payload"]["assignments"]
+    assert private["payload"]["contamination"]["scan_complete"] is True
+    assert private["payload"]["contamination"]["contaminated"] is False
+    assert private["payload"]["evaluator"]["identity"]["git"]["worktree_content_sha256"]
+    assert private["payload"]["evaluator"]["identity"]["resolved_config"] == OPERATIONAL_CONFIG
+    assert private["payload"]["determinism_policy"] == workflow.EVALUATION_DETERMINISM_POLICY
+    prompt_ids = [prompt.id for prompt in load_prompt_set(PROMPT_SET_PATH).prompts]
+    expected_prompt_order = sorted(
+        prompt_ids,
+        key=lambda prompt_id: hmac.new(
+            key.read_bytes(),
+            f"item-order:{public['study_id']}:{prompt_id}".encode(),
+            hashlib.sha256,
+        ).digest(),
+    )
+    assert [assignment["prompt_id"] for assignment in assignments] == expected_prompt_order
+    assert sum(item["candidates"]["A"] == "earlier" for item in assignments) == 4
+    assert sum(item["candidates"]["B"] == "earlier" for item in assignments) == 4
+    assert (
+        sum(
+            item["prompt_id"].startswith("ja-") and item["candidates"]["A"] == "earlier"
+            for item in assignments
+        )
+        == 2
+    )
+    assert (
+        sum(
+            item["prompt_id"].startswith("en-") and item["candidates"]["A"] == "earlier"
+            for item in assignments
+        )
+        == 2
+    )
+    assert stat.S_IMODE(paths["private_mapping"].stat().st_mode) == 0o600
+    assert stat.S_IMODE((workspace / "private").stat().st_mode) == 0o700
+    assert stat.S_IMODE((workspace / "public").stat().st_mode) == 0o755
+
+    second_workspace = tmp_path / "human-evaluation" / "second-study"
+
+    def fake_loader(path: str | Path):
+        slot = "earlier" if "earlier" in str(path) else "later"
+        return _loaded(
+            slot,
+            target_tokens=1_000_000 if slot == "earlier" else 1_500_000,
+            optimizer_step=100 if slot == "earlier" else 150,
+        )
+
+    monkeypatch.setattr(workflow, "load_checkpoint_for_generation", fake_loader)
+    monkeypatch.setattr(workflow, "CheckpointSampler", FakeSampler)
+    second = prepare_evaluation(
+        prompt_set_path=PROMPT_SET_PATH,
+        workspace_dir=second_workspace,
+        blinding_key_path=key,
+        earlier_checkpoint="/synthetic/earlier.pt",
+        later_checkpoint="/synthetic/later.pt",
+        generation_seed=20260719,
+    )
+    assert second["public_bundle"].read_bytes() == paths["public_bundle"].read_bytes()
+
+    def changed_pair_loader(path: str | Path):
+        loaded = fake_loader(path)
+        if "later" in str(path):
+            loaded.physical_identity["sha256"] = "c" * 64
+        return loaded
+
+    monkeypatch.setattr(workflow, "load_checkpoint_for_generation", changed_pair_loader)
+    third = prepare_evaluation(
+        prompt_set_path=PROMPT_SET_PATH,
+        workspace_dir=tmp_path / "human-evaluation" / "third-study",
+        blinding_key_path=key,
+        earlier_checkpoint="/synthetic/earlier.pt",
+        later_checkpoint="/synthetic/later.pt",
+        generation_seed=20260719,
+    )
+    third_public = json.loads(third["public_bundle"].read_text(encoding="utf-8"))
+    assert third_public["study_id"] != public["study_id"]
+
+
+def test_assignment_identity_excludes_operational_and_volatile_scan_evidence(
+    prepared_study, tmp_path: Path, monkeypatch
+):
+    workspace, key, paths = prepared_study
+    first_public = json.loads(paths["public_bundle"].read_text(encoding="utf-8"))
+    first_private = json.loads(paths["private_mapping"].read_text(encoding="utf-8"))["payload"]
+    original_scan = workflow.scan_checkpoint_training_prompts
+
+    def volatile_scan(*args, **kwargs):
+        report = original_scan(*args, **kwargs)
+        return {
+            **report,
+            "free_bytes_before": 456_000_000_000,
+            "free_bytes_after": 455_000_000_000,
+        }
+
+    def fake_loader(path: str | Path):
+        slot = "earlier" if "earlier" in str(path) else "later"
+        return _loaded(
+            slot,
+            target_tokens=1_000_000 if slot == "earlier" else 1_500_000,
+            optimizer_step=100 if slot == "earlier" else 150,
+        )
+
+    monkeypatch.setattr(workflow, "scan_checkpoint_training_prompts", volatile_scan)
+    monkeypatch.setattr(workflow, "load_checkpoint_for_generation", fake_loader)
+    monkeypatch.setattr(workflow, "CheckpointSampler", FakeSampler)
+    moved_config = copy.deepcopy(OPERATIONAL_CONFIG)
+    moved_config["contamination"]["cache"]["dir"] = str(tmp_path / "moved-cache")
+    second_paths = _prepare_evaluation(
+        prompt_set_path=PROMPT_SET_PATH,
+        workspace_dir=tmp_path / "human-evaluation" / "moved-study",
+        blinding_key_path=key,
+        earlier_checkpoint="/synthetic/earlier.pt",
+        later_checkpoint="/synthetic/later.pt",
+        generation_seed=20260719,
+        operational_config=moved_config,
+    )
+    second_public = json.loads(second_paths["public_bundle"].read_text(encoding="utf-8"))
+    second_private = json.loads(second_paths["private_mapping"].read_text(encoding="utf-8"))[
+        "payload"
+    ]
+
+    assert second_public == first_public
+    assert second_private["assignments"] == first_private["assignments"]
+    assert second_private["evaluator"]["identity"]["resolved_config"] == moved_config
+    assert second_private["contamination"]["free_bytes_before"] == 456_000_000_000
+
+
+def test_prepare_hashes_the_exact_prompt_bytes_it_parsed(tmp_path: Path, monkeypatch):
+    prompt_path = tmp_path / "prompts-v1.json"
+    original_bytes = PROMPT_SET_PATH.read_bytes()
+    prompt_path.write_bytes(original_bytes)
+    key = create_blinding_key(tmp_path / "secret" / "prompt-buffer.key")
+
+    def fake_loader(path: str | Path):
+        slot = "earlier" if "earlier" in str(path) else "later"
+        return _loaded(
+            slot,
+            target_tokens=1_000_000 if slot == "earlier" else 1_500_000,
+            optimizer_step=100 if slot == "earlier" else 150,
+        )
+
+    original_parser = workflow.load_prompt_set_bytes
+
+    def replace_after_parse(payload: bytes):
+        prompt_set = original_parser(payload)
+        prompt_path.write_bytes(
+            payload.replace(
+                b"The research team began by checking whether",
+                b"The audit team started by checking whether",
+            )
+        )
+        return prompt_set
+
+    monkeypatch.setattr(workflow, "_require_prompt_asset_isolated", lambda _path: None)
+    monkeypatch.setattr(workflow, "load_prompt_set_bytes", replace_after_parse)
+    monkeypatch.setattr(workflow, "load_checkpoint_for_generation", fake_loader)
+    monkeypatch.setattr(workflow, "CheckpointSampler", FakeSampler)
+    paths = prepare_evaluation(
+        prompt_set_path=prompt_path,
+        workspace_dir=tmp_path / "human-evaluation" / "prompt-buffer",
+        blinding_key_path=key,
+        earlier_checkpoint="/synthetic/earlier.pt",
+        later_checkpoint="/synthetic/later.pt",
+        generation_seed=20260719,
+    )
+    private = json.loads(paths["private_mapping"].read_text(encoding="utf-8"))["payload"]
+    public = json.loads(paths["public_bundle"].read_text(encoding="utf-8"))
+
+    assert private["prompt_set"]["sha256"] == hashlib.sha256(original_bytes).hexdigest()
+    assert private["prompt_set"]["sha256"] != hashlib.sha256(prompt_path.read_bytes()).hexdigest()
+    assert any(item["prompt"].startswith("The research team began") for item in public["items"])
+
+
+def test_score_import_round_trip_agreement_and_exact_unblinding(prepared_study):
+    workspace, key, paths = prepared_study
+    public = json.loads(paths["public_bundle"].read_text(encoding="utf-8"))
+    score_paths = _write_scores(
+        workspace,
+        _score(public, "reviewer-one"),
+        _score(public, "reviewer-two", offset=1),
+    )
+
+    result_path = import_scores(
+        workspace_dir=workspace,
+        blinding_key_path=key,
+        score_paths=score_paths,
+    )
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+
+    assert result["reviewers"] == ["reviewer-one", "reviewer-two"]
+    assert result["bundle_id"] == public["bundle_id"]
+    assert result["public_bundle_sha256"] == private_bundle_hash(paths["private_mapping"])
+    assert result["agreement"]["reviewer_count"] == 2
+    assert result["agreement"]["preference_comparisons"] == 8
+    assert result["agreement"]["rating_comparisons"] == 48
+    assert 0 <= result["agreement"]["preference_exact_fraction"] <= 1
+    assert set(result["checkpoint_summary"]) == {"earlier", "later"}
+    assert len(result["unblinded_ratings"]) == 16
+    assert all(
+        set(rating["ratings"]) == {"earlier", "later"} for rating in result["unblinded_ratings"]
+    )
+    assert result["research_integrity"]["training_reuse_permitted"] is False
+    assert result["contamination"]["contaminated"] is False
+    assert set(result["evaluators"]) == {"prepare", "import"}
+    assert result["evaluators"]["import"]["identity"]["resolved_config"] == OPERATIONAL_CONFIG
+    assert result["determinism_policy"] == workflow.EVALUATION_DETERMINISM_POLICY
+    assert stat.S_IMODE(result_path.stat().st_mode) == 0o600
+
+
+def test_score_import_hashes_the_exact_bytes_it_parsed(prepared_study, monkeypatch):
+    workspace, key, paths = prepared_study
+    public = json.loads(paths["public_bundle"].read_text(encoding="utf-8"))
+    score_paths = _write_scores(
+        workspace,
+        _score(public, "reviewer-one"),
+        _score(public, "reviewer-two", offset=1),
+    )
+    first_path = score_paths[0]
+    parsed_bytes = first_path.read_bytes()
+    original_loader = workflow._load_score_file
+    replaced = False
+
+    def replace_after_read(path, **kwargs):
+        nonlocal replaced
+        loaded = original_loader(path, **kwargs)
+        if Path(path) == first_path and not replaced:
+            replaced = True
+            first_path.write_text(
+                json.dumps(_score(public, "replacement-reviewer"), ensure_ascii=False),
+                encoding="utf-8",
+            )
+            first_path.chmod(0o600)
+        return loaded
+
+    monkeypatch.setattr(workflow, "_load_score_file", replace_after_read)
+    result_path = import_scores(
+        workspace_dir=workspace,
+        blinding_key_path=key,
+        score_paths=score_paths,
+    )
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+
+    assert result["reviewers"] == ["reviewer-one", "reviewer-two"]
+    assert result["score_files"][0]["sha256"] == hashlib.sha256(parsed_bytes).hexdigest()
+    assert result["score_files"][0]["sha256"] != hashlib.sha256(first_path.read_bytes()).hexdigest()
+
+
+def test_score_import_requires_two_distinct_complete_human_reviewers(prepared_study):
+    workspace, key, paths = prepared_study
+    public = json.loads(paths["public_bundle"].read_text(encoding="utf-8"))
+    one_path = _write_scores(workspace, _score(public, "same-reviewer"))[0]
+
+    with pytest.raises(HumanEvaluationError, match="at least two"):
+        import_scores(
+            workspace_dir=workspace,
+            blinding_key_path=key,
+            score_paths=[one_path],
+        )
+
+    duplicate_paths = _write_scores(
+        workspace,
+        _score(public, "Same-Reviewer"),
+        _score(public, "same-reviewer"),
+    )
+    with pytest.raises(HumanEvaluationError, match="distinct"):
+        import_scores(
+            workspace_dir=workspace,
+            blinding_key_path=key,
+            score_paths=duplicate_paths,
+        )
+
+    incomplete = _score(public, "other-reviewer")
+    incomplete["ratings"].pop()
+    incomplete_paths = _write_scores(workspace, _score(public, "first-reviewer"), incomplete)
+    with pytest.raises(HumanEvaluationError, match="every public item"):
+        import_scores(
+            workspace_dir=workspace,
+            blinding_key_path=key,
+            score_paths=incomplete_paths,
+        )
+
+
+def private_bundle_hash(mapping_path: Path) -> str:
+    mapping = json.loads(mapping_path.read_text(encoding="utf-8"))
+    return mapping["payload"]["public_bundle_sha256"]
+
+
+def test_scores_cannot_cross_accept_a_distinct_exact_bundle_with_the_same_study(
+    tmp_path: Path, monkeypatch
+):
+    key = create_blinding_key(tmp_path / "secret" / "bundle.key")
+    key.write_bytes(b"HUMAN-001 exact bundle fixture key")
+    key.chmod(0o600)
+
+    def fake_loader(path: str | Path):
+        slot = "earlier" if "earlier" in str(path) else "later"
+        return _loaded(
+            slot,
+            target_tokens=1_000_000 if slot == "earlier" else 1_500_000,
+            optimizer_step=100 if slot == "earlier" else 150,
+        )
+
+    class VariantSampler(FakeSampler):
+        completion_variant = " evaluator-variant"
+
+    monkeypatch.setattr(workflow, "load_checkpoint_for_generation", fake_loader)
+    monkeypatch.setattr(workflow, "CheckpointSampler", FakeSampler)
+    first_workspace = tmp_path / "human-evaluation" / "bundle-first"
+    first_paths = prepare_evaluation(
+        prompt_set_path=PROMPT_SET_PATH,
+        workspace_dir=first_workspace,
+        blinding_key_path=key,
+        earlier_checkpoint="/synthetic/earlier.pt",
+        later_checkpoint="/synthetic/later.pt",
+        generation_seed=20260719,
+        device="cpu",
+    )
+    first_public = json.loads(first_paths["public_bundle"].read_text(encoding="utf-8"))
+
+    monkeypatch.setattr(workflow, "CheckpointSampler", VariantSampler)
+    second_workspace = tmp_path / "human-evaluation" / "bundle-second"
+    second_paths = prepare_evaluation(
+        prompt_set_path=PROMPT_SET_PATH,
+        workspace_dir=second_workspace,
+        blinding_key_path=key,
+        earlier_checkpoint="/synthetic/earlier.pt",
+        later_checkpoint="/synthetic/later.pt",
+        generation_seed=20260719,
+        device="cpu",
+    )
+    second_public = json.loads(second_paths["public_bundle"].read_text(encoding="utf-8"))
+    assert first_public["study_id"] == second_public["study_id"]
+    assert [item["item_id"] for item in first_public["items"]] == [
+        item["item_id"] for item in second_public["items"]
+    ]
+    assert first_public["bundle_id"] != second_public["bundle_id"]
+
+    copied_scores = _write_scores(
+        second_workspace,
+        _score(first_public, "first"),
+        _score(first_public, "second"),
+    )
+    with pytest.raises(HumanEvaluationError, match="bundle_id differs"):
+        import_scores(
+            workspace_dir=second_workspace,
+            blinding_key_path=key,
+            score_paths=copied_scores,
+        )
+
+
+def test_public_and_private_tampering_are_rejected(prepared_study):
+    workspace, key, paths = prepared_study
+    original_public = paths["public_bundle"].read_text(encoding="utf-8")
+    public = json.loads(original_public)
+    score_paths = _write_scores(workspace, _score(public, "first"), _score(public, "second"))
+    public["items"][0]["candidates"]["A"] += " tampered"
+    paths["public_bundle"].write_text(json.dumps(public), encoding="utf-8")
+    with pytest.raises(HumanEvaluationError, match="does not match"):
+        import_scores(
+            workspace_dir=workspace,
+            blinding_key_path=key,
+            score_paths=score_paths,
+        )
+
+    paths["public_bundle"].write_text(original_public, encoding="utf-8")
+    private = json.loads(paths["private_mapping"].read_text(encoding="utf-8"))
+    private["payload"]["assignments"][0]["candidates"]["A"] = "tampered-slot"
+    paths["private_mapping"].write_text(json.dumps(private), encoding="utf-8")
+    with pytest.raises(HumanEvaluationError, match="authentication failed"):
+        import_scores(
+            workspace_dir=workspace,
+            blinding_key_path=key,
+            score_paths=score_paths,
+        )
+
+
+def test_public_bundle_checksum_authenticates_exact_published_bytes(prepared_study):
+    workspace, key, paths = prepared_study
+    original_public = paths["public_bundle"].read_bytes()
+    public = json.loads(original_public)
+    score_paths = _write_scores(workspace, _score(public, "first"), _score(public, "second"))
+    reformatted = json.dumps(public, ensure_ascii=False, sort_keys=True, indent=4).encode("utf-8")
+    assert reformatted != original_public
+    paths["public_bundle"].write_bytes(reformatted)
+
+    with pytest.raises(HumanEvaluationError, match="does not match"):
+        import_scores(
+            workspace_dir=workspace,
+            blinding_key_path=key,
+            score_paths=score_paths,
+        )
+
+
+def test_import_rejects_wrong_private_and_public_modes_or_hardlinks(prepared_study):
+    workspace, key, paths = prepared_study
+    public = json.loads(paths["public_bundle"].read_text(encoding="utf-8"))
+    score_paths = _write_scores(workspace, _score(public, "first"), _score(public, "second"))
+
+    def run_import():
+        return import_scores(
+            workspace_dir=workspace,
+            blinding_key_path=key,
+            score_paths=score_paths,
+        )
+
+    for path, bad_mode, expected in (
+        (workspace, 0o755, "directory has wrong permissions"),
+        (workspace / "private", 0o755, "directory has wrong permissions"),
+        (workspace / "public", 0o700, "directory has wrong permissions"),
+        (workspace / "reviews", 0o755, "reviews directory permissions"),
+        (paths["public_bundle"], 0o600, "public bundle permissions"),
+        (paths["private_mapping"], 0o644, "private mapping permissions"),
+        (score_paths[0], 0o644, "score file permissions"),
+        (key, 0o644, "blinding key permissions"),
+    ):
+        original_mode = stat.S_IMODE(path.stat().st_mode)
+        path.chmod(bad_mode)
+        with pytest.raises(HumanEvaluationError, match=expected):
+            run_import()
+        path.chmod(original_mode)
+
+    for path, expected in (
+        (paths["public_bundle"], "public bundle must not be hardlinked"),
+        (paths["private_mapping"], "private mapping must not be hardlinked"),
+        (score_paths[0], "score file must not be hardlinked"),
+        (key, "blinding key must not be hardlinked"),
+    ):
+        hardlink = path.parent / f"{path.name}.hardlink"
+        os.link(path, hardlink)
+        with pytest.raises(HumanEvaluationError, match=expected):
+            run_import()
+        hardlink.unlink()
+
+
+def test_import_rejects_workspace_public_private_review_score_and_key_symlinks(prepared_study):
+    workspace, key, paths = prepared_study
+    public = json.loads(paths["public_bundle"].read_text(encoding="utf-8"))
+    score_paths = _write_scores(workspace, _score(public, "first"), _score(public, "second"))
+
+    workspace_alias = workspace.parent / "workspace-alias"
+    workspace_alias.symlink_to(workspace, target_is_directory=True)
+    with pytest.raises(HumanEvaluationError, match="workspace must not be a symlink"):
+        import_scores(
+            workspace_dir=workspace_alias,
+            blinding_key_path=key,
+            score_paths=score_paths,
+        )
+    workspace_alias.unlink()
+
+    key_alias = key.parent / "key-alias"
+    key_alias.symlink_to(key)
+    with pytest.raises(HumanEvaluationError, match="blinding key must be a regular non-symlink"):
+        import_scores(
+            workspace_dir=workspace,
+            blinding_key_path=key_alias,
+            score_paths=score_paths,
+        )
+    key_alias.unlink()
+
+    for directory_name in ("public", "private", "reviews"):
+        directory = workspace / directory_name
+        real_directory = workspace / f"{directory_name}-real"
+        directory.rename(real_directory)
+        directory.symlink_to(real_directory, target_is_directory=True)
+        with pytest.raises(HumanEvaluationError, match="symlink|real directory"):
+            import_scores(
+                workspace_dir=workspace,
+                blinding_key_path=key,
+                score_paths=[
+                    workspace / "reviews" / score_paths[0].name,
+                    workspace / "reviews" / score_paths[1].name,
+                ],
+            )
+        directory.unlink()
+        real_directory.rename(directory)
+
+    for path, expected in (
+        (paths["public_bundle"], "public bundle must be a regular non-symlink"),
+        (paths["private_mapping"], "private mapping must be a regular non-symlink"),
+        (score_paths[0], "score file must be a regular non-symlink"),
+    ):
+        real_path = path.with_name(f"{path.name}.real")
+        path.rename(real_path)
+        path.symlink_to(real_path)
+        with pytest.raises(HumanEvaluationError, match=expected):
+            import_scores(
+                workspace_dir=workspace,
+                blinding_key_path=key,
+                score_paths=score_paths,
+            )
+        path.unlink()
+        real_path.rename(path)
+
+
+def test_checkpoint_pair_requires_same_run_and_at_least_25_percent_token_separation():
+    def too_close(path: str | Path):
+        slot = "earlier" if "earlier" in str(path) else "later"
+        return _loaded(
+            slot,
+            target_tokens=800 if slot == "earlier" else 1_000,
+            optimizer_step=80 if slot == "earlier" else 100,
+        )
+
+    with pytest.raises(HumanEvaluationError, match="at least 25%"):
+        _load_checkpoint_candidates("earlier", "later", loader=too_close)
+
+    def different_run(path: str | Path):
+        slot = "earlier" if "earlier" in str(path) else "later"
+        loaded = _loaded(
+            slot,
+            target_tokens=700 if slot == "earlier" else 1_000,
+            optimizer_step=70 if slot == "earlier" else 100,
+        )
+        if slot == "later":
+            loaded.payload["identity"]["experiment_id"] = "another-run"
+        return loaded
+
+    with pytest.raises(HumanEvaluationError, match="experiment_id differs"):
+        _load_checkpoint_candidates("earlier", "later", loader=different_run)
+
+    def different_launch_same_recipe(path: str | Path):
+        slot = "earlier" if "earlier" in str(path) else "later"
+        loaded = _loaded(
+            slot,
+            target_tokens=700 if slot == "earlier" else 1_000,
+            optimizer_step=70 if slot == "earlier" else 100,
+        )
+        if slot == "later":
+            loaded.payload["identity"]["run_lineage_id"] = "run-22222222222222222222222222222222"
+        return loaded
+
+    with pytest.raises(HumanEvaluationError, match="run_lineage_id differs"):
+        _load_checkpoint_candidates("earlier", "later", loader=different_launch_same_recipe)
+
+
+def test_prompt_contamination_blocks_before_generation_and_retains_private_evidence(
+    tmp_path: Path, monkeypatch
+):
+    workspace = tmp_path / "human-evaluation" / "contaminated"
+    key = create_blinding_key(tmp_path / "secret" / "contaminated.key")
+
+    def fake_loader(path: str | Path):
+        slot = "earlier" if "earlier" in str(path) else "later"
+        return _loaded(
+            slot,
+            target_tokens=1_000_000 if slot == "earlier" else 1_500_000,
+            optimizer_step=100 if slot == "earlier" else 150,
+        )
+
+    def contaminated_scan(
+        _checkpoint_config,
+        checkpoint_identity,
+        prompts,
+        *,
+        prompt_set_version,
+        prompt_set_sha256,
+        **_kwargs,
+    ):
+        identity = {
+            "prompt_set": {
+                "version": prompt_set_version,
+                "sha256": prompt_set_sha256,
+                "prompts": [prompt.id for prompt in prompts],
+            },
+            "checkpoint": {
+                "config_sha256": checkpoint_identity["config_sha256"],
+                "run_lineage_id": checkpoint_identity["run_lineage_id"],
+                "data_fingerprints": checkpoint_identity["data_fingerprints"],
+            },
+        }
+        return {
+            "scan_revision": "fixture",
+            "scan_complete": True,
+            "identity": identity,
+            "identity_sha256": hashlib.sha256(workflow.canonical_json_bytes(identity)).hexdigest(),
+            "training_sources": [
+                {
+                    "name": "train-source",
+                    "documents": 17,
+                    "utf8_bytes": 4096,
+                }
+            ],
+            "scanned_documents": 17,
+            "scanned_utf8_bytes": 4096,
+            "scanned_document_order_sha256": "b" * 64,
+            "match_counts": {"exact": 1, "normalized": 1},
+            "matches": [
+                {
+                    "match_type": "exact",
+                    "prompt_id": "ja-01",
+                    "language": "ja",
+                    "source": "train-source",
+                    "training_document_id": "document-17",
+                    "training_upstream_id": "upstream-17",
+                }
+            ],
+            "contaminated": True,
+        }
+
+    monkeypatch.setattr(workflow, "load_checkpoint_for_generation", fake_loader)
+    monkeypatch.setattr(workflow, "scan_checkpoint_training_prompts", contaminated_scan)
+    monkeypatch.setattr(
+        workflow.CheckpointSampler,
+        "from_loaded_checkpoint",
+        lambda *_args, **_kwargs: pytest.fail("generation must not start after contamination"),
+    )
+    with pytest.raises(HumanEvaluationError, match="prompts occur"):
+        prepare_evaluation(
+            prompt_set_path=PROMPT_SET_PATH,
+            workspace_dir=workspace,
+            blinding_key_path=key,
+            earlier_checkpoint="/synthetic/earlier.pt",
+            later_checkpoint="/synthetic/later.pt",
+            generation_seed=20260719,
+            device="cpu",
+        )
+    evidence_paths = list((workspace / "private").glob("contamination-blocked-*.json"))
+    assert len(evidence_paths) == 1
+    evidence_text = evidence_paths[0].read_text(encoding="utf-8")
+    evidence = json.loads(evidence_text)
+    report = evidence["payload"]["contamination"]
+    assert report["scanned_documents"] == 17
+    assert report["matches"][0]["source"] == "train-source"
+    assert report["matches"][0]["training_document_id"] == "document-17"
+    for prompt in load_prompt_set(PROMPT_SET_PATH).prompts:
+        assert prompt.text not in evidence_text
+
+
+def test_prepare_rejects_context_limited_generation_before_writing_a_bundle(
+    tmp_path: Path, monkeypatch
+):
+    workspace = tmp_path / "human-evaluation" / "context-limited"
+    key = create_blinding_key(tmp_path / "secret" / "context-limited.key")
+
+    def fake_loader(path: str | Path):
+        slot = "earlier" if "earlier" in str(path) else "later"
+        return _loaded(
+            slot,
+            target_tokens=1_000_000 if slot == "earlier" else 1_500_000,
+            optimizer_step=100 if slot == "earlier" else 150,
+        )
+
+    class ContextLimitedSampler(FakeSampler):
+        max_new_tokens_allowed_by_context = 63
+        stop_reason = "context_limit"
+
+    monkeypatch.setattr(workflow, "load_checkpoint_for_generation", fake_loader)
+    monkeypatch.setattr(workflow, "CheckpointSampler", ContextLimitedSampler)
+    with pytest.raises(HumanEvaluationError, match="fixed 64-token generation budget"):
+        prepare_evaluation(
+            prompt_set_path=PROMPT_SET_PATH,
+            workspace_dir=workspace,
+            blinding_key_path=key,
+            earlier_checkpoint="/synthetic/earlier.pt",
+            later_checkpoint="/synthetic/later.pt",
+            generation_seed=20260719,
+            device="cpu",
+        )
+    assert not workspace.exists()
+
+
+def test_prepare_rejects_short_checkpoint_context_before_training_scan(
+    tmp_path: Path, monkeypatch
+):
+    workspace = tmp_path / "human-evaluation" / "short-context-preflight"
+    key = create_blinding_key(tmp_path / "secret" / "short-context-preflight.key")
+
+    def fake_loader(path: str | Path):
+        slot = "earlier" if "earlier" in str(path) else "later"
+        return _loaded(
+            slot,
+            target_tokens=1_000_000 if slot == "earlier" else 1_500_000,
+            optimizer_step=100 if slot == "earlier" else 150,
+            sequence_length=64,
+        )
+
+    monkeypatch.setattr(workflow, "load_checkpoint_for_generation", fake_loader)
+    monkeypatch.setattr(
+        workflow,
+        "scan_checkpoint_training_prompts",
+        lambda *_args, **_kwargs: pytest.fail("context preflight must precede training scan"),
+    )
+    with pytest.raises(HumanEvaluationError, match="context is incompatible.*64-token"):
+        prepare_evaluation(
+            prompt_set_path=PROMPT_SET_PATH,
+            workspace_dir=workspace,
+            blinding_key_path=key,
+            earlier_checkpoint="/synthetic/earlier.pt",
+            later_checkpoint="/synthetic/later.pt",
+            generation_seed=20260719,
+            device="cpu",
+        )
+    assert not workspace.exists()
+
+
+def test_prepare_rejects_cpu_bf16_before_training_scan(tmp_path: Path, monkeypatch):
+    workspace = tmp_path / "human-evaluation" / "cpu-bf16-preflight"
+    key = create_blinding_key(tmp_path / "secret" / "cpu-bf16-preflight.key")
+
+    def fake_loader(path: str | Path):
+        slot = "earlier" if "earlier" in str(path) else "later"
+        return _loaded(
+            slot,
+            target_tokens=1_000_000 if slot == "earlier" else 1_500_000,
+            optimizer_step=100 if slot == "earlier" else 150,
+            precision="bf16",
+        )
+
+    monkeypatch.setattr(workflow, "load_checkpoint_for_generation", fake_loader)
+    monkeypatch.setattr(
+        workflow,
+        "scan_checkpoint_training_prompts",
+        lambda *_args, **_kwargs: pytest.fail("precision preflight must precede training scan"),
+    )
+    with pytest.raises(HumanEvaluationError, match="precision is incompatible.*requires.*cuda"):
+        prepare_evaluation(
+            prompt_set_path=PROMPT_SET_PATH,
+            workspace_dir=workspace,
+            blinding_key_path=key,
+            earlier_checkpoint="/synthetic/earlier.pt",
+            later_checkpoint="/synthetic/later.pt",
+            generation_seed=20260719,
+            device="cpu",
+        )
+    assert not workspace.exists()
+
+
+def test_prepare_rejects_unavailable_cuda_before_training_scan(tmp_path: Path, monkeypatch):
+    workspace = tmp_path / "human-evaluation" / "cuda-preflight"
+    key = create_blinding_key(tmp_path / "secret" / "cuda-preflight.key")
+
+    def fake_loader(path: str | Path):
+        slot = "earlier" if "earlier" in str(path) else "later"
+        return _loaded(
+            slot,
+            target_tokens=1_000_000 if slot == "earlier" else 1_500_000,
+            optimizer_step=100 if slot == "earlier" else 150,
+        )
+
+    monkeypatch.setattr(workflow, "load_checkpoint_for_generation", fake_loader)
+    monkeypatch.setattr(
+        workflow,
+        "select_device",
+        lambda _device: (_ for _ in ()).throw(RuntimeError("CUDA unavailable in fixture")),
+    )
+    monkeypatch.setattr(
+        workflow,
+        "scan_checkpoint_training_prompts",
+        lambda *_args, **_kwargs: pytest.fail("device preflight must precede training scan"),
+    )
+    with pytest.raises(HumanEvaluationError, match="device is unavailable.*CUDA unavailable"):
+        prepare_evaluation(
+            prompt_set_path=PROMPT_SET_PATH,
+            workspace_dir=workspace,
+            blinding_key_path=key,
+            earlier_checkpoint="/synthetic/earlier.pt",
+            later_checkpoint="/synthetic/later.pt",
+            generation_seed=20260719,
+            device="cuda",
+        )
+    assert not workspace.exists()
+
+
+def test_prepare_rejects_checkpoint_bytes_changed_after_pair_validation(
+    tmp_path: Path, monkeypatch
+):
+    workspace = tmp_path / "human-evaluation" / "changed-checkpoint"
+    key = create_blinding_key(tmp_path / "secret" / "changed-checkpoint.key")
+    calls = {"earlier": 0, "later": 0}
+
+    def changing_loader(path: str | Path):
+        slot = "earlier" if "earlier" in str(path) else "later"
+        calls[slot] += 1
+        loaded = _loaded(
+            slot,
+            target_tokens=1_000_000 if slot == "earlier" else 1_500_000,
+            optimizer_step=100 if slot == "earlier" else 150,
+        )
+        if slot == "later" and calls[slot] == 2:
+            loaded.physical_identity["sha256"] = "c" * 64
+        return loaded
+
+    monkeypatch.setattr(workflow, "load_checkpoint_for_generation", changing_loader)
+    monkeypatch.setattr(workflow, "CheckpointSampler", FakeSampler)
+    with pytest.raises(HumanEvaluationError, match="changed between pair validation"):
+        prepare_evaluation(
+            prompt_set_path=PROMPT_SET_PATH,
+            workspace_dir=workspace,
+            blinding_key_path=key,
+            earlier_checkpoint="/synthetic/earlier.pt",
+            later_checkpoint="/synthetic/later.pt",
+            generation_seed=20260719,
+            device="cpu",
+        )
+    assert not workspace.exists()
+
+
+def test_prepare_rejects_sampler_physical_identity_mismatch(tmp_path: Path, monkeypatch):
+    workspace = tmp_path / "human-evaluation" / "sampler-mismatch"
+    key = create_blinding_key(tmp_path / "secret" / "sampler-mismatch.key")
+
+    def fake_loader(path: str | Path):
+        slot = "earlier" if "earlier" in str(path) else "later"
+        return _loaded(
+            slot,
+            target_tokens=1_000_000 if slot == "earlier" else 1_500_000,
+            optimizer_step=100 if slot == "earlier" else 150,
+        )
+
+    class MismatchedSampler(FakeSampler):
+        @classmethod
+        def from_loaded_checkpoint(cls, path: str | Path, loaded: LoadedCheckpoint, *, device: str):
+            sampler = super().from_loaded_checkpoint(path, loaded, device=device)
+            sampler.physical_checkpoint_identity["sha256"] = "d" * 64
+            return sampler
+
+    monkeypatch.setattr(workflow, "load_checkpoint_for_generation", fake_loader)
+    monkeypatch.setattr(workflow, "CheckpointSampler", MismatchedSampler)
+    with pytest.raises(HumanEvaluationError, match="sampler physical identity differs"):
+        prepare_evaluation(
+            prompt_set_path=PROMPT_SET_PATH,
+            workspace_dir=workspace,
+            blinding_key_path=key,
+            earlier_checkpoint="/synthetic/earlier.pt",
+            later_checkpoint="/synthetic/later.pt",
+            generation_seed=20260719,
+            device="cpu",
+        )
+    assert not workspace.exists()
+
+
+def test_key_permissions_and_training_namespace_isolation(tmp_path: Path):
+    key = create_blinding_key(tmp_path / "secret" / "key")
+    assert stat.S_IMODE(key.stat().st_mode) == 0o600
+    with pytest.raises(HumanEvaluationError, match="replace existing"):
+        create_blinding_key(key)
+    key.chmod(0o644)
+    with pytest.raises(HumanEvaluationError, match="0600"):
+        prepare_evaluation(
+            prompt_set_path=PROMPT_SET_PATH,
+            workspace_dir=tmp_path / "human-evaluation" / "study",
+            blinding_key_path=key,
+            earlier_checkpoint="earlier",
+            later_checkpoint="later",
+            generation_seed=1,
+        )
+
+    safe_key = create_blinding_key(tmp_path / "secret" / "safe-key")
+    for unsafe_workspace in (
+        tmp_path / "runs" / "human-evaluation" / "study",
+        tmp_path / "data" / "human-evaluation" / "study",
+        tmp_path / "cache" / "human-evaluation" / "study",
+        tmp_path / "human-evaluation" / "checkpoints" / "study",
+    ):
+        with pytest.raises(HumanEvaluationError, match="overlaps"):
+            prepare_evaluation(
+                prompt_set_path=PROMPT_SET_PATH,
+                workspace_dir=unsafe_workspace,
+                blinding_key_path=safe_key,
+                earlier_checkpoint="earlier",
+                later_checkpoint="later",
+                generation_seed=1,
+            )
+
+    inside_key = create_blinding_key(tmp_path / "human-evaluation" / "study" / "key")
+    with pytest.raises(HumanEvaluationError, match="outside"):
+        prepare_evaluation(
+            prompt_set_path=PROMPT_SET_PATH,
+            workspace_dir=tmp_path / "human-evaluation" / "study",
+            blinding_key_path=inside_key,
+            earlier_checkpoint="earlier",
+            later_checkpoint="later",
+            generation_seed=1,
+        )
+
+
+def test_blinding_key_must_be_outside_repository(tmp_path: Path, monkeypatch):
+    repository = tmp_path / "repository"
+    monkeypatch.setattr(workflow, "_REPOSITORY_ROOT", repository.resolve())
+    prompt_path = repository / "evaluation" / "human" / "prompts-v1.json"
+    prompt_path.parent.mkdir(parents=True)
+    prompt_path.write_bytes(PROMPT_SET_PATH.read_bytes())
+    key = create_blinding_key(repository / ".secrets" / "HUMAN-001.key")
+
+    with pytest.raises(HumanEvaluationError, match="outside the repository"):
+        prepare_evaluation(
+            prompt_set_path=prompt_path,
+            workspace_dir=tmp_path / "human-evaluation" / "study",
+            blinding_key_path=key,
+            earlier_checkpoint="earlier",
+            later_checkpoint="later",
+            generation_seed=1,
+        )
+
+    create_path = repository / ".secrets" / "new-HUMAN-001.key"
+    with pytest.raises(HumanEvaluationError, match="outside the repository"):
+        workflow.run_from_config(
+            {
+                "action": "create_key",
+                "prompt_set_path": str(prompt_path),
+                "blinding_key_path": str(create_path),
+            }
+        )
+    assert not create_path.exists()
+
+    external_key = create_blinding_key(tmp_path / "secret" / "external-HUMAN-001.key")
+    external_key.write_bytes(key.read_bytes())
+    external_key.chmod(0o600)
+
+    def fake_loader(path: str | Path):
+        slot = "earlier" if "earlier" in str(path) else "later"
+        return _loaded(
+            slot,
+            target_tokens=1_000_000 if slot == "earlier" else 1_500_000,
+            optimizer_step=100 if slot == "earlier" else 150,
+        )
+
+    monkeypatch.setattr(workflow, "load_checkpoint_for_generation", fake_loader)
+    monkeypatch.setattr(workflow, "CheckpointSampler", FakeSampler)
+    workspace = tmp_path / "human-evaluation" / "import-key-location"
+    paths = prepare_evaluation(
+        prompt_set_path=prompt_path,
+        workspace_dir=workspace,
+        blinding_key_path=external_key,
+        earlier_checkpoint="/synthetic/earlier.pt",
+        later_checkpoint="/synthetic/later.pt",
+        generation_seed=20260719,
+        device="cpu",
+    )
+    public = json.loads(paths["public_bundle"].read_text(encoding="utf-8"))
+    score_paths = _write_scores(
+        workspace,
+        _score(public, "reviewer-one"),
+        _score(public, "reviewer-two"),
+    )
+    with pytest.raises(HumanEvaluationError, match="outside the repository"):
+        import_scores(
+            workspace_dir=workspace,
+            blinding_key_path=key,
+            score_paths=score_paths,
+        )
+
+    alternate_prompt = tmp_path / "alternate-protocol" / "evaluation" / "human" / "prompts-v1.json"
+    alternate_prompt.parent.mkdir(parents=True)
+    alternate_prompt.write_bytes(PROMPT_SET_PATH.read_bytes())
+    with pytest.raises(HumanEvaluationError, match="within the evaluator repository"):
+        prepare_evaluation(
+            prompt_set_path=alternate_prompt,
+            workspace_dir=tmp_path / "human-evaluation" / "alternate-prepare",
+            blinding_key_path=key,
+            earlier_checkpoint="earlier",
+            later_checkpoint="later",
+            generation_seed=1,
+        )
+
+    alternate_create_path = tmp_path / "secret" / "alternate-create.key"
+    with pytest.raises(HumanEvaluationError, match="within the evaluator repository"):
+        workflow.run_from_config(
+            {
+                "action": "create_key",
+                "prompt_set_path": str(alternate_prompt),
+                "blinding_key_path": str(alternate_create_path),
+            }
+        )
+    assert not alternate_create_path.exists()
+
+    mapping = json.loads(paths["private_mapping"].read_text(encoding="utf-8"))
+    mapping["payload"]["prompt_set"]["path"] = str(alternate_prompt.resolve())
+    mapping["payload"]["prompt_set"]["sha256"] = hashlib.sha256(
+        alternate_prompt.read_bytes()
+    ).hexdigest()
+    mapping["authentication"]["tag"] = hmac.new(
+        key.read_bytes(),
+        workflow.canonical_json_bytes(mapping["payload"]),
+        hashlib.sha256,
+    ).hexdigest()
+    paths["private_mapping"].write_text(json.dumps(mapping, ensure_ascii=False), encoding="utf-8")
+    paths["private_mapping"].chmod(0o600)
+    with pytest.raises(HumanEvaluationError, match="within the evaluator repository"):
+        import_scores(
+            workspace_dir=workspace,
+            blinding_key_path=key,
+            score_paths=score_paths,
+        )
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (("max_new_tokens", 63), ("temperature", 0.7), ("top_k", 39)),
+)
+def test_hydra_dispatch_rejects_sampling_contract_overrides(field: str, value):
+    generation = {"max_new_tokens": 64, "temperature": 0.8, "top_k": 40, "seed": 1}
+    generation[field] = value
+    with pytest.raises(HumanEvaluationError, match=f"generation.{field} is fixed"):
+        workflow.run_from_config(
+            {
+                "action": "prepare",
+                "blinding_key_path": "/secret/key",
+                "workspace_dir": "/tmp/human-evaluation/study",
+                "prompt_set_path": str(PROMPT_SET_PATH),
+                "checkpoints": {"earlier": "/early", "later": "/late"},
+                "generation": generation,
+                "device": "cpu",
+            }
+        )
+
+
+def test_hydra_dispatch_rejects_implicit_or_unknown_device():
+    with pytest.raises(HumanEvaluationError, match="explicitly cpu or cuda"):
+        workflow.run_from_config(
+            {
+                "action": "prepare",
+                "blinding_key_path": "/secret/key",
+                "workspace_dir": "/tmp/human-evaluation/study",
+                "prompt_set_path": str(PROMPT_SET_PATH),
+                "checkpoints": {"earlier": "/early", "later": "/late"},
+                "generation": {
+                    "max_new_tokens": 64,
+                    "temperature": 0.8,
+                    "top_k": 40,
+                    "seed": 1,
+                },
+                "device": "auto",
+            }
+        )

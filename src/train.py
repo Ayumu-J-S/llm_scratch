@@ -1,3 +1,6 @@
+import fcntl
+import os
+from contextlib import contextmanager
 from pathlib import Path
 
 import hydra
@@ -15,12 +18,14 @@ from runtime.config import ConfigPreflightError, validate_training_config
 from runtime.reproducibility import (
     dataloader_generator,
     dataloader_worker_init_fn,
+    resolve_run_lineage,
     seed_everything,
     write_run_manifest,
 )
 from training.checkpoint import (
     CheckpointManager,
     build_checkpoint_identity,
+    load_run_lineage_from_resume,
     require_exact_stream_resume_state,
 )
 from training.optimization import build_optimizer, build_scheduler
@@ -297,6 +302,27 @@ def log_loader_size(name: str, loader) -> None:
     logger.info("{} windows: {}", name, size)
 
 
+@contextmanager
+def _exclusive_run_preparation(run_dir: Path):
+    """Serialize construction so timestamp-colliding launches cannot share a run."""
+
+    run_dir.mkdir(parents=True, exist_ok=True)
+    lock_path = run_dir / ".run-preparation.lock"
+    descriptor = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+    try:
+        fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError as error:
+        os.close(descriptor)
+        raise ConfigPreflightError(
+            f"run directory is already being prepared by another process: {run_dir}"
+        ) from error
+    try:
+        yield
+    finally:
+        fcntl.flock(descriptor, fcntl.LOCK_UN)
+        os.close(descriptor)
+
+
 def prepare_trainer(cfg: DictConfig, *, run_dir: Path | None = None) -> Trainer:
     """Assemble the canonical training path without beginning optimizer updates.
 
@@ -307,6 +333,29 @@ def prepare_trainer(cfg: DictConfig, *, run_dir: Path | None = None) -> Trainer:
 
     run_dir = _run_directory() if run_dir is None else Path(run_dir)
     validate_training_config(cfg)
+    with _exclusive_run_preparation(run_dir):
+        return _prepare_trainer_locked(cfg, run_dir=run_dir)
+
+
+def _prepare_trainer_locked(cfg: DictConfig, *, run_dir: Path) -> Trainer:
+    checkpoint_dir = run_dir / Path(cfg.artifacts.checkpoints_dir)
+    resume_path = cfg.artifacts.get("resume_path")
+    manifest_path = run_dir / "run_manifest.json"
+    if resume_path is None and manifest_path.exists():
+        raise ConfigPreflightError(
+            "refusing a fresh launch into an occupied run directory; "
+            f"existing run manifest: {manifest_path}"
+        )
+    inherited_run_lineage = None
+    if resume_path is not None:
+        inherited_run_lineage = load_run_lineage_from_resume(
+            resume_path, checkpoint_dir=checkpoint_dir
+        )
+        if manifest_path.exists():
+            resolve_run_lineage(
+                manifest_path,
+                inherited_run_lineage_id=inherited_run_lineage,
+            )
     seed_everything(
         int(cfg.reproducibility.seed),
         deterministic=bool(cfg.reproducibility.get("deterministic", True)),
@@ -323,6 +372,7 @@ def prepare_trainer(cfg: DictConfig, *, run_dir: Path | None = None) -> Trainer:
         resolved_config_path=resolved_config_path,
         tokenizer_manifest_path=ROOT_DIR / tokenizer_config["manifest_path"],
         tokenizer_expected_fingerprint=tokenizer_config.get("expected_fingerprint"),
+        run_lineage_id=inherited_run_lineage,
     )
     logger.info("Run manifest: {}", run_manifest_path)
 
@@ -332,12 +382,10 @@ def prepare_trainer(cfg: DictConfig, *, run_dir: Path | None = None) -> Trainer:
     logger.info("Tokenizer vocab size: {}", tokenizer.vocab_size)
     logger.info("Tokenizer fingerprint: {}", tokenizer.fingerprint)
 
-    checkpoint_dir = run_dir / Path(cfg.artifacts.checkpoints_dir)
     checkpoint_identity = build_checkpoint_identity(
         cfg,
         run_manifest_path=run_manifest_path,
     )
-    resume_path = cfg.artifacts.get("resume_path")
     if resume_path is not None:
         # Read and compare the full checkpoint header before opening the train
         # stream. Trainer performs the same verified load immediately before

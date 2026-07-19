@@ -74,6 +74,14 @@ be selected through Hydra. See [`docs/benchmarks.md`](docs/benchmarks.md) for
 the pinned sources, scoring protocol, complete training-contamination gate,
 result identity, W&B policy, and final-use procedure.
 
+The HUMAN-001 workflow prepares a fixed eight-prompt Japanese/English
+base-model continuation comparison from two same-run checkpoints, exports only
+an HMAC-blinded A/B bundle, and privately imports scores from at least two human
+reviewers. It is intentionally blocked until RUN-001 provides real separated
+checkpoints and humans provide ratings. See
+[`docs/human-evaluation.md`](docs/human-evaluation.md) for the Hydra commands,
+strict score schema, key handling, and training-isolation boundary.
+
 `config/profile/smoke_overfit.yaml`, `pretrain_streaming.yaml`, and
 `evaluation.yaml` are the canonical Hydra profiles. `evaluation` is a
 standalone-only checkpoint scoring profile and is rejected by the training
@@ -132,6 +140,10 @@ sections are operational controls, not experiment changes. They remain in the
 byte-exact resolved-config evidence, while run/checkpoint experiment identity
 excludes them so enabling timing, changing its output path, or changing
 observability cannot invalidate resume.
+Each new run directory also receives a random `run_lineage_id` in its manifest
+and full-state checkpoints. Re-entering the same run directory retains that
+lineage for resume, while an independent launch with the same deterministic
+recipe receives a different lineage and cannot masquerade as the same run.
 Standalone evaluator-run identity still records and hashes its full resolved
 evaluation config, including `measurement`; the exclusion applies only to the
 training experiment/checkpoint identity.

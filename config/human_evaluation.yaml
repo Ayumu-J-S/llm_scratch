@@ -1,0 +1,37 @@
+# HUMAN-001 is an operational evaluation workflow, not a training profile.
+action: prepare  # create_key | prepare | import_scores
+
+prompt_set_path: ${hydra:runtime.cwd}/evaluation/human/prompts-v1.json
+workspace_dir: null
+blinding_key_path: null
+device: cuda
+
+checkpoints:
+  earlier: null
+  later: null
+
+generation:
+  # The workflow rejects any alternate decoding contract. The master seed is
+  # explicit; HMAC derives one stable same-for-both-checkpoints seed per prompt.
+  max_new_tokens: 64
+  temperature: 0.8
+  top_k: 40
+  seed: 20260719
+
+scores:
+  paths: []
+
+contamination:
+  cache:
+    dir: ${hydra:runtime.cwd}/outputs/human-evaluation-cache
+    max_size_bytes: 100000000
+    # Preserve the operator-requested 100 GB disk reserve during complete scans.
+    min_free_bytes: 100000000000
+    wait_timeout_seconds: 120.0
+
+hydra:
+  run:
+    dir: ${hydra:runtime.cwd}/human-evaluation/.hydra/${now:%Y%m%d-%H%M%S}
+  output_subdir: null
+  job:
+    chdir: false

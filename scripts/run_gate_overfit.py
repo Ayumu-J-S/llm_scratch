@@ -130,10 +130,16 @@ def _checkpoint_summary(checkpoint_path: Path) -> dict[str, Any]:
     counters = state.get("counters")
     if not isinstance(counters, dict):
         raise GateProofError(f"checkpoint missing counters: {checkpoint_path}")
+    recipe_identity = dict(identity)
+    run_lineage_id = recipe_identity.pop("run_lineage_id", None)
+    if not isinstance(run_lineage_id, str) or not run_lineage_id:
+        raise GateProofError(f"checkpoint missing run lineage: {checkpoint_path}")
     return {
         "path": str(checkpoint_path.resolve()),
         "sha256": _sha256_file(checkpoint_path),
         "identity_sha256": hashlib.sha256(canonical_json_bytes(identity)).hexdigest(),
+        "recipe_identity_sha256": hashlib.sha256(canonical_json_bytes(recipe_identity)).hexdigest(),
+        "run_lineage_id": run_lineage_id,
         "model_sha256": _model_digest(checkpoint_path),
         "optimizer_step": counters.get("optimizer_step"),
         "target_tokens": counters.get("target_tokens"),
@@ -247,15 +253,25 @@ def _run_summary(run_dir: Path, *, device: str) -> dict[str, Any]:
     }
 
 
-def _compare(reference: dict[str, Any], candidate: dict[str, Any]) -> dict[str, Any]:
+def _compare(
+    reference: dict[str, Any],
+    candidate: dict[str, Any],
+    *,
+    expect_same_run_lineage: bool,
+) -> dict[str, Any]:
     """Compare every decision-relevant result against one fixed reference."""
 
     same_steps = reference["optimizer_steps"] == candidate["optimizer_steps"]
     same_targets = reference["target_tokens"] == candidate["target_tokens"]
     same_trace = reference["loss_trace"] == candidate["loss_trace"]
-    same_identity = (
-        reference["checkpoint"]["identity_sha256"] == candidate["checkpoint"]["identity_sha256"]
+    same_recipe_identity = (
+        reference["checkpoint"]["recipe_identity_sha256"]
+        == candidate["checkpoint"]["recipe_identity_sha256"]
     )
+    same_run_lineage = (
+        reference["checkpoint"]["run_lineage_id"] == candidate["checkpoint"]["run_lineage_id"]
+    )
+    lineage_matches_expectation = same_run_lineage is expect_same_run_lineage
     same_model = reference["checkpoint"]["model_sha256"] == candidate["checkpoint"]["model_sha256"]
     same_samples = all(
         reference["samples"][language]["completion"] == candidate["samples"][language]["completion"]
@@ -272,7 +288,8 @@ def _compare(reference: dict[str, Any], candidate: dict[str, Any]) -> dict[str, 
         "same_optimizer_steps": same_steps,
         "same_target_tokens": same_targets,
         "same_loss_trace": same_trace,
-        "same_checkpoint_identity": same_identity,
+        "same_recipe_identity": same_recipe_identity,
+        "run_lineage_matches_expected_relationship": lineage_matches_expectation,
         "same_final_model": same_model,
         "same_samples": same_samples,
         "reference_japanese_suffix_recognizable": expected_japanese,
@@ -331,8 +348,10 @@ def run_proof(*, output_dir: Path, device: str) -> dict[str, Any]:
         repeat = _run_summary(repeat_dir, device=device)
         resumed = _run_summary(resumed_dir, device=device)
         comparisons = {
-            "independent_same_seed_repeat": _compare(reference, repeat),
-            "interrupted_resume": _compare(reference, resumed),
+            "independent_same_seed_repeat": _compare(
+                reference, repeat, expect_same_run_lineage=False
+            ),
+            "interrupted_resume": _compare(reference, resumed, expect_same_run_lineage=True),
         }
         record = {
             "schema_version": 1,
@@ -348,7 +367,8 @@ def run_proof(*, output_dir: Path, device: str) -> dict[str, Any]:
                 "stop_conditions": [
                     "non-finite loss or gradients",
                     "loss threshold missed by 200 updates",
-                    "any compared counter, trace, identity, or sample diverges",
+                    "any compared counter, recipe identity, lineage relationship, trace, or "
+                    "sample diverges",
                     "recognizable fixed Japanese or English suffix missing",
                 ],
             },
