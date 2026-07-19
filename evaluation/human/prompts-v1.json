@@ -1,0 +1,46 @@
+{
+  "schema_version": "human-evaluation-prompts-v1",
+  "prompt_set_version": "HUMAN-001-v1",
+  "prompts": [
+    {
+      "id": "ja-01",
+      "language": "ja",
+      "text": "東京の小さな書店では、雨の日になると"
+    },
+    {
+      "id": "ja-02",
+      "language": "ja",
+      "text": "研究チームが朝の会議で最初に確認したのは"
+    },
+    {
+      "id": "ja-03",
+      "language": "ja",
+      "text": "山あいの町を流れる川は、春になると"
+    },
+    {
+      "id": "ja-04",
+      "language": "ja",
+      "text": "新しい言語モデルを一から学習させるために"
+    },
+    {
+      "id": "en-01",
+      "language": "en",
+      "text": "At the edge of the old harbor, the morning fog"
+    },
+    {
+      "id": "en-02",
+      "language": "en",
+      "text": "The research team began by checking whether"
+    },
+    {
+      "id": "en-03",
+      "language": "en",
+      "text": "During the first weeks of spring, the river"
+    },
+    {
+      "id": "en-04",
+      "language": "en",
+      "text": "Training a small language model from random initialization requires"
+    }
+  ]
+}
