@@ -18,9 +18,11 @@ from typing import Any
 from data.identity import canonical_json_bytes
 from generation.sampler import CheckpointSampler
 from human_evaluation.schema import (
+    EVALUATOR_REVISION,
     MAX_NEW_TOKENS,
     MINIMUM_RELATIVE_TARGET_TOKEN_GAP,
     PRIVATE_MAPPING_SCHEMA_VERSION,
+    PROTOCOL_VERSION,
     PUBLIC_BUNDLE_SCHEMA_VERSION,
     RESULT_SCHEMA_VERSION,
     RUBRIC,
@@ -60,14 +62,16 @@ _CHECKPOINT_SHARED_IDENTITY_FIELDS = (
 _PUBLIC_FIELDS = {
     "schema_version",
     "study_id",
+    "bundle_id",
     "prompt_set_version",
     "evaluation_type",
+    "protocol",
     "sampling",
     "rubric",
     "items",
 }
 _PUBLIC_ITEM_FIELDS = {"item_id", "language", "prompt", "candidates"}
-_SCORE_FIELDS = {"schema_version", "study_id", "reviewer_id", "ratings"}
+_SCORE_FIELDS = {"schema_version", "study_id", "bundle_id", "reviewer_id", "ratings"}
 _RATING_FIELDS = {"item_id", "candidate_a", "candidate_b", "preference", "comment"}
 _DIMENSIONS = tuple(dimension["id"] for dimension in RUBRIC["dimensions"])
 
@@ -120,6 +124,7 @@ def prepare_evaluation(
     prompt_path = Path(prompt_set_path).resolve()
     prompt_set = load_prompt_set(prompt_path)
     _require_prompt_asset_isolated(prompt_path)
+    _require_key_outside_repository(key_path, prompt_path)
 
     candidates = _load_checkpoint_candidates(earlier_checkpoint, later_checkpoint)
     study_id = _blind_id(
@@ -129,6 +134,9 @@ def prepare_evaluation(
             "prompt_set_version": prompt_set.version,
             "prompt_set_sha256": _sha256_file(prompt_path),
             "generation_seed": seed,
+            "device": device,
+            "protocol_version": PROTOCOL_VERSION,
+            "evaluator_revision": EVALUATOR_REVISION,
             "checkpoint_pair": [
                 {
                     "slot": slot,
@@ -149,7 +157,19 @@ def prepare_evaluation(
     completions_by_slot: dict[str, dict[str, str]] = {}
     # One sampler at a time avoids doubling model residency on the target UMA machine.
     for slot in ("earlier", "later"):
-        sampler = CheckpointSampler.from_checkpoint(candidates[slot]["path"], device=device)
+        loaded = load_checkpoint_for_generation(candidates[slot]["path"])
+        if loaded.physical_identity.get("sha256") != candidates[slot]["sha256"]:
+            raise HumanEvaluationError(
+                f"{slot} checkpoint changed between pair validation and generation"
+            )
+        sampler = CheckpointSampler.from_loaded_checkpoint(
+            candidates[slot]["path"], loaded, device=device
+        )
+        if sampler.physical_checkpoint_identity != dict(loaded.physical_identity):
+            raise HumanEvaluationError(
+                f"{slot} sampler physical identity differs from its verified checkpoint"
+            )
+        del loaded
         completions_by_slot[slot] = {
             prompt.id: sampler.generate(
                 prompt.text,
@@ -157,6 +177,7 @@ def prepare_evaluation(
                 temperature=TEMPERATURE,
                 top_k=TOP_K,
                 seed=generation_seeds[prompt.id],
+                precision=candidates[slot]["precision"],
             ).completion
             for prompt in prompt_set.prompts
         }
@@ -195,11 +216,15 @@ def prepare_evaluation(
             }
         )
 
-    public_bundle = {
-        "schema_version": PUBLIC_BUNDLE_SCHEMA_VERSION,
+    public_core = {
         "study_id": study_id,
         "prompt_set_version": prompt_set.version,
         "evaluation_type": "base-model-continuation",
+        "protocol": {
+            "version": PROTOCOL_VERSION,
+            "evaluator_revision": EVALUATOR_REVISION,
+            "device": device,
+        },
         "sampling": {
             "max_new_tokens": MAX_NEW_TOKENS,
             "temperature": TEMPERATURE,
@@ -208,11 +233,29 @@ def prepare_evaluation(
         "rubric": copy.deepcopy(RUBRIC),
         "items": public_items,
     }
+    bundle_id = _blind_id(
+        key,
+        "bundle",
+        {
+            "schema_version": PUBLIC_BUNDLE_SCHEMA_VERSION,
+            "public_core": public_core,
+            "generation_seed": seed,
+            "checkpoint_precision": {
+                slot: candidates[slot]["precision"] for slot in ("earlier", "later")
+            },
+        },
+    )
+    public_bundle = {
+        "schema_version": PUBLIC_BUNDLE_SCHEMA_VERSION,
+        "bundle_id": bundle_id,
+        **public_core,
+    }
     _validate_public_bundle(public_bundle)
     public_bytes = _json_bytes(public_bundle)
     _reject_private_identity_leak(public_bytes, candidates)
     private_payload = {
         "study_id": study_id,
+        "bundle_id": bundle_id,
         "prompt_set": {
             "version": prompt_set.version,
             "path": str(prompt_path),
@@ -267,6 +310,7 @@ def import_scores(
     mapping = _read_json_object(mapping_path, "private mapping")
     private_payload = _authenticate_private_mapping(mapping, key)
     _validate_private_payload(private_payload, public_bundle)
+    _require_key_outside_repository(key_path, Path(private_payload["prompt_set"]["path"]))
     expected_public_hash = private_payload.get("public_bundle_sha256")
     if expected_public_hash != hashlib.sha256(_json_bytes(public_bundle)).hexdigest():
         raise HumanEvaluationError("public bundle does not match the authenticated private mapping")
@@ -275,7 +319,12 @@ def import_scores(
 
     item_ids = [item["item_id"] for item in public_bundle["items"]]
     scores = [
-        _load_score_file(path, study_id=public_bundle["study_id"], item_ids=item_ids)
+        _load_score_file(
+            path,
+            study_id=public_bundle["study_id"],
+            bundle_id=public_bundle["bundle_id"],
+            item_ids=item_ids,
+        )
         for path in score_paths
     ]
     normalized_reviewer_ids = [score["reviewer_id"].casefold() for score in scores]
@@ -317,6 +366,8 @@ def import_scores(
     result = {
         "schema_version": RESULT_SCHEMA_VERSION,
         "study_id": public_bundle["study_id"],
+        "bundle_id": public_bundle["bundle_id"],
+        "public_bundle_sha256": expected_public_hash,
         "reviewers": [score["reviewer_id"] for score in scores],
         "score_files": score_files,
         "checkpoints": list(checkpoint_by_slot.values()),
@@ -333,6 +384,7 @@ def import_scores(
         canonical_json_bytes(
             {
                 "study_id": public_bundle["study_id"],
+                "bundle_id": public_bundle["bundle_id"],
                 "score_sha256": [record["sha256"] for record in score_files],
             }
         )
@@ -348,6 +400,10 @@ def run_from_config(config: Mapping[str, Any]) -> dict[str, Any]:
     action = config.get("action")
     key_path = _required_path(config.get("blinding_key_path"), "blinding_key_path")
     if action == "create_key":
+        prompt_path = Path(_required_path(config.get("prompt_set_path"), "prompt_set_path"))
+        _require_key_outside_repository(
+            Path(key_path).expanduser().resolve(), prompt_path.resolve()
+        )
         return {"blinding_key": str(create_blinding_key(key_path))}
     workspace = _required_path(config.get("workspace_dir"), "workspace_dir")
     if action == "prepare":
@@ -405,6 +461,12 @@ def _load_checkpoint_candidates(
         payload = checkpoint.payload
         state = _required_mapping(payload.get("state"), f"{slot} checkpoint state")
         counters = _required_mapping(state.get("counters"), f"{slot} checkpoint counters")
+        resolved_config = _required_mapping(
+            state.get("resolved_config"), f"{slot} checkpoint resolved_config"
+        )
+        training_config = _required_mapping(
+            resolved_config.get("training"), f"{slot} checkpoint training config"
+        )
         identity = _required_mapping(payload.get("identity"), f"{slot} checkpoint identity")
         identities[slot] = copy.deepcopy(dict(identity))
         for field in ("experiment_id", "git_sha", "lock_sha256"):
@@ -433,8 +495,9 @@ def _load_checkpoint_candidates(
                 counters.get("optimizer_step"), f"{slot} optimizer_step"
             ),
             "target_tokens": _positive_int(counters.get("target_tokens"), f"{slot} target_tokens"),
+            "precision": _checkpoint_precision(training_config.get("precision")),
         }
-        del checkpoint, payload, state, counters, identity
+        del checkpoint, payload, state, counters, resolved_config, training_config, identity
     if candidates["earlier"]["sha256"] == candidates["later"]["sha256"]:
         raise HumanEvaluationError("the two checkpoints must be physically distinct")
     for field in _CHECKPOINT_SHARED_IDENTITY_FIELDS:
@@ -483,9 +546,22 @@ def _validate_public_bundle(bundle: dict[str, Any]) -> None:
     if bundle["schema_version"] != PUBLIC_BUNDLE_SCHEMA_VERSION:
         raise HumanEvaluationError("public bundle schema_version is unsupported")
     _nonempty_string(bundle["study_id"], "study_id")
+    bundle_id = _nonempty_string(bundle["bundle_id"], "bundle_id")
+    if not bundle_id.startswith("bundle-"):
+        raise HumanEvaluationError("bundle_id must be an opaque bundle identity")
     _nonempty_string(bundle["prompt_set_version"], "prompt_set_version")
     if bundle["evaluation_type"] != "base-model-continuation":
         raise HumanEvaluationError("evaluation_type must be base-model-continuation")
+    protocol = bundle["protocol"]
+    if not isinstance(protocol, dict):
+        raise HumanEvaluationError("public protocol must be an object")
+    _exact_fields(protocol, {"version", "evaluator_revision", "device"}, "public protocol")
+    if protocol["version"] != PROTOCOL_VERSION:
+        raise HumanEvaluationError("public protocol version is unsupported")
+    if protocol["evaluator_revision"] != EVALUATOR_REVISION:
+        raise HumanEvaluationError("public evaluator revision is unsupported")
+    if protocol["device"] not in {"cpu", "cuda"}:
+        raise HumanEvaluationError("public protocol device must be cpu or cuda")
     if bundle["sampling"] != {
         "max_new_tokens": MAX_NEW_TOKENS,
         "temperature": TEMPERATURE,
@@ -523,13 +599,17 @@ def _validate_public_bundle(bundle: dict[str, Any]) -> None:
         raise HumanEvaluationError("public bundle must retain the 4/4 language balance")
 
 
-def _load_score_file(path: str | Path, *, study_id: str, item_ids: Sequence[str]) -> dict[str, Any]:
+def _load_score_file(
+    path: str | Path, *, study_id: str, bundle_id: str, item_ids: Sequence[str]
+) -> dict[str, Any]:
     score = _read_json_object(path, "score file")
     _exact_fields(score, _SCORE_FIELDS, "score file")
     if score["schema_version"] != SCORE_SCHEMA_VERSION:
         raise HumanEvaluationError("score schema_version is unsupported")
     if score["study_id"] != study_id:
         raise HumanEvaluationError("score file study_id differs from the public bundle")
+    if score["bundle_id"] != bundle_id:
+        raise HumanEvaluationError("score file bundle_id differs from the exact public bundle")
     reviewer_id = _nonempty_string(score["reviewer_id"], "reviewer_id")
     if reviewer_id != reviewer_id.strip():
         raise HumanEvaluationError("reviewer_id must not have surrounding whitespace")
@@ -652,6 +732,7 @@ def _validate_private_payload(payload: dict[str, Any], public_bundle: dict[str, 
         payload,
         {
             "study_id",
+            "bundle_id",
             "prompt_set",
             "generation",
             "checkpoints",
@@ -662,6 +743,8 @@ def _validate_private_payload(payload: dict[str, Any], public_bundle: dict[str, 
     )
     if payload["study_id"] != public_bundle["study_id"]:
         raise HumanEvaluationError("public and private study IDs differ")
+    if payload["bundle_id"] != public_bundle["bundle_id"]:
+        raise HumanEvaluationError("public and private bundle IDs differ")
     prompt_set = payload["prompt_set"]
     if not isinstance(prompt_set, dict):
         raise HumanEvaluationError("private prompt_set must be an object")
@@ -686,6 +769,8 @@ def _validate_private_payload(payload: dict[str, Any], public_bundle: dict[str, 
     _nonnegative_int(generation["seed"], "private generation.seed")
     if generation["device"] not in {"cpu", "cuda"}:
         raise HumanEvaluationError("private generation.device must be cpu or cuda")
+    if generation["device"] != public_bundle["protocol"]["device"]:
+        raise HumanEvaluationError("public and private generation devices differ")
 
     checkpoints = payload["checkpoints"]
     if not isinstance(checkpoints, list) or len(checkpoints) != 2:
@@ -703,6 +788,7 @@ def _validate_private_payload(payload: dict[str, Any], public_bundle: dict[str, 
         "tokenizer_fingerprint",
         "optimizer_step",
         "target_tokens",
+        "precision",
     }
     slots: set[str] = set()
     for checkpoint in checkpoints:
@@ -722,6 +808,7 @@ def _validate_private_payload(payload: dict[str, Any], public_bundle: dict[str, 
         _nonempty_string(checkpoint["git_sha"], f"private checkpoint {slot}.git_sha")
         _nonnegative_int(checkpoint["optimizer_step"], f"private checkpoint {slot}.optimizer_step")
         _positive_int(checkpoint["target_tokens"], f"private checkpoint {slot}.target_tokens")
+        _checkpoint_precision(checkpoint["precision"])
     if slots != {"earlier", "later"}:
         raise HumanEvaluationError("private mapping must contain earlier and later checkpoints")
 
@@ -900,6 +987,16 @@ def _require_key_outside_workspace(key_path: Path, workspace: Path) -> None:
         )
 
 
+def _require_key_outside_repository(key_path: Path, prompt_path: Path) -> None:
+    try:
+        repository_root = prompt_path.parents[2]
+    except IndexError as error:
+        raise HumanEvaluationError("cannot derive repository root from the prompt asset") from error
+    repository_root = repository_root.resolve()
+    if key_path == repository_root or key_path.is_relative_to(repository_root):
+        raise HumanEvaluationError("blinding key must be stored outside the repository")
+
+
 def _blind_id(key: bytes, namespace: str, value: Mapping[str, Any]) -> str:
     digest = hmac.new(
         key,
@@ -1013,4 +1110,10 @@ def _positive_int(value: Any, label: str) -> int:
 def _nonnegative_int(value: Any, label: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise HumanEvaluationError(f"{label} must be a non-negative integer")
+    return value
+
+
+def _checkpoint_precision(value: Any) -> str:
+    if value not in {"fp32", "bf16"}:
+        raise HumanEvaluationError("checkpoint training.precision must be fp32 or bf16")
     return value

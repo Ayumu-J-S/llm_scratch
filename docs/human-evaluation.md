@@ -16,8 +16,10 @@ the canonical sampler, belong to the same experiment/config/tokenizer/data
 identity, advance both optimizer-step and target-token counters, and be at
 least 25% apart using the later checkpoint's target-token count as the
 denominator. The real Hydra workflow defaults to `device=cuda` for canonical
-BF16 RUN-001 checkpoints. It loads and finishes one checkpoint before loading
-the other, so it does not keep two models resident on the DGX Spark.
+BF16 RUN-001 checkpoints. Sampling uses the checkpoint-owned `training.precision`
+and the exact physical SHA-256 verified for the private mapping. It loads and
+finishes one checkpoint before loading the other, so it does not keep two
+models resident on the DGX Spark.
 
 ## Prepare the study
 
@@ -64,9 +66,13 @@ human-evaluation/RUN-001-milestones/
 ```
 
 Only `public/bundle.json` leaves the operator's private workspace. It contains
-opaque study/item IDs, prompt language/text, literal A/B continuations, the
-fixed non-seed sampling settings, and the rubric. Its closed schema has no
-checkpoint, run, path, digest, counter, seed, ordering, or mapping fields. The
+opaque study/bundle/item IDs, prompt language/text, literal A/B continuations,
+the protocol/evaluator revision and device, the fixed non-seed sampling
+settings, and the rubric. The opaque bundle ID is HMAC-bound to the exact
+continuations, device, checkpoint-owned precision, and private generation seed;
+score files cannot cross-apply to another bundle even when its study/item IDs
+match. The closed public schema has no checkpoint, run, path, checkpoint hash,
+counter, seed, ordering, or mapping fields. The
 private mapping records exact checkpoint paths/SHA-256/counters and generation
 seeds, authenticates them with HMAC-SHA256, and binds the public bundle hash.
 
@@ -91,6 +97,7 @@ opaque item IDs in the public bundle:
 {
   "schema_version": "human-evaluation-scores-v1",
   "study_id": "study-OPAQUE",
+  "bundle_id": "bundle-OPAQUE",
   "reviewer_id": "distinct-private-reviewer-id",
   "ratings": [
     {
@@ -107,8 +114,9 @@ opaque item IDs in the public bundle:
 The example values show the schema, not ratings to copy. Reviewers must replace
 them with their own judgments. Import is fail-closed: it rejects extra or
 missing fields, missing/duplicate items, out-of-range scores, a wrong study,
-case-insensitively duplicate reviewer IDs, fewer than two reviewers, wrong file
-modes, public-bundle changes, private-mapping changes, or the wrong key.
+a wrong exact bundle ID, case-insensitively duplicate reviewer IDs, fewer than
+two reviewers, wrong file modes, public-bundle changes, private-mapping changes,
+or the wrong key.
 
 ```bash
 uv run llm-scratch-human-evaluate \

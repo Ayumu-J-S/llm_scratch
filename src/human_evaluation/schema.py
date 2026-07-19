@@ -13,6 +13,8 @@ PUBLIC_BUNDLE_SCHEMA_VERSION = "human-evaluation-bundle-v1"
 PRIVATE_MAPPING_SCHEMA_VERSION = "human-evaluation-private-v1"
 SCORE_SCHEMA_VERSION = "human-evaluation-scores-v1"
 RESULT_SCHEMA_VERSION = "human-evaluation-result-v1"
+PROTOCOL_VERSION = "HUMAN-001-protocol-v1"
+EVALUATOR_REVISION = "checkpoint-sampler-v1"
 
 PROMPT_SET_SIZE = 8
 PROMPTS_PER_LANGUAGE = 4
