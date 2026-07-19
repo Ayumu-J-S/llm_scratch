@@ -152,22 +152,7 @@ def generate_handoff(attempt: Attempt, *, root_dir: Path) -> Path:
             "retry_binding": state.get("retry_from"),
             "evidence_files": evidence,
         },
-        "conclusion": {
-            "condition_result": (
-                "supported" if result["outcome"] == "succeeded" else "not_supported"
-            ),
-            "evidence_backed_summary": result["diagnosis"]["summary"],
-            "uncertainty": (
-                "target-hardware behavior is not claimed by an offline/host fixture"
-                if state["device"] == "cpu"
-                else "only the recorded bounded attempt is supported"
-            ),
-            "next_step": (
-                "review this exact handoff"
-                if result["outcome"] == "succeeded"
-                else f"retry in a new sibling attempt linked to {attempt.attempt_id}"
-            ),
-        },
+        "conclusion": _conclusion(result, state=state, attempt=attempt),
     }
     validate_handoff(payload, attempt=attempt, root_dir=root_dir)
     json_path = attempt.path / "handoff.json"
@@ -271,12 +256,32 @@ def validate_handoff(
             raise HandoffValidationError("handoff config hash does not match resolved config")
         if integrity["declaration_sha256"] != sha256_file(attempt.path / "declaration.json"):
             raise HandoffValidationError("handoff declaration hash does not match declaration")
+        declaration = load_json(attempt.path / "declaration.json")
+        if top["ticket"] != declaration.get("ticket"):
+            raise HandoffValidationError("handoff ticket differs from declaration.json")
+        if top["predeclared_question"] != declaration.get("predeclared_question"):
+            raise HandoffValidationError("handoff question differs from declaration.json")
+        if top["planned_budget"] != declaration.get("planned_budget"):
+            raise HandoffValidationError("handoff budget differs from declaration.json")
         actual_result = load_json(attempt.path / "result.json")
         if {field: actual_result[field] for field in _RESULTS} != dict(results):
             raise HandoffValidationError("handoff results differ from result.json")
         preflight = load_json(attempt.path / "preflight.json")
         _validate_attempt_artifacts(actual_result, preflight=preflight, attempt=attempt)
         state = load_json(attempt.state_path)
+        command = load_json(attempt.path / "command.json")
+        expected_launch = {
+            "run_id": attempt.run_id,
+            "attempt_id": attempt.attempt_id,
+            "action": state["action"],
+            "executor": state["executor"],
+            "device": state["device"],
+            "exact_command": command,
+            "retry_from": state.get("retry_from"),
+            "attempt_path": str(attempt.path),
+        }
+        if dict(launch) != expected_launch:
+            raise HandoffValidationError("handoff launch identity differs from attempt evidence")
         action = str(state["action"])
         outcome = str(actual_result["outcome"])
         actual_manifest = _run_manifest_evidence(
@@ -303,6 +308,38 @@ def validate_handoff(
         )
         if scientific["runtime"] != actual_runtime:
             raise HandoffValidationError("handoff runtime evidence differs from child output")
+        checks = _mapping(preflight.get("checks"), "preflight checks")
+        storage = _mapping(checks.get("storage"), "storage check")
+        manifests = _mapping(checks.get("manifests"), "manifest check")
+        plan = load_json(attempt.path / "plan.json")
+        expected_scientific = {
+            "profile": _profile_from_config(attempt.path / "resolved_config.yaml"),
+            "parameter_count": storage.get("parameter_count"),
+            "tokenizer_fingerprint": manifests.get("tokenizer_fingerprint"),
+            "data_manifests": manifests.get("data_manifests", []),
+            "checkpoint": checks.get("checkpoint"),
+            "wandb": actual_wandb,
+            "run_manifest": actual_manifest,
+            "runtime": actual_runtime,
+            "storage_forecast": plan["storage_forecast"],
+        }
+        if dict(scientific) != expected_scientific:
+            raise HandoffValidationError(
+                "handoff scientific identity differs from retained attempt evidence"
+            )
+        git_check = _mapping(checks.get("git"), "Git check")
+        expected_git = {
+            "sha": git_check["sha"],
+            "dirty": git_check["dirty"],
+            "worktree_status": git_check["worktree_status"],
+            "lock_sha256": git_check["lock_sha256"],
+        }
+        if dict(git) != expected_git:
+            raise HandoffValidationError("handoff Git identity differs from preflight evidence")
+        if integrity["retry_binding"] != state.get("retry_from"):
+            raise HandoffValidationError("handoff retry binding differs from attempt state")
+        if dict(conclusion) != _conclusion(actual_result, state=state, attempt=attempt):
+            raise HandoffValidationError("handoff conclusion differs from terminal evidence")
         expected_evidence = _evidence_files(attempt)
         if evidence != expected_evidence:
             raise HandoffValidationError("handoff evidence inventory differs from attempt files")
@@ -625,6 +662,31 @@ def _profile_from_config(path: Path) -> str:
 
     cfg = OmegaConf.load(path)
     return str(cfg.profile.name)
+
+
+def _conclusion(
+    result: Mapping[str, Any],
+    *,
+    state: Mapping[str, Any],
+    attempt: Attempt,
+) -> dict[str, str]:
+    diagnosis = _mapping(result.get("diagnosis"), "result diagnosis")
+    return {
+        "condition_result": (
+            "supported" if result.get("outcome") == "succeeded" else "not_supported"
+        ),
+        "evidence_backed_summary": str(diagnosis["summary"]),
+        "uncertainty": (
+            "target-hardware behavior is not claimed by an offline/host fixture"
+            if state.get("device") == "cpu"
+            else "only the recorded bounded attempt is supported"
+        ),
+        "next_step": (
+            "review this exact handoff"
+            if result.get("outcome") == "succeeded"
+            else f"retry in a new sibling attempt linked to {attempt.attempt_id}"
+        ),
+    }
 
 
 def _markdown(payload: Mapping[str, Any], json_path: Path) -> str:

@@ -420,9 +420,18 @@ def _container_mount_check(
         return {"required": False, "mounts": []}
 
     records: dict[str, dict[str, Any]] = {}
+    protected_git_paths: list[Path] = []
 
     def add(path: Path, *, read_only: bool, purpose: str, require_directory: bool) -> None:
         destination = path.expanduser().resolve()
+        if not read_only and purpose in {"run_root", "cache"} and any(
+            destination == protected or destination.is_relative_to(protected)
+            for protected in protected_git_paths
+        ):
+            raise PreflightError(
+                f"container writable {purpose} path overlaps protected Git metadata: "
+                f"{destination}"
+            )
         if not destination.exists():
             kind = "directory" if require_directory else "file"
             raise PreflightError(f"container {purpose} {kind} must already exist: {destination}")
@@ -443,18 +452,27 @@ def _container_mount_check(
             return
         if existing["kind"] != ("directory" if require_directory else "file"):
             raise PreflightError(f"container mount kind conflict at {destination}")
-        existing["read_only"] = bool(existing["read_only"] and read_only)
+        if existing["read_only"] is not read_only:
+            raise PreflightError(f"container mount access conflict at {destination}")
         if purpose not in existing["purposes"]:
             existing["purposes"].append(purpose)
 
     root = root_dir.expanduser().resolve()
     runs = run_root.expanduser().resolve()
     add(root, read_only=False, purpose="repository", require_directory=True)
+    git_marker, git_dir, common_git = _git_metadata_paths(root)
+    protected_git_paths.extend(dict.fromkeys((git_marker, git_dir, common_git)))
+    if git_marker.is_file():
+        add(
+            git_marker,
+            read_only=True,
+            purpose="git_worktree_pointer",
+            require_directory=False,
+        )
+    add(git_dir, read_only=True, purpose="git_worktree_metadata", require_directory=True)
+    add(common_git, read_only=True, purpose="git_metadata", require_directory=True)
     if not runs.is_relative_to(root):
         add(runs, read_only=False, purpose="run_root", require_directory=True)
-
-    common_git = _git_absolute_path(root, "--git-common-dir")
-    add(common_git, read_only=True, purpose="git_metadata", require_directory=True)
 
     cache_record = cache if isinstance(cache, Mapping) else {}
     for item in cache_record.get("caches", []):
@@ -506,6 +524,25 @@ def _container_mount_check(
         key=lambda item: (len(Path(str(item["destination"])).parts), str(item["destination"])),
     )
     return {"required": True, "mounts": mounts}
+
+
+def reject_writable_git_overlap(root_dir: Path, path: Path, *, purpose: str) -> None:
+    """Reject a writable operator path before it can create files in Git metadata."""
+
+    candidate = path.expanduser().resolve()
+    protected = _git_metadata_paths(root_dir.expanduser().resolve())
+    if any(candidate == item or candidate.is_relative_to(item) for item in protected):
+        raise PreflightError(
+            f"writable {purpose} path overlaps protected Git metadata: {candidate}"
+        )
+
+
+def _git_metadata_paths(root_dir: Path) -> tuple[Path, Path, Path]:
+    return (
+        (root_dir / ".git").resolve(),
+        _git_absolute_path(root_dir, "--git-dir"),
+        _git_absolute_path(root_dir, "--git-common-dir"),
+    )
 
 
 def _git_absolute_path(root_dir: Path, argument: str) -> Path:

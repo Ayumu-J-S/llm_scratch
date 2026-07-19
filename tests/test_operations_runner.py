@@ -16,6 +16,7 @@ from operations.artifacts import (
     create_attempt,
     process_identity,
 )
+from operations.preflight import PreflightError
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -77,6 +78,33 @@ def test_operational_hydra_authority_rejects_parent_mapping_replacement(tmp_path
             ["runtime={device:cpu}"],
             attempt=attempt,
         )
+
+
+def test_dangerous_run_root_is_rejected_before_attempt_creation(tmp_path, monkeypatch):
+    args = SimpleNamespace(
+        action="smoke",
+        retry_from=None,
+        run_root=tmp_path,
+        run_id="run-001",
+        attempt_id="attempt-0001",
+        executor="host",
+        device="cpu",
+    )
+    monkeypatch.setattr(
+        runner,
+        "reject_writable_git_overlap",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            PreflightError("run root overlaps Git metadata")
+        ),
+    )
+    monkeypatch.setattr(
+        runner,
+        "create_attempt",
+        lambda **_kwargs: pytest.fail("attempt must not be created before path validation"),
+    )
+
+    with pytest.raises(PreflightError, match="overlaps Git metadata"):
+        runner.dispatch(args, [], root_dir=ROOT_DIR)
 
 
 def test_train_selected_profile_is_ops_owned_and_composes(tmp_path):
@@ -141,6 +169,23 @@ def test_resume_derives_and_composes_checkpoint_owned_profile(tmp_path, monkeypa
     assert runner._compose(ROOT_DIR, overrides).profile.name == "pretrain_streaming"
 
 
+@pytest.mark.parametrize("action", ["preflight", "train", "resume"])
+def test_real_pretraining_requires_explicit_experiment_record(tmp_path, action):
+    attempt = create_attempt(
+        run_root=tmp_path,
+        run_id="RUN-001",
+        attempt_id=f"attempt-{action}",
+        action=action,
+        executor="host",
+        device="cpu",
+        retry_from=None,
+    )
+    cfg = runner._compose(ROOT_DIR, ["profile=pretrain_streaming"])
+
+    with pytest.raises(AttemptError, match="requires --experiment-record"):
+        runner._attempt_declaration(cfg, attempt=attempt, experiment_record=None)
+
+
 def test_corrupt_resume_checkpoint_retains_failed_command_lineage(tmp_path, monkeypatch):
     parent = create_attempt(
         run_root=tmp_path,
@@ -172,6 +217,7 @@ def test_corrupt_resume_checkpoint_retains_failed_command_lineage(tmp_path, monk
         "Popen",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("child launched")),
     )
+    monkeypatch.setattr(runner, "reject_writable_git_overlap", lambda *_args, **_kwargs: None)
 
     assert runner.dispatch(args, [], root_dir=ROOT_DIR) == 1
 

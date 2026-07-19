@@ -96,7 +96,8 @@ exactly this schema:
 
 The command records the source path and SHA-256 before preflight, then copies
 the exact declared ticket, question, baseline, decision conditions, and budget
-into the final handoff.
+into the final handoff. Pretraining-purpose `preflight`, `train`, and `resume`
+commands reject omission of this record.
 
 Real train, resume, evaluation, and benchmark actions require a clean Git
 worktree. Evaluation and benchmark storage/manifest identity comes from the
@@ -114,6 +115,8 @@ read-only, configured caches as writable, and tokenizer/data manifests, W&B
 usage snapshots, and input checkpoints as read-only. Every external absolute
 path must already exist; otherwise preflight rejects the launch. The same mount
 manifest is consumed by the Git probe and the created training container.
+Writable run/cache paths may not equal or descend from Git metadata, and a
+duplicate path with conflicting access modes is rejected rather than weakened.
 
 ## Storage safety
 

@@ -354,3 +354,35 @@ def test_container_mount_plan_rejects_unbound_missing_external_cache(tmp_path):
             manifests={"data_manifests": []},
             cache={"caches": [{"path": str(missing)}]},
         )
+
+
+@pytest.mark.parametrize("writable_kind", ["cache", "run_root"])
+@pytest.mark.parametrize("nested", [False, True])
+def test_container_mount_plan_rejects_writable_git_metadata_overlap(
+    tmp_path, monkeypatch, writable_kind, nested
+):
+    common_git = tmp_path / "common-git"
+    git_dir = common_git / "worktrees" / "fixture"
+    git_dir.mkdir(parents=True)
+    writable = common_git / "nested-cache" if nested else common_git
+    writable.mkdir(exist_ok=True)
+    ordinary_runs = tmp_path / "ordinary-runs"
+    ordinary_runs.mkdir()
+
+    def git_path(_root, argument):
+        return git_dir if argument == "--git-dir" else common_git
+
+    monkeypatch.setattr(preflight_module, "_git_absolute_path", git_path)
+    run_root = writable if writable_kind == "run_root" else ordinary_runs
+    caches = [{"path": str(writable)}] if writable_kind == "cache" else []
+
+    with pytest.raises(PreflightError, match=f"writable {writable_kind}.*Git metadata"):
+        _container_mount_check(
+            _cfg(),
+            root_dir=ROOT_DIR,
+            run_root=run_root,
+            executor="container",
+            checkpoint_path=None,
+            manifests={"data_manifests": []},
+            cache={"caches": caches},
+        )

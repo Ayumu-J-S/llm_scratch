@@ -127,13 +127,43 @@ def test_offline_smoke_through_validated_handoff(tmp_path):
     with pytest.raises(HandoffValidationError, match="integrity keys"):
         validate_handoff(missing_integrity)
 
+    attempt_record = Attempt(tmp_path, "OPS-001-fixture", "attempt-0001")
+    root_dir = Path(__file__).resolve().parents[1]
+    tampered_claims = []
+    tampered = copy.deepcopy(handoff)
+    tampered["ticket"] = "OPS-001"
+    tampered_claims.append(tampered)
+    tampered = copy.deepcopy(handoff)
+    tampered["launch_identity"]["device"] = "cuda"
+    tampered_claims.append(tampered)
+    for field, value in (
+        ("profile", "different-profile"),
+        ("parameter_count", 1),
+        ("tokenizer_fingerprint", "0" * 64),
+        ("data_manifests", []),
+        ("checkpoint", {"status": "fabricated"}),
+        ("storage_forecast", {}),
+    ):
+        tampered = copy.deepcopy(handoff)
+        tampered["scientific_identity"][field] = value
+        tampered_claims.append(tampered)
+    tampered = copy.deepcopy(handoff)
+    tampered["integrity"]["git"]["sha"] = "0" * 40
+    tampered_claims.append(tampered)
+    tampered = copy.deepcopy(handoff)
+    tampered["conclusion"]["condition_result"] = "not_supported"
+    tampered_claims.append(tampered)
+    for tampered in tampered_claims:
+        with pytest.raises(HandoffValidationError):
+            validate_handoff(tampered, attempt=attempt_record, root_dir=root_dir)
+
     checkpoint = Path(result["checkpoint_status"]["files"][-1]["path"])
     checkpoint.write_bytes(checkpoint.read_bytes() + b"corruption")
     with pytest.raises(HandoffValidationError, match="checkpoint .* (size|hash) changed"):
         validate_handoff(
             handoff,
-            attempt=Attempt(tmp_path, "OPS-001-fixture", "attempt-0001"),
-            root_dir=Path(__file__).resolve().parents[1],
+            attempt=attempt_record,
+            root_dir=root_dir,
         )
 
 

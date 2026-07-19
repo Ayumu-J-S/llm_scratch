@@ -41,7 +41,12 @@ from operations.lifecycle import (
     wait_with_disk_watchdog,
     watchdog_targets,
 )
-from operations.preflight import PreflightError, require_ready, run_preflight
+from operations.preflight import (
+    PreflightError,
+    reject_writable_git_overlap,
+    require_ready,
+    run_preflight,
+)
 from training.checkpoint import load_checkpoint_for_generation
 
 
@@ -96,6 +101,7 @@ def dispatch(args: Namespace, overrides: list[str], *, root_dir: Path) -> int:
         return 0
     if args.action == "resume" and not args.retry_from:
         raise AttemptError("resume requires --retry-from to preserve interruption/failure lineage")
+    reject_writable_git_overlap(root_dir, args.run_root, purpose="run_root")
 
     attempt = create_attempt(
         run_root=args.run_root,
@@ -704,6 +710,11 @@ def _attempt_declaration(
     if experiment_record is not None:
         return _load_experiment_declaration(experiment_record)
     action = str(attempt.state()["action"])
+    purpose = str(cfg.profile.get("purpose", ""))
+    if purpose == "pretraining" and action in {"preflight", "train", "resume"}:
+        raise AttemptError(
+            f"{action} with a pretraining profile requires --experiment-record"
+        )
     profile = str(cfg.profile.name)
     training = cfg.get("training", {})
     retry = attempt.state().get("retry_from")
