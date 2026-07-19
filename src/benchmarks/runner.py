@@ -40,6 +40,7 @@ from training.wandb_tracking import (
     append_wandb_evidence,
     call_bounded,
     finish_run_bounded,
+    safe_external_error,
 )
 
 
@@ -371,19 +372,20 @@ def _maybe_log_wandb(
                 details={"local_result_identity": dict(local_result_identity)},
             )
     except Exception as error:
+        safe_error = safe_external_error(error)
         if evidence_path:
             append_wandb_evidence(
                 evidence_path,
-                action="logging",
+                action="init" if run is None else "logging",
                 outcome="failed",
                 details={
                     **base_identity,
-                    "error": {"type": type(error).__name__, "message": str(error)[:500]},
+                    "error": safe_error,
                 },
             )
         logger.warning(
             "W&B benchmark logging failed after local result commit: {}",
-            error,
+            safe_error["message"],
         )
     finally:
         if run is not None:
@@ -399,21 +401,17 @@ def _maybe_log_wandb(
                         outcome="succeeded",
                     )
             except Exception as error:
+                safe_error = safe_external_error(error)
                 if evidence_path:
                     append_wandb_evidence(
                         evidence_path,
                         action="finish",
                         outcome="failed",
-                        details={
-                            "error": {
-                                "type": type(error).__name__,
-                                "message": str(error)[:500],
-                            }
-                        },
+                        details={"error": safe_error},
                     )
                 logger.warning(
                     "W&B benchmark finish failed after local result commit: {}",
-                    error,
+                    safe_error["message"],
                 )
 
 

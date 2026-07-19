@@ -1551,11 +1551,15 @@ def test_wandb_receives_only_compact_aggregate_rows(monkeypatch, tmp_path: Path)
 def test_wandb_failure_cannot_fail_committed_benchmark_result(monkeypatch, tmp_path: Path):
     import benchmarks.runner as runner
 
+    secret = "OPS_FAKE_BENCHMARK_WANDB_SECRET"
+    evidence_path = tmp_path / "benchmark-wandb-events.jsonl"
+
     def fail_init(**_kwargs):
-        raise RuntimeError("tracking unavailable")
+        raise RuntimeError(f"tracking unavailable password={secret}")
 
     monkeypatch.setattr(runner.wandb, "init", fail_init)
     monkeypatch.setattr(runner.wandb, "Settings", lambda **kwargs: kwargs)
+    monkeypatch.setenv("LLM_SCRATCH_WANDB_EVIDENCE_PATH", str(evidence_path))
     config = _benchmark_config(tmp_path, tmp_path / "unused.pt")
     config.benchmark.wandb.mode = "offline"
 
@@ -1569,3 +1573,8 @@ def test_wandb_failure_cannot_fail_committed_benchmark_result(monkeypatch, tmp_p
         },
         local_result_identity={"path": "/local/result.json", "sha256": "r" * 64},
     )
+
+    evidence = evidence_path.read_text(encoding="utf-8")
+    assert secret not in evidence
+    assert '"action": "init"' in evidence
+    assert '"outcome": "failed"' in evidence

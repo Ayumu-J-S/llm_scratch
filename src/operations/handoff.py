@@ -64,6 +64,18 @@ _INTEGRITY = {
     "retry_binding",
     "evidence_files",
 }
+_WANDB_ACTION_OUTCOMES = {
+    "init": {"disabled", "succeeded", "failed"},
+    "watch": {"disabled", "succeeded", "failed"},
+    "runtime_summary": {"failed"},
+    "log": {"failed"},
+    "logging": {"failed"},
+    "summary": {"succeeded", "failed"},
+    "artifact": {"uploaded", "blocked", "upload_failed", "failed"},
+    "artifact_cleanup": {"failed"},
+    "finish": {"succeeded", "failed"},
+    "unwatch": {"succeeded", "failed"},
+}
 
 
 class HandoffValidationError(ValueError):
@@ -606,8 +618,26 @@ def _wandb_evidence(
     artifacts = []
     outcomes = []
     for record in records:
-        action_name = str(record.get("action", ""))
-        outcomes.append({"action": action_name, "outcome": record.get("outcome")})
+        action_name = record.get("action")
+        record_outcome = record.get("outcome")
+        recorded_at = record.get("recorded_at_utc")
+        if not isinstance(recorded_at, str) or not recorded_at:
+            raise HandoffValidationError("W&B evidence record lacks recorded_at_utc")
+        if (
+            not isinstance(action_name, str)
+            or action_name not in _WANDB_ACTION_OUTCOMES
+            or not isinstance(record_outcome, str)
+            or record_outcome not in _WANDB_ACTION_OUTCOMES[action_name]
+        ):
+            raise HandoffValidationError(
+                f"invalid W&B lifecycle action/outcome: {action_name!r}/{record_outcome!r}"
+            )
+        record_mode = record.get("mode")
+        if record_mode is not None and record_mode != mode:
+            raise HandoffValidationError(
+                f"W&B evidence mode {record_mode!r} differs from preflight mode {mode!r}"
+            )
+        outcomes.append({"action": action_name, "outcome": record_outcome})
         if action_name == "init":
             initializations.append(
                 {
@@ -616,7 +646,7 @@ def _wandb_evidence(
                     "entity": record.get("entity", configured.get("entity")),
                     "run_id": record.get("run_id"),
                     "run_url": record.get("run_url"),
-                    "outcome": record.get("outcome"),
+                    "outcome": record_outcome,
                 }
             )
         if action_name == "artifact":
@@ -633,11 +663,25 @@ def _wandb_evidence(
                     )
                 }
             )
+    if outcome == "succeeded" and executed:
+        if not initializations:
+            raise HandoffValidationError("successful attempt lacks a W&B initialization outcome")
+        initialization_outcomes = {item.get("outcome") for item in initializations}
+        if mode == "disabled":
+            if initialization_outcomes != {"disabled"}:
+                raise HandoffValidationError(
+                    "disabled W&B mode requires a disabled initialization outcome"
+                )
+        elif mode in {"offline", "online"}:
+            if "disabled" in initialization_outcomes or not initialization_outcomes.issubset(
+                {"succeeded", "failed"}
+            ):
+                raise HandoffValidationError(
+                    f"{mode} W&B mode has an inconsistent initialization outcome"
+                )
+        else:
+            raise HandoffValidationError(f"unsupported preflight W&B mode: {mode}")
     if mode == "online" and outcome == "succeeded":
-        if not initializations and not any(
-            item.get("action") == "logging" and item.get("outcome") == "failed" for item in outcomes
-        ):
-            raise HandoffValidationError("successful online attempt lacks a W&B outcome")
         succeeded = [item for item in initializations if item.get("outcome") == "succeeded"]
         if any(not item.get("run_id") or not item.get("run_url") for item in succeeded):
             raise HandoffValidationError("successful online W&B initialization lacks run ID/URL")
@@ -775,9 +819,7 @@ def _conclusion(
     diagnosis = _mapping(result.get("diagnosis"), "result diagnosis")
     return {
         "condition_result": (
-            "pending_evidence_review"
-            if result.get("outcome") == "succeeded"
-            else "not_evaluated"
+            "pending_evidence_review" if result.get("outcome") == "succeeded" else "not_evaluated"
         ),
         "evidence_backed_summary": str(diagnosis["summary"]),
         "uncertainty": (

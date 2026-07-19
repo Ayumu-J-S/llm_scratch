@@ -364,6 +364,24 @@ def test_online_login_verification_is_wall_clock_bounded(tmp_path: Path):
     assert failure["error"]["type"] == "TimeoutError"
 
 
+def test_wandb_failure_evidence_redacts_credentials(tmp_path: Path, monkeypatch):
+    secret = "OPS_FAKE_WANDB_SECRET_SENTINEL"
+
+    class RejectingWandb(FakeWandb):
+        def login(self, **kwargs):
+            self.login_calls.append(kwargs)
+            raise RuntimeError(f"authentication rejected key={secret}")
+
+    monkeypatch.setenv("WANDB_API_KEY", secret)
+    tracker = _tracker(tmp_path, _config(), RejectingWandb())
+
+    tracker.start(object())
+
+    evidence = (tmp_path / "wandb_events.jsonl").read_text(encoding="utf-8")
+    assert secret not in evidence
+    assert "[REDACTED]" in evidence
+
+
 def test_wandb_initialization_is_wall_clock_bounded_and_late_run_is_finished(tmp_path: Path):
     release = threading.Event()
 

@@ -32,7 +32,7 @@ from training.checkpoint import (
     capture_rng_state,
     configured_manifest_fingerprints,
     load_checkpoint_for_generation,
-    require_exact_stream_resume_state,
+    require_full_resume_state,
     restore_rng_state,
 )
 from training.optimization import autocast_context, get_learning_rate
@@ -1611,25 +1611,7 @@ class Trainer:
     def _restore_checkpoint(self, resume_path: str | Path) -> None:
         resumed = self.checkpoints.load_resume(resume_path)
         state = resumed.payload["state"]
-        require_exact_stream_resume_state(state)
-        required = {
-            "model",
-            "optimizer",
-            "scheduler",
-            "precision",
-            "counters",
-            "event_state",
-            "rng",
-            "stream_cursor",
-            "resolved_config",
-            "run_identity",
-            "measurement_evidence",
-        }
-        missing = required.difference(state)
-        if missing:
-            raise CheckpointCompatibilityError(
-                f"checkpoint {resumed.path} is missing full-state entries {sorted(missing)}"
-            )
+        require_full_resume_state(state)
         precision = state["precision"]
         if not isinstance(precision, dict) or precision.get("mode") != self.precision:
             raise CheckpointCompatibilityError("checkpoint precision mode differs from this run")

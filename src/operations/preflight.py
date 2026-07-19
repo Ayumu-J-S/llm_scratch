@@ -27,7 +27,7 @@ from training.wandb_tracking import load_usage_snapshot
 from training.checkpoint import (
     checkpoint_config_sha256,
     load_checkpoint_for_generation,
-    require_exact_stream_resume_state,
+    require_full_resume_state,
 )
 
 
@@ -74,7 +74,7 @@ def run_preflight(
                     "resume Hydra config differs from checkpoint experiment identity"
                 )
             if action == "resume":
-                require_exact_stream_resume_state(checkpoint.payload["state"])
+                require_full_resume_state(checkpoint.payload["state"])
             authority_cfg = checkpoint_cfg
             checks["checkpoint"] = {
                 "status": "passed",
@@ -120,6 +120,7 @@ def run_preflight(
                 root_dir=root_dir,
                 run_root=run_root,
                 executor=executor,
+                action=action,
                 checkpoint_path=checkpoint_path,
                 manifests=checks.get("manifests", {}),
                 cache=checks.get("cache", {}),
@@ -589,6 +590,7 @@ def _container_mount_check(
     checkpoint_path: Path | None,
     manifests: Any,
     cache: Any,
+    action: str = "train",
 ) -> dict[str, Any]:
     if executor != "container":
         return {"required": False, "mounts": []}
@@ -732,6 +734,29 @@ def _container_mount_check(
             purpose="checkpoint_input",
             require_directory=False,
         )
+        checkpoint_measurement = authority_plain.get("measurement", {})
+        if (
+            action == "resume"
+            and isinstance(checkpoint_measurement, Mapping)
+            and checkpoint_measurement.get("enabled") is True
+        ):
+            configured_output = checkpoint_measurement.get("output_path")
+            requested = (
+                Path(str(configured_output)).expanduser()
+                if configured_output
+                else Path("measurement.json")
+            )
+            prior_measurement = (
+                requested.resolve()
+                if requested.is_absolute()
+                else (checkpoint_path.expanduser().resolve().parent.parent / requested).resolve()
+            )
+            add(
+                prior_measurement,
+                read_only=True,
+                purpose="resume_measurement_evidence",
+                require_directory=False,
+            )
 
     mounts = sorted(
         records.values(),

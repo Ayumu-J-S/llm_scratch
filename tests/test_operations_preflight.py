@@ -457,6 +457,51 @@ def test_corrupt_checkpoint_preflight_retains_raw_physical_identity(tmp_path, mo
     assert len(record["physical_identity"]["sha256"]) == 64
 
 
+def test_resume_preflight_rejects_incomplete_full_state(tmp_path, monkeypatch):
+    _clean_git(monkeypatch)
+    checkpoint_path = tmp_path / "recovery.pt"
+    checkpoint_path.write_bytes(b"fixture")
+    checkpoint_cfg = OmegaConf.to_container(_cfg(), resolve=True)
+    identity = checkpoint_config_sha256(checkpoint_cfg)
+    fake = SimpleNamespace(
+        payload={
+            "kind": "recovery",
+            "identity": {"config_sha256": identity},
+            "state": {
+                "model": {},
+                "counters": {"optimizer_step": 0, "target_tokens": 0},
+                "stream_cursor": {},
+                "resolved_config": checkpoint_cfg,
+            },
+        },
+        physical_identity={
+            "path": str(checkpoint_path),
+            "sha256": "c" * 64,
+            "size_bytes": checkpoint_path.stat().st_size,
+            "device": checkpoint_path.stat().st_dev,
+            "inode": checkpoint_path.stat().st_ino,
+            "mtime_ns": checkpoint_path.stat().st_mtime_ns,
+            "ctime_ns": checkpoint_path.stat().st_ctime_ns,
+        },
+    )
+    monkeypatch.setattr(preflight_module, "load_checkpoint_for_generation", lambda _path: fake)
+
+    report = run_preflight(
+        _cfg(),
+        root_dir=ROOT_DIR,
+        run_root=tmp_path,
+        action="resume",
+        executor="host",
+        device="cpu",
+        image=None,
+        checkpoint_path=checkpoint_path,
+    )
+
+    assert report["ready"] is False
+    assert report["checks"]["checkpoint"]["status"] == "failed"
+    assert "missing full-state entries" in report["checks"]["checkpoint"]["error"]
+
+
 def test_checkpoint_benchmark_includes_action_owned_cache_in_all_resource_gates(
     tmp_path, monkeypatch
 ):
@@ -576,6 +621,34 @@ def test_container_mount_plan_binds_external_inputs_and_linked_git_metadata(tmp_
         assert mounts[str(path.resolve())]["read_only"] is True
 
 
+def test_resume_container_mounts_checkpoint_bound_measurement_evidence(tmp_path):
+    run_root = tmp_path / "current" / "runs"
+    run_root.mkdir(parents=True)
+    checkpoint = tmp_path / "prior" / "work" / "checkpoints" / "recovery.pt"
+    checkpoint.parent.mkdir(parents=True)
+    checkpoint.write_text("fixture", encoding="utf-8")
+    measurement = checkpoint.parent.parent / "measurement.json"
+    measurement.write_text("{}", encoding="utf-8")
+    plain = OmegaConf.to_container(_cfg(), resolve=True)
+    plain["measurement"]["enabled"] = True
+    plain["measurement"]["output_path"] = "measurement.json"
+
+    result = _container_mount_check(
+        OmegaConf.create(plain),
+        root_dir=ROOT_DIR,
+        run_root=run_root,
+        executor="container",
+        checkpoint_path=checkpoint,
+        manifests={"data_manifests": []},
+        cache={"caches": []},
+        action="resume",
+    )
+
+    mounts = {record["source"]: record for record in result["mounts"]}
+    assert mounts[str(measurement.resolve())]["read_only"] is True
+    assert "resume_measurement_evidence" in mounts[str(measurement.resolve())]["purposes"]
+
+
 def test_container_mount_plan_uses_current_wandb_configuration(tmp_path):
     run_root = tmp_path / "runs"
     run_root.mkdir()
@@ -650,9 +723,7 @@ def test_container_mount_plan_creates_missing_repository_internal_cache(tmp_path
     assert mounts[str(internal_cache.resolve())]["read_only"] is False
 
 
-def test_container_mount_plan_refuses_to_create_nonignored_internal_cache(
-    tmp_path, monkeypatch
-):
+def test_container_mount_plan_refuses_to_create_nonignored_internal_cache(tmp_path, monkeypatch):
     root = tmp_path / "checkout"
     git_dir = root / ".git"
     git_dir.mkdir(parents=True)

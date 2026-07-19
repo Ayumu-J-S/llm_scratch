@@ -21,6 +21,7 @@ from operations.artifacts import (
 from operations.preflight import PreflightError
 from operations.handoff import (
     HandoffValidationError,
+    _wandb_evidence,
     _validate_attempt_artifacts,
     generate_handoff,
 )
@@ -578,8 +579,7 @@ def test_dispatch_captures_preflight_signal_and_terminalizes_attempt(tmp_path, m
     signal_events = [
         json.loads(path.read_text(encoding="utf-8"))
         for path in attempt.events_dir.glob("*.json")
-        if json.loads(path.read_text(encoding="utf-8"))["kind"]
-        == "external_signal_recorded"
+        if json.loads(path.read_text(encoding="utf-8"))["kind"] == "external_signal_recorded"
     ]
     assert signal_events[-1]["phase"] == "prelaunch"
     generate_handoff(attempt, root_dir=ROOT_DIR)
@@ -773,18 +773,10 @@ def test_container_wandb_environment_is_forwarded_without_secret_evidence(tmp_pa
 
 
 def test_generated_container_names_bind_full_case_sensitive_attempt_identity(tmp_path):
-    case_a = lifecycle._container_name(
-        runner.Attempt(tmp_path, "Run-001", "Attempt-0001")
-    )
-    case_b = lifecycle._container_name(
-        runner.Attempt(tmp_path, "run-001", "Attempt-0001")
-    )
-    long_a = lifecycle._container_name(
-        runner.Attempt(tmp_path, "r" * 127 + "A", "attempt-0001")
-    )
-    long_b = lifecycle._container_name(
-        runner.Attempt(tmp_path, "r" * 127 + "B", "attempt-0001")
-    )
+    case_a = lifecycle._container_name(runner.Attempt(tmp_path, "Run-001", "Attempt-0001"))
+    case_b = lifecycle._container_name(runner.Attempt(tmp_path, "run-001", "Attempt-0001"))
+    long_a = lifecycle._container_name(runner.Attempt(tmp_path, "r" * 127 + "A", "attempt-0001"))
+    long_b = lifecycle._container_name(runner.Attempt(tmp_path, "r" * 127 + "B", "attempt-0001"))
 
     assert case_a != case_b
     assert long_a != long_b
@@ -905,13 +897,127 @@ def test_owned_process_group_descendant_is_killed_after_leader_exits(tmp_path):
 
         assert errors == []
         assert process.poll() is not None
-        assert lifecycle._live_process_group_members(
-            int(trusted["process_group_id"])
-        ) == []
+        assert lifecycle._live_process_group_members(int(trusted["process_group_id"])) == []
     finally:
         if process.poll() is None:
             process.kill()
             process.wait()
+
+
+def test_watchdog_reaps_descendants_when_leader_exits_naturally(tmp_path, monkeypatch):
+    attempt = _attempt(tmp_path)
+    child_pid_path = tmp_path / "natural-exit-descendant.pid"
+    child_code = (
+        "import os,signal,sys,time; "
+        "from pathlib import Path; "
+        "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+        "Path(sys.argv[1]).write_text(str(os.getpid())); "
+        "time.sleep(30)"
+    )
+    parent_code = (
+        "import pathlib,subprocess,sys,time; "
+        f"subprocess.Popen([sys.executable, '-c', {child_code!r}, sys.argv[1]]); "
+        "path=pathlib.Path(sys.argv[1]); "
+        "deadline=time.monotonic()+5; "
+        "\nwhile not path.is_file() and time.monotonic()<deadline: time.sleep(0.01)"
+    )
+    process = subprocess.Popen(
+        [sys.executable, "-c", parent_code, str(child_pid_path)],
+        start_new_session=True,
+    )
+    trusted = process_identity(process.pid)
+    atomic_write_json(attempt.path / "pid.json", trusted)
+    monkeypatch.setattr(lifecycle, "_PROCESS_GROUP_TERM_GRACE_SECONDS", 0.05)
+    monkeypatch.setattr(lifecycle, "_PROCESS_GROUP_KILL_GRACE_SECONDS", 0.2)
+    process_group_id = int(trusted["process_group_id"])
+    try:
+        exit_code = lifecycle.wait_with_disk_watchdog(
+            process,
+            attempt=attempt,
+            watchdog={
+                "triggered": False,
+                "filesystems": [
+                    {
+                        "device": tmp_path.stat().st_dev,
+                        "path": str(tmp_path),
+                        "effective_live_floor_bytes": 0,
+                        "minimum_observed_free_bytes": None,
+                    }
+                ],
+            },
+            container_record=None,
+            trusted_ownership=trusted,
+        )
+
+        assert exit_code == 0
+        assert lifecycle._live_process_group_members(process_group_id) == []
+        kinds = [json.loads(path.read_text())["kind"] for path in attempt.events_dir.glob("*.json")]
+        assert "process_group_descendants_after_leader_exit" in kinds
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait()
+        if lifecycle._live_process_group_members(process_group_id):
+            try:
+                lifecycle.os.killpg(process_group_id, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+
+
+def test_handoff_rejects_semantically_invalid_wandb_evidence(tmp_path):
+    attempt = _attempt(tmp_path)
+    evidence = attempt.path / "work" / "wandb_events.jsonl"
+    evidence.parent.mkdir(parents=True)
+    evidence.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "recorded_at_utc": "2026-07-19T00:00:00+00:00",
+                "action": "unrelated",
+                "outcome": "nonsense",
+                "mode": "disabled",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(HandoffValidationError, match="lifecycle action/outcome"):
+        _wandb_evidence(
+            attempt,
+            preflight={"checks": {"wandb": {"mode": "disabled"}}},
+            action="smoke",
+            outcome="succeeded",
+        )
+
+
+def test_handoff_accepts_failed_online_wandb_initialization(tmp_path):
+    attempt = _attempt(tmp_path)
+    evidence = attempt.path / "work" / "wandb_events.jsonl"
+    evidence.parent.mkdir(parents=True)
+    evidence.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "recorded_at_utc": "2026-07-19T00:00:00+00:00",
+                "action": "init",
+                "outcome": "failed",
+                "mode": "online",
+                "error": {"type": "RuntimeError", "message": "service unavailable"},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = _wandb_evidence(
+        attempt,
+        preflight={"checks": {"wandb": {"mode": "online"}}},
+        action="train",
+        outcome="succeeded",
+    )
+
+    assert result["initializations"][0]["outcome"] == "failed"
 
 
 def test_malformed_terminal_container_inspect_still_force_removes_exact_id(tmp_path, monkeypatch):

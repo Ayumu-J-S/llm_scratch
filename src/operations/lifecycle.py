@@ -116,7 +116,24 @@ def wait_with_disk_watchdog(
                     raise AttemptError("; ".join(stop_errors))
                 return process.wait()
         time.sleep(0.25)
-    return process.wait()
+    exit_code = process.wait()
+    if container_record is None and trusted_ownership is not None:
+        process_group_id = trusted_ownership.get("process_group_id")
+        if isinstance(process_group_id, int) and _live_process_group_members(process_group_id):
+            attempt.event(
+                "process_group_descendants_after_leader_exit",
+                process_group_id=process_group_id,
+                live_member_pids=_live_process_group_members(process_group_id),
+            )
+            stop_errors = stop_owned_process(
+                process,
+                attempt=attempt,
+                container_record=None,
+                trusted_ownership=trusted_ownership,
+            )
+            if stop_errors:
+                raise AttemptError("; ".join(stop_errors))
+    return exit_code
 
 
 def stop_owned_process(
@@ -172,7 +189,7 @@ def stop_owned_process(
                     trusted_pid=trusted_ownership.get("pid"),
                 )
                 errors.append("on-disk PID ownership evidence changed after launch")
-            trusted_process_group = _trusted_process_is_live(process, trusted_ownership)
+            trusted_process_group = _trusted_process_group_is_owned(process, trusted_ownership)
             if trusted_process_group:
                 try:
                     os.killpg(int(trusted_ownership["process_group_id"]), signal.SIGTERM)
@@ -188,7 +205,8 @@ def stop_owned_process(
                     trusted_pid=trusted_ownership.get("pid"),
                     trusted_process_group_id=trusted_ownership.get("process_group_id"),
                 )
-                process.terminate()
+                if process.poll() is None:
+                    process.terminate()
     if trusted_process_group:
         assert trusted_ownership is not None
         process_group_id = int(trusted_ownership["process_group_id"])
@@ -538,9 +556,7 @@ def child_environment(
 ) -> dict[str, str]:
     environment = dict(os.environ)
     if wandb_evidence_path is not None:
-        environment["LLM_SCRATCH_WANDB_EVIDENCE_PATH"] = str(
-            wandb_evidence_path.resolve()
-        )
+        environment["LLM_SCRATCH_WANDB_EVIDENCE_PATH"] = str(wandb_evidence_path.resolve())
     if action == "smoke":
         environment.pop("WANDB_API_KEY", None)
         environment.pop("WANDB_BASE_URL", None)
@@ -565,6 +581,27 @@ def _trusted_process_is_live(process: subprocess.Popen[bytes], identity: Mapping
         return False
     fields = ("pid", "process_group_id", "proc_start_ticks", "boot_id")
     return all(current.get(field) == identity.get(field) for field in fields)
+
+
+def _trusted_process_group_is_owned(
+    process: subprocess.Popen[bytes], identity: Mapping[str, Any]
+) -> bool:
+    """Validate an exact launch process group before terminating descendants."""
+
+    if process.pid != identity.get("pid"):
+        return False
+    process_group_id = identity.get("process_group_id")
+    if (
+        not isinstance(process_group_id, int)
+        or process_group_id != process.pid
+        or not isinstance(identity.get("proc_start_ticks"), int)
+        or not isinstance(identity.get("boot_id"), str)
+        or not identity["boot_id"]
+    ):
+        return False
+    if process.poll() is None:
+        return _trusted_process_is_live(process, identity)
+    return True
 
 
 def _mapping(value: Any, label: str) -> Mapping[str, Any]:
