@@ -187,7 +187,14 @@ def summarize_run(run_dir: Path, gates: Mapping[str, Any]) -> dict[str, Any]:
     ]
     swap_in_delta = host_rows[-1]["swap_in_pages"] - host_rows[0]["swap_in_pages"]
     swap_out_delta = host_rows[-1]["swap_out_pages"] - host_rows[0]["swap_out_pages"]
-    allocator_growth = max(allocated[-3:], default=0) - min(allocated[:3], default=0)
+    allocator_window = min(5, max(1, len(allocated) // 2))
+    # Batch/source shapes can make the live allocation oscillate. A sustained
+    # leak raises the lower envelope; comparing peak-to-trough would reject a
+    # stable periodic pattern as if it were monotonic growth.
+    allocator_growth = max(
+        0,
+        min(allocated[-allocator_window:]) - min(allocated[:allocator_window]),
+    )
     run_gates = {
         "run_succeeded": run.get("status") == "succeeded",
         "measurement_complete": measurement.get("complete") is True,
@@ -237,6 +244,7 @@ def summarize_run(run_dir: Path, gates: Mapping[str, Any]) -> dict[str, Any]:
         "cuda_phase_seconds": dict(sorted(phase_cuda_seconds.items())),
         "pytorch_peak_allocated_bytes": max(allocated),
         "pytorch_peak_reserved_bytes": max(reserved),
+        "pytorch_allocator_baseline_growth_bytes": allocator_growth,
         "host_min_available_memory_bytes": min(row["memory_available_bytes"] for row in host_rows),
         "host_peak_process_rss_bytes": max(row["process_rss_bytes"] for row in host_rows),
         "host_min_free_disk_bytes": min(row["disk_free_bytes"] for row in host_rows),
