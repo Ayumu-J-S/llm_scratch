@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -274,6 +275,14 @@ def _live_process_group_members(process_group_id: int) -> list[int]:
     return sorted(members)
 
 
+def _container_name(attempt: Attempt) -> str:
+    """Map the exact case-sensitive attempt identity to one bounded Docker name."""
+
+    identity = f"{attempt.run_id}\0{attempt.attempt_id}".encode("utf-8", errors="strict")
+    digest = hashlib.sha256(identity).hexdigest()
+    return f"llm-scratch-{attempt.run_id[:20]}-{attempt.attempt_id[:20]}-{digest}"
+
+
 def create_container(
     attempt: Attempt,
     *,
@@ -286,7 +295,7 @@ def create_container(
     image_id = str(device_record.get("image_id", ""))
     if not image_id.startswith("sha256:"):
         raise PreflightError("container launch requires the immutable preflight image ID")
-    name = f"llm-scratch-{attempt.run_id}-{attempt.attempt_id}".lower()[:120]
+    name = _container_name(attempt)
     labels = {
         "llm-scratch.ops.run_id": attempt.run_id,
         "llm-scratch.ops.attempt_id": attempt.attempt_id,

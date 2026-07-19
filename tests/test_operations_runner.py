@@ -772,6 +772,25 @@ def test_container_wandb_environment_is_forwarded_without_secret_evidence(tmp_pa
     assert secret not in (attempt.path / "container.json").read_text(encoding="utf-8")
 
 
+def test_generated_container_names_bind_full_case_sensitive_attempt_identity(tmp_path):
+    case_a = lifecycle._container_name(
+        runner.Attempt(tmp_path, "Run-001", "Attempt-0001")
+    )
+    case_b = lifecycle._container_name(
+        runner.Attempt(tmp_path, "run-001", "Attempt-0001")
+    )
+    long_a = lifecycle._container_name(
+        runner.Attempt(tmp_path, "r" * 127 + "A", "attempt-0001")
+    )
+    long_b = lifecycle._container_name(
+        runner.Attempt(tmp_path, "r" * 127 + "B", "attempt-0001")
+    )
+
+    assert case_a != case_b
+    assert long_a != long_b
+    assert all(len(name) <= 128 for name in (case_a, case_b, long_a, long_b))
+
+
 def test_smoke_child_environment_removes_wandb_credentials(monkeypatch):
     monkeypatch.setenv("WANDB_API_KEY", "fixture-secret")
     monkeypatch.setenv("WANDB_BASE_URL", "https://wandb.invalid")

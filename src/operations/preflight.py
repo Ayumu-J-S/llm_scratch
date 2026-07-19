@@ -131,6 +131,7 @@ def run_preflight(
                 root_dir=root_dir,
                 executor=executor,
                 device=device,
+                precision=_effective_training_precision(authority_cfg),
                 image=image,
                 mounts=checks.get("container_mounts", {}).get("mounts", []),
             ),
@@ -804,17 +805,25 @@ def _device_check(
     root_dir: Path,
     executor: str,
     device: str,
+    precision: str,
     image: str | None,
     mounts: Any = (),
 ) -> dict[str, Any]:
+    if precision not in {"fp32", "bf16"}:
+        raise PreflightError(f"unsupported effective training precision: {precision}")
+    if device == "cpu" and precision == "bf16":
+        raise PreflightError(
+            "effective training.precision=bf16 requires device=cuda; CPU launch is impossible"
+        )
     if executor == "host":
         if device == "cuda":
             if not torch.cuda.is_available():
                 raise PreflightError("CUDA was explicitly requested but is unavailable on host")
-            if not torch.cuda.is_bf16_supported():
+            if precision == "bf16" and not torch.cuda.is_bf16_supported():
                 raise PreflightError("explicit host CUDA device does not support BF16")
         return {
             "selected": device,
+            "precision": precision,
             "cuda_available": torch.cuda.is_available(),
             "bf16_supported": (
                 torch.cuda.is_bf16_supported() if torch.cuda.is_available() else False
@@ -856,6 +865,7 @@ def _device_check(
             "container cannot inspect the exact Git worktree: " + git_probe.stderr.strip()
         )
     if device == "cuda":
+        precision_flags = ["--require-bf16"] if precision == "bf16" else []
         diagnostic = subprocess.run(
             [
                 "docker",
@@ -874,7 +884,7 @@ def _device_check(
                 "scripts/diagnose_environment.py",
                 "--json",
                 "--require-cuda",
-                "--require-bf16",
+                *precision_flags,
             ],
             cwd=root_dir,
             capture_output=True,
@@ -886,10 +896,18 @@ def _device_check(
             )
     return {
         "selected": device,
+        "precision": precision,
         "image": image,
         "image_id": image_id,
         "git_probe": "passed",
     }
+
+
+def _effective_training_precision(cfg: Mapping[str, Any] | DictConfig) -> str:
+    """Return the profile/checkpoint-owned precision that the child will enforce."""
+
+    training = _mapping(_plain(cfg).get("training"), "training")
+    return str(training.get("precision", "fp32"))
 
 
 def _wandb_check(cfg: DictConfig, *, executor: str = "host") -> dict[str, Any]:

@@ -120,14 +120,16 @@ operator command.
 Real train, resume, evaluation, and benchmark actions require a clean Git
 worktree. Evaluation and benchmark storage/manifest identity comes from the
 verified checkpoint's resolved configuration rather than the thin operational
-profile. Benchmark cache ownership remains action-specific: its writable mount,
-maximum growth, configured floor, and watchdog coverage are added alongside any
-checkpoint-owned training cache. Missing W&B credentials produces a `wandb
-login` prompt only after all local checks finish. It blocks online actions but
-does not block an offline smoke or a local config check. A host executor may use
-`WANDB_API_KEY` or the operator's netrc. A container executor requires
-`WANDB_API_KEY`; Docker receives only the environment-variable name, and neither
-commands nor attempt evidence persist the credential value.
+profile. Device preflight uses that same effective profile/checkpoint precision:
+BF16 is rejected on CPU before launch, while FP32 CUDA does not manufacture a
+BF16 requirement. Benchmark cache ownership remains action-specific: its
+writable mount, maximum growth, configured floor, and watchdog coverage are
+added alongside any checkpoint-owned training cache. Missing W&B credentials
+produces a `wandb login` prompt only after all local checks finish. It blocks
+online actions but does not block an offline smoke or a local config check. A
+host executor may use `WANDB_API_KEY` or the operator's netrc. A container
+executor requires `WANDB_API_KEY`; Docker receives only the environment-variable
+name, and neither commands nor attempt evidence persist the credential value.
 
 Container preflight also commits an exact bind-mount plan. It includes the
 repository and run root as writable, linked-worktree/common Git metadata as
@@ -167,7 +169,9 @@ verified owned process/container and preserves the failure evidence. If a live
 child no longer matches its captured process-group identity, the command does
 not signal the old group: it terminates only the exact still-child PID and
 records descendant ownership uncertainty. Container operations remain bound to
-the immutable full container ID created for the attempt.
+the immutable full container ID created for the attempt. Generated Docker names
+carry a SHA-256 binding of the complete case-sensitive run and attempt IDs, so
+readable-name truncation cannot collide distinct attempts.
 
 A failure before Hydra composition or full preflight still receives an honest,
 non-launchable configuration record, declaration, failed preflight, storage

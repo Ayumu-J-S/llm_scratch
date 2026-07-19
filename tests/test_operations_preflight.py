@@ -86,6 +86,77 @@ def test_missing_wandb_credentials_do_not_block_local_config_check(tmp_path, mon
     assert report["login_prompt"]
 
 
+def test_cpu_bf16_training_profile_is_blocked_during_preflight(tmp_path, monkeypatch):
+    _clean_git(monkeypatch)
+
+    report = run_preflight(
+        _cfg("training.precision=bf16"),
+        root_dir=ROOT_DIR,
+        run_root=tmp_path,
+        action="train",
+        executor="host",
+        device="cpu",
+        image=None,
+    )
+
+    assert report["ready"] is False
+    assert report["checks"]["device"]["status"] == "failed"
+    assert "training.precision=bf16 requires device=cuda" in report["checks"]["device"]["error"]
+
+
+def test_checkpoint_owned_bf16_blocks_cpu_evaluation_preflight(tmp_path, monkeypatch):
+    _clean_git(monkeypatch)
+    checkpoint_path = tmp_path / "final.pt"
+    checkpoint_path.write_bytes(b"fixture")
+    checkpoint_cfg = OmegaConf.to_container(
+        _cfg("training.precision=bf16"),
+        resolve=True,
+    )
+    identity = checkpoint_config_sha256(checkpoint_cfg)
+    fake = SimpleNamespace(
+        payload={
+            "kind": "final",
+            "identity": {"config_sha256": identity},
+            "state": {"resolved_config": checkpoint_cfg},
+        },
+        physical_identity={
+            "path": str(checkpoint_path),
+            "sha256": "c" * 64,
+            "size_bytes": checkpoint_path.stat().st_size,
+            "device": checkpoint_path.stat().st_dev,
+            "inode": checkpoint_path.stat().st_ino,
+            "mtime_ns": checkpoint_path.stat().st_mtime_ns,
+            "ctime_ns": checkpoint_path.stat().st_ctime_ns,
+        },
+    )
+    monkeypatch.setattr(preflight_module, "load_checkpoint_for_generation", lambda _path: fake)
+    cfg = _compose(
+        ROOT_DIR,
+        [
+            "profile=evaluation",
+            f"evaluation.checkpoint_path={checkpoint_path}",
+            "evaluation.device=cpu",
+            "runtime.device=cpu",
+        ],
+    )
+
+    report = run_preflight(
+        cfg,
+        root_dir=ROOT_DIR,
+        run_root=tmp_path,
+        action="eval",
+        executor="host",
+        device="cpu",
+        image=None,
+        checkpoint_path=checkpoint_path,
+    )
+
+    assert report["checks"]["checkpoint"]["status"] == "passed"
+    assert report["ready"] is False
+    assert report["checks"]["device"]["status"] == "failed"
+    assert "training.precision=bf16 requires device=cuda" in report["checks"]["device"]["error"]
+
+
 def test_visible_wandb_quota_below_reserve_blocks_upload(tmp_path, monkeypatch):
     snapshot = tmp_path / "wandb-usage.json"
     snapshot.write_text(
