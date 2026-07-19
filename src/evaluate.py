@@ -36,7 +36,11 @@ from training.checkpoint import (
     configured_manifest_fingerprints,
     load_checkpoint_for_generation,
 )
-from training.wandb_tracking import call_bounded, finish_run_bounded
+from training.wandb_tracking import (
+    append_wandb_evidence,
+    call_bounded,
+    finish_run_bounded,
+)
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -255,7 +259,20 @@ def _maybe_log_wandb(
 ) -> None:
     wandb_cfg = evaluation_cfg.get("wandb", {}) or {}
     mode = str(wandb_cfg.get("mode", "disabled"))
+    evidence_path = os.environ.get("LLM_SCRATCH_WANDB_EVIDENCE_PATH")
+    base_identity = {
+        "mode": mode,
+        "project": wandb_cfg.get("project"),
+        "entity": wandb_cfg.get("entity"),
+    }
     if mode == "disabled":
+        if evidence_path:
+            append_wandb_evidence(
+                evidence_path,
+                action="init",
+                outcome="disabled",
+                details=base_identity,
+            )
         return
     run = None
     try:
@@ -294,6 +311,17 @@ def _maybe_log_wandb(
         )
         if run is None:
             raise RuntimeError("wandb.init returned no run")
+        if evidence_path:
+            append_wandb_evidence(
+                evidence_path,
+                action="init",
+                outcome="succeeded",
+                details={
+                    **base_identity,
+                    "run_id": getattr(run, "id", None),
+                    "run_url": getattr(run, "url", None) if mode == "online" else None,
+                },
+            )
         summary = {
             "evaluation/namespace": result.namespace,
             "evaluation/nll": result.nll,
@@ -320,7 +348,24 @@ def _maybe_log_wandb(
             timeout_seconds=init_timeout,
             operation="W&B evaluation summary update",
         )
+        if evidence_path:
+            append_wandb_evidence(
+                evidence_path,
+                action="summary",
+                outcome="succeeded",
+                details={"local_result_identity": dict(local_result_identity)},
+            )
     except Exception as error:
+        if evidence_path:
+            append_wandb_evidence(
+                evidence_path,
+                action="logging",
+                outcome="failed",
+                details={
+                    **base_identity,
+                    "error": {"type": type(error).__name__, "message": str(error)[:500]},
+                },
+            )
         logger.warning(
             "Standalone W&B evaluation logging failed after local result commit: {}",
             error,
@@ -332,7 +377,25 @@ def _maybe_log_wandb(
                     run,
                     timeout_seconds=float(wandb_cfg.get("finish_timeout_seconds", 30.0)),
                 )
+                if evidence_path:
+                    append_wandb_evidence(
+                        evidence_path,
+                        action="finish",
+                        outcome="succeeded",
+                    )
             except Exception as error:
+                if evidence_path:
+                    append_wandb_evidence(
+                        evidence_path,
+                        action="finish",
+                        outcome="failed",
+                        details={
+                            "error": {
+                                "type": type(error).__name__,
+                                "message": str(error)[:500],
+                            }
+                        },
+                    )
                 logger.warning(
                     "Standalone W&B evaluation finish failed after local result commit: {}",
                     error,

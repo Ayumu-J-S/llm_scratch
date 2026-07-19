@@ -101,12 +101,25 @@ def run_preflight(
             ),
         ),
         (
+            "container_mounts",
+            lambda: _container_mount_check(
+                authority_cfg,
+                root_dir=root_dir,
+                run_root=run_root,
+                executor=executor,
+                checkpoint_path=checkpoint_path,
+                manifests=checks.get("manifests", {}),
+                cache=checks.get("cache", {}),
+            ),
+        ),
+        (
             "device",
             lambda: _device_check(
                 root_dir=root_dir,
                 executor=executor,
                 device=device,
                 image=image,
+                mounts=checks.get("container_mounts", {}).get("mounts", []),
             ),
         ),
     ):
@@ -393,8 +406,143 @@ def _storage_check(
     }
 
 
+def _container_mount_check(
+    cfg: Mapping[str, Any] | DictConfig,
+    *,
+    root_dir: Path,
+    run_root: Path,
+    executor: str,
+    checkpoint_path: Path | None,
+    manifests: Any,
+    cache: Any,
+) -> dict[str, Any]:
+    if executor != "container":
+        return {"required": False, "mounts": []}
+
+    records: dict[str, dict[str, Any]] = {}
+
+    def add(path: Path, *, read_only: bool, purpose: str, require_directory: bool) -> None:
+        destination = path.expanduser().resolve()
+        if not destination.exists():
+            kind = "directory" if require_directory else "file"
+            raise PreflightError(f"container {purpose} {kind} must already exist: {destination}")
+        if require_directory and not destination.is_dir():
+            raise PreflightError(f"container {purpose} path is not a directory: {destination}")
+        if not require_directory and not destination.is_file():
+            raise PreflightError(f"container {purpose} path is not a regular file: {destination}")
+        key = str(destination)
+        existing = records.get(key)
+        if existing is None:
+            records[key] = {
+                "source": key,
+                "destination": key,
+                "read_only": read_only,
+                "kind": "directory" if require_directory else "file",
+                "purposes": [purpose],
+            }
+            return
+        if existing["kind"] != ("directory" if require_directory else "file"):
+            raise PreflightError(f"container mount kind conflict at {destination}")
+        existing["read_only"] = bool(existing["read_only"] and read_only)
+        if purpose not in existing["purposes"]:
+            existing["purposes"].append(purpose)
+
+    root = root_dir.expanduser().resolve()
+    runs = run_root.expanduser().resolve()
+    add(root, read_only=False, purpose="repository", require_directory=True)
+    if not runs.is_relative_to(root):
+        add(runs, read_only=False, purpose="run_root", require_directory=True)
+
+    common_git = _git_absolute_path(root, "--git-common-dir")
+    add(common_git, read_only=True, purpose="git_metadata", require_directory=True)
+
+    cache_record = cache if isinstance(cache, Mapping) else {}
+    for item in cache_record.get("caches", []):
+        if isinstance(item, Mapping):
+            add(
+                Path(str(item["path"])),
+                read_only=False,
+                purpose="cache",
+                require_directory=True,
+            )
+
+    manifest_record = manifests if isinstance(manifests, Mapping) else {}
+    plain = _plain(cfg)
+    tokenizer_cfg = _mapping(plain.get("tokenizer"), "tokenizer")
+    add(
+        _rooted(str(tokenizer_cfg["manifest_path"]), root),
+        read_only=True,
+        purpose="tokenizer_manifest",
+        require_directory=False,
+    )
+    for item in manifest_record.get("data_manifests", []):
+        if isinstance(item, Mapping):
+            add(
+                Path(str(item["path"])),
+                read_only=True,
+                purpose="data_manifest",
+                require_directory=False,
+            )
+
+    wandb_cfg = _wandb_configuration(OmegaConf.create(plain))
+    artifact_cfg = wandb_cfg.get("artifact", {})
+    if isinstance(artifact_cfg, Mapping) and artifact_cfg.get("usage_snapshot_path"):
+        add(
+            _rooted(str(artifact_cfg["usage_snapshot_path"]), root),
+            read_only=True,
+            purpose="wandb_usage_snapshot",
+            require_directory=False,
+        )
+    if checkpoint_path is not None:
+        add(
+            checkpoint_path,
+            read_only=True,
+            purpose="checkpoint_input",
+            require_directory=False,
+        )
+
+    mounts = sorted(
+        records.values(),
+        key=lambda item: (len(Path(str(item["destination"])).parts), str(item["destination"])),
+    )
+    return {"required": True, "mounts": mounts}
+
+
+def _git_absolute_path(root_dir: Path, argument: str) -> Path:
+    result = subprocess.run(
+        ["git", "rev-parse", "--path-format=absolute", argument],
+        cwd=root_dir,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return Path(result.stdout.strip()).resolve()
+
+
+def _docker_mount_flags(mounts: Any) -> list[str]:
+    if not isinstance(mounts, list):
+        raise PreflightError("container mount plan must be a list")
+    flags: list[str] = []
+    for item in mounts:
+        record = _mapping(item, "container mount")
+        source = Path(str(record.get("source", "")))
+        destination = Path(str(record.get("destination", "")))
+        if not source.is_absolute() or not destination.is_absolute():
+            raise PreflightError("container mounts require absolute source and destination paths")
+        specification = f"type=bind,src={source},dst={destination}"
+        if record.get("read_only") is True:
+            specification += ",readonly"
+        flags.extend(["--mount", specification])
+    return flags
+
+
 def _device_check(
-    *, root_dir: Path, executor: str, device: str, image: str | None
+    *,
+    root_dir: Path,
+    executor: str,
+    device: str,
+    image: str | None,
+    mounts: Any = (),
 ) -> dict[str, Any]:
     if executor == "host":
         if device == "cuda":
@@ -416,14 +564,47 @@ def _device_check(
     if image_result.returncode != 0 or not image_result.stdout.strip().startswith("sha256:"):
         raise PreflightError(f"container image is unavailable or unpinned locally: {image}")
     image_id = image_result.stdout.strip()
+    mount_flags = _docker_mount_flags(mounts)
+    git_probe = subprocess.run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "--user",
+            f"{os.getuid()}:{os.getgid()}",
+            *mount_flags,
+            "--workdir",
+            str(root_dir),
+            "--env",
+            "GIT_OPTIONAL_LOCKS=0",
+            "--entrypoint",
+            "git",
+            image_id,
+            "status",
+            "--porcelain=v1",
+            "--untracked-files=all",
+        ],
+        cwd=root_dir,
+        capture_output=True,
+        text=True,
+    )
+    if git_probe.returncode != 0:
+        raise PreflightError(
+            "container cannot inspect the exact Git worktree: " + git_probe.stderr.strip()
+        )
     if device == "cuda":
         diagnostic = subprocess.run(
             [
                 "docker",
                 "run",
                 "--rm",
+                "--user",
+                f"{os.getuid()}:{os.getgid()}",
                 "--gpus",
                 "all",
+                *mount_flags,
+                "--workdir",
+                str(root_dir),
                 "--entrypoint",
                 "python",
                 image_id,
@@ -440,16 +621,29 @@ def _device_check(
             raise PreflightError(
                 "container CUDA/BF16 diagnostic failed: " + diagnostic.stderr.strip()
             )
-    return {"selected": device, "image": image, "image_id": image_id}
+    return {
+        "selected": device,
+        "image": image,
+        "image_id": image_id,
+        "git_probe": "passed",
+    }
 
 
 def _wandb_check(cfg: DictConfig, *, executor: str = "host") -> dict[str, Any]:
     wandb_cfg = _wandb_configuration(cfg)
     mode = str(wandb_cfg.get("mode", "disabled"))
+    artifact = wandb_cfg.get("artifact", {})
+    policy = str(artifact.get("policy", "none")) if isinstance(artifact, Mapping) else "none"
+    identity = {
+        "mode": mode,
+        "project": wandb_cfg.get("project"),
+        "entity": wandb_cfg.get("entity"),
+        "artifact_policy": policy,
+    }
     if mode != "online":
         return {
             "status": "passed",
-            "mode": mode,
+            **identity,
             "credentials": "not_required",
             "quota": "not_required",
             "blocking_reasons": [],
@@ -459,8 +653,6 @@ def _wandb_check(cfg: DictConfig, *, executor: str = "host") -> dict[str, Any]:
     credential_visible = _wandb_credential_visible(executor)
     if not credential_visible:
         blocking.append("W&B credential is missing")
-    artifact = wandb_cfg.get("artifact", {})
-    policy = str(artifact.get("policy", "none")) if isinstance(artifact, Mapping) else "none"
     quota: dict[str, Any] = {"policy": policy, "status": "not_required"}
     if policy != "none":
         snapshot_path = artifact.get("usage_snapshot_path")
@@ -492,7 +684,7 @@ def _wandb_check(cfg: DictConfig, *, executor: str = "host") -> dict[str, Any]:
                 quota = {"status": "invalid", "error": str(error), "policy": policy}
     return {
         "status": "blocked_online" if blocking else "passed",
-        "mode": mode,
+        **identity,
         "credentials": "visible" if credential_visible else "missing",
         "credential_transport": (
             "environment"

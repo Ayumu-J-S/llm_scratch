@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
+from pathlib import Path
 
 import pytest
 
 import operate
 from operations import runner
-from operations.artifacts import sha256_file
+from operations.artifacts import Attempt, sha256_file
 from operations import preflight as preflight_module
 from operations.handoff import HandoffValidationError, validate_handoff
 
@@ -42,9 +44,31 @@ def _small_smoke_overrides():
     ]
 
 
+def _experiment_record(tmp_path: Path) -> tuple[Path, dict]:
+    payload = {
+        "schema_version": 1,
+        "ticket": "RUN-001",
+        "predeclared_question": {
+            "hypothesis": "The one-step fixture preserves finite, verified evidence.",
+            "expected_result": "One optimizer step and a verified final checkpoint.",
+            "success_condition": "The attempt and its integrity-bound handoff succeed.",
+            "failure_condition": "Any preflight, child, numeric, or integrity gate fails.",
+            "stop_condition": "Stop before the declared filesystem reserve is crossed.",
+            "baseline": {"kind": "untrained_fixture", "optimizer_step": 0},
+        },
+        "planned_budget": {"max_steps": 1, "device": "cpu"},
+    }
+    path = tmp_path / "RUN-001.declaration.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    return path, payload
+
+
 def test_offline_smoke_through_validated_handoff(tmp_path):
+    experiment_record, declared = _experiment_record(tmp_path)
     command = [
         *_prefix(tmp_path, "smoke", "attempt-0001"),
+        "--experiment-record",
+        str(experiment_record),
         "--",
         *_small_smoke_overrides(),
     ]
@@ -76,9 +100,18 @@ def test_offline_smoke_through_validated_handoff(tmp_path):
     assert result["metrics"]["invalid_numeric"] is False
     assert result["lifecycle_errors"] == []
     assert all(record["verified"] for record in result["checkpoint_status"]["files"])
-    assert handoff["predeclared_question"] == declaration["predeclared_question"]
+    assert handoff["ticket"] == "RUN-001"
+    assert handoff["predeclared_question"] == declared["predeclared_question"]
+    assert declaration["source"] == {
+        "kind": "explicit_experiment_record",
+        "path": str(experiment_record.resolve()),
+        "sha256": hashlib.sha256(experiment_record.read_bytes()).hexdigest(),
+    }
     assert handoff["results"]["lifecycle_errors"] == []
     assert handoff["scientific_identity"]["data_manifests"][0]["split"] == "memorization"
+    assert handoff["scientific_identity"]["run_manifest"]["status"] == "verified"
+    assert handoff["scientific_identity"]["runtime"]["status"] == "recorded"
+    assert handoff["scientific_identity"]["wandb"]["initializations"][0]["outcome"] == "disabled"
     assert preflight["checks"]["storage"]["effective_run_live_floor_bytes"] >= 120_000_000_000
     assert (attempt / "handoff.md").is_file()
     assert (attempt / "stdout.log").is_file()
@@ -93,6 +126,15 @@ def test_offline_smoke_through_validated_handoff(tmp_path):
     del missing_integrity["integrity"]["result_sha256"]
     with pytest.raises(HandoffValidationError, match="integrity keys"):
         validate_handoff(missing_integrity)
+
+    checkpoint = Path(result["checkpoint_status"]["files"][-1]["path"])
+    checkpoint.write_bytes(checkpoint.read_bytes() + b"corruption")
+    with pytest.raises(HandoffValidationError, match="checkpoint .* (size|hash) changed"):
+        validate_handoff(
+            handoff,
+            attempt=Attempt(tmp_path, "OPS-001-fixture", "attempt-0001"),
+            root_dir=Path(__file__).resolve().parents[1],
+        )
 
 
 def test_config_check_prints_login_prompt_after_local_checks(tmp_path, monkeypatch, capsys):

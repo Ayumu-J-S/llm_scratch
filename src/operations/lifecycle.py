@@ -32,8 +32,33 @@ def wait_with_disk_watchdog(
     watchdog: dict[str, Any],
     container_record: Mapping[str, Any] | None,
     trusted_ownership: Mapping[str, Any] | None,
+    stop_request: Mapping[str, Any] | None = None,
 ) -> int:
     while process.poll() is None:
+        signal_number = stop_request.get("signal") if stop_request is not None else None
+        if signal_number is not None:
+            watchdog.update(
+                {
+                    "triggered": True,
+                    "reason": "external_signal",
+                    "signal": int(signal_number),
+                    "signal_name": str(stop_request.get("signal_name", "unknown")),
+                }
+            )
+            attempt.event(
+                "external_signal_stop",
+                signal=int(signal_number),
+                signal_name=str(stop_request.get("signal_name", "unknown")),
+            )
+            stop_errors = stop_owned_process(
+                process,
+                attempt=attempt,
+                container_record=container_record,
+                trusted_ownership=trusted_ownership,
+            )
+            if stop_errors:
+                raise AttemptError("; ".join(stop_errors))
+            return process.wait()
         for target in watchdog["filesystems"]:
             try:
                 free = shutil.disk_usage(target["path"]).free
@@ -205,19 +230,17 @@ def create_container(
             "memlock=-1",
             "--ulimit",
             "stack=67108864",
-            "--mount",
-            f"type=bind,src={root_dir},dst={root_dir}",
             "--workdir",
             str(root_dir),
         ]
     )
-    if not attempt.run_root.is_relative_to(root_dir):
-        command.extend(
-            [
-                "--mount",
-                f"type=bind,src={attempt.run_root},dst={attempt.run_root}",
-            ]
-        )
+    mount_record = _mapping(
+        preflight["checks"].get("container_mounts"), "container mount preflight"
+    )
+    if mount_record.get("status") != "passed" or mount_record.get("required") is not True:
+        raise PreflightError("container launch requires a passed validated mount plan")
+    mounts = _validated_mount_args(mount_record.get("mounts"))
+    command.extend(mounts["args"])
     if args.device == "cuda":
         command.extend(["--gpus", "all"])
     wandb_record = preflight.get("checks", {}).get("wandb", {})
@@ -225,9 +248,18 @@ def create_container(
         for key in ("WANDB_API_KEY", "WANDB_BASE_URL"):
             if os.environ.get(key):
                 command.extend(["--env", key])
-    for key, value in child_environment(args.action).items():
-        if key in {"UV_OFFLINE", "HF_HUB_OFFLINE", "HF_DATASETS_OFFLINE"}:
+    for key, value in child_environment(
+        args.action,
+        wandb_evidence_path=attempt.path / "work" / "wandb_events.jsonl",
+    ).items():
+        if key in {
+            "UV_OFFLINE",
+            "HF_HUB_OFFLINE",
+            "HF_DATASETS_OFFLINE",
+            "LLM_SCRATCH_WANDB_EVIDENCE_PATH",
+        }:
             command.extend(["--env", f"{key}={value}"])
+    command.extend(["--env", "GIT_OPTIONAL_LOCKS=0"])
     inner = ["python", inner_command[1], *inner_command[2:]]
     command.extend(["--entrypoint", inner[0], image_id, *inner[1:]])
     result = subprocess.run(command, cwd=root_dir, capture_output=True, text=True)
@@ -242,6 +274,7 @@ def create_container(
         "name": name,
         "image_id": image_id,
         "labels": labels,
+        "mounts": mounts["records"],
         "created_at": utc_now(),
         "removed": False,
     }
@@ -261,6 +294,39 @@ def create_container(
             message += "; " + removal_error
         raise AttemptError(message)
     return record
+
+
+def _validated_mount_args(value: Any) -> dict[str, Any]:
+    if not isinstance(value, list) or not value:
+        raise PreflightError("container launch requires a non-empty mount list")
+    arguments: list[str] = []
+    records: list[dict[str, Any]] = []
+    for item in value:
+        record = _mapping(item, "container mount")
+        if set(record) != {"source", "destination", "read_only", "kind", "purposes"}:
+            raise PreflightError("container mount record has unexpected fields")
+        source = Path(str(record["source"]))
+        destination = Path(str(record["destination"]))
+        kind = str(record["kind"])
+        if not source.is_absolute() or not destination.is_absolute():
+            raise PreflightError("container mount paths must remain absolute")
+        if kind == "directory" and not source.is_dir():
+            raise PreflightError(f"validated container directory disappeared: {source}")
+        if kind == "file" and not source.is_file():
+            raise PreflightError(f"validated container file disappeared: {source}")
+        if kind not in {"directory", "file"}:
+            raise PreflightError(f"invalid container mount kind: {kind}")
+        specification = f"type=bind,src={source},dst={destination}"
+        if record["read_only"] is True:
+            specification += ",readonly"
+        elif record["read_only"] is not False:
+            raise PreflightError("container mount read_only must be boolean")
+        purposes = record["purposes"]
+        if not isinstance(purposes, list) or not purposes:
+            raise PreflightError("container mount purposes must be a non-empty list")
+        arguments.extend(["--mount", specification])
+        records.append(dict(record))
+    return {"args": arguments, "records": records}
 
 
 def container_owned(record: Mapping[str, Any]) -> bool:
@@ -383,8 +449,16 @@ def watchdog_targets(preflight: Mapping[str, Any]) -> list[dict[str, Any]]:
     return [targets[device] for device in sorted(targets)]
 
 
-def child_environment(action: str) -> dict[str, str]:
+def child_environment(
+    action: str,
+    *,
+    wandb_evidence_path: Path | None = None,
+) -> dict[str, str]:
     environment = dict(os.environ)
+    if wandb_evidence_path is not None:
+        environment["LLM_SCRATCH_WANDB_EVIDENCE_PATH"] = str(
+            wandb_evidence_path.resolve()
+        )
     if action == "smoke":
         environment.pop("WANDB_API_KEY", None)
         environment.pop("WANDB_BASE_URL", None)

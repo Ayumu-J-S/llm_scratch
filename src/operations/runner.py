@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import os
 import re
+import signal
 import subprocess
 import sys
 import time
 from argparse import Namespace
 from collections.abc import Mapping
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -48,6 +51,14 @@ _PROFILE = {
     "benchmark": "benchmark",
 }
 _PROFILE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
+_QUESTION_FIELDS = {
+    "hypothesis",
+    "expected_result",
+    "success_condition",
+    "failure_condition",
+    "stop_condition",
+    "baseline",
+}
 _PROTECTED_ALWAYS = {
     "runtime.device",
     "hydra.run.dir",
@@ -107,6 +118,11 @@ def dispatch(args: Namespace, overrides: list[str], *, root_dir: Path) -> int:
                 if getattr(args, "checkpoint", None) is not None
                 else None
             ),
+            "experiment_record_path": (
+                str(args.experiment_record.expanduser().resolve())
+                if getattr(args, "experiment_record", None) is not None
+                else None
+            ),
             "created_at": utc_now(),
         }
         atomic_write_json(attempt.path / "command.json", initial_command)
@@ -130,9 +146,14 @@ def dispatch(args: Namespace, overrides: list[str], *, root_dir: Path) -> int:
             "resolved_config_sha256": sha256_file(resolved_path),
             "created_at": utc_now(),
         }
-        declaration = _attempt_declaration(cfg, attempt=attempt)
+        declaration = _attempt_declaration(
+            cfg,
+            attempt=attempt,
+            experiment_record=getattr(args, "experiment_record", None),
+        )
         atomic_write_json(attempt.path / "declaration.json", declaration)
         command_record["declaration_sha256"] = sha256_file(attempt.path / "declaration.json")
+        command_record["experiment_record"] = declaration["source"]
         atomic_write_json(attempt.path / "command.json", command_record)
         attempt.transition("preflighting")
         checkpoint_path = getattr(args, "checkpoint", None)
@@ -284,6 +305,26 @@ def _execute(
     command_record: dict[str, Any],
     preflight: dict[str, Any],
 ) -> int:
+    with _capture_stop_signals() as stop_request:
+        return _execute_with_stop_request(
+            attempt,
+            args=args,
+            root_dir=root_dir,
+            command_record=command_record,
+            preflight=preflight,
+            stop_request=stop_request,
+        )
+
+
+def _execute_with_stop_request(
+    attempt: Attempt,
+    *,
+    args: Namespace,
+    root_dir: Path,
+    command_record: dict[str, Any],
+    preflight: dict[str, Any],
+    stop_request: dict[str, Any],
+) -> int:
     inner_command = [
         sys.executable,
         str(root_dir / _ENTRYPOINT[args.action]),
@@ -313,7 +354,10 @@ def _execute(
                     cwd=root_dir,
                     stdout=stdout,
                     stderr=stderr,
-                    env=child_environment(args.action),
+                    env=child_environment(
+                        args.action,
+                        wandb_evidence_path=attempt.path / "work" / "wandb_events.jsonl",
+                    ),
                     start_new_session=True,
                 )
                 trusted_ownership = process_identity(process.pid)
@@ -346,6 +390,7 @@ def _execute(
                 watchdog=watchdog,
                 container_record=container_record,
                 trusted_ownership=trusted_ownership,
+                stop_request=stop_request,
             )
         except KeyboardInterrupt:
             watchdog["triggered"] = True
@@ -381,6 +426,7 @@ def _execute(
             if container_record is not None:
                 lifecycle_errors.extend(capture_and_remove_container(attempt, container_record))
 
+    _apply_pending_signal(attempt, watchdog=watchdog, stop_request=stop_request)
     try:
         result = _execution_result(
             attempt,
@@ -403,6 +449,16 @@ def _execute(
             watchdog=watchdog,
             lifecycle_errors=lifecycle_errors,
         )
+    _apply_pending_signal(attempt, watchdog=watchdog, stop_request=stop_request)
+    if watchdog.get("reason") == "external_signal" and result["outcome"] == "succeeded":
+        result["outcome"] = "stopped"
+        result["watchdog"] = watchdog
+        result["diagnosis"] = {
+            "category": "external_signal",
+            "summary": f"attempt stopped by {watchdog.get('signal_name')}",
+            "retry_recommended": True,
+        }
+        atomic_write_json(attempt.path / "diagnosis.json", result["diagnosis"])
     atomic_write_json(attempt.path / "result.json", result)
     status = (
         "succeeded"
@@ -414,6 +470,49 @@ def _execute(
     attempt.transition(status, outcome=result["outcome"], exit_code=exit_code)
     print(attempt.path)
     return 0 if status == "succeeded" else 1
+
+
+@contextmanager
+def _capture_stop_signals():
+    request: dict[str, Any] = {}
+    previous: dict[int, Any] = {}
+
+    def capture(signum, _frame) -> None:
+        if "signal" not in request:
+            request["signal"] = signum
+            request["signal_name"] = signal.Signals(signum).name
+
+    try:
+        for signum in (signal.SIGTERM, signal.SIGHUP):
+            previous[signum] = signal.getsignal(signum)
+            signal.signal(signum, capture)
+        yield request
+    finally:
+        for signum, handler in previous.items():
+            signal.signal(signum, handler)
+
+
+def _apply_pending_signal(
+    attempt: Attempt,
+    *,
+    watchdog: dict[str, Any],
+    stop_request: Mapping[str, Any],
+) -> None:
+    if stop_request.get("signal") is None or watchdog.get("reason") == "external_signal":
+        return
+    watchdog.update(
+        {
+            "triggered": True,
+            "reason": "external_signal",
+            "signal": int(stop_request["signal"]),
+            "signal_name": str(stop_request.get("signal_name", "unknown")),
+        }
+    )
+    attempt.event(
+        "external_signal_recorded",
+        signal=watchdog["signal"],
+        signal_name=watchdog["signal_name"],
+    )
 
 
 def _execution_result(
@@ -432,12 +531,18 @@ def _execution_result(
     output_files = _result_outputs(attempt, action)
     stderr_tail = _tail(attempt.path / "stderr.log")
     invalid_numeric = bool(metrics.get("invalid_numeric")) or "non-finite" in stderr_tail.lower()
+    checkpoint_integrity_failed = action in {"smoke", "train", "resume"} and (
+        not checkpoints["files"]
+        or any(record.get("verified") is not True for record in checkpoints["files"])
+    )
     if lifecycle_errors:
         outcome = "failed"
     elif watchdog.get("triggered"):
         outcome = "stopped"
     elif invalid_numeric:
         outcome = "invalid_numeric"
+    elif checkpoint_integrity_failed:
+        outcome = "failed"
     elif exit_code == 0 and output_files.get("complete", True):
         outcome = "succeeded"
     else:
@@ -448,8 +553,12 @@ def _execution_result(
             if watchdog.get("reason") == "disk_reserve"
             else "operator_interrupt"
             if watchdog.get("reason") == "operator_interrupt"
+            else "external_signal"
+            if watchdog.get("reason") == "external_signal"
             else "invalid_numeric"
             if invalid_numeric
+            else "checkpoint_integrity"
+            if checkpoint_integrity_failed
             else "none"
             if outcome == "succeeded"
             else "lifecycle_failure"
@@ -459,9 +568,13 @@ def _execution_result(
         "summary": (
             "attempt completed without an operational failure"
             if outcome == "succeeded"
+            else f"attempt stopped by {watchdog.get('signal_name')}"
+            if watchdog.get("reason") == "external_signal"
             else "; ".join(lifecycle_errors)
-            or stderr_tail[-2000:]
-            or f"child exited with status {exit_code}"
+            if lifecycle_errors
+            else "required final/recovery checkpoint evidence is missing or invalid"
+            if checkpoint_integrity_failed
+            else stderr_tail[-2000:] or f"child exited with status {exit_code}"
         ),
         "retry_recommended": outcome != "succeeded",
     }
@@ -582,7 +695,14 @@ def _attempt_plan(
     }
 
 
-def _attempt_declaration(cfg: DictConfig, *, attempt: Attempt) -> dict[str, Any]:
+def _attempt_declaration(
+    cfg: DictConfig,
+    *,
+    attempt: Attempt,
+    experiment_record: Path | None,
+) -> dict[str, Any]:
+    if experiment_record is not None:
+        return _load_experiment_declaration(experiment_record)
     action = str(attempt.state()["action"])
     profile = str(cfg.profile.name)
     training = cfg.get("training", {})
@@ -590,6 +710,7 @@ def _attempt_declaration(cfg: DictConfig, *, attempt: Attempt) -> dict[str, Any]
     return {
         "schema_version": 1,
         "recorded_at": utc_now(),
+        "source": {"kind": "generated_ops_fixture", "path": None, "sha256": None},
         "ticket": "OPS-001",
         "predeclared_question": {
             "hypothesis": (
@@ -621,6 +742,55 @@ def _attempt_declaration(cfg: DictConfig, *, attempt: Attempt) -> dict[str, Any]
                 "maximum_inflight_write_rule": "128 bytes per parameter plus 4000000000 bytes",
             },
         },
+    }
+
+
+def _load_experiment_declaration(path: Path) -> dict[str, Any]:
+    source = path.expanduser().resolve()
+    try:
+        payload_bytes = source.read_bytes()
+        value = json.loads(payload_bytes)
+    except (OSError, json.JSONDecodeError) as error:
+        raise AttemptError(f"invalid experiment declaration: {source}") from error
+    declaration = _mapping(value, "experiment declaration")
+    expected = {"schema_version", "ticket", "predeclared_question", "planned_budget"}
+    if set(declaration) != expected or declaration.get("schema_version") != 1:
+        raise AttemptError(
+            "experiment declaration requires exactly schema_version, ticket, "
+            "predeclared_question, and planned_budget"
+        )
+    ticket = declaration.get("ticket")
+    if not isinstance(ticket, str) or not ticket.strip():
+        raise AttemptError("experiment declaration ticket must be non-empty")
+    question = _mapping(declaration.get("predeclared_question"), "predeclared question")
+    if set(question) != _QUESTION_FIELDS:
+        raise AttemptError(
+            f"predeclared question fields must be exactly {sorted(_QUESTION_FIELDS)}"
+        )
+    for key in _QUESTION_FIELDS - {"baseline"}:
+        value = question[key]
+        if not isinstance(value, str) or not value.strip():
+            raise AttemptError(f"predeclared question {key} must be non-empty")
+    baseline = question["baseline"]
+    if isinstance(baseline, Mapping):
+        if not baseline:
+            raise AttemptError("predeclared baseline mapping must be non-empty")
+    elif not isinstance(baseline, str) or not baseline.strip():
+        raise AttemptError("predeclared baseline must be a non-empty string or mapping")
+    planned_budget = _mapping(declaration.get("planned_budget"), "planned budget")
+    if not planned_budget:
+        raise AttemptError("planned budget must be non-empty")
+    return {
+        "schema_version": 1,
+        "recorded_at": utc_now(),
+        "source": {
+            "kind": "explicit_experiment_record",
+            "path": str(source),
+            "sha256": hashlib.sha256(payload_bytes).hexdigest(),
+        },
+        "ticket": ticket,
+        "predeclared_question": dict(question),
+        "planned_budget": dict(planned_budget),
     }
 
 

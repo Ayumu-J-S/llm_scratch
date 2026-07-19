@@ -49,6 +49,36 @@ DATA_REFERENCE_FIELDS = {
 }
 
 
+def append_wandb_evidence(
+    path: str | Path,
+    *,
+    action: str,
+    outcome: str,
+    details: Mapping[str, Any] | None = None,
+) -> None:
+    """Append one fsynced W&B lifecycle record for standalone evaluators."""
+
+    evidence_path = Path(path)
+    evidence_path.parent.mkdir(parents=True, exist_ok=True)
+    record = {
+        "schema_version": 1,
+        "recorded_at_utc": datetime.now(timezone.utc).isoformat(),
+        "action": action,
+        "outcome": outcome,
+        **dict(details or {}),
+    }
+    descriptor = os.open(
+        evidence_path,
+        os.O_APPEND | os.O_CREAT | os.O_WRONLY,
+        0o600,
+    )
+    try:
+        os.write(descriptor, (json.dumps(record, sort_keys=True) + "\n").encode("utf-8"))
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
 @dataclass(frozen=True)
 class ArtifactCandidate:
     reason: str

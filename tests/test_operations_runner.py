@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -34,6 +35,28 @@ def _attempt(tmp_path):
     attempt.transition("ready")
     attempt.transition("running")
     return attempt
+
+
+def _container_preflight(root: Path, image_id: str, *, wandb_mode: str = "disabled"):
+    return {
+        "checks": {
+            "device": {"image_id": image_id},
+            "wandb": {"mode": wandb_mode},
+            "container_mounts": {
+                "status": "passed",
+                "required": True,
+                "mounts": [
+                    {
+                        "source": str(root.resolve()),
+                        "destination": str(root.resolve()),
+                        "read_only": False,
+                        "kind": "directory",
+                        "purposes": ["repository"],
+                    }
+                ],
+            },
+        }
+    }
 
 
 def test_operational_hydra_authority_rejects_parent_mapping_replacement(tmp_path):
@@ -289,6 +312,56 @@ def test_disk_sampling_failure_stops_trusted_child(tmp_path, monkeypatch):
     assert process.poll() is not None
 
 
+def test_external_signal_request_stops_exact_owned_process_group(tmp_path):
+    attempt = _attempt(tmp_path)
+    process = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(30)"],
+        start_new_session=True,
+    )
+    trusted = process_identity(process.pid)
+    atomic_write_json(attempt.path / "pid.json", trusted)
+    watchdog = {
+        "triggered": False,
+        "filesystems": [
+            {
+                "device": tmp_path.stat().st_dev,
+                "path": str(tmp_path),
+                "effective_live_floor_bytes": 0,
+                "minimum_observed_free_bytes": None,
+            }
+        ],
+    }
+
+    exit_code = lifecycle.wait_with_disk_watchdog(
+        process,
+        attempt=attempt,
+        watchdog=watchdog,
+        container_record=None,
+        trusted_ownership=trusted,
+        stop_request={"signal": signal.SIGTERM, "signal_name": "SIGTERM"},
+    )
+
+    assert exit_code != 0
+    assert process.poll() is not None
+    assert watchdog["reason"] == "external_signal"
+    assert watchdog["signal_name"] == "SIGTERM"
+
+
+def test_signal_capture_records_first_request_and_restores_handlers():
+    previous_term = signal.getsignal(signal.SIGTERM)
+    previous_hup = signal.getsignal(signal.SIGHUP)
+
+    with runner._capture_stop_signals() as request:
+        term_handler = signal.getsignal(signal.SIGTERM)
+        hup_handler = signal.getsignal(signal.SIGHUP)
+        term_handler(signal.SIGTERM, None)
+        hup_handler(signal.SIGHUP, None)
+        assert request == {"signal": signal.SIGTERM, "signal_name": "SIGTERM"}
+
+    assert signal.getsignal(signal.SIGTERM) == previous_term
+    assert signal.getsignal(signal.SIGHUP) == previous_hup
+
+
 def test_container_label_anomaly_still_stops_immutable_created_id(tmp_path, monkeypatch):
     attempt = _attempt(tmp_path)
     calls = []
@@ -388,7 +461,7 @@ def test_container_post_create_identity_failure_force_removes_exact_id(tmp_path,
             args=SimpleNamespace(action="train", device="cpu"),
             root_dir=tmp_path,
             inner_command=[sys.executable, "src/train.py"],
-            preflight={"checks": {"device": {"image_id": image_id}}},
+            preflight=_container_preflight(tmp_path, image_id),
         )
 
     assert ["docker", "rm", "--force", container_id] in calls
@@ -425,7 +498,7 @@ def test_container_post_create_inspection_exception_still_force_removes_exact_id
             args=SimpleNamespace(action="train", device="cpu"),
             root_dir=tmp_path,
             inner_command=[sys.executable, "src/train.py"],
-            preflight={"checks": {"device": {"image_id": image_id}}},
+            preflight=_container_preflight(tmp_path, image_id),
         )
 
     assert ["docker", "rm", "--force", container_id] in calls
@@ -465,12 +538,7 @@ def test_container_wandb_environment_is_forwarded_without_secret_evidence(tmp_pa
         args=SimpleNamespace(action="train", device="cpu"),
         root_dir=tmp_path,
         inner_command=[sys.executable, "src/train.py"],
-        preflight={
-            "checks": {
-                "device": {"image_id": image_id},
-                "wandb": {"mode": "online"},
-            }
-        },
+        preflight=_container_preflight(tmp_path, image_id, wandb_mode="online"),
     )
     atomic_write_json(attempt.path / "container.json", record)
 

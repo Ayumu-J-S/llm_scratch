@@ -13,6 +13,7 @@ from operations.preflight import (
     LIVE_DISK_FLOOR_BYTES,
     POST_PLAN_RESERVE_BYTES,
     PreflightError,
+    _container_mount_check,
     _storage_check,
     _wandb_check,
     run_preflight,
@@ -303,3 +304,53 @@ def test_eval_uses_verified_checkpoint_owned_config_for_manifest_and_storage(tmp
     assert report["checks"]["checkpoint"]["status"] == "passed"
     assert report["checks"]["manifests"]["data_manifests"][0]["split"] == "memorization"
     assert report["checks"]["storage"]["parameter_count"] > 0
+
+
+def test_container_mount_plan_binds_external_inputs_and_linked_git_metadata(tmp_path):
+    run_root = tmp_path / "runs"
+    cache = tmp_path / "external-cache"
+    tokenizer = tmp_path / "tokenizer.json"
+    data_manifest = tmp_path / "data.json"
+    usage = tmp_path / "wandb-usage.json"
+    checkpoint = tmp_path / "final.pt"
+    for directory in (run_root, cache):
+        directory.mkdir()
+    for path in (tokenizer, data_manifest, usage, checkpoint):
+        path.write_text("fixture", encoding="utf-8")
+    plain = OmegaConf.to_container(_cfg(), resolve=True)
+    plain["tokenizer"]["manifest_path"] = str(tokenizer)
+    plain["wandb"]["artifact"]["usage_snapshot_path"] = str(usage)
+
+    result = _container_mount_check(
+        OmegaConf.create(plain),
+        root_dir=ROOT_DIR,
+        run_root=run_root,
+        executor="container",
+        checkpoint_path=checkpoint,
+        manifests={"data_manifests": [{"path": str(data_manifest)}]},
+        cache={"caches": [{"path": str(cache)}]},
+    )
+
+    mounts = {record["source"]: record for record in result["mounts"]}
+    common_git = preflight_module._git_absolute_path(ROOT_DIR, "--git-common-dir")
+    assert mounts[str(ROOT_DIR.resolve())]["read_only"] is False
+    assert mounts[str(run_root.resolve())]["read_only"] is False
+    assert mounts[str(cache.resolve())]["read_only"] is False
+    assert mounts[str(common_git)]["read_only"] is True
+    for path in (tokenizer, data_manifest, usage, checkpoint):
+        assert mounts[str(path.resolve())]["read_only"] is True
+
+
+def test_container_mount_plan_rejects_unbound_missing_external_cache(tmp_path):
+    missing = tmp_path / "missing-cache"
+
+    with pytest.raises(PreflightError, match="must already exist"):
+        _container_mount_check(
+            _cfg(),
+            root_dir=ROOT_DIR,
+            run_root=tmp_path,
+            executor="container",
+            checkpoint_path=None,
+            manifests={"data_manifests": []},
+            cache={"caches": [{"path": str(missing)}]},
+        )
