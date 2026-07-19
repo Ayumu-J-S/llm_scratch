@@ -22,7 +22,7 @@ import torch.nn.functional as F
 from training.optimization import autocast_context
 
 
-SCORER_REVISION = "VAL-001-causal-lm-scorer-v1"
+SCORER_REVISION = "VAL-001-causal-lm-scorer-v2"
 _DEFAULT_SOURCE = "aggregate"
 
 
@@ -61,7 +61,7 @@ class EvaluationResult:
     physical_checkpoint_identity: dict[str, Any] | None
     scorer_revision: str
     pause_seconds: float
-    timing: dict[str, float] = field(default_factory=dict)
+    timing: dict[str, Any] = field(default_factory=dict)
 
     @property
     def nll(self) -> float:
@@ -108,10 +108,16 @@ class CausalLMScorer:
         device: torch.device,
         precision: str = "fp32",
         ignore_index: int = -100,
+        measure_phase_timing: bool = False,
+        cuda_events: bool = False,
     ) -> None:
         self.device = device
         self.precision = precision
         self.ignore_index = int(ignore_index)
+        self.measure_phase_timing = bool(measure_phase_timing)
+        self.cuda_events = bool(
+            self.measure_phase_timing and cuda_events and self.device.type == "cuda"
+        )
 
     def score(
         self,
@@ -133,9 +139,14 @@ class CausalLMScorer:
         if namespace not in {"validation", "memorization"}:
             raise ValueError("evaluation namespace must be validation or memorization")
         started = time.perf_counter()
-        loader_started = time.perf_counter()
+        phase_timing_enabled = self.measure_phase_timing and (
+            self.device.type != "cuda" or self.cuda_events
+        )
+        loader_started = time.perf_counter() if phase_timing_enabled else None
         loader = loader_factory()
-        loader_construction_seconds = time.perf_counter() - loader_started
+        loader_construction_seconds = (
+            time.perf_counter() - loader_started if loader_started is not None else 0.0
+        )
         actual_manifest_identity, loader_configured_fingerprints = _manifest_identity_from_loader(
             loader, namespace=namespace
         )
@@ -164,9 +175,11 @@ class CausalLMScorer:
                 raise ValueError(
                     "actual validation loader manifests do not match ordered configured manifests"
                 )
-        iterator_started = time.perf_counter()
+        iterator_started = time.perf_counter() if phase_timing_enabled else None
         iterator = iter(loader)
-        iterator_creation_seconds = time.perf_counter() - iterator_started
+        iterator_creation_seconds = (
+            time.perf_counter() - iterator_started if iterator_started is not None else 0.0
+        )
         was_training = model.training
         model.eval()
         aggregate_loss = 0.0
@@ -176,38 +189,52 @@ class CausalLMScorer:
         window_digest = hashlib.sha256()
         token_digest = hashlib.sha256()
         evaluated_windows = 0
-        timing = {
-            "loader_construction_seconds": loader_construction_seconds,
-            "iterator_creation_seconds": iterator_creation_seconds,
-            "data_wait_seconds": 0.0,
-            "host_device_preparation_seconds": 0.0,
-            "forward_seconds": 0.0,
-            "loss_seconds": 0.0,
-            "validation_seconds": 0.0,
-            "iterator_close_seconds": 0.0,
+        timing: dict[str, Any] = {}
+        if phase_timing_enabled:
+            timing = {
+                "phase_timing_method": "cuda_events" if self.cuda_events else "host_wall",
+                "loader_construction_seconds": loader_construction_seconds,
+                "iterator_creation_seconds": iterator_creation_seconds,
+                "data_wait_seconds": 0.0,
+                "host_device_preparation_seconds": 0.0,
+                "forward_seconds": 0.0,
+                "loss_seconds": 0.0,
+                "validation_seconds": 0.0,
+                "iterator_close_seconds": 0.0,
+            }
+        cuda_phase_events: dict[str, list[tuple[Any, Any]]] = {
+            "forward_seconds": [],
+            "loss_seconds": [],
         }
         try:
             with torch.no_grad():
                 batch_index = 0
                 while True:
-                    wait_started = time.perf_counter()
+                    wait_started = time.perf_counter() if phase_timing_enabled else None
                     try:
                         batch = next(iterator)
                     except StopIteration:
                         break
-                    timing["data_wait_seconds"] += time.perf_counter() - wait_started
+                    if wait_started is not None:
+                        timing["data_wait_seconds"] += time.perf_counter() - wait_started
                     batch_index += 1
-                    preparation_started = time.perf_counter()
+                    preparation_started = time.perf_counter() if phase_timing_enabled else None
                     inputs = batch["inputs"].to(self.device)
                     labels = batch["labels"].to(self.device)
-                    timing["host_device_preparation_seconds"] += (
-                        time.perf_counter() - preparation_started
-                    )
-                    forward_started = time.perf_counter()
+                    if preparation_started is not None:
+                        timing["host_device_preparation_seconds"] += (
+                            time.perf_counter() - preparation_started
+                        )
+                    forward_phase = self._start_compute_phase(phase_timing_enabled)
                     with autocast_context(self.device, self.precision):
                         logits = model(inputs)
-                    timing["forward_seconds"] += time.perf_counter() - forward_started
-                    loss_started = time.perf_counter()
+                    self._end_compute_phase(
+                        timing,
+                        cuda_phase_events,
+                        "forward_seconds",
+                        forward_phase,
+                    )
+                    loss_phase = self._start_compute_phase(phase_timing_enabled)
                     with autocast_context(self.device, self.precision):
                         flat_labels = labels.reshape(-1)
                         flat_losses = F.cross_entropy(
@@ -216,7 +243,12 @@ class CausalLMScorer:
                             reduction="none",
                             ignore_index=self.ignore_index,
                         )
-                    timing["loss_seconds"] += time.perf_counter() - loss_started
+                    self._end_compute_phase(
+                        timing,
+                        cuda_phase_events,
+                        "loss_seconds",
+                        loss_phase,
+                    )
                     if not torch.isfinite(flat_losses).all():
                         error = FloatingPointError(
                             f"non-finite {namespace} loss at validation batch {batch_index}"
@@ -268,11 +300,12 @@ class CausalLMScorer:
                         )
                         evaluated_windows += 1
         finally:
-            close_started = time.perf_counter()
+            close_started = time.perf_counter() if phase_timing_enabled else None
             try:
                 _close_evaluation_iterator(iterator)
             finally:
-                timing["iterator_close_seconds"] += time.perf_counter() - close_started
+                if close_started is not None:
+                    timing["iterator_close_seconds"] += time.perf_counter() - close_started
                 if was_training:
                     model.train()
                 else:
@@ -290,13 +323,23 @@ class CausalLMScorer:
                 )
         if sum(corpus_tokens.values()) != aggregate_tokens:
             raise RuntimeError("per-corpus validation target counts do not reconcile")
+        if self.cuda_events:
+            # One score-boundary synchronization makes all recorded event
+            # durations completion-aware without imposing a barrier per batch.
+            torch.cuda.synchronize(self.device)
+            for phase_name, pairs in cuda_phase_events.items():
+                timing[phase_name] = sum(
+                    start_event.elapsed_time(end_event) / 1000.0 for start_event, end_event in pairs
+                )
         aggregate = _make_score(aggregate_loss, aggregate_tokens)
         by_corpus = {
             source: _make_score(corpus_loss[source], corpus_tokens[source])
             for source in corpus_tokens
         }
         total_seconds = max(0.0, time.perf_counter() - started)
-        timing["validation_seconds"] = total_seconds
+        if phase_timing_enabled:
+            timing["validation_seconds"] = total_seconds
+            timing["total_seconds"] = total_seconds
         return EvaluationResult(
             namespace=namespace,
             aggregate=aggregate,
@@ -317,11 +360,34 @@ class CausalLMScorer:
             ),
             scorer_revision=SCORER_REVISION,
             pause_seconds=total_seconds,
-            timing={
-                **timing,
-                "total_seconds": total_seconds,
-            },
+            timing=timing,
         )
+
+    def _start_compute_phase(self, phase_timing_enabled: bool) -> float | tuple[Any, Any] | None:
+        if not phase_timing_enabled:
+            return None
+        if not self.cuda_events:
+            return time.perf_counter()
+        start_event = torch.cuda.Event(enable_timing=True)
+        end_event = torch.cuda.Event(enable_timing=True)
+        start_event.record()
+        return start_event, end_event
+
+    def _end_compute_phase(
+        self,
+        timing: dict[str, Any],
+        cuda_phase_events: dict[str, list[tuple[Any, Any]]],
+        phase_name: str,
+        phase: float | tuple[Any, Any] | None,
+    ) -> None:
+        if phase is None:
+            return
+        if isinstance(phase, float):
+            timing[phase_name] += time.perf_counter() - phase
+            return
+        start_event, end_event = phase
+        end_event.record()
+        cuda_phase_events[phase_name].append((start_event, end_event))
 
 
 def manifest_identities(manifests: Mapping[str, Any] | None) -> dict[str, Any]:

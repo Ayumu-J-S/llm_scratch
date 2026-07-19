@@ -73,6 +73,8 @@ measurement:
   enabled: false
   warmup_optimizer_steps: 10
   cuda_events: true
+  # Relative paths resolve beside artifacts.checkpoints_dir, never beneath it.
+  # Any checkpoint-directory path or hardlink to a checkpoint is rejected.
   output_path: null
 
 wandb:

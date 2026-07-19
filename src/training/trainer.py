@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import re
+import tempfile
 import time
 from pathlib import Path
 from typing import Any, Callable
@@ -34,6 +36,28 @@ from training.checkpoint import (
     restore_rng_state,
 )
 from training.optimization import autocast_context, get_learning_rate
+
+
+def _resolve_measurement_output_path(checkpoint_dir: Path, configured_output_path: Any) -> Path:
+    """Resolve a measurement artifact outside every checkpoint namespace."""
+
+    checkpoint_root = Path(checkpoint_dir).resolve()
+    if configured_output_path:
+        output_path = Path(str(configured_output_path))
+        if not output_path.is_absolute():
+            output_path = checkpoint_root.parent / output_path
+    else:
+        output_path = checkpoint_root.parent / "measurement.json"
+    output_path = output_path.resolve()
+    if output_path == checkpoint_root or checkpoint_root in output_path.parents:
+        raise ValueError("measurement.output_path must resolve outside the checkpoint directory")
+    if output_path.exists() and checkpoint_root.is_dir():
+        for checkpoint_path in checkpoint_root.rglob("*"):
+            if checkpoint_path.is_file() and output_path.samefile(checkpoint_path):
+                raise ValueError(
+                    "measurement.output_path must not share an inode with a checkpoint artifact"
+                )
+    return output_path
 
 
 class Trainer:
@@ -91,16 +115,8 @@ class Trainer:
             and measurement.get("cuda_events", True)
             and self.device.type == "cuda"
         )
-        configured_measurement_path = measurement.get("output_path")
-        measurement_path = (
-            Path(configured_measurement_path)
-            if configured_measurement_path
-            else self.checkpoint_dir / "measurement.json"
-        )
-        self._measurement_path = (
-            measurement_path
-            if measurement_path.is_absolute() or not configured_measurement_path
-            else self.checkpoint_dir / measurement_path
+        self._measurement_path = _resolve_measurement_output_path(
+            self.checkpoint_dir, measurement.get("output_path")
         )
         self._measurement_rows: list[dict[str, Any]] = []
         self._measurement_completed = False
@@ -140,6 +156,8 @@ class Trainer:
             device=self.device,
             precision=self.precision,
             ignore_index=int(self._training_value("ignore_index", -100)),
+            measure_phase_timing=self._measurement_enabled,
+            cuda_events=self._measurement_cuda_events,
         )
         if self.resume_path is not None:
             self._restore_checkpoint(self.resume_path)
@@ -712,6 +730,7 @@ class Trainer:
             f"{namespace}/loss": validation_result.nll,
             f"{namespace}/perplexity": validation_result.perplexity,
             f"{namespace}/perplexity_overflow": validation_result.aggregate.perplexity_overflow,
+            f"{namespace}/scorer_revision": validation_result.scorer_revision,
             f"{namespace}/target_tokens": validation_result.target_tokens,
             f"{namespace}/evaluated_windows": validation_result.evaluated_windows,
             f"{namespace}/evaluated_window_sha256": validation_result.evaluated_window_sha256,
@@ -888,11 +907,20 @@ class Trainer:
             "rows": self._measurement_rows,
         }
         self._measurement_path.parent.mkdir(parents=True, exist_ok=True)
-        temporary_path = self._measurement_path.with_name(f".{self._measurement_path.name}.tmp")
-        temporary_path.write_text(
-            json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        descriptor, temporary_name = tempfile.mkstemp(
+            prefix=f".{self._measurement_path.name}.",
+            suffix=".tmp",
+            dir=str(self._measurement_path.parent),
         )
-        temporary_path.replace(self._measurement_path)
+        temporary_path = Path(temporary_name)
+        try:
+            with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+                json.dump(payload, handle, indent=2, sort_keys=True)
+                handle.write("\n")
+            temporary_path.replace(self._measurement_path)
+        except BaseException:
+            temporary_path.unlink(missing_ok=True)
+            raise
 
     def _event_trigger(self, prefix: str, epoch_end: bool) -> str:
         if epoch_end:

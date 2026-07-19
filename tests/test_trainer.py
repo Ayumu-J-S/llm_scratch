@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from contextlib import nullcontext
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -97,6 +98,7 @@ def _trainer(
     batches,
     *,
     measurement: dict | None = None,
+    checkpoint_dir: Path | None = None,
     **training_overrides,
 ) -> Trainer:
     model = FixedLogitModel()
@@ -124,7 +126,7 @@ def _trainer(
         scheduler=None,
         train_loader=ListLoader(batches),
         validation_loader_factory=lambda: ListLoader(batches),
-        checkpoint_dir=tmp_path,
+        checkpoint_dir=checkpoint_dir or tmp_path,
         cfg=cfg,
         device=torch.device("cpu"),
     )
@@ -206,6 +208,7 @@ def test_benchmark_measurement_is_explicit_and_flushed_once(tmp_path: Path):
             "cuda_events": True,
             "output_path": str(tmp_path / "timing.json"),
         },
+        checkpoint_dir=tmp_path / "checkpoints",
     )
 
     trainer.fit()
@@ -234,6 +237,7 @@ def test_benchmark_measurement_separates_validation_from_optimizer_steps(tmp_pat
             "cuda_events": False,
             "output_path": str(tmp_path / "timing.json"),
         },
+        checkpoint_dir=tmp_path / "checkpoints",
     )
 
     trainer.fit()
@@ -252,6 +256,59 @@ def test_benchmark_measurement_separates_validation_from_optimizer_steps(tmp_pat
         <= max(0.005, validation["full_event_pause_seconds"] * 0.01)
         for validation in validations
     )
+
+
+@pytest.mark.parametrize(
+    "artifact_name",
+    [
+        "final.pt",
+        "best.pt",
+        "recovery-step-000000000001.pt",
+        "milestone-step-000000000001.pt",
+        ".final.pt.review.tmp",
+    ],
+)
+def test_measurement_output_rejects_every_checkpoint_namespace_before_training(
+    tmp_path: Path, artifact_name: str
+):
+    checkpoint_dir = tmp_path / "checkpoints"
+    checkpoint_dir.mkdir()
+    artifact = checkpoint_dir / artifact_name
+    artifact.write_bytes(b"checkpoint sentinel")
+
+    with pytest.raises(ValueError, match="outside the checkpoint directory"):
+        _trainer(
+            tmp_path,
+            [_batch([[0, 1]])],
+            measurement={"enabled": True, "output_path": str(artifact)},
+            checkpoint_dir=checkpoint_dir,
+            max_steps=1,
+        )
+
+    assert artifact.read_bytes() == b"checkpoint sentinel"
+
+
+def test_measurement_output_rejects_external_checkpoint_hardlink_before_training(
+    tmp_path: Path,
+):
+    checkpoint_dir = tmp_path / "checkpoints"
+    checkpoint_dir.mkdir()
+    artifact = checkpoint_dir / "final.pt"
+    artifact.write_bytes(b"checkpoint sentinel")
+    measurement_path = tmp_path / "timing.json"
+    os.link(artifact, measurement_path)
+
+    with pytest.raises(ValueError, match="share an inode"):
+        _trainer(
+            tmp_path,
+            [_batch([[0, 1]])],
+            measurement={"enabled": True, "output_path": str(measurement_path)},
+            checkpoint_dir=checkpoint_dir,
+            max_steps=1,
+        )
+
+    assert artifact.read_bytes() == b"checkpoint sentinel"
+    assert measurement_path.read_bytes() == b"checkpoint sentinel"
 
 
 def test_max_steps_boundary_does_not_fetch_or_update_extra_batch(tmp_path: Path):

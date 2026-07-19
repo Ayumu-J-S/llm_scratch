@@ -64,9 +64,7 @@ def evaluate_checkpoint(cfg: DictConfig) -> Path:
     train_split = checkpoint_cfg.data.streaming.train
     validation_split = checkpoint_cfg.data.streaming.validation
     train_sources = train_split.get("sources", train_split.get("datasets", []))
-    validation_sources = validation_split.get(
-        "sources", validation_split.get("datasets", [])
-    )
+    validation_sources = validation_split.get("sources", validation_split.get("datasets", []))
     if any(source.selection != "train" for source in train_sources) or any(
         source.selection != "validation" for source in validation_sources
     ):
@@ -108,10 +106,13 @@ def evaluate_checkpoint(cfg: DictConfig) -> Path:
     checkpoint_identity = build_logical_checkpoint_identity(
         payload["identity"], state.get("counters", {})
     )
+    measurement_cfg = cfg.get("measurement", {}) or {}
     scorer = CausalLMScorer(
         device=device,
         precision=str(checkpoint_cfg.training.get("precision", "fp32")),
         ignore_index=int(checkpoint_cfg.training.get("ignore_index", -100)),
+        measure_phase_timing=bool(measurement_cfg.get("enabled", False)),
+        cuda_events=bool(measurement_cfg.get("cuda_events", True)),
     )
     result = scorer.score(
         model,

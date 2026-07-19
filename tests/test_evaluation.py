@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import runpy
+from contextlib import nullcontext
 from dataclasses import replace
 from pathlib import Path
 
@@ -14,6 +15,7 @@ import torch
 from omegaconf import OmegaConf, open_dict
 
 import evaluate as evaluate_module
+import evaluation.scoring as scoring_module
 import training.checkpoint as checkpoint_module
 from data.streaming_dataset import causal_lm_collate_fn, target_sources_from_spans
 from evaluation.scoring import CausalLMScorer, manifest_identities
@@ -104,7 +106,11 @@ def _batch(labels, sources=None):
 
 
 def _scorer():
-    return CausalLMScorer(device=torch.device("cpu"), precision="fp32")
+    return CausalLMScorer(
+        device=torch.device("cpu"),
+        precision="fp32",
+        measure_phase_timing=True,
+    )
 
 
 def _compose(*overrides: str):
@@ -188,6 +194,101 @@ def test_known_logits_match_token_weighted_nll_and_perplexity():
         "validation_seconds",
     ):
         assert result.timing[field] >= 0.0
+
+
+def test_cuda_phase_timing_uses_events_and_one_completion_boundary(monkeypatch):
+    calls: list[str] = []
+    events = []
+
+    class FakeEvent:
+        def __init__(self, *, enable_timing):
+            assert enable_timing is True
+            self.ordinal = len(events)
+            events.append(self)
+
+        def record(self):
+            calls.append(f"record:{self.ordinal}")
+
+        def elapsed_time(self, end_event):
+            assert "synchronize" in calls
+            calls.append(f"elapsed:{self.ordinal}:{end_event.ordinal}")
+            return 3.0 if self.ordinal % 4 == 0 else 7.0
+
+    original_to = torch.Tensor.to
+
+    def fake_to(tensor, *args, **kwargs):
+        if args and isinstance(args[0], torch.device) and args[0].type == "cuda":
+            return tensor
+        return original_to(tensor, *args, **kwargs)
+
+    monkeypatch.setattr(torch.Tensor, "to", fake_to)
+    monkeypatch.setattr(scoring_module, "autocast_context", lambda *_args: nullcontext())
+    monkeypatch.setattr(scoring_module.torch.cuda, "Event", FakeEvent)
+
+    def synchronize(device):
+        assert device == torch.device("cuda")
+        calls.append("synchronize")
+
+    monkeypatch.setattr(scoring_module.torch.cuda, "synchronize", synchronize)
+    scorer = CausalLMScorer(
+        device=torch.device("cuda"),
+        precision="bf16",
+        measure_phase_timing=True,
+        cuda_events=True,
+    )
+
+    result = scorer.score(
+        FixedLogitModel([0.0, 1.0]),
+        lambda: [_batch([[0, 1]]), _batch([[1, 0]])],
+    )
+
+    assert result.timing["phase_timing_method"] == "cuda_events"
+    assert result.timing["forward_seconds"] == pytest.approx(0.006)
+    assert result.timing["loss_seconds"] == pytest.approx(0.014)
+    assert len(events) == 8
+    assert calls.count("synchronize") == 1
+    synchronize_index = calls.index("synchronize")
+    assert all(
+        index > synchronize_index for index, call in enumerate(calls) if call.startswith("elapsed:")
+    )
+
+
+@pytest.mark.parametrize(
+    ("measure_phase_timing", "cuda_events"),
+    [(False, True), (True, False)],
+)
+def test_cuda_phase_timing_without_effective_events_adds_no_cuda_overhead(
+    monkeypatch, measure_phase_timing, cuda_events
+):
+    original_to = torch.Tensor.to
+
+    def fake_to(tensor, *args, **kwargs):
+        if args and isinstance(args[0], torch.device) and args[0].type == "cuda":
+            return tensor
+        return original_to(tensor, *args, **kwargs)
+
+    monkeypatch.setattr(torch.Tensor, "to", fake_to)
+    monkeypatch.setattr(scoring_module, "autocast_context", lambda *_args: nullcontext())
+    monkeypatch.setattr(
+        scoring_module.torch.cuda,
+        "Event",
+        lambda **_kwargs: pytest.fail("disabled phase timing must not create CUDA events"),
+    )
+    monkeypatch.setattr(
+        scoring_module.torch.cuda,
+        "synchronize",
+        lambda *_args: pytest.fail("disabled phase timing must not synchronize CUDA"),
+    )
+    scorer = CausalLMScorer(
+        device=torch.device("cuda"),
+        precision="bf16",
+        measure_phase_timing=measure_phase_timing,
+        cuda_events=cuda_events,
+    )
+
+    result = scorer.score(FixedLogitModel([0.0, 1.0]), lambda: [_batch([[0, 1]])])
+
+    assert result.timing == {}
 
 
 def test_partial_and_ignored_labels_reconcile_by_corpus():
@@ -353,6 +454,7 @@ def test_training_metrics_preserve_overflow_and_reconstruct_standalone_parity(tm
     local_record = json.loads((tmp_path / "metrics.jsonl").read_text(encoding="utf-8"))
     assert local_record["validation/perplexity"] is None
     assert local_record["validation/perplexity_overflow"] is True
+    assert local_record["validation/scorer_revision"] == result.scorer_revision
     assert run.records == [local_record]
     assert all(
         score["perplexity"] is None and score["perplexity_overflow"] is True
@@ -366,6 +468,7 @@ def test_training_metrics_preserve_overflow_and_reconstruct_standalone_parity(tm
     standalone = result.as_dict()
     assert reconstructed["aggregate"] == standalone["aggregate"]
     assert reconstructed["by_corpus"] == standalone["by_corpus"]
+    assert reconstructed["scorer_revision"] == standalone["scorer_revision"]
 
 
 def test_scoring_closes_iterator_when_model_fails():
@@ -478,6 +581,7 @@ def test_standalone_milestone_matches_shared_training_time_score(tmp_path, split
     assert result["evaluated_window_sha256"] == live_result.evaluated_window_sha256
     assert result["evaluated_token_sha256"] == live_result.evaluated_token_sha256
     assert result["manifest_identity"] == live_result.manifest_identity
+    assert result["scorer_revision"] == live_result.scorer_revision
     assert standalone["checkpoint"]["kind"] == "milestone"
     assert standalone["checkpoint"]["logical"] == live_result.logical_checkpoint_identity
     assert standalone["checkpoint"]["physical"]["path"] == str(checkpoint.resolve())
