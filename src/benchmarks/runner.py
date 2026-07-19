@@ -77,21 +77,10 @@ def run_benchmark(
     benchmark_cfg = cfg.benchmark
     checkpoint_path = _root_or_cwd_path(str(benchmark_cfg.checkpoint_path))
     configured_output_path = _output_path(benchmark_cfg)
-
-    loaded = load_checkpoint_for_generation(checkpoint_path)
-    checkpoint_cfg = OmegaConf.create(loaded.payload["state"]["resolved_config"])
-    validate_training_config(checkpoint_cfg)
-    output_path = _validated_benchmark_output_path(
+    sampler, output_path = _load_benchmark_sampler(
         checkpoint_path,
         configured_output_path,
-        checkpoint_config=checkpoint_cfg,
-    )
-    validate_benchmark_checkpoint_runtime(cfg, checkpoint_cfg)
-    device = select_device(str(benchmark_cfg.device))
-    sampler = CheckpointSampler.from_loaded_checkpoint(
-        checkpoint_path,
-        loaded,
-        device=device,
+        cfg=cfg,
     )
     cache = _benchmark_cache(benchmark_cfg.cache)
     suite = load_suite(
@@ -141,6 +130,32 @@ def run_benchmark(
         },
     )
     return output_path
+
+
+def _load_benchmark_sampler(
+    checkpoint_path: Path,
+    configured_output_path: Path,
+    *,
+    cfg: DictConfig,
+) -> tuple[CheckpointSampler, Path]:
+    """Build the sampler without retaining optimizer-bearing checkpoint state."""
+
+    loaded = load_checkpoint_for_generation(checkpoint_path)
+    checkpoint_cfg = OmegaConf.create(loaded.payload["state"]["resolved_config"])
+    validate_training_config(checkpoint_cfg)
+    output_path = _validated_benchmark_output_path(
+        checkpoint_path,
+        configured_output_path,
+        checkpoint_config=checkpoint_cfg,
+    )
+    validate_benchmark_checkpoint_runtime(cfg, checkpoint_cfg)
+    device = select_device(str(cfg.benchmark.device))
+    sampler = CheckpointSampler.from_loaded_checkpoint(
+        checkpoint_path,
+        loaded,
+        device=device,
+    )
+    return sampler, output_path
 
 
 def _evaluation_identity(
@@ -336,13 +351,24 @@ def _validated_benchmark_output_path(
     checkpoint = checkpoint_path.resolve()
     candidate = output_path.absolute()
     output = candidate.resolve()
-    checkpoint_roots = {checkpoint.parent}
+    checkpoint_roots: set[Path] = set()
     configured_root = Path(str(checkpoint_config.artifacts.checkpoints_dir))
     if configured_root.is_absolute():
         checkpoint_roots.add(configured_root.resolve())
+    else:
+        configured_parts = tuple(part for part in configured_root.parts if part not in {"", "."})
+        if (
+            configured_parts
+            and checkpoint.parent.parts[-len(configured_parts) :] == configured_parts
+        ):
+            checkpoint_roots.add(checkpoint.parent)
     protected_names = {"checkpoint", "checkpoints"}
-    if any(root == output or root in output.parents for root in checkpoint_roots) or any(
-        part.casefold() in protected_names for part in output.parts[:-1]
+    if checkpoint.parent.name.casefold() in protected_names:
+        checkpoint_roots.add(checkpoint.parent)
+    if (
+        output == checkpoint
+        or any(root == output or root in output.parents for root in checkpoint_roots)
+        or any(part.casefold() in protected_names for part in output.parts[:-1])
     ):
         raise ValueError("benchmark output path must be outside checkpoint namespaces")
     if output.suffix != ".json":
