@@ -27,18 +27,22 @@ from runtime.reproducibility import sha256_file
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 SHINGLE_CODEPOINTS = 48
-SCAN_REVISION = "BENCH-001-contamination-v7"
-NORMALIZATION_REVISION = "normalize-text-identity-nfc-strip-plus-json-object-v5"
+SCAN_REVISION = "BENCH-001-contamination-v8"
+NORMALIZATION_REVISION = "normalize-text-identity-nfc-strip-plus-json-object-v6"
 SCAN_INDEX_SCHEMA_VERSION = 2
 MATCHER_REVISION = "collision-verified-rolling-hash-codepoint-v1"
 JSON_OBJECT_NORMALIZATION_REVISION = (
-    "normalized-embedded-decoded-nfc-canonical-json-object-sha256-v4"
+    "bounded-recursive-decoded-json-string-nfc-canonical-object-sha256-v5"
 )
 PRODUCER_IDENTITY_REVISION = "contamination-producer-v1"
 PRODUCER_SOURCE_SCOPE_REVISION = "src-python-pyproject-lock-v1"
 _PRODUCER_PACKAGES = ("pyarrow",)
 _ROLLING_BASE = 1_000_000_007
 _ROLLING_MASK = (1 << 64) - 1
+JSON_TRAVERSAL_MAX_TOTAL_BYTES = 8 * 1024 * 1024
+JSON_TRAVERSAL_MAX_NODES = 32_768
+JSON_TRAVERSAL_MAX_DEPTH = 32
+JSON_TRAVERSAL_MAX_DECODED_STRINGS = 8_192
 _SCAN_IMPLEMENTATION_FILES = {
     "benchmarks.contamination": Path(__file__).resolve(),
     "benchmarks.suite": ROOT_DIR / "src/benchmarks/suite.py",
@@ -135,6 +139,50 @@ class _ShingleMatcher:
 
 class ContaminationScanError(ValueError):
     """The checkpoint cannot prove a complete benchmark contamination scan."""
+
+
+@dataclass(frozen=True)
+class _JsonTraversalLimits:
+    """Hard per-document bounds for recursively decoded JSON contamination probes."""
+
+    total_bytes: int = JSON_TRAVERSAL_MAX_TOTAL_BYTES
+    nodes: int = JSON_TRAVERSAL_MAX_NODES
+    depth: int = JSON_TRAVERSAL_MAX_DEPTH
+    decoded_strings: int = JSON_TRAVERSAL_MAX_DECODED_STRINGS
+
+    def __post_init__(self) -> None:
+        if min(self.total_bytes, self.nodes, self.depth, self.decoded_strings) < 1:
+            raise ValueError("JSON traversal limits must be positive")
+
+
+@dataclass
+class _JsonTraversalBudget:
+    limits: _JsonTraversalLimits
+    total_bytes: int = 0
+    nodes: int = 0
+    decoded_strings: int = 0
+
+    def claim_parse(self, text: str, *, depth: int) -> bool:
+        if depth > self.limits.depth:
+            return False
+        byte_count = len(text.encode("utf-8", errors="strict"))
+        if self.total_bytes + byte_count > self.limits.total_bytes:
+            return False
+        self.total_bytes += byte_count
+        return True
+
+    def claim_node(self, *, depth: int, decoded_string: bool = False) -> None:
+        if depth > self.limits.depth or self.nodes >= self.limits.nodes:
+            raise _JsonTraversalLimitExceeded
+        if decoded_string and self.decoded_strings >= self.limits.decoded_strings:
+            raise _JsonTraversalLimitExceeded
+        self.nodes += 1
+        if decoded_string:
+            self.decoded_strings += 1
+
+
+class _JsonTraversalLimitExceeded(ValueError):
+    """A hostile or oversized decoded JSON candidate exceeded a fixed scan bound."""
 
 
 def scan_checkpoint_training_data(
@@ -597,55 +645,258 @@ def _document_matches(
 
 
 def _canonical_json_object(text: str) -> str | None:
-    """Return a key-order/whitespace-independent identity for standalone JSON objects."""
+    """Return a bounded key-order/whitespace-independent standalone object identity."""
 
     stripped = text.strip()
     if not stripped.startswith("{") or not stripped.endswith("}"):
         return None
+    decoded = _decode_json_candidate(
+        stripped,
+        budget=_JsonTraversalBudget(_JsonTraversalLimits()),
+        depth=0,
+    )
+    if decoded is None or not isinstance(decoded[0], Mapping):
+        return None
     try:
-        value = json.loads(stripped)
-        if not isinstance(value, Mapping):
-            return None
-        normalized = _normalize_decoded_json(value)
-        return canonical_json_bytes(normalized).decode("utf-8", errors="strict")
-    except (json.JSONDecodeError, TypeError, ValueError, UnicodeError):
+        return canonical_json_bytes(decoded[0]).decode("utf-8", errors="strict")
+    except (RecursionError, TypeError, ValueError, UnicodeError, OverflowError):
         return None
 
 
-def _normalize_decoded_json(value: Any) -> Any:
-    """Apply NFC inside decoded JSON while rejecting normalized-key collisions."""
+def _normalize_decoded_json(
+    value: Any,
+    *,
+    budget: _JsonTraversalBudget | None = None,
+    depth: int = 0,
+    decoded_values: list[tuple[str, int]] | None = None,
+) -> Any:
+    """Apply NFC under fixed bounds and reject normalized-key collisions."""
 
+    active_budget = budget or _JsonTraversalBudget(_JsonTraversalLimits())
+    active_budget.claim_node(depth=depth, decoded_string=isinstance(value, str))
     if isinstance(value, str):
-        return unicodedata.normalize("NFC", value)
+        normalized_string = unicodedata.normalize("NFC", value)
+        if decoded_values is not None:
+            decoded_values.append((normalized_string, depth))
+        return normalized_string
     if isinstance(value, list):
-        return [_normalize_decoded_json(item) for item in value]
+        return [
+            _normalize_decoded_json(
+                item,
+                budget=active_budget,
+                depth=depth + 1,
+                decoded_values=decoded_values,
+            )
+            for item in value
+        ]
     if isinstance(value, Mapping):
         normalized: dict[str, Any] = {}
         for key, item in value.items():
             if not isinstance(key, str):
                 raise TypeError("decoded JSON object keys must be strings")
+            active_budget.claim_node(depth=depth + 1, decoded_string=True)
             normalized_key = unicodedata.normalize("NFC", key)
             if normalized_key in normalized:
                 raise ValueError("decoded JSON object keys collide after NFC normalization")
-            normalized[normalized_key] = _normalize_decoded_json(item)
+            normalized[normalized_key] = _normalize_decoded_json(
+                item,
+                budget=active_budget,
+                depth=depth + 1,
+                decoded_values=decoded_values,
+            )
         return normalized
     return value
 
 
-def _canonical_json_objects(text: str) -> Iterable[str]:
-    """Yield canonical innermost JSON objects embedded in an arbitrary document.
+def _decode_json_candidate(
+    text: str,
+    *,
+    budget: _JsonTraversalBudget,
+    depth: int,
+) -> tuple[Any, tuple[tuple[str, int], ...]] | None:
+    """Decode and normalize one JSON candidate without allowing parser failures to escape."""
 
-    Benchmark source records are flat objects. Scanning only innermost balanced
-    objects therefore detects a complete record both directly and inside JSON
-    or prose wrappers while keeping candidate substrings disjoint: parsing and
-    candidate materialization remain linear in the document size.
+    try:
+        if not budget.claim_parse(text, depth=depth):
+            return None
+        value = json.loads(text)
+        decoded_values: list[tuple[str, int]] = []
+        normalized = _normalize_decoded_json(
+            value,
+            budget=budget,
+            depth=depth,
+            decoded_values=decoded_values,
+        )
+        return normalized, tuple(decoded_values)
+    except (
+        json.JSONDecodeError,
+        RecursionError,
+        TypeError,
+        ValueError,
+        UnicodeError,
+        OverflowError,
+    ):
+        return None
+
+
+def _canonical_mappings(value: Any) -> Iterable[str]:
+    """Yield identities for every mapping in an already bounded normalized value."""
+
+    pending = [value]
+    while pending:
+        candidate = pending.pop()
+        if isinstance(candidate, Mapping):
+            try:
+                yield canonical_json_bytes(candidate).decode("utf-8", errors="strict")
+            except (RecursionError, TypeError, ValueError, UnicodeError, OverflowError):
+                pass
+            pending.extend(reversed(tuple(candidate.values())))
+        elif isinstance(candidate, list):
+            pending.extend(reversed(candidate))
+
+
+def _canonical_json_objects(
+    text: str,
+    *,
+    limits: _JsonTraversalLimits | None = None,
+) -> Iterable[str]:
+    """Yield bounded canonical objects, including recursively JSON-encoded strings.
+
+    Direct candidate substrings remain disjoint and linear in each scanned text.
+    Decoded JSON string values are traversed iteratively under one per-document
+    byte/node/depth/string budget, so nested object, array, serialized-record,
+    and quoted-prose wrappers cannot amplify work without bound.
     """
 
+    budget = _JsonTraversalBudget(limits or _JsonTraversalLimits())
+    pending: list[tuple[str, int]] = [(text, 0)]
+    seen_depth: dict[str, int] = {_sha256(text): 0}
+    cursor = 0
+    while cursor < len(pending):
+        candidate_text, decode_depth = pending[cursor]
+        cursor += 1
+        object_ranges: list[tuple[int, int]] = []
+        object_range_limit_reached = False
+        for start, end, structural_depth in _embedded_json_object_ranges(
+            candidate_text,
+            max_depth=budget.limits.depth - decode_depth,
+        ):
+            if len(object_ranges) >= budget.limits.nodes:
+                object_range_limit_reached = True
+                break
+            object_ranges.append((start, end))
+            decoded = _decode_json_candidate(
+                candidate_text[start:end],
+                budget=budget,
+                depth=decode_depth + structural_depth,
+            )
+            if decoded is None:
+                continue
+            normalized, decoded_values = decoded
+            yield from _canonical_mappings(normalized)
+            _queue_decoded_json_strings(
+                pending,
+                seen_depth,
+                decoded_values,
+                limits=budget.limits,
+            )
+        if object_range_limit_reached:
+            continue
+        object_range_index = 0
+        for start, end, structural_depth in _json_string_literal_ranges(
+            candidate_text,
+            max_depth=budget.limits.depth - decode_depth,
+        ):
+            while (
+                object_range_index < len(object_ranges)
+                and object_ranges[object_range_index][1] <= start
+            ):
+                object_range_index += 1
+            if (
+                object_range_index < len(object_ranges)
+                and object_ranges[object_range_index][0] <= start
+                and end <= object_ranges[object_range_index][1]
+            ):
+                continue
+            decoded = _decode_json_candidate(
+                candidate_text[start:end],
+                budget=budget,
+                depth=decode_depth + structural_depth,
+            )
+            if decoded is None or not isinstance(decoded[0], str):
+                continue
+            _queue_decoded_json_strings(
+                pending,
+                seen_depth,
+                decoded[1],
+                limits=budget.limits,
+            )
+
+
+def _queue_decoded_json_strings(
+    pending: list[tuple[str, int]],
+    seen_depth: dict[str, int],
+    decoded_values: Iterable[tuple[str, int]],
+    *,
+    limits: _JsonTraversalLimits,
+) -> None:
+    for value, value_depth in decoded_values:
+        next_depth = value_depth + 1
+        if next_depth > limits.depth or not _may_contain_json(value):
+            continue
+        digest = _sha256(value)
+        previous_depth = seen_depth.get(digest)
+        if previous_depth is not None and previous_depth <= next_depth:
+            continue
+        seen_depth[digest] = next_depth
+        pending.append((value, next_depth))
+
+
+def _may_contain_json(text: str) -> bool:
+    stripped = text.strip()
+    return (
+        "{" in text
+        or "[" in text
+        or (len(stripped) >= 2 and stripped.startswith('"') and stripped.endswith('"'))
+    )
+
+
+def _embedded_json_object_ranges(
+    text: str,
+    *,
+    max_depth: int,
+) -> Iterable[tuple[int, int, int]]:
+    """Yield disjoint innermost balanced object ranges outside JSON strings."""
+
+    if max_depth < 1:
+        return
     starts: list[int] = []
     has_nested_object: list[bool] = []
+    overflow_depth = 0
     in_string = False
     escaped = False
     for index, character in enumerate(text):
+        if overflow_depth:
+            if in_string:
+                if escaped:
+                    escaped = False
+                elif character == "\\":
+                    escaped = True
+                elif character == '"':
+                    in_string = False
+                elif character in "\r\n":
+                    in_string = False
+                    escaped = False
+            elif character == '"':
+                in_string = True
+            elif character == "{":
+                overflow_depth += 1
+            elif character == "}":
+                overflow_depth -= 1
+                if overflow_depth == 0:
+                    in_string = False
+                    escaped = False
+            continue
         if not starts:
             if character == "{":
                 starts.append(index)
@@ -661,8 +912,6 @@ def _canonical_json_objects(text: str) -> Iterable[str]:
             elif character == '"':
                 in_string = False
             elif character in "\r\n":
-                # A literal newline cannot occur in a JSON string. Recover from
-                # malformed prose so it cannot hide a later valid record.
                 starts.clear()
                 has_nested_object.clear()
                 in_string = False
@@ -671,6 +920,11 @@ def _canonical_json_objects(text: str) -> Iterable[str]:
         if character == '"':
             in_string = True
         elif character == "{":
+            if len(starts) >= max_depth:
+                overflow_depth = len(starts) + 1
+                starts.clear()
+                has_nested_object.clear()
+                continue
             has_nested_object[-1] = True
             starts.append(index)
             has_nested_object.append(False)
@@ -678,12 +932,47 @@ def _canonical_json_objects(text: str) -> Iterable[str]:
             start = starts.pop()
             nested = has_nested_object.pop()
             if not nested:
-                canonical = _canonical_json_object(text[start : index + 1])
-                if canonical is not None:
-                    yield canonical
+                yield start, index + 1, len(starts)
             if not starts:
                 in_string = False
                 escaped = False
+
+
+def _json_string_literal_ranges(
+    text: str,
+    *,
+    max_depth: int,
+) -> Iterable[tuple[int, int, int]]:
+    """Yield syntactically possible JSON string literals in prose or array wrappers."""
+
+    if max_depth < 1:
+        return
+    start: int | None = None
+    start_depth = 0
+    container_depth = 0
+    escaped = False
+    for index, character in enumerate(text):
+        if start is None:
+            if character == '"':
+                start = index
+                start_depth = container_depth
+                escaped = False
+            elif character in "{[":
+                container_depth += 1
+            elif character in "}]" and container_depth:
+                container_depth -= 1
+            continue
+        if escaped:
+            escaped = False
+        elif character == "\\":
+            escaped = True
+        elif character == '"':
+            if start_depth <= max_depth:
+                yield start, index + 1, start_depth
+            start = None
+        elif character in "\r\n":
+            start = None
+            escaped = False
 
 
 def _deduplicate_matches(matches: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:

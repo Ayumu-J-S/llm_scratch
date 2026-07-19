@@ -76,6 +76,11 @@
 | 53 | Repair | Complete | Recursively NFC-normalized decoded JSON keys and values before canonical hashing, rejected keys that collide after normalization, and revised the scan/cache identity. The all-selected wrapper regression now emits every string through ASCII-escaped NFD before structured matching |
 | 54 | Focused and canonical validation | PASS | 76 benchmark/generation/config/reproducibility tests plus scoped Ruff and diff checks pass. An adversarial run against the pinned canonical development suite detects 128/128 JCommonsenseQA and 128/128 GSM8K records after key reordering, pretty printing, ASCII-escaped NFD strings, and prose wrapping |
 | 55 | Full validation | PASS | Repaired current-main official CPU gate: 480 passed, 1 skipped; repository Ruff, resolved Hydra preflight, lock-drift detection, and disabled/offline process-tree-isolated smoke pass |
+| 56 | Exact-head independent `/review` | blocked | Review was invoked against repaired head `a8c0823` and base `8791bb7`, but the reviewer exited before analysis because the Codex account usage limit was reached. No verdict was produced; the draft PR retained the exact command, CLI/reviewer sessions, exit code, and re-run handoff |
+| 57 | Supplemental independent audit | FAIL | The audit detected only 1/128 double-serialized JCommonsenseQA records and 0/128 minimal quoted/escaped-prose variants because decoded JSON string values were not recursively inspected. It also reproduced an uncaught `RecursionError` from a roughly 1,000-level array inside an otherwise balanced object candidate |
+| 58 | Repair | Complete | Added per-document byte/node/structural-depth/decoded-string traversal budgets; iterative deduplicated rescanning of NFC-normalized decoded JSON string values; mapping identities inside nested objects/arrays; recursive normalized-key collision rejection; and safe handling of JSON parser, normalizer, and canonicalizer recursion/malformed failures. Revised the scan/cache identity |
+| 59 | Focused and canonical validation | PASS | 79 benchmark/generation/config/reproducibility tests plus Ruff pass. Regressions cover all 128 examples per task through double serialization, nested object/array strings, and quoted prose with ASCII-escaped NFD; exact and one-unit-beyond byte/node/depth/string caps; recursive key collisions; and a 1,200-level hostile candidate followed by a valid record. Pinned canonical development acceptance independently detects 128/128 JCommonsenseQA and 128/128 GSM8K for all three wrapper modes |
+| 60 | Full validation | PASS | Official CPU gate: 483 passed, 1 skipped; repository Ruff, resolved Hydra preflight, lock-drift detection, and disabled/offline process-tree-isolated smoke pass. Validation reused only the existing 4.2 MB benchmark cache with 426 GB free and did not launch a full training-corpus scan |
 
 ## Resolved protocol
 
@@ -98,7 +103,10 @@
 - Contamination: complete checkpoint-owned train selections, exact/normalized
   whole-document identity, source-faithful record identity, text-normalized
   canonical JSON-object identity across key-order/whitespace variants, and
-  normalized 48-codepoint shingles.
+  normalized 48-codepoint shingles. Decoded JSON string values are recursively
+  rescanned under fixed total-byte, node, structural-depth, and decoded-string
+  limits, including nested object/array, double-serialized, and quoted-prose
+  wrappers; malformed or over-depth candidates cannot abort the corpus scan.
 
 ## Review selection
 
@@ -116,7 +124,7 @@
 
 ## Current conclusion
 
-All fourteen independent failed reviews remain visible. Their thirty-one findings are
+All fifteen failed review/audit cycles remain visible. Their thirty-three findings are
 repaired without weakening the fixed protocol or complete contamination gate:
 cheap context incompatibility precedes scanning, both tasks honor checkpoint
 precision, external records are pinned, evaluator/runtime and dirty source
@@ -136,7 +144,11 @@ producer paths, and the full optimizer-bearing load is reclaimed before the
 suite and corpus scan. Selected examples now retain and hash the pinned source
 record representation, while text normalization composes with a
 structure-normalized JSON identity to detect BOM, newline, Unicode,
-key-order, whitespace, embedded wrapper, and ASCII-escaped decoded-NFD variants;
+key-order, whitespace, embedded wrapper, and ASCII-escaped decoded-NFD variants.
+Decoded JSON strings are recursively inspected through object, array,
+double-serialized, and quoted-prose wrappers under strict per-document
+byte/node/depth/string caps; normalized-key collisions and parser recursion are
+non-matches rather than scan crashes;
 canonical acceptance covers every selected development record in both tasks.
 External comparisons separately attest the compiled prompt and scorer hashes,
 and generation rejects non-finite logits before any GSM8K token or score is
@@ -152,5 +164,6 @@ dirty-worktree bytes in addition to commit, dirty flag, and status paths.
 An extra repository-wide format diagnostic identified four pre-existing, unrelated
 files outside this ticket's diff; the configured Ruff lint gate and all changed
 benchmark paths pass, so those files were not rewritten here. Every repair's
-focused and full gates pass; exact-head independent re-review remains. No
+focused and full gates pass; exact-head independent re-review remains
+quota-blocked with no verdict and the PR remains draft. No
 benchmark score from the zero-weight fixture is a model-quality result.

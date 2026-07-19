@@ -21,6 +21,8 @@ import benchmarks.external as external_records
 from benchmarks.contamination import (
     SHINGLE_CODEPOINTS,
     ContaminationScanError,
+    _canonical_json_objects,
+    _JsonTraversalLimits,
     _ShingleMatcher,
     _build_probe_index,
     _document_matches,
@@ -375,10 +377,10 @@ def test_injected_contamination_reports_source_and_document_id(monkeypatch, tmp_
     index = json.loads(index_files[0].read_text(encoding="utf-8"))
     assert index["index_identity_sha256"] == evidence["scan_index_identity_sha256"]
     assert index["index_identity"]["normalization_revision"] == (
-        "normalize-text-identity-nfc-strip-plus-json-object-v5"
+        "normalize-text-identity-nfc-strip-plus-json-object-v6"
     )
     assert index["index_identity"]["json_object_normalization_revision"] == (
-        "normalized-embedded-decoded-nfc-canonical-json-object-sha256-v4"
+        "bounded-recursive-decoded-json-string-nfc-canonical-object-sha256-v5"
     )
     assert index["index_identity"]["matcher_revision"] == (
         "collision-verified-rolling-hash-codepoint-v1"
@@ -494,6 +496,11 @@ def test_all_selected_source_records_match_verbatim_and_reordered_json():
         ),
     )
     probe_index = _build_probe_index(suite)
+    decoded_wrapper_counts = {
+        "double_serialized": {"jcommonsenseqa": 0, "gsm8k": 0},
+        "nested_object_array": {"jcommonsenseqa": 0, "gsm8k": 0},
+        "quoted_prose": {"jcommonsenseqa": 0, "gsm8k": 0},
+    }
 
     for task in suite.tasks:
         for example in task.examples:
@@ -516,6 +523,15 @@ def test_all_selected_source_records_match_verbatim_and_reordered_json():
                 + ',"origin":"training"}'
                 + "\r\ntrailing metadata"
             )
+            json_string_record = json.dumps(reordered, ensure_ascii=True)
+            decoded_wrappers = {
+                "double_serialized": json_string_record,
+                "nested_object_array": json.dumps(
+                    {"outer": [{"payloads": [reordered]}]},
+                    ensure_ascii=True,
+                ),
+                "quoted_prose": f"training payload {json_string_record} end",
+            }
             structured = _document_matches(
                 embedded,
                 source_name="fixture_train",
@@ -537,6 +553,91 @@ def test_all_selected_source_records_match_verbatim_and_reordered_json():
                 and match["match_type"] == "structured_json"
                 for match in structured
             )
+            for wrapper_name, wrapper_text in decoded_wrappers.items():
+                wrapped_matches = _document_matches(
+                    wrapper_text,
+                    source_name="fixture_train",
+                    document_id=f"{task.name}-{example.example_id}-{wrapper_name}",
+                    upstream_id=None,
+                    probe_index=probe_index,
+                )
+                if any(
+                    match["task"] == task.name
+                    and match["benchmark_example_id"] == example.example_id
+                    and match["benchmark_field"] == "canonical_record"
+                    and match["match_type"] == "structured_json"
+                    for match in wrapped_matches
+                ):
+                    decoded_wrapper_counts[wrapper_name][task.name] += 1
+
+    assert decoded_wrapper_counts == {
+        "double_serialized": {"jcommonsenseqa": 128, "gsm8k": 128},
+        "nested_object_array": {"jcommonsenseqa": 128, "gsm8k": 128},
+        "quoted_prose": {"jcommonsenseqa": 128, "gsm8k": 128},
+    }
+
+
+def test_decoded_json_traversal_enforces_each_exact_boundary():
+    record = {"key": ["value"]}
+    serialized = json.dumps(record, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    candidate_bytes = len(serialized.encode("utf-8"))
+
+    def identities(**overrides: int) -> list[str]:
+        limits = {
+            "total_bytes": candidate_bytes,
+            "nodes": 4,
+            "depth": 2,
+            "decoded_strings": 2,
+            **overrides,
+        }
+        return list(_canonical_json_objects(serialized, limits=_JsonTraversalLimits(**limits)))
+
+    assert identities() == [serialized]
+    assert identities(total_bytes=candidate_bytes - 1) == []
+    assert identities(nodes=3) == []
+    assert identities(depth=1) == []
+    assert identities(decoded_strings=1) == []
+
+    nested_record = '{"key":"value"}'
+    array_wrapped_string = "[[" + json.dumps(nested_record) + "]]"
+    permissive = _JsonTraversalLimits(
+        total_bytes=1_000,
+        nodes=16,
+        depth=4,
+        decoded_strings=8,
+    )
+    shallow = _JsonTraversalLimits(
+        total_bytes=1_000,
+        nodes=16,
+        depth=3,
+        decoded_strings=8,
+    )
+    assert list(_canonical_json_objects(array_wrapped_string, limits=permissive)) == [nested_record]
+    assert list(_canonical_json_objects(array_wrapped_string, limits=shallow)) == []
+
+
+def test_decoded_json_rejects_recursive_normalized_key_collisions():
+    nfc_key = "é"
+    nfd_key = unicodedata.normalize("NFD", nfc_key)
+    colliding_record = json.dumps(
+        {nfc_key: "first", nfd_key: "second"},
+        ensure_ascii=True,
+    )
+
+    assert list(_canonical_json_objects(json.dumps(colliding_record))) == []
+
+
+def test_hostile_json_depth_is_a_non_match_and_later_record_still_scans():
+    hostile = '{"payload":' + "[" * 1_200 + '"x"' + "]" * 1_200 + "}"
+    valid_record = {"key": "later"}
+    serialized = json.dumps(
+        valid_record,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+
+    assert list(_canonical_json_objects(hostile + "\n" + serialized)) == [serialized]
 
 
 def test_shingle_matcher_is_linear_and_does_not_materialize_corpus_windows():
