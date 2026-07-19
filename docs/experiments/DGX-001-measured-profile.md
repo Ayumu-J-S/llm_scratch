@@ -36,9 +36,11 @@ the same arm identity.
 ## Implementation
 
 - `profile=dgx_candidate` is the repeated timed training path.
-- `profile=pretrain_baseline` is the selected-shape one-hour cap with online
-  W&B, watch off, artifact policy `none`, 5M-target validation, 2.5M-target
-  rotating recovery, and 100M-target milestones.
+- `profile=pretrain_baseline` carries the provisional P70 shape only so the
+  exact final matrix can enforce that the committed profile matches its result.
+  It is not a selection claim. The profile is a one-hour cap with online W&B,
+  watch off, artifact policy `none`, 5M-target validation, 2.5M-target rotating
+  recovery, and 100M-target milestones.
 - `scripts/measure_dgx.py` runs the canonical trainer, records physical
   config/manifest/checkpoint identities, samples host/GPU state out of band,
   enforces pilot watchdog limits, and binds the final checkpoint to the
@@ -58,8 +60,8 @@ the same arm identity.
   named bottleneck.
 
 No compilation, native extension, custom kernel, architecture change, or
-optimization ticket is introduced. The selected profile's largest phase is
-named as the current bottleneck, but optimization remains deferred until
+optimization ticket is introduced. The final summary will name the selected
+profile's nearer measured ceiling, but optimization remains deferred until
 `RUN-001` confirms that it matters in the first trustworthy baseline.
 
 ## Exact commands and evidence
@@ -95,9 +97,11 @@ make dgx-pilot EXPECTED_COMMIT="$HEAD" \
   MATRIX_SUMMARY="/tmp/dgx-001-$HEAD/dgx-summary.json"
 ```
 
-The target result section remains open until the exact-head matrix and pilot
-complete. A smoke or synthetic unit test is wiring evidence only and cannot be
-used to claim the measured profile is selected.
+The target result section remains open until the exact-head matrix,
+decomposition, and pilot complete. Historical matrix evidence is explicitly
+`INCOMPLETE`; its provisional P70 rule result is not a selection. A smoke,
+single sweep, or synthetic unit test is wiring evidence only and cannot be used
+to claim that a measured profile has been selected.
 
 ## Review trail
 
