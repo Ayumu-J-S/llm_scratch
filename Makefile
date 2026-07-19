@@ -1,4 +1,4 @@
-.PHONY: help sync activate train smoke pretrain-streaming config-check \
+.PHONY: help sync activate train smoke pretrain-streaming benchmark benchmark-final config-check \
 	runtime-lock diagnose dgx-build dgx-diagnose dgx-smoke test-cpu \
 	ci-sync ci-lint ci-test ci-config ci-lock ci-offline-smoke ci-cpu
 
@@ -13,6 +13,8 @@ help:
 		'  make train            - Run the default smoke_overfit Hydra entrypoint inside uv' \
 		'  make smoke            - Run the one-epoch CPU smoke_overfit profile' \
 		'  make pretrain-streaming - Run the manifest-backed streaming profile' \
+		'  make benchmark CHECKPOINT=<path> - Run fixed BENCH-001 development subsets' \
+		'  make benchmark-final CHECKPOINT=<path> - Run guarded reserved tests' \
 		'  make config-check PROFILE=<name> - Compose and preflight a Hydra profile' \
 		'  make runtime-lock     - Regenerate the non-Torch container dependency overlay' \
 		'  make diagnose         - Report the current host development environment' \
@@ -37,6 +39,16 @@ smoke:
 
 pretrain-streaming:
 	uv run python src/train.py profile=pretrain_streaming
+
+benchmark:
+	@test -n "$(CHECKPOINT)" || { printf '%s\n' 'CHECKPOINT is required' >&2; exit 1; }
+	uv run python src/benchmark.py profile=benchmark benchmark.checkpoint_path="$(CHECKPOINT)"
+
+benchmark-final:
+	@test -n "$(CHECKPOINT)" || { printf '%s\n' 'CHECKPOINT is required' >&2; exit 1; }
+	@test "$$BENCHMARK_FINAL_ACK" = "BENCH-001-suite-v1" || { \
+		printf '%s\n' 'BENCHMARK_FINAL_ACK=BENCH-001-suite-v1 is required' >&2; exit 1; }
+	uv run llm-scratch-benchmark-final profile=benchmark benchmark.checkpoint_path="$(CHECKPOINT)"
 
 config-check:
 	uv run python scripts/config_check.py profile=$${PROFILE:-smoke_overfit}

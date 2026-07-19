@@ -62,6 +62,18 @@ uv run llm-scratch-train profile=smoke_overfit runtime.device=cpu training.epoch
 uv run llm-scratch-evaluate profile=evaluation evaluation.checkpoint_path=/absolute/path/to/milestone.pt evaluation.device=cuda
 ```
 
+Run the fixed BENCH-001 JCommonsenseQA/GSM8K development subsets against a
+verified full-state checkpoint with:
+
+```bash
+make benchmark CHECKPOINT=/absolute/path/to/milestone.pt
+```
+
+Reserved final tests use a separate acknowledgement-guarded command and cannot
+be selected through Hydra. See [`docs/benchmarks.md`](docs/benchmarks.md) for
+the pinned sources, scoring protocol, complete training-contamination gate,
+result identity, W&B policy, and final-use procedure.
+
 `config/profile/smoke_overfit.yaml`, `pretrain_streaming.yaml`, and
 `evaluation.yaml` are the canonical Hydra profiles. `evaluation` is a
 standalone-only checkpoint scoring profile and is rejected by the training
@@ -227,6 +239,8 @@ See `data/manifests/README.md`.
 - `src/training/trainer.py`: decoder-only trainer loop, validation, checkpointing, and W&B logging
 - `src/evaluate.py`, `src/evaluation/scoring.py`: standalone Hydra checkpoint
   evaluation and the shared token-weighted held-out scorer
+- `src/benchmark.py`, `src/benchmarks/`: guarded versioned checkpoint benchmark,
+  fixed scorers, complete contamination scan, and compact result evidence
 - `src/models/embedding.py`: token embedding and sinusoidal positional encoding
 - `src/models/simple_decoder_transformer.py`: GPT-style decoder-only Transformer blocks with causal self-attention
 - `src/tokenizer/canonical.py`: strict offline tokenizer manifest/wrapper validation

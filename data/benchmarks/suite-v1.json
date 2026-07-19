@@ -1,0 +1,75 @@
+{
+  "dev_subset": {
+    "selector": "sha256-example-id-v1",
+    "selected_examples_sha256": {
+      "gsm8k": "03fa95e872665b2be1633781879fe10cc5d04f5b2d1d3add055d60deecf6d9c6",
+      "jcommonsenseqa": "37e39dca6ce5108fe720dda6e0246f7c8ef858e22961229540d2023faeabe0bd"
+    },
+    "size": 128
+  },
+  "protocol": {
+    "contamination": {
+      "probe_revision": "source-record-and-canonical-json-object-v1"
+    },
+    "few_shot_examples": 0,
+    "gsm8k": {
+      "decoding": {
+        "max_new_tokens": 128,
+        "method": "greedy"
+      },
+      "primary_metric": "exact_match",
+      "prompt_revision": "BENCH-001-gsm8k-zero-shot-v1",
+      "scorer_revision": "openai-gsm8k-ANS_RE-v1"
+    },
+    "jcommonsenseqa": {
+      "primary_metric": "length_normalized_accuracy",
+      "prompt_revision": "BENCH-001-jcommonsenseqa-zero-shot-v1",
+      "scorer_revision": "BENCH-001-conditional-logprob-v2"
+    }
+  },
+  "schema_version": 1,
+  "suite_fingerprint": "adf433c320252b4d2cbdd6f9817f6f9e34a846bf81b39915a697def1ab477042",
+  "suite_id": "BENCH-001-suite-v1",
+  "tasks": {
+    "gsm8k": {
+      "dev": {
+        "expected_records": 7473,
+        "sha256": "17f347dc51477c50d4efb83959dbb7c56297aba886e5544ee2aaed3024813465",
+        "size_bytes": 4166206,
+        "split": "train",
+        "url": "https://raw.githubusercontent.com/openai/grade-school-math/3101c7d5072418e28b9008a6636bde82a006892c/grade_school_math/data/train.jsonl"
+      },
+      "final": {
+        "expected_records": 1319,
+        "sha256": "3730d312f6e3440559ace48831e51066acaca737f6eabec99bccb9e4b3c39d14",
+        "size_bytes": 749738,
+        "split": "test",
+        "url": "https://raw.githubusercontent.com/openai/grade-school-math/3101c7d5072418e28b9008a6636bde82a006892c/grade_school_math/data/test.jsonl"
+      },
+      "license": "MIT",
+      "repository": "https://github.com/openai/grade-school-math",
+      "revision": "3101c7d5072418e28b9008a6636bde82a006892c",
+      "revision_url": "https://github.com/openai/grade-school-math/commit/3101c7d5072418e28b9008a6636bde82a006892c"
+    },
+    "jcommonsenseqa": {
+      "dev": {
+        "expected_records": 1119,
+        "sha256": "0d8d76f3bfa0d174866939882faccdd01fbc2bcd5a76c43748ba0c40a7b3b8d4",
+        "size_bytes": 235633,
+        "split": "valid-v1.3",
+        "url": "https://raw.githubusercontent.com/yahoojapan/JGLUE/6f071c09316baae89c3d083a90985b4b1cb9968c/datasets/jcommonsenseqa-v1.3/valid-v1.3.json"
+      },
+      "final": {
+        "expected_records": 1118,
+        "sha256": "ba91ef3907c91436a5e44fa9fccbbfa3df507577e2c681f4d7e39bd987f0186d",
+        "size_bytes": 234437,
+        "split": "test-v1.3",
+        "url": "https://raw.githubusercontent.com/yahoojapan/JGLUE/6f071c09316baae89c3d083a90985b4b1cb9968c/datasets/jcommonsenseqa-v1.3/test-v1.3.json"
+      },
+      "license": "CC-BY-SA-4.0",
+      "repository": "https://github.com/yahoojapan/JGLUE",
+      "revision": "6f071c09316baae89c3d083a90985b4b1cb9968c",
+      "revision_url": "https://github.com/yahoojapan/JGLUE/commit/6f071c09316baae89c3d083a90985b4b1cb9968c"
+    }
+  }
+}

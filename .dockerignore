@@ -6,6 +6,7 @@ __pycache__
 *.pyc
 artifacts
 data/stream_loader_cache
+data/benchmark_cache
 outputs
 train.log
 train_tokenizer.log

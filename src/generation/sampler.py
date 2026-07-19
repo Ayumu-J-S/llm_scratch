@@ -12,7 +12,12 @@ import torch
 
 from models.simple_decoder_transformer import SimpleDecoderTransformer
 from tokenizer.canonical import CanonicalTokenizer
-from training.checkpoint import load_checkpoint_for_generation
+from training.optimization import autocast_context
+from training.checkpoint import (
+    LoadedCheckpoint,
+    build_logical_checkpoint_identity,
+    load_checkpoint_for_generation,
+)
 
 
 BASE_MODEL_CONTINUATION_LABEL = "base-model-continuation"
@@ -40,6 +45,7 @@ class GenerationResult:
     temperature: float | None
     top_k: int | None
     seed: int | None
+    precision: str
     stop_reason: str
 
     def metadata(self) -> dict[str, Any]:
@@ -59,6 +65,9 @@ class CheckpointSampler:
         checkpoint_path: Path,
         checkpoint_kind: str,
         checkpoint_optimizer_step: int,
+        logical_checkpoint_identity: dict[str, Any],
+        physical_checkpoint_identity: dict[str, Any],
+        resolved_config: dict[str, Any],
         device: torch.device,
     ) -> None:
         self.model = model
@@ -66,6 +75,9 @@ class CheckpointSampler:
         self.checkpoint_path = checkpoint_path
         self.checkpoint_kind = checkpoint_kind
         self.checkpoint_optimizer_step = checkpoint_optimizer_step
+        self.logical_checkpoint_identity = logical_checkpoint_identity
+        self.physical_checkpoint_identity = physical_checkpoint_identity
+        self.resolved_config = resolved_config
         self.device = device
 
     @classmethod
@@ -82,6 +94,31 @@ class CheckpointSampler:
         if resolved_device.type == "cuda" and not torch.cuda.is_available():
             raise SamplingError("CUDA was requested for generation but is unavailable")
         loaded = load_checkpoint_for_generation(path)
+        return cls.from_loaded_checkpoint(path, loaded, device=resolved_device)
+
+    @classmethod
+    def from_loaded_checkpoint(
+        cls,
+        checkpoint_path: str | Path,
+        loaded: LoadedCheckpoint,
+        *,
+        device: str | torch.device = "cpu",
+    ) -> CheckpointSampler:
+        """Reconstruct from a checkpoint already verified through one open file.
+
+        Benchmark evaluation needs the checkpoint's physical identity and
+        training-data configuration as well as its model.  Accepting the
+        verified object avoids hashing and deserializing a large checkpoint a
+        second time while retaining the generation loader as the sole
+        checkpoint verification boundary.
+        """
+
+        path = Path(checkpoint_path).resolve()
+        resolved_device = torch.device(device)
+        if resolved_device.type == "cuda" and not torch.cuda.is_available():
+            raise SamplingError("CUDA was requested for generation but is unavailable")
+        if loaded.physical_identity.get("path") != str(path):
+            raise SamplingError("loaded checkpoint physical path does not match checkpoint_path")
         payload = loaded.payload
         state = _mapping(payload["state"], "checkpoint state")
         config = _mapping(state["resolved_config"], "checkpoint resolved_config")
@@ -123,6 +160,7 @@ class CheckpointSampler:
         model.to(resolved_device)
         model.eval()
         counters = _mapping(state["counters"], "checkpoint counters")
+        logical_identity = build_logical_checkpoint_identity(payload["identity"], counters)
         return cls(
             model=model,
             tokenizer=tokenizer,
@@ -131,6 +169,9 @@ class CheckpointSampler:
             checkpoint_optimizer_step=_positive_or_zero_int(
                 counters.get("optimizer_step"), "checkpoint optimizer_step"
             ),
+            logical_checkpoint_identity=logical_identity,
+            physical_checkpoint_identity=dict(loaded.physical_identity),
+            resolved_config=dict(config),
             device=resolved_device,
         )
 
@@ -142,6 +183,7 @@ class CheckpointSampler:
         temperature: float | None = None,
         top_k: int | None = None,
         seed: int | None = None,
+        precision: str = "fp32",
     ) -> GenerationResult:
         """Produce one bounded base-model continuation.
 
@@ -160,6 +202,10 @@ class CheckpointSampler:
             raise SamplingError(
                 f"prompt has {len(prompt_ids)} tokens but checkpoint context is {self.model.max_len}"
             )
+        try:
+            compute_context = autocast_context(self.device, precision)
+        except (RuntimeError, ValueError) as error:
+            raise SamplingError(f"generation precision is incompatible: {error}") from error
         sampling = temperature is not None
         if sampling:
             temperature_value = _positive_finite_float(temperature, "temperature")
@@ -191,10 +237,12 @@ class CheckpointSampler:
         else:
             stop_reason = "max_new_tokens"
             token_ids = list(prompt_ids)
-            with torch.inference_mode():
+            with torch.inference_mode(), compute_context:
                 for _ in range(allowed):
                     tokens = torch.tensor([token_ids], dtype=torch.long, device=self.device)
                     logits = self.model(tokens)[0, -1]
+                    if not bool(torch.isfinite(logits).all().item()):
+                        raise SamplingError("generation produced non-finite logits")
                     if temperature_value is None:
                         token_id = int(torch.argmax(logits).item())
                     else:
@@ -228,6 +276,7 @@ class CheckpointSampler:
             temperature=temperature_value,
             top_k=top_k,
             seed=seed,
+            precision=precision,
             stop_reason=stop_reason,
         )
 

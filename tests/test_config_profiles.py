@@ -7,6 +7,7 @@ from omegaconf import OmegaConf
 import train as train_module
 from runtime.config import (
     ConfigPreflightError,
+    validate_benchmark_checkpoint_runtime,
     validate_evaluation_checkpoint_runtime,
     validate_evaluation_config,
     validate_training_config,
@@ -26,6 +27,7 @@ def test_canonical_profiles_compose_with_real_root_sections():
     stream = compose("profile=pretrain_streaming")
     gate = compose("profile=gate_overfit")
     evaluation = compose("profile=evaluation")
+    benchmark = compose("profile=benchmark")
 
     assert smoke.profile.name == "smoke_overfit"
     assert smoke.data.mode == "memorization_smoke"
@@ -38,6 +40,13 @@ def test_canonical_profiles_compose_with_real_root_sections():
     assert evaluation.profile.task == "evaluate_checkpoint"
     assert evaluation.evaluation.device == "cuda"
     assert evaluation.runtime.device == "cuda"
+    assert benchmark.profile.name == "benchmark"
+    assert benchmark.profile.task == "benchmark_checkpoint"
+    assert benchmark.benchmark.device == "cuda"
+    assert benchmark.benchmark.output_root == "outputs/benchmark-results"
+    assert benchmark.benchmark.output_path is None
+    assert benchmark.benchmark.cache.dir == "outputs/benchmark_cache"
+    assert "access" not in benchmark.benchmark
 
 
 def test_streaming_profile_has_distinct_manifest_selections():
@@ -271,6 +280,35 @@ def test_evaluation_checkpoint_runtime_rejects_cpu_bf16_without_fallback():
         match=r"evaluation\.device=cpu.*checkpoint-owned training\.precision=bf16",
     ):
         validate_evaluation_checkpoint_runtime(evaluation, checkpoint)
+
+
+def test_benchmark_checkpoint_runtime_rejects_unsupported_cuda_bf16(monkeypatch):
+    benchmark = compose(
+        "profile=benchmark",
+        "benchmark.checkpoint_path=/tmp/milestone.pt",
+        "benchmark.device=cuda",
+    )
+    checkpoint = compose("profile=pretrain_streaming", "training.precision=bf16")
+    monkeypatch.setattr("runtime.config.torch.cuda.is_available", lambda: True)
+    monkeypatch.setattr("runtime.config.torch.cuda.is_bf16_supported", lambda: False)
+
+    with pytest.raises(
+        ConfigPreflightError, match=r"benchmark\.device=cuda.*does not support BF16"
+    ):
+        validate_benchmark_checkpoint_runtime(benchmark, checkpoint)
+
+
+def test_benchmark_checkpoint_runtime_accepts_supported_cuda_bf16(monkeypatch):
+    benchmark = compose(
+        "profile=benchmark",
+        "benchmark.checkpoint_path=/tmp/milestone.pt",
+        "benchmark.device=cuda",
+    )
+    checkpoint = compose("profile=pretrain_streaming", "training.precision=bf16")
+    monkeypatch.setattr("runtime.config.torch.cuda.is_available", lambda: True)
+    monkeypatch.setattr("runtime.config.torch.cuda.is_bf16_supported", lambda: True)
+
+    validate_benchmark_checkpoint_runtime(benchmark, checkpoint)
 
 
 @pytest.mark.parametrize(

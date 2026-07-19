@@ -5,6 +5,7 @@
 
 model/
 outputs/
+data/benchmark_cache/
 artifacts/tokenizers/tokenizer.json
 artifacts/checkpoints/model_last.pth
 train.log

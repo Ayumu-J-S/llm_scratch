@@ -1,4 +1,5 @@
 import json
+import subprocess
 from copy import deepcopy
 from pathlib import Path
 
@@ -10,6 +11,7 @@ from models.simple_decoder_transformer import SimpleDecoderTransformer
 from runtime.reproducibility import (
     ManifestMismatchError,
     ReproducibilityError,
+    collect_git_identity,
     dataloader_generator,
     dataloader_worker_init_fn,
     seed_everything,
@@ -27,6 +29,10 @@ TOKENIZER = ROOT / "assets/tokenizers/llm-jp-v1/manifest.json"
 TOKENIZER_FINGERPRINT = "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b"
 DATA = ROOT / "tests/fixtures/data_manifests/memorization.manifest.json"
 DATA_FINGERPRINT = "00c3797a7d0eda13950fd699a60c45fcd388829f016479caaeb369438767bd31"
+
+
+def _git(root: Path, *args: str) -> None:
+    subprocess.run(["git", *args], cwd=root, check=True, capture_output=True)
 
 
 def _fixture_trace(seed: int):
@@ -77,6 +83,61 @@ def test_deterministic_toggle_is_explicit():
     seed_everything(123, deterministic=False)
     assert not torch.are_deterministic_algorithms_enabled()
     seed_everything(123, deterministic=True)
+
+
+def test_git_identity_binds_distinct_tracked_and_untracked_dirty_bytes(tmp_path: Path):
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.name", "Fixture")
+    _git(tmp_path, "config", "user.email", "fixture@example.invalid")
+    tracked = tmp_path / "evaluator.py"
+    tracked.write_text("value = 'clean'\n", encoding="utf-8")
+    _git(tmp_path, "add", "evaluator.py")
+    _git(tmp_path, "commit", "-qm", "fixture")
+
+    tracked.write_text("value = 'first'\n", encoding="utf-8")
+    first_tracked = collect_git_identity(tmp_path)
+    tracked.write_text("value = 'other'\n", encoding="utf-8")
+    other_tracked = collect_git_identity(tmp_path)
+    assert first_tracked["sha"] == other_tracked["sha"]
+    assert first_tracked["status"] == other_tracked["status"]
+    assert first_tracked["worktree_content_sha256"] != (other_tracked["worktree_content_sha256"])
+
+    tracked.write_text("value = 'clean'\n", encoding="utf-8")
+    untracked = tmp_path / "untracked_evaluator.py"
+    untracked.write_text("value = 'first'\n", encoding="utf-8")
+    first_untracked = collect_git_identity(tmp_path)
+    untracked.write_text("value = 'other'\n", encoding="utf-8")
+    other_untracked = collect_git_identity(tmp_path)
+    assert first_untracked["status"] == other_untracked["status"]
+    assert (
+        first_untracked["worktree_content_sha256"] != (other_untracked["worktree_content_sha256"])
+    )
+
+
+@pytest.mark.parametrize("tracked", [False, True])
+def test_git_identity_rejects_symlinked_evaluator_paths(tmp_path: Path, tracked: bool):
+    repository = tmp_path / "repository"
+    repository.mkdir()
+    _git(repository, "init", "-q")
+    _git(repository, "config", "user.name", "Fixture")
+    _git(repository, "config", "user.email", "fixture@example.invalid")
+    committed = repository / "committed.py"
+    committed.write_text("value = 'clean'\n", encoding="utf-8")
+    _git(repository, "add", "committed.py")
+    _git(repository, "commit", "-qm", "fixture")
+    target = tmp_path / "mutable-target.py"
+    target.write_text("value = 'first'\n", encoding="utf-8")
+    linked = repository / "linked_evaluator.py"
+    linked.symlink_to(target)
+    if tracked:
+        _git(repository, "add", "linked_evaluator.py")
+        _git(repository, "commit", "-qm", "tracked symlink")
+
+    with pytest.raises(ReproducibilityError, match="regular file, not a symlink"):
+        collect_git_identity(repository)
+    target.write_text("value = 'other'\n", encoding="utf-8")
+    with pytest.raises(ReproducibilityError, match="regular file, not a symlink"):
+        collect_git_identity(repository)
 
 
 def _manifest_config():
@@ -218,8 +279,18 @@ def test_verify_run_manifest_rejects_dirty_source_worktree(monkeypatch, tmp_path
     resolved = source_dir / "resolved_config.yaml"
     resolved.write_text("seed: 123\n", encoding="utf-8")
     run_dir = tmp_path / "run"
-    clean_git = {"sha": "a" * 40, "dirty": False, "status": []}
-    dirty_git = {"sha": "a" * 40, "dirty": True, "status": [" M src/train.py"]}
+    clean_git = {
+        "sha": "a" * 40,
+        "dirty": False,
+        "status": [],
+        "worktree_content_sha256": "1" * 64,
+    }
+    dirty_git = {
+        "sha": "a" * 40,
+        "dirty": True,
+        "status": [" M src/train.py"],
+        "worktree_content_sha256": "2" * 64,
+    }
     monkeypatch.setattr("runtime.reproducibility._git", lambda root: clean_git)
     write_run_manifest(
         cfg=_manifest_config(),
@@ -241,7 +312,12 @@ def test_verify_run_manifest_accepts_matching_clean_source_worktree(monkeypatch,
     resolved = source_dir / "resolved_config.yaml"
     resolved.write_text("seed: 123\n", encoding="utf-8")
     run_dir = tmp_path / "run"
-    clean_git = {"sha": "a" * 40, "dirty": False, "status": []}
+    clean_git = {
+        "sha": "a" * 40,
+        "dirty": False,
+        "status": [],
+        "worktree_content_sha256": "1" * 64,
+    }
     monkeypatch.setattr("runtime.reproducibility._git", lambda root: clean_git)
     write_run_manifest(
         cfg=_manifest_config(),
@@ -254,6 +330,45 @@ def test_verify_run_manifest_accepts_matching_clean_source_worktree(monkeypatch,
 
     payload = verify_run_manifest(run_dir, root_dir=ROOT)
     assert payload["git"]["dirty"] is False
+
+
+def test_verify_run_manifest_rejects_same_status_dirty_byte_mutation(tmp_path: Path):
+    repository = tmp_path / "repository"
+    repository.mkdir()
+    _git(repository, "init", "-q")
+    _git(repository, "config", "user.name", "Fixture")
+    _git(repository, "config", "user.email", "fixture@example.invalid")
+    (repository / "uv.lock").write_bytes((ROOT / "uv.lock").read_bytes())
+    tracked = repository / "evaluator.py"
+    tracked.write_text("value = 'clean'\n", encoding="utf-8")
+    _git(repository, "add", "uv.lock", "evaluator.py")
+    _git(repository, "commit", "-qm", "fixture")
+
+    tracked.write_text("value = 'first'\n", encoding="utf-8")
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    resolved = source_dir / "resolved_config.yaml"
+    resolved.write_text("seed: 123\n", encoding="utf-8")
+    config = _manifest_config()
+    config["reproducibility"]["reject_dirty"] = False
+    run_dir = tmp_path / "run"
+    write_run_manifest(
+        cfg=config,
+        run_dir=run_dir,
+        root_dir=repository,
+        resolved_config_path=resolved,
+        tokenizer_manifest_path=TOKENIZER,
+        tokenizer_expected_fingerprint=TOKENIZER_FINGERPRINT,
+    )
+
+    before = collect_git_identity(repository)
+    tracked.write_text("value = 'other'\n", encoding="utf-8")
+    after = collect_git_identity(repository)
+    assert before["sha"] == after["sha"]
+    assert before["status"] == after["status"]
+    assert before["worktree_content_sha256"] != after["worktree_content_sha256"]
+    with pytest.raises(ManifestMismatchError, match="worktree content changed"):
+        verify_run_manifest(run_dir, root_dir=repository)
 
 
 def test_real_run_rejects_mutable_remote_data():

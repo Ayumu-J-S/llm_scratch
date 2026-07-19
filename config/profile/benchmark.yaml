@@ -1,0 +1,35 @@
+# @package _global_
+# BENCH-001 development benchmark profile. Dataset registry, access level, and
+# reserved-final acknowledgement are intentionally absent from Hydra so an
+# override cannot turn a routine command into a final-test run.
+profile:
+  name: benchmark
+  purpose: benchmark
+  task: benchmark_checkpoint
+
+benchmark:
+  checkpoint_path: null
+  # Benchmark evidence is confined to this ignored, non-input namespace.
+  output_root: outputs/benchmark-results
+  # Null derives <access>-<evaluation_identity_sha256>.json. An explicit path
+  # remains available for controlled evidence capture and is never replaced.
+  output_path: null
+  device: cuda
+  cache:
+    # Generated source/cache entries live under the repository's ignored
+    # output tree, so evaluation cannot dirty the Git identity it records.
+    dir: outputs/benchmark_cache
+    max_size_bytes: 100000000
+    min_free_bytes: 1000000000
+    wait_timeout_seconds: 120.0
+    timeout_seconds: 30.0
+  wandb:
+    mode: disabled
+    project: llm-scratch
+    entity: sunday-research
+    name: null
+    init_timeout_seconds: 10
+    finish_timeout_seconds: 30
+
+runtime:
+  device: ${benchmark.device}
