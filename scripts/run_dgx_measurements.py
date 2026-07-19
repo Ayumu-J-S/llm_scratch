@@ -15,6 +15,7 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 
 from dgx.planning import (
+    PROTOCOL_CONFIG_KEYS,
     build_matrix_plan,
     summarize_decomposition,
     summarize_pilot,
@@ -29,15 +30,6 @@ ROOT = Path(__file__).resolve().parent.parent
 POST_PLAN_FREE_RESERVE_BYTES = 100_000_000_000
 ATOMIC_WRITE_FIXED_BUDGET_BYTES = 4_000_000_000
 ATOMIC_WRITE_BYTES_PER_PARAMETER = 128
-PROTOCOL_CONFIG_KEYS = (
-    "schema_version",
-    "image",
-    "matrix",
-    "decomposition",
-    "pilot",
-    "gates",
-    "selection",
-)
 
 
 def _git(*args: str) -> str:
@@ -486,6 +478,24 @@ def _container_command(
     (run_dir / "wandb").mkdir(mode=0o700)
     git_common_dir = Path(_git("rev-parse", "--git-common-dir")).resolve()
     gates = cfg["gates"]
+    hardware = cfg["hardware"]
+    hardware_arguments = [
+        "--expected-architecture",
+        str(hardware["architecture"]),
+        "--expected-gpu-name",
+        str(hardware["gpu_name"]),
+        "--expected-device-count",
+        str(hardware["device_count"]),
+        "--expected-compute-capability-major",
+        str(hardware["compute_capability"][0]),
+        "--expected-compute-capability-minor",
+        str(hardware["compute_capability"][1]),
+        "--min-unified-memory-bytes",
+        str(hardware["min_unified_memory_bytes"]),
+        "--max-unified-memory-bytes",
+        str(hardware["max_unified_memory_bytes"]),
+        "--require-equal-host-device-memory",
+    ]
     uid_gid = f"{os.getuid()}:{os.getgid()}"
     common = [
         "docker",
@@ -587,6 +597,7 @@ def _container_command(
             str(gates["max_swap_in_pages"]),
             "--max-swap-out-pages",
             str(gates["max_swap_out_pages"]),
+            *hardware_arguments,
             "--",
             *overrides,
         ]
@@ -632,6 +643,7 @@ def _container_command(
         str(gates["max_swap_in_pages"]),
         "--max-swap-out-pages",
         str(gates["max_swap_out_pages"]),
+        *hardware_arguments,
         *pilot_flag,
         "--",
         *overrides,

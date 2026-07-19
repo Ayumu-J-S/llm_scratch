@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 import hydra
+from dgx.hardware import validate_dgx_spark_environment
 from omegaconf import DictConfig, OmegaConf
 from runtime.reproducibility import canonical_config_sha256
 
@@ -53,11 +54,36 @@ REQUIRED_CUDA_PHASES = {"forward", "backward", "optimizer"}
 PROTOCOL_CONFIG_KEYS = {
     "schema_version",
     "image",
+    "hardware",
     "matrix",
     "decomposition",
     "pilot",
     "gates",
     "selection",
+}
+COMMITTED_HARDWARE = {
+    "architecture": "aarch64",
+    "gpu_name": "NVIDIA GB10",
+    "device_count": 1,
+    "compute_capability": [12, 1],
+    "min_unified_memory_bytes": 120_000_000_000,
+    "max_unified_memory_bytes": 140_000_000_000,
+    "require_equal_host_device_memory": True,
+}
+MINIMUM_GATE_THRESHOLDS = {
+    "min_available_memory_bytes": 64_000_000_000,
+    "min_sampler_coverage": 0.90,
+    "min_gpu_metric_coverage": 0.90,
+    "min_loader_supply_ratio": 1.20,
+    "matrix_output_reserve_bytes": 100_000_000_000,
+    "post_matrix_evidence_reserve_bytes": 20_000_000_000,
+    "storage_headroom_ratio": 2.0,
+}
+MAXIMUM_GATE_THRESHOLDS = {
+    "max_temperature_c": 80.0,
+    "max_allocator_growth_bytes": 268_435_456,
+    "max_telemetry_gap_factor": 2.5,
+    "max_data_wait_fraction": 0.10,
 }
 
 
@@ -82,6 +108,16 @@ def _sha256_file(path: Path) -> str:
 
 def _tree_size(path: Path) -> int:
     return sum(item.stat().st_size for item in path.rglob("*") if item.is_file())
+
+
+def _finite_threshold(value: Any, label: str) -> float:
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not math.isfinite(float(value))
+    ):
+        raise ValueError(f"{label} must be a finite number")
+    return float(value)
 
 
 def _filesystem_device(path: Path) -> int:
@@ -171,7 +207,7 @@ def validate_dgx_config(config: Mapping[str, Any] | DictConfig) -> dict[str, Any
         raise ValueError("DGX config must resolve to a mapping")
     if cfg.get("schema_version") != 3:
         raise ValueError("DGX-001 accepts only orchestration schema_version 3")
-    required = {"image", "matrix", "decomposition", "pilot", "gates", "selection"}
+    required = {"image", "hardware", "matrix", "decomposition", "pilot", "gates", "selection"}
     missing = sorted(required - set(cfg))
     if missing:
         raise ValueError(f"DGX config is missing: {', '.join(missing)}")
@@ -185,6 +221,9 @@ def validate_dgx_config(config: Mapping[str, Any] | DictConfig) -> dict[str, Any
         or any(character not in "0123456789abcdef" for character in runtime_spec)
     ):
         raise ValueError("DGX image runtime spec must be one lowercase SHA-256 identity")
+    hardware = cfg["hardware"]
+    if not isinstance(hardware, Mapping) or dict(hardware) != COMMITTED_HARDWARE:
+        raise ValueError("DGX hardware identity must remain the committed GB10 target")
     matrix = cfg["matrix"]
     if not isinstance(matrix, Mapping):
         raise ValueError("matrix must be a mapping")
@@ -229,16 +268,46 @@ def validate_dgx_config(config: Mapping[str, Any] | DictConfig) -> dict[str, Any
         raise ValueError("DGX conservative throughput policy is exactly the slowest repetition")
     if int(cfg["selection"]["target_tokens_7d"]) != 1_000_000_000:
         raise ValueError("DGX selection requires the one-billion-target seven-day floor")
-    spread = float(cfg["selection"]["max_repeat_spread_fraction"])
-    if not 0.0 <= spread <= 0.25:
-        raise ValueError("repeatability spread threshold must be between 0 and 25%")
-    gpu_coverage = float(cfg["gates"]["min_gpu_metric_coverage"])
-    if not 0.0 < gpu_coverage <= 1.0:
-        raise ValueError("required GPU metric coverage must be in (0, 1]")
+    gates = cfg["gates"]
+    if not isinstance(gates, Mapping):
+        raise ValueError("DGX gates must be a mapping")
+    for key, floor in MINIMUM_GATE_THRESHOLDS.items():
+        if _finite_threshold(gates.get(key), f"gates.{key}") < float(floor):
+            raise ValueError(f"gates.{key} cannot weaken the committed safety floor")
+    for key, ceiling in MAXIMUM_GATE_THRESHOLDS.items():
+        value = _finite_threshold(gates.get(key), f"gates.{key}")
+        if value < 0.0 or value > float(ceiling):
+            raise ValueError(f"gates.{key} cannot weaken the committed safety ceiling")
+    for coverage_key in ("min_sampler_coverage", "min_gpu_metric_coverage"):
+        if float(gates[coverage_key]) > 1.0:
+            raise ValueError(f"gates.{coverage_key} cannot exceed 1")
+    if float(gates["max_telemetry_gap_factor"]) <= 0.0:
+        raise ValueError("gates.max_telemetry_gap_factor must be positive")
+    if int(gates["max_swap_in_pages"]) != 0 or int(gates["max_swap_out_pages"]) != 0:
+        raise ValueError("DGX swap-in and swap-out ceilings must remain zero")
     if int(cfg["gates"]["min_free_disk_bytes"]) != 120_000_000_000:
         raise ValueError("DGX operational free-disk watchdog is exactly 120 GB")
     if int(cfg["gates"]["post_plan_free_reserve_bytes"]) != 100_000_000_000:
         raise ValueError("DGX post-plan storage reserve is exactly 100 GB")
+    selection = cfg["selection"]
+    slowdown = _finite_threshold(
+        selection.get("max_slowdown_fraction"), "selection.max_slowdown_fraction"
+    )
+    context_floor = _finite_threshold(
+        selection.get("context_throughput_floor_fraction"),
+        "selection.context_throughput_floor_fraction",
+    )
+    spread = _finite_threshold(
+        selection.get("max_repeat_spread_fraction"), "selection.max_repeat_spread_fraction"
+    )
+    if not 0.0 <= slowdown <= 0.20:
+        raise ValueError("selection.max_slowdown_fraction cannot weaken the committed ceiling")
+    if not 0.85 <= context_floor <= 1.0:
+        raise ValueError(
+            "selection.context_throughput_floor_fraction cannot weaken the committed floor"
+        )
+    if not 0.0 <= spread <= 0.10:
+        raise ValueError("selection.max_repeat_spread_fraction cannot weaken the committed ceiling")
     return dict(cfg)
 
 
@@ -818,6 +887,13 @@ def summarize_run(
         or run.get("image_id") != plan["image_id"]
     ):
         raise ValueError(f"run identity does not match its immutable plan: {run_dir}")
+    target_hardware = validate_dgx_spark_environment(
+        run.get("environment", {}),
+        run.get("preflight", {}),
+        plan["config"]["hardware"],
+    )
+    if run.get("target_hardware") != target_hardware:
+        raise ValueError("run target hardware identity differs from verified environment")
     for key in (
         "candidate_id",
         "repetition",
@@ -946,6 +1022,7 @@ def summarize_run(
         "repetition": int(run["repetition"]),
         "git_commit": run["git_commit"],
         "image_id": run["image_id"],
+        "target_hardware": target_hardware,
         "parameter_count": int(run["parameter_count"]),
         "num_layers": int(run["num_layers"]),
         "embed_size": int(run["embed_size"]),
@@ -1505,6 +1582,10 @@ def summarize_evidence(
         )
     if observed_keys != set(expected_by_key):
         raise ValueError("DGX matrix is missing one or more planned runs")
+    hardware_identities = {_canonical_sha256(run["target_hardware"]) for run in runs}
+    if len(hardware_identities) != 1:
+        raise ValueError("DGX matrix repetitions do not share one target hardware identity")
+    target_hardware = runs[0]["target_hardware"]
     grouped: defaultdict[str, list[dict[str, Any]]] = defaultdict(list)
     for run in runs:
         grouped[run["candidate_id"]].append(run)
@@ -1559,6 +1640,7 @@ def summarize_evidence(
             "measurement_schema_version": 3,
             "wandb": "disabled",
             "cache_unchanged": True,
+            "target_hardware": target_hardware,
         },
         "candidates": candidates,
         "selection_rule": dict(cfg["selection"]),
@@ -1679,6 +1761,13 @@ def summarize_decomposition(
             )
         ):
             raise ValueError("decomposition run identity/health differs from plan")
+        target_hardware = validate_dgx_spark_environment(
+            raw.get("environment", {}),
+            raw.get("preflight", {}),
+            plan["config"]["hardware"],
+        )
+        if raw.get("target_hardware") != target_hardware:
+            raise ValueError("decomposition target identity differs from verified environment")
         for shape_key in (
             "num_layers",
             "embed_size",
@@ -1713,6 +1802,7 @@ def summarize_decomposition(
         result = {
             "role": raw["role"],
             "repetition": raw["repetition"],
+            "target_hardware": target_hardware,
             "target_tokens": 655360,
             "wall_seconds": wall,
             "tokens_per_second": 655360 / wall,
@@ -1742,6 +1832,14 @@ def summarize_decomposition(
         results[raw["role"]].append(result)
     if observed_keys != expected_keys:
         raise ValueError("decomposition is incomplete")
+    hardware_identities = {
+        _canonical_sha256(item["target_hardware"])
+        for role_results in results.values()
+        for item in role_results
+    }
+    if len(hardware_identities) != 1:
+        raise ValueError("decomposition repetitions do not share one target hardware identity")
+    target_hardware = next(iter(results.values()))[0]["target_hardware"]
     end_to_end = float(authority["end_to_end_compute_tokens_per_second"])
     summaries = {}
     repeatability_limit = float(cfg["selection"]["max_repeat_spread_fraction"])
@@ -1777,6 +1875,7 @@ def summarize_decomposition(
         "plan_id": plan["plan_id"],
         "git_commit": plan["git_commit"],
         "image_id": plan["image_id"],
+        "target_hardware": target_hardware,
         "selected_candidate": selected["candidate_id"],
         "matrix_summary": dict(authority),
         "end_to_end_compute_tokens_per_second": end_to_end,

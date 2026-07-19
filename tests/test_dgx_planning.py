@@ -20,6 +20,7 @@ from dgx.planning import (
     select_candidate,
     summarize_evidence,
     summarize_run,
+    validate_dgx_config,
 )
 from runtime.config import validate_training_config
 from runtime.reproducibility import canonical_config_sha256, experiment_config_sha256
@@ -109,6 +110,54 @@ def test_dgx_config_rejects_unsupported_conservative_quantile():
     config = compose_dgx(["selection.conservative_throughput_quantile=median"])
     with pytest.raises(ValueError, match="slowest repetition"):
         build_matrix_plan(config)
+
+
+@pytest.mark.parametrize(
+    "override",
+    [
+        "gates.min_available_memory_bytes=1",
+        "gates.max_temperature_c=200",
+        "gates.max_swap_in_pages=1",
+        "gates.max_swap_out_pages=1",
+        "gates.max_allocator_growth_bytes=999999999",
+        "gates.min_sampler_coverage=0.5",
+        "gates.min_gpu_metric_coverage=0.5",
+        "gates.max_telemetry_gap_factor=10",
+        "gates.max_data_wait_fraction=1.0",
+        "gates.min_loader_supply_ratio=1.0",
+        "gates.matrix_output_reserve_bytes=1",
+        "gates.post_matrix_evidence_reserve_bytes=1",
+        "gates.storage_headroom_ratio=1.0",
+        "selection.max_slowdown_fraction=0.99",
+        "selection.context_throughput_floor_fraction=0.5",
+        "selection.max_repeat_spread_fraction=0.25",
+    ],
+)
+def test_dgx_config_rejects_every_weakened_safety_threshold(override):
+    with pytest.raises(ValueError, match="cannot weaken|must remain zero"):
+        validate_dgx_config(compose_dgx([override]))
+
+
+def test_dgx_config_allows_stricter_safety_thresholds():
+    config = compose_dgx(
+        [
+            "gates.min_available_memory_bytes=65000000000",
+            "gates.max_temperature_c=79",
+            "gates.max_allocator_growth_bytes=1",
+            "gates.min_sampler_coverage=0.95",
+            "gates.min_gpu_metric_coverage=0.95",
+            "gates.max_telemetry_gap_factor=2",
+            "gates.max_data_wait_fraction=0.05",
+            "gates.min_loader_supply_ratio=1.3",
+            "gates.matrix_output_reserve_bytes=110000000000",
+            "gates.post_matrix_evidence_reserve_bytes=21000000000",
+            "gates.storage_headroom_ratio=2.1",
+            "selection.max_slowdown_fraction=0.1",
+            "selection.context_throughput_floor_fraction=0.9",
+            "selection.max_repeat_spread_fraction=0.05",
+        ]
+    )
+    validate_dgx_config(config)
 
 
 def _source_identity(config) -> dict:
@@ -255,6 +304,40 @@ def _telemetry(swap_out: int = 0, *, gap: float = 1.0) -> list[dict]:
             }
         )
     return rows
+
+
+def _target_hardware_evidence() -> tuple[dict, dict, dict]:
+    total = 130_596_048_896
+    environment = {
+        "architecture": "aarch64",
+        "cuda": {
+            "available": True,
+            "bf16_supported": True,
+            "device_count": 1,
+            "devices": [
+                {
+                    "index": 0,
+                    "name": "NVIDIA GB10",
+                    "compute_capability": [12, 1],
+                    "total_memory_bytes": total,
+                }
+            ],
+        },
+        "system_memory": {"total_bytes": total},
+    }
+    preflight = {
+        "host": {"memory_total_bytes": total},
+        "gpu": {"name": "NVIDIA GB10"},
+    }
+    verified = {
+        "architecture": "aarch64",
+        "gpu_name": "NVIDIA GB10",
+        "device_count": 1,
+        "compute_capability": [12, 1],
+        "unified_memory_bytes": total,
+        "host_device_memory_equal": True,
+    }
+    return environment, preflight, verified
 
 
 def _throughput(entry: dict) -> float:
@@ -465,6 +548,9 @@ def _fake_run(
         "repetition": entry["repetition"],
         "git_commit": COMMIT,
         "image_id": IMAGE,
+        "environment": _target_hardware_evidence()[0],
+        "preflight": _target_hardware_evidence()[1],
+        "target_hardware": _target_hardware_evidence()[2],
         "parameter_count": 100_000_000 + entry["num_layers"],
         "storage_safety": {
             "configured_min_free_disk_bytes": 120_000_000_000,
@@ -526,6 +612,8 @@ def test_summary_gates_exact_matrix_and_selects_committed_profile(tmp_path, monk
     assert summary["selected"]["candidate_id"] == "p70-ctx1024"
     assert summary["measurement_conditions"]["executed_target_tokens"] == 26_542_080
     assert summary["measurement_conditions"]["measured_target_tokens"] == 17_694_720
+    assert summary["measurement_conditions"]["target_hardware"]["gpu_name"] == "NVIDIA GB10"
+    assert summary["measurement_conditions"]["target_hardware"]["host_device_memory_equal"] is True
     assert summary["committed_pretrain_baseline_matches_selected"] is True
     assert summary["plan"]["token_budgets"]["1_hour"] > 0
     assert summary["plan"]["token_budgets"]["7_days"] >= 1_000_000_000
@@ -621,6 +709,38 @@ def test_primary_denominator_includes_scheduled_pauses_exactly_once(tmp_path):
     assert result["decision_wall_seconds"] == pytest.approx(result["step_wall_seconds"] + 5.2)
     assert result["tokens_per_second"] < result["compute_tokens_per_second"]
     assert result["data_wait_fraction"] == pytest.approx(0.01)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("architecture", "x86_64"),
+        ("gpu_name", "NVIDIA H100"),
+        ("compute_capability", [9, 0]),
+        ("device_total", 80_000_000_000),
+        ("host_total", 129_000_000_000),
+    ],
+)
+def test_summary_rejects_non_target_or_non_unified_hardware(tmp_path, field, value):
+    config = OmegaConf.to_container(compose_dgx(), resolve=True)
+    plan = _write_plan(tmp_path, config)
+    entry = build_matrix_plan(config)[0]
+    run_dir = _fake_run(tmp_path, entry, plan, 18_000)
+    run_path = run_dir / "run.json"
+    run = json.loads(run_path.read_text())
+    if field == "architecture":
+        run["environment"]["architecture"] = value
+    elif field == "gpu_name":
+        run["environment"]["cuda"]["devices"][0]["name"] = value
+    elif field == "compute_capability":
+        run["environment"]["cuda"]["devices"][0]["compute_capability"] = value
+    elif field == "device_total":
+        run["environment"]["cuda"]["devices"][0]["total_memory_bytes"] = value
+    else:
+        run["environment"]["system_memory"]["total_bytes"] = value
+    _write_json(run_path, run)
+    with pytest.raises(ValueError, match="DGX|GB10|unified|memory"):
+        summarize_run(run_dir, config["gates"], expected=entry, plan=plan, role="matrix")
 
 
 def test_data_wait_gate_uses_optimizer_step_wall_not_scheduled_pause(tmp_path):

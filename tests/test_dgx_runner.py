@@ -83,6 +83,14 @@ def test_matrix_container_is_user_owned_offline_and_tracking_disabled(tmp_path):
     assert "wandb.mode=disabled" in command
     assert "wandb.watch.enabled=false" in command
     assert "wandb.artifact.policy=none" in command
+    assert command[command.index("--expected-architecture") + 1] == "aarch64"
+    assert command[command.index("--expected-gpu-name") + 1] == "NVIDIA GB10"
+    assert command[command.index("--expected-device-count") + 1] == "1"
+    assert command[command.index("--expected-compute-capability-major") + 1] == "12"
+    assert command[command.index("--expected-compute-capability-minor") + 1] == "1"
+    assert command[command.index("--min-unified-memory-bytes") + 1] == "120000000000"
+    assert command[command.index("--max-unified-memory-bytes") + 1] == "140000000000"
+    assert "--require-equal-host-device-memory" in command
 
 
 def test_pilot_uses_selected_baseline_online_without_serializing_auth(monkeypatch, tmp_path):

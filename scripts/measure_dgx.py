@@ -16,6 +16,7 @@ from typing import Sequence
 
 import hydra
 import torch
+from dgx.hardware import validate_dgx_spark_environment
 from dgx.telemetry import TelemetrySampler, system_sample
 from generation.sampler import CheckpointSampler
 from train import ROOT_DIR, prepare_trainer
@@ -42,6 +43,14 @@ def parser() -> argparse.ArgumentParser:
     command.add_argument("--max-temperature-c", required=True, type=float)
     command.add_argument("--max-swap-in-pages", type=int, default=0)
     command.add_argument("--max-swap-out-pages", type=int, default=0)
+    command.add_argument("--expected-architecture", required=True)
+    command.add_argument("--expected-gpu-name", required=True)
+    command.add_argument("--expected-device-count", required=True, type=int)
+    command.add_argument("--expected-compute-capability-major", required=True, type=int)
+    command.add_argument("--expected-compute-capability-minor", required=True, type=int)
+    command.add_argument("--min-unified-memory-bytes", required=True, type=int)
+    command.add_argument("--max-unified-memory-bytes", required=True, type=int)
+    command.add_argument("--require-equal-host-device-memory", action="store_true")
     command.add_argument("--pilot", action="store_true")
     command.add_argument("--sample", action="store_true")
     command.add_argument("overrides", nargs=argparse.REMAINDER)
@@ -145,6 +154,21 @@ def _effective_min_free_disk_bytes(args: argparse.Namespace) -> int:
     )
 
 
+def _expected_hardware(args: argparse.Namespace) -> dict:
+    return {
+        "architecture": args.expected_architecture,
+        "gpu_name": args.expected_gpu_name,
+        "device_count": args.expected_device_count,
+        "compute_capability": [
+            args.expected_compute_capability_major,
+            args.expected_compute_capability_minor,
+        ],
+        "min_unified_memory_bytes": args.min_unified_memory_bytes,
+        "max_unified_memory_bytes": args.max_unified_memory_bytes,
+        "require_equal_host_device_memory": args.require_equal_host_device_memory,
+    }
+
+
 def _preflight(args: argparse.Namespace, output_dir: Path, effective_floor_bytes: int) -> dict:
     if not args.git_commit or len(args.git_commit) != 40:
         raise RuntimeError("one exact 40-character git commit is required")
@@ -207,6 +231,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         record["preflight"] = _preflight(args, output_dir, effective_disk_floor)
         record["environment"] = _environment()
+        record["target_hardware"] = validate_dgx_spark_environment(
+            record["environment"], record["preflight"], _expected_hardware(args)
+        )
         cfg = _compose(args.overrides)
         expected_profile = "pretrain_baseline" if args.role == "pilot" else "dgx_candidate"
         if cfg.profile.name != expected_profile:
@@ -274,8 +301,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         record["telemetry_started_monotonic_seconds"] = time.monotonic()
         sampler.start()
         metrics = trainer.fit()
-        sampler.stop()
-        record["telemetry_ended_monotonic_seconds"] = time.monotonic()
         final_checkpoint = output_dir / cfg.artifacts.checkpoints_dir / "final.pt"
         loaded = load_checkpoint_for_generation(final_checkpoint)
         if loaded.physical_identity["size_bytes"] > args.max_in_flight_atomic_write_bytes:
@@ -295,6 +320,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             _atomic_json(output_dir / "samples.json", _samples(final_checkpoint))
             record["samples"] = "samples.json"
         record["wandb_evidence"] = _wandb_evidence(output_dir / cfg.artifacts.checkpoints_dir)
+        sampler.stop()
+        record["telemetry_ended_monotonic_seconds"] = time.monotonic()
         record["status"] = "succeeded"
     except BaseException as error:
         record["error"] = f"{type(error).__name__}: {error}"

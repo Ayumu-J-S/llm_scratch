@@ -7,6 +7,17 @@ image:
   # Updated only when a content-addressed Docker build input intentionally changes.
   expected_runtime_spec_sha256: 9caeb915d8aa16437d1cbd28b9a435ced98c4c8bb674110b12a14a0d7fcf0b23
 
+# Measurements are valid only on the single-GPU DGX Spark target. The CUDA and
+# host-visible totals are equal on this GB10 unified-memory system.
+hardware:
+  architecture: aarch64
+  gpu_name: NVIDIA GB10
+  device_count: 1
+  compute_capability: [12, 1]
+  min_unified_memory_bytes: 120000000000
+  max_unified_memory_bytes: 140000000000
+  require_equal_host_device_memory: true
+
 matrix:
   repetitions: 3
   warmup_optimizer_steps: 10

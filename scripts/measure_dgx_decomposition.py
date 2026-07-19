@@ -17,6 +17,7 @@ from typing import Sequence
 import hydra
 import torch
 
+from dgx.hardware import validate_dgx_spark_environment
 from dgx.telemetry import TelemetrySampler, system_sample
 from runtime.config import validate_training_config
 from runtime.device import select_device
@@ -52,6 +53,14 @@ def parser() -> argparse.ArgumentParser:
     command.add_argument("--max-temperature-c", type=float, required=True)
     command.add_argument("--max-swap-in-pages", type=int, required=True)
     command.add_argument("--max-swap-out-pages", type=int, required=True)
+    command.add_argument("--expected-architecture", required=True)
+    command.add_argument("--expected-gpu-name", required=True)
+    command.add_argument("--expected-device-count", required=True, type=int)
+    command.add_argument("--expected-compute-capability-major", required=True, type=int)
+    command.add_argument("--expected-compute-capability-minor", required=True, type=int)
+    command.add_argument("--min-unified-memory-bytes", required=True, type=int)
+    command.add_argument("--max-unified-memory-bytes", required=True, type=int)
+    command.add_argument("--require-equal-host-device-memory", action="store_true")
     command.add_argument("overrides", nargs=argparse.REMAINDER)
     return command
 
@@ -106,6 +115,21 @@ def _effective_min_free_disk_bytes(args: argparse.Namespace) -> int:
         args.min_free_disk_bytes,
         args.post_plan_free_reserve_bytes + args.max_in_flight_atomic_write_bytes,
     )
+
+
+def _expected_hardware(args: argparse.Namespace) -> dict:
+    return {
+        "architecture": args.expected_architecture,
+        "gpu_name": args.expected_gpu_name,
+        "device_count": args.expected_device_count,
+        "compute_capability": [
+            args.expected_compute_capability_major,
+            args.expected_compute_capability_minor,
+        ],
+        "min_unified_memory_bytes": args.min_unified_memory_bytes,
+        "max_unified_memory_bytes": args.max_unified_memory_bytes,
+        "require_equal_host_device_memory": args.require_equal_host_device_memory,
+    }
 
 
 def _preflight(args: argparse.Namespace, output_dir: Path, effective_floor_bytes: int) -> dict:
@@ -274,6 +298,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             raise RuntimeError("loader-only decomposition must disable trainer measurement")
         record["environment"] = _environment()
         record["preflight"] = _preflight(args, output_dir, effective_disk_floor)
+        record["target_hardware"] = validate_dgx_spark_environment(
+            record["environment"], record["preflight"], _expected_hardware(args)
+        )
         record.update(
             {
                 "num_layers": int(cfg.model.num_layers),

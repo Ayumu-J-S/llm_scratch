@@ -74,6 +74,13 @@ Spark has unified CPU/GPU memory: allocator values are not total available
 memory, and unsupported `nvidia-smi` Memory-Usage must not be interpreted as
 spare capacity.
 
+DGX-001 measurement is narrower than generic CUDA diagnosis. Every matrix,
+decomposition, and pilot role must observe one `NVIDIA GB10` device on
+`aarch64`, compute capability 12.1, and a 120–140 GB memory total reported
+identically by the host and CUDA device. The summarizer revalidates that raw
+identity before accepting evidence; CUDA/BF16 support on another GPU is not
+DGX Spark evidence.
+
 Both negative checks must exit nonzero when no GPU is passed:
 
 ```bash
@@ -147,6 +154,11 @@ missing verified checkpoint. It reports median and spread, step median/p95/max,
 trained-target tokens/s, phase/data-wait decomposition, memory, validation and
 checkpoint overhead, and conservative 1-hour/24-hour/7-day budgets.
 
+Hydra may make a safety threshold stricter, but configuration validation rejects
+any override that weakens the committed UMA, telemetry, temperature, swap,
+allocator, data-wait, loader-supply, storage, repeatability, or selection gates.
+The 120 GB live disk floor and independent 100 GB post-plan reserve remain exact.
+
 Matrix preselection is deterministic: a candidate must pass every gate and project at
 least one billion targets in seven days from its slowest repetition. Among
 candidates no more than 20% slower than the fastest, choose the deepest model;
@@ -184,4 +196,7 @@ validation, rotating recovery checkpoints, and milestones run every 5M, 2.5M,
 and 100M trained targets. A final DGX-001 record must show that its model/context
 shape agrees with the exact-head summary before the profile is treated as
 selected. Decomposition likewise requires three repeatable measurements per
-role before it may pass or name a bottleneck.
+role before it may pass or name a bottleneck. Pilot telemetry remains active
+through final-checkpoint loading and verification, continuation sampling, and
+W&B evidence capture so that their overlapping UMA, swap, thermal, and storage
+pressure is included in the resource verdict.

@@ -3,9 +3,9 @@
 - Roadmap ticket: `DGX-001`
 - Branch: `codex/dgx-001-final-integration`
 - Draft PR: [#47](https://github.com/Ayumu-J-S/llm_scratch/pull/47)
-- Status: the four P1 protocol findings from the formal exact-head `/review` at
-  `b117f2c` are repaired and pass the full CPU gate; a fresh exact-head review
-  remains required before target compute is authorized
+- Status: the three findings from the formal exact-head `/review` at `e0954fa`
+  are repaired and pass focused CPU validation; full CPU validation and a fresh
+  exact-head review remain required before target compute is authorized
 - Baseline input: merged `WB-001` head
   `8791bb7237663b08c001b732393a76b240362476`
 
@@ -44,6 +44,12 @@ headroom rule. Output forecasting includes three rotating recovery checkpoints,
 one atomic temporary, best, final, every 100M-target milestone, and retained
 logs/evidence. No destructive cleanup is part of this ticket.
 
+Evidence must also identify the target itself: one `NVIDIA GB10` device on
+`aarch64`, compute capability 12.1, and the same 120–140 GB unified-memory total
+through both host and CUDA views. Generic CUDA/BF16 hardware cannot authorize a
+DGX Spark profile. Hydra overrides may strengthen safety and selection gates,
+but validation rejects any value that weakens the committed protocol.
+
 ## Implementation
 
 - `profile=dgx_candidate` is the repeated timed training path.
@@ -61,8 +67,10 @@ logs/evidence. No destructive cleanup is part of this ticket.
 - `scripts/measure_dgx.py` runs the canonical trainer, records physical
   config/manifest/checkpoint identities, samples host/GPU state out of band,
   enforces fail-closed watchdog limits for matrix and pilot roles, and binds the
-  final checkpoint to the trainer's complete schema-v3 measurement chain. Pilot mode also records
-  Japanese and English base-model continuations from that exact checkpoint.
+  final checkpoint to the trainer's complete schema-v3 measurement chain. Pilot
+  telemetry remains armed while that checkpoint is loaded and verified, while
+  Japanese and English base-model continuations are generated, and while W&B
+  evidence is captured.
 - `scripts/measure_dgx_decomposition.py` measures three 10+20-update
   repetitions of the device-resident model path and real streaming loader path
   for the summary-selected profile. Model-only timing retains the trainer's
@@ -196,6 +204,8 @@ to claim that a measured profile has been selected.
 | 33 | Protocol repair 8 | implemented | Replace the self-referential source image with a labeled content-addressed dependency runtime and exact read-only source mount; retain matrix CUDA-event timing in baseline/model-only paths; reproject and rerun selection for every candidate with observed online log latency; make decomposition repeatability a verdict and bottleneck gate; align projections to whole optimizer updates | Direct regression suite: 83 passed; no GPU or online W&B work ran; about 425 GB free |
 | 34 | Expanded and full CPU validation | passed | DGX planning/runner/runtime identity/telemetry/watchdog/config plus W&B producer/parser behavior pass together; network-free lint, full suite, Hydra preflight, lock drift, disabled/offline W&B smoke, exact plan composition, compileall, and runtime-spec identity also pass | Expanded focused suite: 148 passed in 54.59 seconds; `make ci-cpu`: 513 passed, 1 skipped in 129.47 seconds; about 425 GB free; no GPU or online W&B work ran |
 | 35 | Formal pre-measurement `/review` | `FAIL` at `e0954fa` | Hydra overrides can weaken committed safety thresholds; CUDA BF16 preflight does not prove the target is a DGX Spark GB10 with its expected architecture, compute capability, and UMA; pilot telemetry stops before checkpoint verification and optional sampling complete | Exact review retained in PR #47; independent full suite rerun: 513 passed, 1 skipped; no GPU or online W&B work ran |
+| 36 | Protocol repair 9 and focused validation | implemented | Reject every weaker hard-gate/selection override while permitting stricter thresholds; bind and revalidate exact aarch64/GB10/12.1 single-device unified-memory identity in every role and summary; retain pilot telemetry through checkpoint verification, sampling, and W&B evidence capture | Expanded DGX/config/W&B suite: 179 passed in 59.37 seconds; about 425 GB free; no GPU or online W&B work ran |
+| 37 | Full CPU validation | passed | Network-free lint, full suite, Hydra preflight, lock drift, and disabled/offline W&B smoke all pass after the ninth repair cycle and final evidence-identity hardening | `make ci-cpu`: 544 passed, 1 skipped in 133.24 seconds; about 425 GB free; no GPU or online W&B work ran |
 
 Independent `/review` will cover `PHILOSOPHY.md`, DGX-001 acceptance, and the
 applicable `CHECK.md` minimum, comparison, data supply, DGX/UMA, training-health,
