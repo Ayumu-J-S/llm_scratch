@@ -83,14 +83,25 @@ def run_preflight(
                 "config_sha256": expected_config,
             }
         except Exception as error:
-            checks["checkpoint"] = {"status": "failed", "error": str(error)}
+            checks["checkpoint"] = _unverified_checkpoint_record(
+                checkpoint_path,
+                error=error,
+            )
             local_errors.append(f"checkpoint: {error}")
 
+    action_cache_cfg = cfg if action == "benchmark" else None
     for name, function in (
         ("git", lambda: _git_check(root_dir)),
         ("configuration", lambda: _configuration_check(cfg)),
         ("manifests", lambda: _manifest_check(authority_cfg)),
-        ("cache", lambda: _cache_check(authority_cfg, root_dir)),
+        (
+            "cache",
+            lambda: _cache_check(
+                authority_cfg,
+                root_dir,
+                additional_cfg=action_cache_cfg,
+            ),
+        ),
         (
             "storage",
             lambda: _storage_check(
@@ -98,6 +109,7 @@ def run_preflight(
                 root_dir=root_dir,
                 run_root=run_root,
                 action=action,
+                cache_records=checks.get("cache", {}).get("caches", []),
             ),
         ),
         (
@@ -181,6 +193,106 @@ def require_ready(report: Mapping[str, Any]) -> None:
     if report.get("ready") is not True:
         errors = list(report.get("local_errors", [])) + list(report.get("online_errors", []))
         raise PreflightError("preflight blocked launch: " + "; ".join(map(str, errors)))
+
+
+def failed_preflight_report(
+    *,
+    root_dir: Path,
+    action: str,
+    executor: str,
+    device: str,
+    checkpoint_path: Path | None,
+    error: BaseException,
+) -> dict[str, Any]:
+    """Retain honest, non-launchable evidence when composition fails before preflight."""
+
+    message = f"{type(error).__name__}: {error}"
+    try:
+        git = {"status": "passed", **_git_check(root_dir)}
+    except Exception as git_error:
+        git = {
+            "status": "failed",
+            "sha": "unavailable",
+            "branch": "unavailable",
+            "dirty": None,
+            "worktree_status": [],
+            "lock_sha256": "unavailable",
+            "error": str(git_error),
+        }
+    checkpoint: dict[str, Any] | None = None
+    if checkpoint_path is not None:
+        checkpoint = _unverified_checkpoint_record(checkpoint_path, error=error)
+    checks: dict[str, Any] = {
+        "git": git,
+        "configuration": {"status": "failed", "error": message},
+        "manifests": {
+            "status": "not_run",
+            "tokenizer_fingerprint": None,
+            "tokenizer_vocab_size": None,
+            "data_manifests": [],
+        },
+        "cache": {"status": "not_run", "caches": []},
+        "storage": {
+            "status": "not_run",
+            "parameter_count": None,
+            "maximum_atomic_write_bytes": None,
+            "checkpoint_plan_bytes": None,
+            "milestone_checkpoint_bound": None,
+            "log_headroom_bytes": None,
+            "effective_run_live_floor_bytes": None,
+            "filesystems": [],
+        },
+        "container_mounts": {"status": "not_run", "required": False, "mounts": []},
+        "device": {"status": "not_run", "selected": device},
+        "wandb": {
+            "status": "not_run",
+            "mode": "unknown",
+            "project": None,
+            "entity": None,
+            "artifact_policy": None,
+            "blocking_reasons": [],
+        },
+    }
+    if checkpoint is not None:
+        checks["checkpoint"] = checkpoint
+    return {
+        "schema_version": 1,
+        "checked_at": utc_now(),
+        "action": action,
+        "executor": executor,
+        "device": device,
+        "ready": False,
+        "local_checks_complete": False,
+        "local_errors": [f"preflight_not_reached: {message}"],
+        "online_errors": [],
+        "login_prompt": None,
+        "checks": checks,
+    }
+
+
+def _unverified_checkpoint_record(path: Path, *, error: BaseException) -> dict[str, Any]:
+    source = path.expanduser().resolve()
+    record: dict[str, Any] = {
+        "status": "failed",
+        "error": str(error),
+        "physical_identity": None,
+    }
+    try:
+        stat = source.stat()
+        if not source.is_file():
+            raise OSError("checkpoint is not a regular file")
+        record["physical_identity"] = {
+            "path": str(source),
+            "sha256": sha256_file(source),
+            "size_bytes": stat.st_size,
+            "device": stat.st_dev,
+            "inode": stat.st_ino,
+            "mtime_ns": stat.st_mtime_ns,
+            "ctime_ns": stat.st_ctime_ns,
+        }
+    except OSError as checkpoint_error:
+        record["physical_error"] = str(checkpoint_error)
+    return record
 
 
 def estimate_parameter_count(cfg: Mapping[str, Any] | DictConfig) -> int:
@@ -287,22 +399,38 @@ def _git_check(root_dir: Path) -> dict[str, Any]:
     }
 
 
-def _cache_check(cfg: Mapping[str, Any] | DictConfig, root_dir: Path) -> dict[str, Any]:
-    caches = _cache_configs(cfg)
-    records = []
-    for cache in caches:
+def _cache_check(
+    cfg: Mapping[str, Any] | DictConfig,
+    root_dir: Path,
+    *,
+    additional_cfg: Mapping[str, Any] | DictConfig | None = None,
+) -> dict[str, Any]:
+    caches = [("checkpoint_authority", cache) for cache in _cache_configs(cfg)]
+    if additional_cfg is not None:
+        caches.extend(("action", cache) for cache in _cache_configs(additional_cfg))
+    combined: dict[Path, dict[str, Any]] = {}
+    for owner, cache in caches:
         path = _rooted(str(cache["dir"]), root_dir)
         reject_writable_git_overlap(root_dir, path, purpose="cache")
-        records.append(
+        record = combined.setdefault(
+            path,
             {
                 "path": str(path),
                 "exists": path.exists(),
-                "max_size_bytes": int(cache["max_size_bytes"]),
+                "max_size_bytes": 0,
                 "current_size_bytes": _directory_size(path),
-                "configured_min_free_bytes": int(cache.get("min_free_bytes", 0)),
+                "configured_min_free_bytes": 0,
                 "filesystem_free_bytes": shutil.disk_usage(_existing_ancestor(path)).free,
-            }
+                "owners": [],
+            },
         )
+        record["max_size_bytes"] = max(int(record["max_size_bytes"]), int(cache["max_size_bytes"]))
+        record["configured_min_free_bytes"] = max(
+            int(record["configured_min_free_bytes"]), int(cache.get("min_free_bytes", 0))
+        )
+        if owner not in record["owners"]:
+            record["owners"].append(owner)
+    records = [combined[path] for path in sorted(combined, key=str)]
     return {"caches": records}
 
 
@@ -312,6 +440,7 @@ def _storage_check(
     root_dir: Path,
     run_root: Path,
     action: str,
+    cache_records: Any = None,
 ) -> dict[str, Any]:
     parameter_count = estimate_parameter_count(cfg)
     maximum_atomic_write = (
@@ -320,9 +449,10 @@ def _storage_check(
     plain = _plain(cfg)
     artifacts = plain.get("artifacts", {})
     keep_last = int(artifacts.get("keep_last_n", 0)) if isinstance(artifacts, Mapping) else 0
-    # Recovery rotation + best/final/milestone + one atomic temporary write.
+    milestone_bound = _milestone_checkpoint_bound(plain, action=action)
+    # Recovery rotation + best/final + every retained milestone + one atomic write.
     checkpoint_plan = (
-        maximum_atomic_write * (keep_last + 4)
+        maximum_atomic_write * (keep_last + 3 + milestone_bound)
         if action
         in {
             "smoke",
@@ -342,11 +472,25 @@ def _storage_check(
     configured_floor_by_device: defaultdict[int, int] = defaultdict(int)
 
     unique_cache_growth: dict[Path, tuple[int, int]] = {}
-    for cache in _cache_configs(cfg):
-        cache_path = _rooted(str(cache["dir"]), root_dir)
-        current_size = _directory_size(cache_path)
+    cache_values = (
+        cache_records
+        if isinstance(cache_records, list)
+        else [
+            {
+                "path": str(_rooted(str(cache["dir"]), root_dir)),
+                "max_size_bytes": int(cache["max_size_bytes"]),
+                "current_size_bytes": _directory_size(_rooted(str(cache["dir"]), root_dir)),
+                "configured_min_free_bytes": int(cache.get("min_free_bytes", 0)),
+            }
+            for cache in _cache_configs(cfg)
+        ]
+    )
+    for value in cache_values:
+        cache = _mapping(value, "cache preflight record")
+        cache_path = Path(str(cache["path"])).expanduser().resolve()
+        current_size = int(cache.get("current_size_bytes", _directory_size(cache_path)))
         remaining = max(0, int(cache["max_size_bytes"]) - current_size)
-        configured_floor = int(cache.get("min_free_bytes", 0))
+        configured_floor = int(cache.get("configured_min_free_bytes", 0))
         prior_remaining, prior_floor = unique_cache_growth.get(cache_path, (0, 0))
         unique_cache_growth[cache_path] = (
             max(prior_remaining, remaining),
@@ -385,6 +529,7 @@ def _storage_check(
             "projected_post_plan_free_bytes": post_plan,
             "effective_live_floor_bytes": live_floor,
             "post_plan_reserve_bytes": POST_PLAN_RESERVE_BYTES,
+            "required_post_plan_free_bytes": live_floor,
         }
         filesystems.append(record)
         if free < live_floor:
@@ -392,19 +537,44 @@ def _storage_check(
                 f"filesystem {locations[device_id]} has {free} bytes free; "
                 f"requires live floor {live_floor}"
             )
-        if post_plan < POST_PLAN_RESERVE_BYTES:
+        if post_plan < live_floor:
             raise PreflightError(
                 f"filesystem {locations[device_id]} projects {post_plan} bytes free; "
-                f"requires {POST_PLAN_RESERVE_BYTES} post-plan reserve"
+                f"requires effective post-plan floor {live_floor}"
             )
     return {
         "parameter_count": parameter_count,
         "maximum_atomic_write_bytes": maximum_atomic_write,
         "checkpoint_plan_bytes": checkpoint_plan,
+        "milestone_checkpoint_bound": milestone_bound,
         "log_headroom_bytes": LOG_HEADROOM_BYTES,
         "effective_run_live_floor_bytes": effective_live_floor,
         "filesystems": filesystems,
     }
+
+
+def _milestone_checkpoint_bound(plain: Mapping[str, Any], *, action: str) -> int:
+    if action not in {"smoke", "train", "resume", "preflight"}:
+        return 0
+    training = _mapping(plain.get("training", {}), "training")
+    step_cadence = training.get("milestone_every_n_steps")
+    token_cadence = training.get("milestone_every_n_tokens")
+    if step_cadence is None and token_cadence is None:
+        return 0
+    max_steps = training.get("max_steps")
+    max_tokens = training.get("max_tokens")
+    if isinstance(max_steps, int) and not isinstance(max_steps, bool) and max_steps > 0:
+        if token_cadence is None and isinstance(step_cadence, int) and step_cadence > 0:
+            return max_steps // step_cadence
+        return max_steps
+    if isinstance(max_tokens, int) and not isinstance(max_tokens, bool) and max_tokens > 0:
+        # Every optimizer step consumes at least one target token, so this is a
+        # deliberately conservative upper bound when no step budget is declared.
+        return max_tokens
+    raise PreflightError(
+        "retained milestone checkpoints require max_steps or max_tokens so storage "
+        "growth is finitely forecastable"
+    )
 
 
 def _container_mount_check(
@@ -425,13 +595,16 @@ def _container_mount_check(
 
     def add(path: Path, *, read_only: bool, purpose: str, require_directory: bool) -> None:
         destination = path.expanduser().resolve()
-        if not read_only and purpose in {"run_root", "cache"} and any(
-            destination == protected or destination.is_relative_to(protected)
-            for protected in protected_git_paths
+        if (
+            not read_only
+            and purpose in {"run_root", "cache"}
+            and any(
+                destination == protected or destination.is_relative_to(protected)
+                for protected in protected_git_paths
+            )
         ):
             raise PreflightError(
-                f"container writable {purpose} path overlaps protected Git metadata: "
-                f"{destination}"
+                f"container writable {purpose} path overlaps protected Git metadata: {destination}"
             )
         if not destination.exists():
             kind = "directory" if require_directory else "file"

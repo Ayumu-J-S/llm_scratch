@@ -9,11 +9,13 @@ import pytest
 from omegaconf import OmegaConf
 
 from operations import preflight as preflight_module
+from operations.lifecycle import watchdog_targets
 from operations.preflight import (
     LIVE_DISK_FLOOR_BYTES,
     POST_PLAN_RESERVE_BYTES,
     PreflightError,
     _container_mount_check,
+    _milestone_checkpoint_bound,
     _storage_check,
     _wandb_check,
     run_preflight,
@@ -258,6 +260,51 @@ def test_atomic_write_projection_dynamically_raises_live_floor(tmp_path, monkeyp
     assert result["effective_run_live_floor_bytes"] == expected
 
 
+def test_storage_rejects_post_plan_free_below_effective_live_floor(tmp_path, monkeypatch):
+    monkeypatch.setattr(preflight_module, "estimate_parameter_count", lambda _cfg: 1)
+    monkeypatch.setattr(
+        preflight_module.shutil,
+        "disk_usage",
+        lambda _path: SimpleNamespace(
+            total=500_000_000_000,
+            used=0,
+            free=120_500_000_000,
+        ),
+    )
+
+    with pytest.raises(PreflightError, match="effective post-plan floor 120000000000"):
+        _storage_check(_cfg(), root_dir=ROOT_DIR, run_root=tmp_path, action="eval")
+
+
+def test_storage_forecasts_every_accumulating_milestone(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        preflight_module.shutil,
+        "disk_usage",
+        lambda _path: SimpleNamespace(
+            total=10_000_000_000_000,
+            used=0,
+            free=9_000_000_000_000,
+        ),
+    )
+    cfg = _cfg(
+        "training.max_steps=100",
+        "training.milestone_every_n_steps=1",
+        "artifacts.keep_last_n=2",
+    )
+
+    result = _storage_check(cfg, root_dir=ROOT_DIR, run_root=tmp_path, action="train")
+
+    assert result["milestone_checkpoint_bound"] == 100
+    assert result["checkpoint_plan_bytes"] == result["maximum_atomic_write_bytes"] * 105
+
+
+def test_accumulating_milestones_require_a_finite_step_or_token_bound():
+    plain = OmegaConf.to_container(_cfg("training.milestone_every_n_steps=1"), resolve=True)
+
+    with pytest.raises(PreflightError, match="finitely forecastable"):
+        _milestone_checkpoint_bound(plain, action="train")
+
+
 def test_eval_uses_verified_checkpoint_owned_config_for_manifest_and_storage(tmp_path, monkeypatch):
     _clean_git(monkeypatch)
     checkpoint_cfg = OmegaConf.to_container(_cfg(), resolve=True)
@@ -304,6 +351,119 @@ def test_eval_uses_verified_checkpoint_owned_config_for_manifest_and_storage(tmp
     assert report["checks"]["checkpoint"]["status"] == "passed"
     assert report["checks"]["manifests"]["data_manifests"][0]["split"] == "memorization"
     assert report["checks"]["storage"]["parameter_count"] > 0
+
+
+def test_corrupt_checkpoint_preflight_retains_raw_physical_identity(tmp_path, monkeypatch):
+    _clean_git(monkeypatch)
+    checkpoint = tmp_path / "corrupt.pt"
+    checkpoint.write_bytes(b"corrupt checkpoint evidence")
+    evaluation = _compose(
+        ROOT_DIR,
+        [
+            "profile=evaluation",
+            f"evaluation.checkpoint_path={checkpoint}",
+            f"evaluation.output_path={tmp_path / 'evaluation.json'}",
+            "evaluation.device=cpu",
+            "runtime.device=cpu",
+        ],
+    )
+
+    report = run_preflight(
+        evaluation,
+        root_dir=ROOT_DIR,
+        run_root=tmp_path,
+        action="eval",
+        executor="host",
+        device="cpu",
+        image=None,
+        checkpoint_path=checkpoint,
+    )
+
+    record = report["checks"]["checkpoint"]
+    assert record["status"] == "failed"
+    assert record["physical_identity"]["path"] == str(checkpoint.resolve())
+    assert record["physical_identity"]["size_bytes"] == len(b"corrupt checkpoint evidence")
+    assert len(record["physical_identity"]["sha256"]) == 64
+
+
+def test_checkpoint_benchmark_includes_action_owned_cache_in_all_resource_gates(
+    tmp_path, monkeypatch
+):
+    _clean_git(monkeypatch)
+    checkpoint_path = tmp_path / "final.pt"
+    checkpoint_path.write_bytes(b"fixture")
+    benchmark_cache = tmp_path / "benchmark-cache"
+    benchmark_cache.mkdir()
+    checkpoint_cfg = OmegaConf.to_container(_cfg(), resolve=True)
+    identity = checkpoint_config_sha256(checkpoint_cfg)
+    fake = SimpleNamespace(
+        payload={
+            "kind": "final",
+            "identity": {"config_sha256": identity},
+            "state": {"resolved_config": checkpoint_cfg},
+        },
+        physical_identity={
+            "path": str(checkpoint_path),
+            "sha256": "c" * 64,
+            "size_bytes": checkpoint_path.stat().st_size,
+            "device": checkpoint_path.stat().st_dev,
+            "inode": checkpoint_path.stat().st_ino,
+            "mtime_ns": checkpoint_path.stat().st_mtime_ns,
+            "ctime_ns": checkpoint_path.stat().st_ctime_ns,
+        },
+    )
+    monkeypatch.setattr(preflight_module, "load_checkpoint_for_generation", lambda _path: fake)
+    monkeypatch.setattr(
+        preflight_module,
+        "_device_check",
+        lambda **_kwargs: {"selected": "cpu", "image_id": "sha256:" + "a" * 64},
+    )
+    benchmark = _compose(
+        ROOT_DIR,
+        [
+            "profile=benchmark",
+            f"benchmark.checkpoint_path={checkpoint_path}",
+            f"benchmark.output_root={tmp_path / 'results'}",
+            f"benchmark.cache.dir={benchmark_cache}",
+            "benchmark.cache.max_size_bytes=1000000",
+            "benchmark.cache.min_free_bytes=200000000000",
+            "benchmark.device=cpu",
+            "runtime.device=cpu",
+        ],
+    )
+
+    report = run_preflight(
+        benchmark,
+        root_dir=ROOT_DIR,
+        run_root=tmp_path,
+        action="benchmark",
+        executor="container",
+        device="cpu",
+        image="fixture",
+        checkpoint_path=checkpoint_path,
+    )
+
+    assert report["ready"] is True
+    cache_record = next(
+        record
+        for record in report["checks"]["cache"]["caches"]
+        if record["path"] == str(benchmark_cache.resolve())
+    )
+    assert cache_record["owners"] == ["action"]
+    mounts = {record["source"]: record for record in report["checks"]["container_mounts"]["mounts"]}
+    assert mounts[str(benchmark_cache.resolve())]["read_only"] is False
+    filesystem = next(
+        record
+        for record in report["checks"]["storage"]["filesystems"]
+        if record["device"] == benchmark_cache.stat().st_dev
+    )
+    assert filesystem["projected_additional_bytes"] == 1_001_000_000
+    watchdog = next(
+        record
+        for record in watchdog_targets(report)
+        if record["device"] == benchmark_cache.stat().st_dev
+    )
+    assert watchdog["effective_live_floor_bytes"] == 200_000_000_000
 
 
 def test_container_mount_plan_binds_external_inputs_and_linked_git_metadata(tmp_path):

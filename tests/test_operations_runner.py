@@ -15,8 +15,14 @@ from operations.artifacts import (
     atomic_write_json,
     create_attempt,
     process_identity,
+    sha256_file,
 )
 from operations.preflight import PreflightError
+from operations.handoff import (
+    HandoffValidationError,
+    _validate_attempt_artifacts,
+    generate_handoff,
+)
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -137,6 +143,27 @@ def test_train_selected_profile_is_ops_owned_and_composes(tmp_path):
         )
 
 
+def test_package_qualified_profile_override_cannot_bypass_ops_authority(tmp_path):
+    args = SimpleNamespace(action="train", device="cpu", profile="pretrain_streaming")
+    attempt = create_attempt(
+        run_root=tmp_path,
+        run_id="run-001",
+        attempt_id="attempt-0001",
+        action="train",
+        executor="host",
+        device="cpu",
+        retry_from=None,
+    )
+
+    with pytest.raises(AttemptError, match="package-qualified"):
+        runner._operational_overrides(
+            args,
+            ["+profile@_global_=smoke_overfit"],
+            attempt=attempt,
+            selected_profile="pretrain_streaming",
+        )
+
+
 def test_resume_derives_and_composes_checkpoint_owned_profile(tmp_path, monkeypatch):
     args = SimpleNamespace(
         action="resume",
@@ -186,6 +213,45 @@ def test_real_pretraining_requires_explicit_experiment_record(tmp_path, action):
         runner._attempt_declaration(cfg, attempt=attempt, experiment_record=None)
 
 
+def test_explicit_budget_must_equal_resolved_training_limits_and_device(tmp_path):
+    attempt = create_attempt(
+        run_root=tmp_path,
+        run_id="RUN-001",
+        attempt_id="attempt-train",
+        action="train",
+        executor="host",
+        device="cpu",
+        retry_from=None,
+    )
+    cfg = runner._compose(ROOT_DIR, ["profile=pretrain_streaming", "training.max_steps=1"])
+    declaration = {
+        "schema_version": 1,
+        "ticket": "RUN-001",
+        "predeclared_question": {
+            "hypothesis": "fixture hypothesis",
+            "expected_result": "fixture result",
+            "success_condition": "fixture success",
+            "failure_condition": "fixture failure",
+            "stop_condition": "fixture stop",
+            "baseline": "fixture baseline",
+        },
+        "planned_budget": {
+            "training": {
+                "epochs": 1,
+                "max_steps": 2,
+                "max_tokens": None,
+                "max_time": None,
+            },
+            "device": "cpu",
+        },
+    }
+    path = tmp_path / "declaration.json"
+    path.write_text(json.dumps(declaration), encoding="utf-8")
+
+    with pytest.raises(AttemptError, match="must exactly match"):
+        runner._attempt_declaration(cfg, attempt=attempt, experiment_record=path)
+
+
 def test_corrupt_resume_checkpoint_retains_failed_command_lineage(tmp_path, monkeypatch):
     parent = create_attempt(
         run_root=tmp_path,
@@ -230,6 +296,58 @@ def test_corrupt_resume_checkpoint_retains_failed_command_lineage(tmp_path, monk
     assert state["status"] == "failed"
     assert state["retry_from"]["attempt_id"] == "attempt-failed"
     assert "cannot derive resume profile" in diagnosis["summary"]
+    for name in (
+        "declaration.json",
+        "resolved_config.yaml",
+        "preflight.json",
+        "plan.json",
+    ):
+        assert (attempt / name).is_file()
+
+    handoff_path = generate_handoff(
+        runner.Attempt(tmp_path, "run-001", "attempt-resume"),
+        root_dir=ROOT_DIR,
+    )
+    handoff = json.loads(handoff_path.with_suffix(".json").read_text(encoding="utf-8"))
+    assert handoff["results"]["outcome"] == "failed"
+    assert handoff["scientific_identity"]["profile"] == "unresolved_prelaunch"
+    checkpoint_evidence = handoff["scientific_identity"]["checkpoint"]
+    assert checkpoint_evidence["status"] == "failed"
+    assert checkpoint_evidence["physical_identity"]["sha256"]
+
+
+def test_failed_output_handoff_retains_exact_corrupt_checkpoint_bytes(tmp_path):
+    attempt = create_attempt(
+        run_root=tmp_path,
+        run_id="run-001",
+        attempt_id="attempt-failed-checkpoint",
+        action="train",
+        executor="host",
+        device="cpu",
+        retry_from=None,
+    )
+    checkpoint = attempt.path / "work" / "checkpoints" / "corrupt.pt"
+    checkpoint.parent.mkdir(parents=True)
+    checkpoint.write_bytes(b"corrupt checkpoint evidence")
+    record = {
+        "path": str(checkpoint),
+        "size_bytes": checkpoint.stat().st_size,
+        "sha256": sha256_file(checkpoint),
+        "verified": False,
+        "verification_error": "checkpoint payload is corrupt",
+    }
+    result = {
+        "action": "train",
+        "outcome": "failed",
+        "checkpoint_status": {"files": [record]},
+        "outputs": {"files": []},
+    }
+
+    _validate_attempt_artifacts(result, preflight={"checks": {}}, attempt=attempt)
+
+    checkpoint.write_bytes(b"changed")
+    with pytest.raises(HandoffValidationError, match="checkpoint .* (size|hash) changed"):
+        _validate_attempt_artifacts(result, preflight={"checks": {}}, attempt=attempt)
 
 
 def test_invalid_loss_is_detected_even_when_json_parser_accepts_nan(tmp_path):

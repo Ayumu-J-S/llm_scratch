@@ -56,7 +56,15 @@ def _experiment_record(tmp_path: Path) -> tuple[Path, dict]:
             "stop_condition": "Stop before the declared filesystem reserve is crossed.",
             "baseline": {"kind": "untrained_fixture", "optimizer_step": 0},
         },
-        "planned_budget": {"max_steps": 1, "device": "cpu"},
+        "planned_budget": {
+            "training": {
+                "epochs": 1,
+                "max_steps": 1,
+                "max_tokens": None,
+                "max_time": None,
+            },
+            "device": "cpu",
+        },
     }
     path = tmp_path / "RUN-001.declaration.json"
     path.write_text(json.dumps(payload), encoding="utf-8")

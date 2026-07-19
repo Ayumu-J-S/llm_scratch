@@ -418,16 +418,24 @@ def _validate_attempt_artifacts(
         record = _mapping(value, f"checkpoint status files[{index}]")
         path = _attempt_owned_path(record.get("path"), attempt, "checkpoint")
         _verify_file_identity(path, record, f"checkpoint {path}")
-        try:
-            loaded = load_checkpoint_for_generation(path)
-        except Exception as error:
-            raise HandoffValidationError(f"checkpoint verification failed: {path}: {error}") from error
-        physical = loaded.physical_identity
-        if (
-            physical.get("sha256") != record.get("sha256")
-            or physical.get("size_bytes") != record.get("size_bytes")
-        ):
-            raise HandoffValidationError(f"checkpoint changed during verification: {path}")
+        if record.get("verified") is True:
+            try:
+                loaded = load_checkpoint_for_generation(path)
+            except Exception as error:
+                raise HandoffValidationError(
+                    f"checkpoint verification failed: {path}: {error}"
+                ) from error
+            physical = loaded.physical_identity
+            if physical.get("sha256") != record.get("sha256") or physical.get(
+                "size_bytes"
+            ) != record.get("size_bytes"):
+                raise HandoffValidationError(f"checkpoint changed during verification: {path}")
+        elif outcome != "succeeded":
+            error = record.get("verification_error")
+            if not isinstance(error, str) or not error:
+                raise HandoffValidationError(
+                    "unverified failed-checkpoint evidence requires a verification error"
+                )
 
     outputs = _mapping(result.get("outputs"), "result outputs")
     files = outputs.get("files", [])
@@ -448,15 +456,25 @@ def _validate_attempt_artifacts(
         return
     path = Path(str(physical.get("path", "")))
     _verify_file_identity(path, physical, f"input checkpoint {path}")
-    try:
-        loaded = load_checkpoint_for_generation(path)
-    except Exception as error:
-        raise HandoffValidationError(f"input checkpoint verification failed: {path}: {error}") from error
-    if (
-        loaded.physical_identity.get("sha256") != physical.get("sha256")
-        or loaded.physical_identity.get("size_bytes") != physical.get("size_bytes")
-    ):
-        raise HandoffValidationError(f"input checkpoint changed during verification: {path}")
+    if checkpoint_check.get("status") == "passed":
+        try:
+            loaded = load_checkpoint_for_generation(path)
+        except Exception as error:
+            raise HandoffValidationError(
+                f"input checkpoint verification failed: {path}: {error}"
+            ) from error
+        if loaded.physical_identity.get("sha256") != physical.get(
+            "sha256"
+        ) or loaded.physical_identity.get("size_bytes") != physical.get("size_bytes"):
+            raise HandoffValidationError(f"input checkpoint changed during verification: {path}")
+    elif outcome == "succeeded":
+        raise HandoffValidationError("successful attempt has an unverified input checkpoint")
+    else:
+        error = checkpoint_check.get("error")
+        if not isinstance(error, str) or not error:
+            raise HandoffValidationError(
+                "unverified input-checkpoint evidence requires a verification error"
+            )
 
 
 def _run_manifest_evidence(
@@ -520,9 +538,7 @@ def _wandb_evidence(
                     f"invalid W&B evidence at {path}:{line_number}"
                 ) from error
             if not isinstance(value, dict) or value.get("schema_version") != 1:
-                raise HandoffValidationError(
-                    f"invalid W&B evidence record at {path}:{line_number}"
-                )
+                raise HandoffValidationError(f"invalid W&B evidence record at {path}:{line_number}")
             records.append(value)
 
     checks = _mapping(preflight.get("checks"), "preflight checks")
@@ -564,13 +580,10 @@ def _wandb_evidence(
             )
     if mode == "online" and outcome == "succeeded":
         if not initializations and not any(
-            item.get("action") == "logging" and item.get("outcome") == "failed"
-            for item in outcomes
+            item.get("action") == "logging" and item.get("outcome") == "failed" for item in outcomes
         ):
             raise HandoffValidationError("successful online attempt lacks a W&B outcome")
-        succeeded = [
-            item for item in initializations if item.get("outcome") == "succeeded"
-        ]
+        succeeded = [item for item in initializations if item.get("outcome") == "succeeded"]
         if any(not item.get("run_id") or not item.get("run_url") for item in succeeded):
             raise HandoffValidationError("successful online W&B initialization lacks run ID/URL")
     return {
@@ -603,9 +616,7 @@ def _runtime_evidence(
         if files:
             output = load_json(Path(str(_mapping(files[0], "result output")["path"])))
             if action == "eval":
-                actual = _mapping(output.get("evaluator_run"), "evaluator run").get(
-                    "environment"
-                )
+                actual = _mapping(output.get("evaluator_run"), "evaluator run").get("environment")
             else:
                 evaluation = _mapping(output.get("evaluation_identity"), "evaluation identity")
                 evaluator = _mapping(evaluation.get("evaluator"), "benchmark evaluator")

@@ -90,24 +90,40 @@ exactly this schema:
     "stop_condition": "...",
     "baseline": {"run_id": "...", "attempt_id": "..."}
   },
-  "planned_budget": {"max_time_seconds": 3600, "max_steps": 1000}
+  "planned_budget": {
+    "training": {
+      "epochs": 1,
+      "max_steps": null,
+      "max_tokens": null,
+      "max_time": 3600
+    },
+    "device": "cuda"
+  }
 }
 ```
 
 The command records the source path and SHA-256 before preflight, then copies
 the exact declared ticket, question, baseline, decision conditions, and budget
-into the final handoff. Pretraining-purpose `preflight`, `train`, and `resume`
-commands reject omission of this record.
+into the final handoff. The budget must exactly equal the resolved `epochs`,
+`max_steps`, `max_tokens`, `max_time`, and OPS-owned device; a stale or more
+permissive declaration fails before launch. Pretraining-purpose `preflight`,
+`train`, and `resume` commands reject omission of this record.
+
+Package-qualified Hydra overrides are rejected. In particular, an override such
+as `+profile@_global_=...` cannot replace the canonical profile selected by the
+operator command.
 
 Real train, resume, evaluation, and benchmark actions require a clean Git
 worktree. Evaluation and benchmark storage/manifest identity comes from the
 verified checkpoint's resolved configuration rather than the thin operational
-profile. Missing W&B credentials produces a `wandb login` prompt only after all
-local checks finish. It blocks online actions but does not block an offline
-smoke or a local config check. A host executor may use `WANDB_API_KEY` or the
-operator's netrc. A container executor requires `WANDB_API_KEY`; Docker receives
-only the environment-variable name, and neither commands nor attempt evidence
-persist the credential value.
+profile. Benchmark cache ownership remains action-specific: its writable mount,
+maximum growth, configured floor, and watchdog coverage are added alongside any
+checkpoint-owned training cache. Missing W&B credentials produces a `wandb
+login` prompt only after all local checks finish. It blocks online actions but
+does not block an offline smoke or a local config check. A host executor may use
+`WANDB_API_KEY` or the operator's netrc. A container executor requires
+`WANDB_API_KEY`; Docker receives only the environment-variable name, and neither
+commands nor attempt evidence persist the credential value.
 
 Container preflight also commits an exact bind-mount plan. It includes the
 repository and run root as writable, linked-worktree/common Git metadata as
@@ -121,12 +137,17 @@ duplicate path with conflicting access modes is rejected rather than weakened.
 ## Storage safety
 
 Preflight groups run and cache forecasts by filesystem. It accounts for cache
-remaining growth, rotating and selected checkpoints, an atomic checkpoint
-write, and log headroom. A launch requires both:
+remaining growth, rotating and selected checkpoints, every possible retained
+milestone under the finite step/token budget, an atomic checkpoint write, and
+log headroom. A milestone cadence without a finite step or token bound is
+rejected because its accumulating storage cannot be forecast. A launch requires
+both:
 
 - at least a 120 GB operational/live floor, dynamically raised when 100 GB plus
   the maximum in-flight atomic write is larger; and
-- at least 100 GB projected free after the complete plan.
+- at least the effective live/cache floor projected free after the complete
+  plan (never less than 120 GB, and therefore never less than the 100 GB
+  post-plan policy reserve).
 
 The live watchdog samples every projected filesystem, not only the run
 directory. Crossing a floor, or losing filesystem visibility, stops only the
@@ -135,6 +156,12 @@ child no longer matches its captured process-group identity, the command does
 not signal the old group: it terminates only the exact still-child PID and
 records descendant ownership uncertainty. Container operations remain bound to
 the immutable full container ID created for the attempt.
+
+A failure before Hydra composition or full preflight still receives an honest,
+non-launchable configuration record, declaration, failed preflight, storage
+plan, diagnosis, and validated handoff. Corrupt checkpoint bytes are retained by
+path, size, and SHA-256 with their verification error; failed handoff validation
+does not reinterpret those bytes as a valid checkpoint.
 
 `SIGTERM` and `SIGHUP` are captured by the operator and routed through the same
 exact-owned process/container cleanup path. The terminal result and event log

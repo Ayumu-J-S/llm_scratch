@@ -24,6 +24,7 @@ from omegaconf import DictConfig, OmegaConf
 from operations.artifacts import (
     Attempt,
     AttemptError,
+    atomic_write_bytes,
     atomic_write_json,
     create_attempt,
     load_json,
@@ -43,6 +44,7 @@ from operations.lifecycle import (
 )
 from operations.preflight import (
     PreflightError,
+    failed_preflight_report,
     reject_writable_git_overlap,
     require_ready,
     run_preflight,
@@ -201,7 +203,7 @@ def dispatch(args: Namespace, overrides: list[str], *, root_dir: Path) -> int:
             preflight=preflight,
         )
     except BaseException as error:
-        _record_prelaunch_failure(attempt, error)
+        _record_prelaunch_failure(attempt, error, args=args, root_dir=root_dir)
         if isinstance(error, KeyboardInterrupt):
             return 130
         print(f"OPS attempt failed: {error}", file=sys.stderr)
@@ -695,6 +697,7 @@ def _attempt_plan(
         "storage_forecast": {
             "maximum_atomic_write_bytes": storage.get("maximum_atomic_write_bytes"),
             "checkpoint_plan_bytes": storage.get("checkpoint_plan_bytes"),
+            "milestone_checkpoint_bound": storage.get("milestone_checkpoint_bound"),
             "effective_run_live_floor_bytes": storage.get("effective_run_live_floor_bytes"),
             "filesystems": storage.get("filesystems", []),
         },
@@ -708,15 +711,19 @@ def _attempt_declaration(
     experiment_record: Path | None,
 ) -> dict[str, Any]:
     if experiment_record is not None:
-        return _load_experiment_declaration(experiment_record)
+        declaration = _load_experiment_declaration(experiment_record)
+        expected_budget = _resolved_planned_budget(cfg, attempt=attempt)
+        if declaration["planned_budget"] != expected_budget:
+            raise AttemptError(
+                "experiment declaration planned_budget must exactly match the resolved "
+                f"training limits and device: expected {expected_budget!r}"
+            )
+        return declaration
     action = str(attempt.state()["action"])
     purpose = str(cfg.profile.get("purpose", ""))
     if purpose == "pretraining" and action in {"preflight", "train", "resume"}:
-        raise AttemptError(
-            f"{action} with a pretraining profile requires --experiment-record"
-        )
+        raise AttemptError(f"{action} with a pretraining profile requires --experiment-record")
     profile = str(cfg.profile.name)
-    training = cfg.get("training", {})
     retry = attempt.state().get("retry_from")
     return {
         "schema_version": 1,
@@ -740,19 +747,23 @@ def _attempt_declaration(
             ),
             "baseline": retry or "none — no failed sibling baseline was declared",
         },
-        "planned_budget": {
-            "training": {
-                "max_time": training.get("max_time"),
-                "max_steps": training.get("max_steps"),
-                "max_tokens": training.get("max_tokens"),
-                "epochs": training.get("epochs"),
-            },
-            "storage_policy": {
-                "live_floor_bytes": 120_000_000_000,
-                "post_plan_reserve_bytes": 100_000_000_000,
-                "maximum_inflight_write_rule": "128 bytes per parameter plus 4000000000 bytes",
-            },
+        "planned_budget": _resolved_planned_budget(cfg, attempt=attempt),
+    }
+
+
+def _resolved_planned_budget(cfg: DictConfig, *, attempt: Attempt) -> dict[str, Any]:
+    training = _mapping(
+        OmegaConf.to_container(cfg.get("training", {}), resolve=True),
+        "resolved training configuration",
+    )
+    return {
+        "training": {
+            "epochs": training.get("epochs"),
+            "max_steps": training.get("max_steps"),
+            "max_tokens": training.get("max_tokens"),
+            "max_time": training.get("max_time"),
         },
+        "device": str(attempt.state()["device"]),
     }
 
 
@@ -805,13 +816,26 @@ def _load_experiment_declaration(path: Path) -> dict[str, Any]:
     }
 
 
-def _record_prelaunch_failure(attempt: Attempt, error: BaseException) -> None:
+def _record_prelaunch_failure(
+    attempt: Attempt,
+    error: BaseException,
+    *,
+    args: Namespace,
+    root_dir: Path,
+) -> None:
     try:
         state = attempt.state()
     except AttemptError:
         return
     if state.get("status") in {"succeeded", "failed", "stopped"}:
         return
+    _complete_prelaunch_evidence(
+        attempt,
+        error=error,
+        args=args,
+        root_dir=root_dir,
+        state=state,
+    )
     diagnosis = {
         "category": "preflight_or_launch",
         "summary": str(error),
@@ -850,6 +874,130 @@ def _record_prelaunch_failure(attempt: Attempt, error: BaseException) -> None:
         attempt.transition("failed", outcome="failed")
     except AttemptError:
         pass
+
+
+def _complete_prelaunch_evidence(
+    attempt: Attempt,
+    *,
+    error: BaseException,
+    args: Namespace,
+    root_dir: Path,
+    state: Mapping[str, Any],
+) -> None:
+    declaration_path = attempt.path / "declaration.json"
+    if not declaration_path.is_file():
+        atomic_write_json(
+            declaration_path,
+            _failed_prelaunch_declaration(
+                attempt,
+                experiment_record=getattr(args, "experiment_record", None),
+                error=error,
+            ),
+        )
+
+    resolved_path = attempt.path / "resolved_config.yaml"
+    composition_status = "resolved" if resolved_path.is_file() else "failed"
+    if not resolved_path.is_file():
+        failure_config = OmegaConf.create(
+            {
+                "profile": {"name": "unresolved_prelaunch", "purpose": "unresolved"},
+                "operations_resolution": {
+                    "status": "failed",
+                    "error_type": type(error).__name__,
+                    "error": str(error),
+                },
+            }
+        )
+        atomic_write_bytes(
+            resolved_path,
+            OmegaConf.to_yaml(failure_config, resolve=True).encode("utf-8"),
+        )
+
+    command_path = attempt.path / "command.json"
+    try:
+        command = load_json(command_path)
+    except AttemptError:
+        command = {"schema_version": 1, "action": state.get("action")}
+    command.update(
+        {
+            "executor": state.get("executor"),
+            "device": state.get("device"),
+            "composition_status": composition_status,
+            "resolved_config_path": str(resolved_path),
+            "resolved_config_sha256": sha256_file(resolved_path),
+            "declaration_sha256": sha256_file(declaration_path),
+            "experiment_record": load_json(declaration_path)["source"],
+            "failure": {"type": type(error).__name__, "error": str(error)},
+        }
+    )
+    atomic_write_json(command_path, command)
+
+    preflight_path = attempt.path / "preflight.json"
+    if not preflight_path.is_file():
+        atomic_write_json(
+            preflight_path,
+            failed_preflight_report(
+                root_dir=root_dir,
+                action=str(state.get("action", "unknown")),
+                executor=str(state.get("executor", "unknown")),
+                device=str(state.get("device", "unknown")),
+                checkpoint_path=getattr(args, "checkpoint", None),
+                error=error,
+            ),
+        )
+    plan_path = attempt.path / "plan.json"
+    if not plan_path.is_file():
+        atomic_write_json(
+            plan_path,
+            _attempt_plan(attempt=attempt, preflight=load_json(preflight_path)),
+        )
+
+
+def _failed_prelaunch_declaration(
+    attempt: Attempt,
+    *,
+    experiment_record: Path | None,
+    error: BaseException,
+) -> dict[str, Any]:
+    if experiment_record is not None:
+        try:
+            return _load_experiment_declaration(experiment_record)
+        except AttemptError:
+            source_path = experiment_record.expanduser().resolve()
+            try:
+                digest = hashlib.sha256(source_path.read_bytes()).hexdigest()
+            except OSError:
+                digest = None
+            source = {
+                "kind": "invalid_experiment_record",
+                "path": str(source_path),
+                "sha256": digest,
+            }
+        else:  # pragma: no cover - the successful return above is explicit
+            raise AssertionError("unreachable")
+    else:
+        source = {"kind": "generated_prelaunch_failure", "path": None, "sha256": None}
+    retry = attempt.state().get("retry_from")
+    return {
+        "schema_version": 1,
+        "recorded_at": utc_now(),
+        "source": source,
+        "ticket": "OPS-001",
+        "predeclared_question": {
+            "hypothesis": "The requested attempt can reach a resolved, preflighted launch.",
+            "expected_result": "Configuration and preflight evidence become launch-ready.",
+            "success_condition": "Composition and every required preflight gate pass.",
+            "failure_condition": "Any composition or preflight gate fails before launch.",
+            "stop_condition": "Do not launch after an unresolved configuration or failed gate.",
+            "baseline": retry or "none — the attempt failed before a scientific baseline ran",
+        },
+        "planned_budget": {
+            "status": "unresolved_prelaunch",
+            "device": str(attempt.state().get("device", "unknown")),
+            "launch_permitted": False,
+            "failure": str(error),
+        },
+    }
 
 
 def status_payload(attempt: Attempt, *, root_dir: Path) -> dict[str, Any]:
@@ -1020,6 +1168,10 @@ def _override_key(override: str) -> str:
     key = value.split("=", 1)[0]
     if not key:
         raise AttemptError(f"invalid Hydra override: {override!r}")
+    if "@" in key:
+        raise AttemptError(
+            "package-qualified Hydra overrides are not permitted through llm-scratch-ops"
+        )
     return key
 
 
