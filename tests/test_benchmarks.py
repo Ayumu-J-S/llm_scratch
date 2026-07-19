@@ -384,10 +384,10 @@ def test_injected_contamination_reports_source_and_document_id(monkeypatch, tmp_
     index = json.loads(index_files[0].read_text(encoding="utf-8"))
     assert index["index_identity_sha256"] == evidence["scan_index_identity_sha256"]
     assert index["index_identity"]["normalization_revision"] == (
-        "normalize-text-identity-nfc-strip-plus-json-object-v11"
+        "normalize-text-identity-nfc-strip-plus-json-object-v12"
     )
     assert index["index_identity"]["json_object_normalization_revision"] == (
-        "constant-memory-leaf-object-string-fail-closed-json-nfc-sha256-v10"
+        "constant-memory-leaf-object-string-fail-closed-json-nfc-sha256-v11"
     )
     assert index["index_identity"]["matcher_revision"] == (
         "collision-verified-rolling-hash-codepoint-v1"
@@ -506,6 +506,7 @@ def test_all_selected_source_records_match_verbatim_and_reordered_json():
     decoded_wrapper_counts = {
         "double_serialized": {"jcommonsenseqa": 0, "gsm8k": 0},
         "nested_object_array": {"jcommonsenseqa": 0, "gsm8k": 0},
+        "object_key": {"jcommonsenseqa": 0, "gsm8k": 0},
         "quoted_prose": {"jcommonsenseqa": 0, "gsm8k": 0},
     }
 
@@ -537,6 +538,7 @@ def test_all_selected_source_records_match_verbatim_and_reordered_json():
                     {"outer": [{"payloads": [reordered]}]},
                     ensure_ascii=True,
                 ),
+                "object_key": json.dumps({reordered: 0}, ensure_ascii=True),
                 "quoted_prose": f"training payload {json_string_record} end",
             }
             structured = _document_matches(
@@ -580,6 +582,7 @@ def test_all_selected_source_records_match_verbatim_and_reordered_json():
     assert decoded_wrapper_counts == {
         "double_serialized": {"jcommonsenseqa": 128, "gsm8k": 128},
         "nested_object_array": {"jcommonsenseqa": 128, "gsm8k": 128},
+        "object_key": {"jcommonsenseqa": 128, "gsm8k": 128},
         "quoted_prose": {"jcommonsenseqa": 128, "gsm8k": 128},
     }
 
@@ -796,6 +799,57 @@ def test_full_scan_detects_serialized_record_inside_malformed_balanced_object(
                         "document_id": document_id,
                         "content_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
                         "upstream_id": "malformed-balanced-wrapper",
+                    },
+                )
+            ]
+        ),
+    )
+
+    evidence = scan_checkpoint_training_data(
+        checkpoint_config,
+        suite,
+        fallback_cache=BoundedShardCache(tmp_path / "fallback", max_size_bytes=10_000_000),
+    )
+
+    assert evidence["scan_complete"] is True
+    assert evidence["contaminated"] is True
+    assert any(match["training_document_id"] == document_id for match in evidence["matches"])
+    index_files = list((tmp_path / "training-cache/contamination-scans").glob("*.json"))
+    assert len(index_files) == 1
+    cached = json.loads(index_files[0].read_text(encoding="utf-8"))
+    assert cached["report"]["contaminated"] is True
+    assert cached["report"]["matches"]
+
+
+def test_full_scan_detects_serialized_record_used_as_valid_json_object_key(
+    monkeypatch,
+    tmp_path: Path,
+):
+    registry, fingerprint = _registry(tmp_path)
+    _, checkpoint_config = _pretraining_checkpoint(tmp_path)
+    suite = load_suite(
+        registry,
+        expected_fingerprint=fingerprint,
+        access="dev",
+        cache=BoundedShardCache(tmp_path / "benchmark-cache", max_size_bytes=10_000_000),
+        timeout_seconds=1.0,
+    )
+    example = next(task for task in suite.tasks if task.name == "jcommonsenseqa").examples[0]
+    serialized_record = _structured_adversarial_record(example)
+    text = json.dumps({serialized_record: 0}, ensure_ascii=True)
+    document_id = "a" * 64
+
+    monkeypatch.setattr(
+        contamination_scans,
+        "ManifestTextSource",
+        lambda *_args, **_kwargs: iter(
+            [
+                RawDocument(
+                    text=text,
+                    metadata={
+                        "document_id": document_id,
+                        "content_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+                        "upstream_id": "valid-object-key-wrapper",
                     },
                 )
             ]
