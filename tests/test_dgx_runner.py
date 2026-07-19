@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 
 import hydra
+import pytest
 from omegaconf import OmegaConf
 
 from dgx.planning import build_matrix_plan
@@ -17,6 +18,8 @@ assert SPEC is not None and SPEC.loader is not None
 RUNNER = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(RUNNER)
 _container_command = RUNNER._container_command
+_preflight_storage = RUNNER._preflight_storage
+_run_config_authorities = RUNNER._run_config_authorities
 _selected_entry = RUNNER._selected_entry
 _shard_cache_identity = RUNNER._shard_cache_identity
 
@@ -103,11 +106,28 @@ def test_decomposition_commands_are_exact_selected_profile_and_offline(tmp_path)
         assert command[command.index("--warmup-optimizer-steps") + 1] == "10"
         assert command[command.index("--measured-optimizer-steps") + 1] == "20"
         assert command[command.index("--min-available-memory-bytes") + 1] == "64000000000"
+        assert command[command.index("--min-free-disk-bytes") + 1] == "120000000000"
         assert command[command.index("--max-swap-in-pages") + 1] == "0"
         assert "--network=none" in command
         assert "profile=pretrain_baseline" in command
         assert "wandb.mode=disabled" in command
         assert "measurement.enabled=false" in command
+
+
+def test_every_execution_role_has_a_full_config_authority():
+    cfg = _config()
+    entry = {**build_matrix_plan(cfg)[0], "repetition": 1}
+    roles = [
+        (entry, "matrix"),
+        (entry, "model-only"),
+        (entry, "loader-only"),
+        (entry, "pilot"),
+    ]
+    authorities = _run_config_authorities(cfg, roles)
+    assert len(authorities) == 4
+    assert len({item["authority_key"] for item in authorities}) == 4
+    assert all(len(item["canonical_config_sha256"]) == 64 for item in authorities)
+    assert all(len(item["experiment_config_sha256"]) == 64 for item in authorities)
 
 
 def test_shard_cache_identity_is_content_bound_and_deterministic(tmp_path):
@@ -120,28 +140,108 @@ def test_shard_cache_identity_is_content_bound_and_deterministic(tmp_path):
     assert _shard_cache_identity(tmp_path)["sha256"] != first["sha256"]
 
 
+def test_storage_preflight_aggregates_growth_on_one_filesystem(monkeypatch, tmp_path):
+    output = tmp_path / "output"
+    cache = tmp_path / "cache"
+    output.mkdir()
+    cache.mkdir()
+    monkeypatch.setattr(RUNNER, "_filesystem_device", lambda _path: 1)
+    monkeypatch.setattr(
+        RUNNER.shutil, "disk_usage", lambda _path: type("Usage", (), {"free": 298_000_000_000})()
+    )
+    with pytest.raises(RuntimeError, match="hard floor"):
+        _preflight_storage(
+            output_parent=output,
+            cache_root=cache,
+            cache_existing_bytes=1_000_000_000,
+            cache_max_bytes=80_000_000_000,
+            output_growth_bytes=100_000_000_000,
+            minimum_free_bytes=120_000_000_000,
+        )
+
+
+def test_storage_preflight_accounts_split_filesystems_independently(monkeypatch, tmp_path):
+    output = tmp_path / "output"
+    cache = tmp_path / "cache"
+    output.mkdir()
+    cache.mkdir()
+    monkeypatch.setattr(RUNNER, "_filesystem_device", lambda path: 1 if path == output else 2)
+    free = {output: 220_000_000_000, cache: 199_000_000_000}
+    monkeypatch.setattr(
+        RUNNER.shutil,
+        "disk_usage",
+        lambda path: type("Usage", (), {"free": free[path]})(),
+    )
+    _preflight_storage(
+        output_parent=output,
+        cache_root=cache,
+        cache_existing_bytes=1_000_000_000,
+        cache_max_bytes=80_000_000_000,
+        output_growth_bytes=100_000_000_000,
+        minimum_free_bytes=120_000_000_000,
+    )
+
+
 def test_selected_entry_requires_a_passing_summary_for_current_commit(monkeypatch, tmp_path):
     cfg = _config()
     plan = build_matrix_plan(cfg)
     selected = {key: value for key, value in plan[0].items() if key != "repetition"}
     summary_path = tmp_path / "summary.json"
+    commit = "a" * 40
+    matrix_config = json.loads(json.dumps(cfg))
+    matrix_config["mode"] = "matrix"
+    matrix_config["selected_candidate"] = None
+    matrix_config["matrix_summary_path"] = None
+    matrix_plan = {
+        "schema_version": 3,
+        "ticket": "DGX-001",
+        "config": matrix_config,
+        "git_commit": commit,
+        "image_id": cfg["image"]["expected_id"],
+        "runs": plan,
+        "selected": None,
+        "matrix_summary_identity": None,
+    }
+    matrix_plan["plan_id"] = RUNNER._canonical_sha256(matrix_plan)
+    (tmp_path / "plan.json").write_text(json.dumps(matrix_plan), encoding="utf-8")
     summary = {
         "schema_version": 3,
         "verdict": "PASS",
         "git_commit": "b" * 40,
+        "image_id": cfg["image"]["expected_id"],
+        "plan_id": matrix_plan["plan_id"],
+        "selection_rule": cfg["selection"],
         "selected": {**selected, "conservative_tokens_per_second": 10.0},
     }
     summary_path.write_text(json.dumps(summary), encoding="utf-8")
     cfg["selected_candidate"] = selected["candidate_id"]
     cfg["matrix_summary_path"] = str(summary_path)
-    monkeypatch.setattr(RUNNER, "_git", lambda *args: "a" * 40)
-    try:
+    monkeypatch.setattr(RUNNER, "_git", lambda *args: commit)
+    with pytest.raises(RuntimeError, match="exact passing matrix"):
         _selected_entry(cfg, plan)
-    except RuntimeError as error:
-        assert "for this commit" in str(error)
-    else:
-        raise AssertionError("a summary from another commit must be rejected")
 
-    summary["git_commit"] = "a" * 40
+    summary["git_commit"] = commit
     summary_path.write_text(json.dumps(summary), encoding="utf-8")
     assert _selected_entry(cfg, plan) == selected
+
+    summary["plan_id"] = "f" * 64
+    summary_path.write_text(json.dumps(summary), encoding="utf-8")
+    with pytest.raises(RuntimeError, match="exact passing matrix"):
+        _selected_entry(cfg, plan)
+
+    summary["plan_id"] = matrix_plan["plan_id"]
+    summary["selection_rule"] = {**cfg["selection"], "max_slowdown_fraction": 0.99}
+    summary_path.write_text(json.dumps(summary), encoding="utf-8")
+    with pytest.raises(RuntimeError, match="exact passing matrix"):
+        _selected_entry(cfg, plan)
+
+    summary["selection_rule"] = cfg["selection"]
+    matrix_plan["config"]["selection"]["max_slowdown_fraction"] = 0.99
+    unsigned = dict(matrix_plan)
+    unsigned.pop("plan_id")
+    matrix_plan["plan_id"] = RUNNER._canonical_sha256(unsigned)
+    (tmp_path / "plan.json").write_text(json.dumps(matrix_plan), encoding="utf-8")
+    summary["plan_id"] = matrix_plan["plan_id"]
+    summary_path.write_text(json.dumps(summary), encoding="utf-8")
+    with pytest.raises(RuntimeError, match="exact passing matrix"):
+        _selected_entry(cfg, plan)

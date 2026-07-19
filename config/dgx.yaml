@@ -53,12 +53,15 @@ pilot:
 
 gates:
   min_available_memory_bytes: 64000000000
-  min_free_disk_bytes: 100000000000
+  # Stop writes before the human-required 100 GB machine reserve can be crossed.
+  min_free_disk_bytes: 120000000000
+  post_plan_free_reserve_bytes: 100000000000
   max_temperature_c: 80
   max_swap_in_pages: 0
   max_swap_out_pages: 0
   max_allocator_growth_bytes: 268435456
   min_sampler_coverage: 0.90
+  min_gpu_metric_coverage: 0.90
   max_telemetry_gap_factor: 2.5
   max_data_wait_fraction: 0.10
   min_loader_supply_ratio: 1.20

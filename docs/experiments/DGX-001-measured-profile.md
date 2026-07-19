@@ -3,8 +3,8 @@
 - Roadmap ticket: `DGX-001`
 - Branch: `codex/dgx-001-final-integration`
 - Draft PR: [#47](https://github.com/Ayumu-J-S/llm_scratch/pull/47)
-- Status: second pre-measurement repair implemented; exact-head re-review
-  blocked by review-service quota until 2026-07-25 23:43 UTC
+- Status: supplemental pre-measurement repair implemented; exact-head re-review
+  remains blocked by review-service quota until 2026-07-25 23:43 UTC
 - Baseline input: merged `WB-001` head
   `8791bb7237663b08c001b732393a76b240362476`
 
@@ -34,6 +34,15 @@ insufficient disk/UMA evidence fails that arm. The runner does not reduce batch,
 fall back to CPU, enable compilation, or retry a different configuration under
 the same arm identity.
 
+The human-required machine reserve is 100 GB. Preflight and active telemetry use
+a stricter 120,000,000,000-byte free-disk stop threshold across both cache and
+output filesystems. Preflight includes projected cache growth and retained
+output growth; the final storage verdict separately requires at least
+100,000,000,000 bytes free after the complete plan, in addition to the 2x
+headroom rule. Output forecasting includes three rotating recovery checkpoints,
+one atomic temporary, best, final, every 100M-target milestone, and retained
+logs/evidence. No destructive cleanup is part of this ticket.
+
 ## Implementation
 
 - `profile=dgx_candidate` is the repeated timed training path.
@@ -56,6 +65,11 @@ the same arm identity.
   before and after, and refuses auxiliary runs without a passing selection
   summary for the same commit. The pilot mounts host W&B authentication
   read-only without copying or serializing it.
+- Every matrix, decomposition, and pilot role has a plan-authorized canonical
+  hash of its complete resolved Hydra configuration plus the manifest's
+  scientific experiment-config identity. Auxiliary runs also bind the physical
+  matrix plan and summary, exact plan ID, protocol, selection rule, commit, and
+  image rather than trusting a self-reported candidate.
 - `scripts/summarize_dgx_measurements.py` gates every raw run and writes the
   repeat statistics, selection, pause-aware token/checkpoint/storage plan, and
   named bottleneck.
@@ -122,6 +136,9 @@ to claim that a measured profile has been selected.
 | 12 | Independent pre-measurement re-review | `FAIL` at `63283cd` | Docker still launched a mutable tag after verifying its ID; measured rows did not require complete finite CUDA phases; cache/output capacity could be conflated across filesystems; telemetry scheduling was unnecessarily ambiguous after overruns; pilot W&B gates ignored scalar/summary circuit-breaker failures | Exact review findings retained in PR #47 |
 | 13 | Protocol repair 2 | implemented | Launch by verified image digest; reject missing/non-finite/negative required CUDA phases; group cache/output plans by real filesystem device with separate headroom; schedule telemetry from collection completion; physically verify and parse W&B evidence with scalar/summary failure gates; make ample/low/split-filesystem tests deterministic | Focused and full validation recorded in PR #47 |
 | 14 | Independent re-review | `blocked` | The required exact-head `/review` cannot run again until the shared review-service quota resets at 2026-07-25 23:43 UTC. No PASS is claimed, and target GPU work remains blocked. | PR #47 review handoff |
+| 15 | Supplemental audit | `FAIL` at `a828b74` | A self-consistent mutation could evade subset-only config checks; auxiliary selection did not bind the physical source matrix plan/protocol strongly enough; clock, power, and utilization could be absent | Exact findings retained in PR #47 |
+| 16 | Protocol repair 3 | implemented | Predeclare and verify complete per-role resolved/experiment config hashes; bind auxiliary evidence to the exact physical matrix plan and summary; require finite nonnegative clock/power/utilization coverage; add adversarial config and authority tests | Focused DGX tests |
+| 17 | Human operational constraint | implemented | Preserve at least 100 GB machine availability using a 120 GB preflight/watchdog floor, projected cache/output growth grouped by filesystem, and an independent 100 GB post-plan reserve gate; no destructive cleanup | Same/split filesystem, low-space, and independent-reserve tests |
 
 Independent `/review` will cover `PHILOSOPHY.md`, DGX-001 acceptance, and the
 applicable `CHECK.md` minimum, comparison, data supply, DGX/UMA, training-health,

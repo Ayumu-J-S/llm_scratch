@@ -130,7 +130,7 @@ def _preflight(args: argparse.Namespace, output_dir: Path) -> dict:
         raise ValueError("warmup/measured optimizer steps are invalid")
     if not torch.cuda.is_available() or not torch.cuda.is_bf16_supported():
         raise RuntimeError("DGX-001 requires CUDA with BF16 support")
-    sample = system_sample(output_dir)
+    sample = system_sample(output_dir, (Path("/cache"),))
     if sample["host"]["memory_available_bytes"] < args.min_available_memory_bytes:
         raise RuntimeError("available UMA is below the hard preflight floor")
     if sample["host"]["disk_free_bytes"] < args.min_free_disk_bytes:
@@ -236,6 +236,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "max_swap_out_pages": args.max_swap_out_pages,
             },
             interrupt_on_violation=args.role == "pilot",
+            additional_disk_paths=(Path("/cache"),),
         )
         record["telemetry_started_monotonic_seconds"] = time.monotonic()
         sampler.start()

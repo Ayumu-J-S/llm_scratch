@@ -63,7 +63,7 @@ def gpu_sample() -> dict[str, Any]:
     }
 
 
-def system_sample(path: Path) -> dict[str, Any]:
+def system_sample(path: Path, additional_disk_paths: tuple[Path, ...] = ()) -> dict[str, Any]:
     memory = _integer_file(
         Path("/proc/meminfo"),
         {"MemTotal", "MemAvailable", "SwapTotal", "SwapFree", "Cached"},
@@ -93,7 +93,16 @@ def system_sample(path: Path) -> dict[str, Any]:
         if interface.strip() != "lo":
             network_rx_bytes += int(fields[0])
             network_tx_bytes += int(fields[8])
-    disk = shutil.disk_usage(path)
+    disk_paths = (Path(path), *additional_disk_paths)
+    disk_by_device = {}
+    for disk_path in disk_paths:
+        device = disk_path.stat().st_dev
+        if device not in disk_by_device:
+            disk_by_device[device] = {
+                "device": device,
+                "path": str(disk_path),
+                "free_bytes": shutil.disk_usage(disk_path).free,
+            }
     return {
         "wall_time_unix_ns": time.time_ns(),
         "monotonic_seconds": time.monotonic(),
@@ -122,7 +131,10 @@ def system_sample(path: Path) -> dict[str, Any]:
             "disk_io_milliseconds": disk_io_milliseconds,
             "network_rx_bytes": network_rx_bytes,
             "network_tx_bytes": network_tx_bytes,
-            "disk_free_bytes": disk.free,
+            "disk_free_bytes": min(item["free_bytes"] for item in disk_by_device.values()),
+            "disk_free_by_device": sorted(
+                disk_by_device.values(), key=lambda item: (item["device"], item["path"])
+            ),
         },
         "gpu": gpu_sample(),
     }
@@ -138,6 +150,7 @@ class TelemetrySampler:
         interval_seconds: float = 1.0,
         hard_limits: Mapping[str, int | float] | None = None,
         interrupt_on_violation: bool = False,
+        additional_disk_paths: tuple[Path, ...] = (),
     ):
         if interval_seconds <= 0:
             raise ValueError("interval_seconds must be positive")
@@ -148,6 +161,7 @@ class TelemetrySampler:
         self.samples = 0
         self.hard_limits = dict(hard_limits or {})
         self.interrupt_on_violation = bool(interrupt_on_violation)
+        self.additional_disk_paths = tuple(Path(path) for path in additional_disk_paths)
         self._initial_swap_in_pages: int | None = None
         self._initial_swap_out_pages: int | None = None
         self._stop = threading.Event()
@@ -172,7 +186,7 @@ class TelemetrySampler:
         with self.output_path.open("a", encoding="utf-8") as handle:
             while not self._stop.is_set():
                 try:
-                    sample = system_sample(self.output_path.parent)
+                    sample = system_sample(self.output_path.parent, self.additional_disk_paths)
                 except (OSError, RuntimeError, subprocess.SubprocessError, ValueError) as error:
                     self.errors.append(f"{type(error).__name__}: {error}")
                 else:

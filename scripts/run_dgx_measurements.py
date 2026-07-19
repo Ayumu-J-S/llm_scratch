@@ -21,9 +21,19 @@ from dgx.planning import (
     training_overrides,
     validate_dgx_config,
 )
+from runtime.reproducibility import canonical_config_sha256, experiment_config_sha256
 
 
 ROOT = Path(__file__).resolve().parent.parent
+PROTOCOL_CONFIG_KEYS = (
+    "schema_version",
+    "image",
+    "matrix",
+    "decomposition",
+    "pilot",
+    "gates",
+    "selection",
+)
 
 
 def _git(*args: str) -> str:
@@ -110,6 +120,47 @@ def _data_cache_max_bytes() -> int:
     return int(profile.data.streaming.cache.max_size_bytes)
 
 
+def _filesystem_device(path: Path) -> int:
+    return path.stat().st_dev
+
+
+def _preflight_storage(
+    *,
+    output_parent: Path,
+    cache_root: Path,
+    cache_existing_bytes: int,
+    cache_max_bytes: int,
+    output_growth_bytes: int,
+    minimum_free_bytes: int,
+) -> None:
+    allocations = (
+        (output_parent, int(output_growth_bytes), "output"),
+        (
+            cache_root,
+            max(0, int(cache_max_bytes) - int(cache_existing_bytes)),
+            "cache",
+        ),
+    )
+    filesystems: dict[int, dict] = {}
+    for path, growth_bytes, role in allocations:
+        device = _filesystem_device(path)
+        group = filesystems.setdefault(
+            device,
+            {"path": path, "growth_bytes": 0, "roles": []},
+        )
+        group["growth_bytes"] += growth_bytes
+        group["roles"].append(role)
+    for group in filesystems.values():
+        free_bytes = int(shutil.disk_usage(group["path"]).free)
+        required_free = int(minimum_free_bytes) + int(group["growth_bytes"])
+        if free_bytes < required_free:
+            roles = ", ".join(sorted(group["roles"]))
+            raise RuntimeError(
+                f"free disk {free_bytes} for {roles} is below projected DGX preflight "
+                f"{required_free}, including the {minimum_free_bytes}-byte hard floor"
+            )
+
+
 def _preflight(cfg: dict) -> tuple[str, str, Path, Path, dict[str, object]]:
     commit = _git("rev-parse", "HEAD")
     if cfg.get("expected_commit") != commit:
@@ -138,12 +189,14 @@ def _preflight(cfg: dict) -> tuple[str, str, Path, Path, dict[str, object]]:
     reserve = int(cfg["gates"]["post_matrix_evidence_reserve_bytes"])
     if cfg["mode"] == "matrix":
         reserve = int(cfg["gates"]["matrix_output_reserve_bytes"])
-    free_bytes = shutil.disk_usage(output_root.parent).free
-    required_free = int(cfg["gates"]["min_free_disk_bytes"]) + reserve
-    if free_bytes < required_free:
-        raise RuntimeError(
-            f"free disk {free_bytes} is below DGX {cfg['mode']} preflight {required_free}"
-        )
+    _preflight_storage(
+        output_parent=output_root.parent,
+        cache_root=cache_root,
+        cache_existing_bytes=int(cache_identity["size_bytes"]),
+        cache_max_bytes=_data_cache_max_bytes(),
+        output_growth_bytes=reserve,
+        minimum_free_bytes=int(cfg["gates"]["min_free_disk_bytes"]),
+    )
     netrc = Path.home() / ".netrc"
     if cfg["mode"] == "pilot" and not os.environ.get("WANDB_API_KEY") and not netrc.is_file():
         raise RuntimeError("selected online pilot requires WANDB_API_KEY or a host ~/.netrc")
@@ -162,14 +215,35 @@ def _selected_entry(cfg: dict, plan: list[dict]) -> dict:
         raise RuntimeError("pilot/decompose requires matrix_summary_path")
     summary_path = Path(str(summary_path_value)).resolve()
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    matrix_plan_path = summary_path.parent / "plan.json"
+    matrix_plan = json.loads(matrix_plan_path.read_text(encoding="utf-8"))
+    unsigned_matrix_plan = dict(matrix_plan)
+    matrix_plan_id = unsigned_matrix_plan.pop("plan_id", None)
+    if matrix_plan_id != _canonical_sha256(unsigned_matrix_plan):
+        raise RuntimeError("matrix selection authority has an invalid immutable plan hash")
+    active_protocol = {key: cfg[key] for key in PROTOCOL_CONFIG_KEYS}
+    matrix_protocol = {key: matrix_plan.get("config", {}).get(key) for key in PROTOCOL_CONFIG_KEYS}
+    current_commit = _git("rev-parse", "HEAD")
     if (
         summary.get("schema_version") != 3
         or summary.get("verdict") != "PASS"
-        or summary.get("git_commit") != _git("rev-parse", "HEAD")
+        or summary.get("plan_id") != matrix_plan_id
+        or summary.get("git_commit") != current_commit
+        or summary.get("image_id") != cfg["image"]["expected_id"]
+        or summary.get("selection_rule") != cfg["selection"]
         or summary.get("selected", {}).get("candidate_id") != selected
+        or matrix_plan.get("git_commit") != current_commit
+        or matrix_plan.get("image_id") != cfg["image"]["expected_id"]
+        or matrix_plan.get("schema_version") != 3
+        or matrix_plan.get("ticket") != "DGX-001"
+        or matrix_plan.get("config", {}).get("mode") != "matrix"
+        or matrix_protocol != active_protocol
+        or matrix_plan.get("runs") != plan
+        or matrix_plan.get("selected") is not None
+        or matrix_plan.get("matrix_summary_identity") is not None
     ):
         raise RuntimeError(
-            "selected_candidate is not authorized by a passing matrix summary for this commit"
+            "selected_candidate is not authorized by the exact passing matrix plan/summary"
         )
     summary_shape = {
         key: int(summary["selected"][key])
@@ -187,7 +261,13 @@ def _selected_entry(cfg: dict, plan: list[dict]) -> dict:
     cfg["matrix_summary_identity"] = {
         "path": str(summary_path),
         "sha256": _sha256_file(summary_path),
-        "git_commit": summary.get("git_commit"),
+        "matrix_plan_path": str(matrix_plan_path),
+        "matrix_plan_sha256": _sha256_file(matrix_plan_path),
+        "matrix_plan_id": matrix_plan_id,
+        "matrix_protocol_sha256": _canonical_sha256(matrix_protocol),
+        "git_commit": current_commit,
+        "image_id": cfg["image"]["expected_id"],
+        "selection_rule": cfg["selection"],
         "selected": selected,
         "end_to_end_tokens_per_second": summary["selected"]["conservative_tokens_per_second"],
     }
@@ -237,6 +317,60 @@ def _pilot_overrides(cfg: dict, entry: dict) -> list[str]:
         "wandb.watch.enabled=false",
         "wandb.artifact.policy=none",
     ]
+
+
+def _authority_key(role: str, entry: dict) -> str:
+    return f"{role}:{entry['candidate_id']}:r{int(entry.get('repetition', 1))}"
+
+
+def _role_overrides(cfg: dict, entry: dict, role: str) -> list[str]:
+    if role == "matrix":
+        return [
+            *training_overrides(entry, output_path="/evidence/measurement.json"),
+            "data.streaming.cache.dir=/cache",
+        ]
+    overrides = _pilot_overrides(cfg, entry)
+    if role in {"model-only", "loader-only"}:
+        overrides = [
+            item
+            for item in overrides
+            if not item.startswith("training.max_time=")
+            and not item.startswith("measurement.output_path=")
+            and not item.startswith("wandb.mode=")
+        ]
+        overrides.extend(
+            [
+                "training.max_time=null",
+                "measurement.enabled=false",
+                "wandb.mode=disabled",
+                "wandb.watch.enabled=false",
+                "wandb.artifact.policy=none",
+            ]
+        )
+    overrides.append("data.streaming.cache.dir=/cache")
+    return overrides
+
+
+def _run_config_authorities(cfg: dict, roles: list[tuple[dict, str]]) -> list[dict]:
+    authorities = []
+    for entry, role in roles:
+        with hydra.initialize_config_dir(version_base=None, config_dir=str(ROOT / "config")):
+            resolved = hydra.compose(
+                config_name="train", overrides=_role_overrides(cfg, entry, role)
+            )
+        plain = OmegaConf.to_container(resolved, resolve=True)
+        assert isinstance(plain, dict)
+        authorities.append(
+            {
+                "authority_key": _authority_key(role, entry),
+                "role": role,
+                "candidate_id": entry["candidate_id"],
+                "repetition": int(entry.get("repetition", 1)),
+                "canonical_config_sha256": canonical_config_sha256(plain),
+                "experiment_config_sha256": experiment_config_sha256(plain),
+            }
+        )
+    return authorities
 
 
 def _container_command(
@@ -329,24 +463,7 @@ def _container_command(
         ]
     )
     if role in {"model-only", "loader-only"}:
-        overrides = _pilot_overrides(cfg, entry)
-        overrides = [
-            item
-            for item in overrides
-            if not item.startswith("training.max_time=")
-            and not item.startswith("measurement.output_path=")
-            and not item.startswith("wandb.mode=")
-        ]
-        overrides.extend(
-            [
-                "training.max_time=null",
-                "measurement.enabled=false",
-                "wandb.mode=disabled",
-                "wandb.watch.enabled=false",
-                "wandb.artifact.policy=none",
-                "data.streaming.cache.dir=/cache",
-            ]
-        )
+        overrides = _role_overrides(cfg, entry, role)
         return common + [
             "scripts/measure_dgx_decomposition.py",
             "--output-dir",
@@ -381,14 +498,13 @@ def _container_command(
             *overrides,
         ]
     if role == "pilot":
-        overrides = _pilot_overrides(cfg, entry)
+        overrides = _role_overrides(cfg, entry, role)
         pilot_flag = ["--pilot", "--sample"]
         warmup = int(cfg["pilot"]["warmup_optimizer_steps"])
     else:
-        overrides = training_overrides(entry, output_path="/evidence/measurement.json")
+        overrides = _role_overrides(cfg, entry, role)
         pilot_flag = []
         warmup = int(cfg["matrix"]["warmup_optimizer_steps"])
-    overrides.append("data.streaming.cache.dir=/cache")
     return common + [
         "scripts/measure_dgx.py",
         "--output-dir",
@@ -474,24 +590,6 @@ def main(config: DictConfig) -> None:
     if cfg["mode"] in {"decompose", "pilot"}:
         selected = _selected_entry(cfg, matrix_plan)
         _validate_committed_selected_profile(selected)
-    source_identity = _source_identity()
-    plan_payload = {
-        "schema_version": 3,
-        "ticket": "DGX-001",
-        "config": OmegaConf.to_container(config, resolve=True),
-        "git_commit": commit,
-        "image_id": image_id,
-        "host_user": {"uid": os.getuid(), "gid": os.getgid()},
-        "source_identity": source_identity,
-        "cache_before": cache_before,
-        "data_cache_max_bytes": _data_cache_max_bytes(),
-        "runs": matrix_plan,
-        "selected": selected,
-        "matrix_summary_identity": cfg.get("matrix_summary_identity"),
-    }
-    plan_id = _canonical_sha256(plan_payload)
-    plan_payload["plan_id"] = plan_id
-    _write_json(output_root / "plan.json", plan_payload)
     if cfg["mode"] == "matrix":
         roles = [(entry, "matrix") for entry in matrix_plan]
     elif cfg["mode"] == "decompose":
@@ -504,6 +602,25 @@ def main(config: DictConfig) -> None:
     else:
         assert selected is not None
         roles = [(selected, "pilot")]
+    source_identity = _source_identity()
+    plan_payload = {
+        "schema_version": 3,
+        "ticket": "DGX-001",
+        "config": OmegaConf.to_container(config, resolve=True),
+        "git_commit": commit,
+        "image_id": image_id,
+        "host_user": {"uid": os.getuid(), "gid": os.getgid()},
+        "source_identity": source_identity,
+        "cache_before": cache_before,
+        "data_cache_max_bytes": _data_cache_max_bytes(),
+        "runs": matrix_plan,
+        "run_config_authorities": _run_config_authorities(cfg, roles),
+        "selected": selected,
+        "matrix_summary_identity": cfg.get("matrix_summary_identity"),
+    }
+    plan_id = _canonical_sha256(plan_payload)
+    plan_payload["plan_id"] = plan_id
+    _write_json(output_root / "plan.json", plan_payload)
     commands = [
         _container_command(
             cfg,

@@ -6,7 +6,7 @@ from dgx.telemetry import TelemetrySampler
 def test_sampler_schedules_from_collection_completion_without_catchup(monkeypatch, tmp_path):
     starts = []
 
-    def slow_sample(_path):
+    def slow_sample(_path, _additional_disk_paths=()):
         starts.append(time.monotonic())
         time.sleep(0.02)
         return {

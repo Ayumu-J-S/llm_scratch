@@ -220,7 +220,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if cfg.wandb.mode != "disabled" or cfg.measurement.enabled:
             raise RuntimeError("DGX decomposition must disable W&B and trainer measurement")
         record["environment"] = _environment()
-        record["preflight"] = system_sample(output_dir)
+        record["preflight"] = system_sample(output_dir, (Path("/cache"),))
         record.update(
             {
                 "num_layers": int(cfg.model.num_layers),
@@ -246,6 +246,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "max_swap_in_pages": args.max_swap_in_pages,
                 "max_swap_out_pages": args.max_swap_out_pages,
             },
+            additional_disk_paths=(Path("/cache"),),
         )
         record["telemetry_started_monotonic_seconds"] = time.monotonic()
         sampler.start()

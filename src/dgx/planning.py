@@ -14,6 +14,7 @@ from typing import Any
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
+from runtime.reproducibility import canonical_config_sha256
 
 
 SECONDS = {"1_hour": 3600, "24_hours": 86400, "7_days": 604800}
@@ -96,6 +97,7 @@ def _storage_headroom(
     output_existing_bytes: int,
     output_planned_bytes: int,
     headroom_ratio: float,
+    post_plan_free_reserve_bytes: int,
 ) -> dict[str, Any]:
     allocations = (
         {
@@ -135,6 +137,7 @@ def _storage_headroom(
         free_bytes = int(shutil.disk_usage(group["representative_path"]).free)
         capacity_bytes = free_bytes + int(group["existing_bytes"])
         required_capacity_bytes = math.ceil(float(headroom_ratio) * group["planned_bytes"])
+        projected_free_bytes = capacity_bytes - int(group["planned_bytes"])
         reports.append(
             {
                 **group,
@@ -142,7 +145,11 @@ def _storage_headroom(
                 "free_bytes": free_bytes,
                 "capacity_bytes": capacity_bytes,
                 "required_capacity_bytes": required_capacity_bytes,
+                "projected_free_bytes": projected_free_bytes,
+                "post_plan_free_reserve_bytes": int(post_plan_free_reserve_bytes),
                 "headroom_passed": capacity_bytes >= required_capacity_bytes,
+                "post_plan_reserve_passed": projected_free_bytes
+                >= int(post_plan_free_reserve_bytes),
             }
         )
     reports.sort(key=lambda item: item["roles"])
@@ -150,7 +157,11 @@ def _storage_headroom(
         "same_filesystem": len(reports) == 1,
         "headroom_ratio": float(headroom_ratio),
         "filesystems": reports,
-        "passed": all(item["headroom_passed"] for item in reports),
+        "headroom_passed": all(item["headroom_passed"] for item in reports),
+        "post_plan_reserve_passed": all(item["post_plan_reserve_passed"] for item in reports),
+        "passed": all(
+            item["headroom_passed"] and item["post_plan_reserve_passed"] for item in reports
+        ),
     }
 
 
@@ -206,6 +217,13 @@ def validate_dgx_config(config: Mapping[str, Any] | DictConfig) -> dict[str, Any
     spread = float(cfg["selection"]["max_repeat_spread_fraction"])
     if not 0.0 <= spread <= 0.25:
         raise ValueError("repeatability spread threshold must be between 0 and 25%")
+    gpu_coverage = float(cfg["gates"]["min_gpu_metric_coverage"])
+    if not 0.0 < gpu_coverage <= 1.0:
+        raise ValueError("required GPU metric coverage must be in (0, 1]")
+    if int(cfg["gates"]["min_free_disk_bytes"]) != 120_000_000_000:
+        raise ValueError("DGX operational free-disk watchdog is exactly 120 GB")
+    if int(cfg["gates"]["post_plan_free_reserve_bytes"]) != 100_000_000_000:
+        raise ValueError("DGX post-plan storage reserve is exactly 100 GB")
     return dict(cfg)
 
 
@@ -303,6 +321,10 @@ def _validated_counters(value: Any, label: str) -> dict[str, int | float]:
     ):
         raise ValueError(f"{label} counters are invalid")
     return {"optimizer_step": step, "target_tokens": tokens, "elapsed_seconds": float(elapsed)}
+
+
+def _authority_key(role: str, candidate_id: str, repetition: int) -> str:
+    return f"{role}:{candidate_id}:r{repetition}"
 
 
 def _validate_measurement_v3(
@@ -498,6 +520,29 @@ def _validate_manifest_and_config(
     if {item.get("fingerprint") for item in manifest.get("data", [])} != expected_data:
         raise ValueError("run data fingerprints differ from the immutable plan")
     cfg = OmegaConf.load(resolved_path)
+    authority_key = _authority_key(
+        role, str(run.get("candidate_id")), int(run.get("repetition", 0))
+    )
+    authorities = [
+        item
+        for item in plan.get("run_config_authorities", [])
+        if isinstance(item, Mapping) and item.get("authority_key") == authority_key
+    ]
+    if len(authorities) != 1:
+        raise ValueError("run lacks one immutable resolved-config authority")
+    authority = authorities[0]
+    plain_cfg = OmegaConf.to_container(cfg, resolve=True)
+    if not isinstance(plain_cfg, Mapping) or canonical_config_sha256(plain_cfg) != authority.get(
+        "canonical_config_sha256"
+    ):
+        raise ValueError("resolved run config differs from immutable full-config authority")
+    if manifest.get("config") != {
+        "path": resolved_path.name,
+        "sha256": run.get("resolved_config_sha256"),
+    } or manifest.get("experiment_identity", {}).get("config_sha256") != authority.get(
+        "experiment_config_sha256"
+    ):
+        raise ValueError("run manifest config identity differs from immutable plan authority")
     observed_shape = {
         "num_layers": int(cfg.model.num_layers),
         "embed_size": int(cfg.model.embed_size),
@@ -571,13 +616,26 @@ def _telemetry_summary(
     host = [row["host"] for row in rows]
     gpu = [row["gpu"] for row in rows]
 
-    def finite_values(key: str) -> list[float]:
-        return [float(row[key]) for row in gpu if row.get(key) is not None]
+    def required_values(key: str) -> tuple[list[float], float]:
+        values = []
+        for row in gpu:
+            value = row.get(key)
+            if value is None:
+                continue
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(float(value))
+                or float(value) < 0
+            ):
+                raise ValueError(f"DGX telemetry {key} contains an invalid observation")
+            values.append(float(value))
+        return values, len(values) / len(gpu)
 
-    clocks = finite_values("sm_clock_mhz")
-    power = finite_values("power_watts")
-    utilization = finite_values("gpu_utilization_percent")
-    temperatures = finite_values("temperature_c")
+    clocks, clock_coverage = required_values("sm_clock_mhz")
+    power, power_coverage = required_values("power_watts")
+    utilization, utilization_coverage = required_values("gpu_utilization_percent")
+    temperatures, temperature_coverage = required_values("temperature_c")
     summary = {
         "samples": len(rows),
         "expected_samples": expected,
@@ -615,6 +673,12 @@ def _telemetry_summary(
             "power_watts_median": statistics.median(power) if power else None,
             "utilization_percent_median": statistics.median(utilization) if utilization else None,
             "utilization_percent_p95": _percentile(utilization, 0.95) if utilization else None,
+            "metric_coverage": {
+                "temperature_c": temperature_coverage,
+                "sm_clock_mhz": clock_coverage,
+                "power_watts": power_coverage,
+                "gpu_utilization_percent": utilization_coverage,
+            },
         },
     }
     temporal = (
@@ -634,6 +698,10 @@ def _telemetry_summary(
         "swap_out": summary["host"]["swap_out_pages_delta"] <= int(gates["max_swap_out_pages"]),
         "thermal": summary["gpu"]["max_temperature_c"] is not None
         and summary["gpu"]["max_temperature_c"] <= float(gates["max_temperature_c"]),
+        "gpu_temperature_observed": temperature_coverage >= float(gates["min_gpu_metric_coverage"]),
+        "gpu_clock_observed": clock_coverage >= float(gates["min_gpu_metric_coverage"]),
+        "gpu_power_observed": power_coverage >= float(gates["min_gpu_metric_coverage"]),
+        "gpu_utilization_observed": utilization_coverage >= float(gates["min_gpu_metric_coverage"]),
     }
     return summary, telemetry_gates
 
@@ -1019,6 +1087,62 @@ def _load_plan(evidence_root: Path, cfg: Mapping[str, Any]) -> dict[str, Any]:
     expected_runs = build_matrix_plan(plan["config"])
     if plan.get("runs") != expected_runs:
         raise ValueError("DGX plan run list differs from the exact matrix")
+    mode = plan.get("config", {}).get("mode")
+    if mode == "matrix":
+        expected_authority_keys = {
+            _authority_key("matrix", entry["candidate_id"], entry["repetition"])
+            for entry in expected_runs
+        }
+    elif mode == "decompose":
+        selected = plan.get("selected")
+        if not isinstance(selected, Mapping):
+            raise ValueError("DGX decomposition plan has no selected candidate")
+        expected_authority_keys = {
+            _authority_key(role, str(selected["candidate_id"]), repetition)
+            for role in ("model-only", "loader-only")
+            for repetition in range(1, 4)
+        }
+    elif mode == "pilot":
+        selected = plan.get("selected")
+        if not isinstance(selected, Mapping):
+            raise ValueError("DGX pilot plan has no selected candidate")
+        expected_authority_keys = {_authority_key("pilot", str(selected["candidate_id"]), 1)}
+    else:
+        raise ValueError("DGX evidence plan has an invalid execution mode")
+    authorities = plan.get("run_config_authorities")
+    if not isinstance(authorities, list):
+        raise ValueError("DGX plan lacks immutable run-config authorities")
+    observed_authority_keys = []
+    for authority in authorities:
+        if (
+            not isinstance(authority, Mapping)
+            or set(authority)
+            != {
+                "authority_key",
+                "role",
+                "candidate_id",
+                "repetition",
+                "canonical_config_sha256",
+                "experiment_config_sha256",
+            }
+            or authority["authority_key"]
+            != _authority_key(
+                str(authority["role"]),
+                str(authority["candidate_id"]),
+                int(authority["repetition"]),
+            )
+            or not all(
+                isinstance(authority[key], str) and len(authority[key]) == 64
+                for key in ("canonical_config_sha256", "experiment_config_sha256")
+            )
+        ):
+            raise ValueError("DGX plan contains an invalid run-config authority")
+        observed_authority_keys.append(authority["authority_key"])
+    if (
+        len(observed_authority_keys) != len(set(observed_authority_keys))
+        or set(observed_authority_keys) != expected_authority_keys
+    ):
+        raise ValueError("DGX plan run-config authorities differ from its exact execution roles")
     return plan
 
 
@@ -1026,14 +1150,42 @@ def _validate_matrix_authority(plan: Mapping[str, Any]) -> dict[str, Any]:
     authority = plan.get("matrix_summary_identity")
     if not isinstance(authority, Mapping):
         raise ValueError("DGX auxiliary evidence lacks matrix selection authority")
-    path = Path(str(authority.get("path")))
-    if not path.is_file() or _sha256_file(path) != authority.get("sha256"):
+    summary_path = Path(str(authority.get("path")))
+    matrix_plan_path = Path(str(authority.get("matrix_plan_path")))
+    if (
+        not summary_path.is_file()
+        or _sha256_file(summary_path) != authority.get("sha256")
+        or not matrix_plan_path.is_file()
+        or _sha256_file(matrix_plan_path) != authority.get("matrix_plan_sha256")
+    ):
         raise ValueError("matrix selection authority changed after the auxiliary plan")
-    summary = _read_json(path)
+    matrix_plan = _read_json(matrix_plan_path)
+    unsigned = dict(matrix_plan)
+    matrix_plan_id = unsigned.pop("plan_id", None)
+    matrix_protocol = {key: matrix_plan.get("config", {}).get(key) for key in PROTOCOL_CONFIG_KEYS}
+    auxiliary_protocol = {key: plan.get("config", {}).get(key) for key in PROTOCOL_CONFIG_KEYS}
+    if (
+        matrix_plan_id != _canonical_sha256(unsigned)
+        or matrix_plan_id != authority.get("matrix_plan_id")
+        or _canonical_sha256(matrix_protocol) != authority.get("matrix_protocol_sha256")
+        or matrix_protocol != auxiliary_protocol
+        or matrix_plan.get("config", {}).get("mode") != "matrix"
+        or matrix_plan.get("git_commit") != plan.get("git_commit")
+        or matrix_plan.get("image_id") != plan.get("image_id")
+        or matrix_plan.get("runs") != build_matrix_plan(matrix_plan["config"])
+        or matrix_plan.get("selected") is not None
+        or matrix_plan.get("matrix_summary_identity") is not None
+    ):
+        raise ValueError("matrix selection source plan differs from auxiliary protocol authority")
+    summary = _read_json(summary_path)
     if (
         summary.get("schema_version") != 3
         or summary.get("verdict") != "PASS"
+        or summary.get("plan_id") != matrix_plan_id
         or summary.get("git_commit") != authority.get("git_commit")
+        or summary.get("image_id") != authority.get("image_id")
+        or summary.get("selection_rule") != authority.get("selection_rule")
+        or summary.get("selection_rule") != matrix_plan["config"]["selection"]
         or summary.get("selected", {}).get("candidate_id") != authority.get("selected")
         or summary.get("selected", {}).get("conservative_tokens_per_second")
         != authority.get("end_to_end_tokens_per_second")
@@ -1124,6 +1276,7 @@ def summarize_evidence(
         output_existing_bytes=current_evidence_bytes,
         output_planned_bytes=output_footprint,
         headroom_ratio=float(cfg["gates"]["storage_headroom_ratio"]),
+        post_plan_free_reserve_bytes=int(cfg["gates"]["post_plan_free_reserve_bytes"]),
     )
     storage_passed = bool(storage["passed"])
     profile_matches = _committed_profile_matches(selected)
@@ -1175,7 +1328,9 @@ def summarize_evidence(
             "storage_filesystems": storage["filesystems"],
             "storage_same_filesystem": storage["same_filesystem"],
             "storage_headroom_ratio": storage["headroom_ratio"],
-            "storage_headroom_passed": storage_passed,
+            "storage_headroom_passed": storage["headroom_passed"],
+            "post_plan_free_reserve_bytes": cfg["gates"]["post_plan_free_reserve_bytes"],
+            "post_plan_reserve_passed": storage["post_plan_reserve_passed"],
             "wandb_mode": "online",
             "wandb_watch": False,
             "wandb_artifact_policy": "none",

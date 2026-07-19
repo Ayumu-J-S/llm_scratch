@@ -8,6 +8,8 @@ import pytest
 from omegaconf import OmegaConf
 
 from dgx.planning import (
+    PROTOCOL_CONFIG_KEYS,
+    _validate_matrix_authority,
     _validated_wandb_evidence,
     build_matrix_plan,
     select_candidate,
@@ -15,6 +17,7 @@ from dgx.planning import (
     summarize_run,
 )
 from runtime.config import validate_training_config
+from runtime.reproducibility import canonical_config_sha256, experiment_config_sha256
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -30,9 +33,9 @@ def compose_train(profile: str, overrides: list[str] | None = None):
         )
 
 
-def compose_dgx():
+def compose_dgx(overrides: list[str] | None = None):
     with hydra.initialize_config_dir(version_base=None, config_dir=str(ROOT / "config")):
-        return hydra.compose(config_name="dgx")
+        return hydra.compose(config_name="dgx", overrides=overrides or [])
 
 
 def _canonical_sha256(payload: object) -> str:
@@ -78,7 +81,8 @@ def test_dgx_profiles_are_real_cuda_bf16_and_baseline_is_bounded():
 
 
 def test_matrix_is_exact_nine_by_three_with_equal_work_and_rotated_repeats():
-    plan = build_matrix_plan(compose_dgx())
+    config = compose_dgx()
+    plan = build_matrix_plan(config)
     assert len(plan) == 27
     assert len({entry["candidate_id"] for entry in plan}) == 9
     assert {entry["effective_target_tokens_per_step"] for entry in plan} == {32768}
@@ -90,6 +94,8 @@ def test_matrix_is_exact_nine_by_three_with_equal_work_and_rotated_repeats():
         for repetition in (1, 2, 3)
     ]
     assert len(set(first_ids)) == 3
+    assert config.gates.min_free_disk_bytes == 120_000_000_000
+    assert config.gates.post_plan_free_reserve_bytes == 100_000_000_000
 
 
 def _source_identity(config) -> dict:
@@ -136,6 +142,21 @@ def _write_plan(root: Path, config) -> dict:
         "sha256": "cache",
         "entries": [],
     }
+    matrix_runs = build_matrix_plan(cfg)
+    authorities = []
+    for entry in matrix_runs:
+        resolved = _candidate_config(entry)
+        plain = OmegaConf.to_container(resolved, resolve=True)
+        authorities.append(
+            {
+                "authority_key": (f"matrix:{entry['candidate_id']}:r{entry['repetition']}"),
+                "role": "matrix",
+                "candidate_id": entry["candidate_id"],
+                "repetition": entry["repetition"],
+                "canonical_config_sha256": canonical_config_sha256(plain),
+                "experiment_config_sha256": experiment_config_sha256(plain),
+            }
+        )
     payload = {
         "schema_version": 3,
         "ticket": "DGX-001",
@@ -146,7 +167,8 @@ def _write_plan(root: Path, config) -> dict:
         "source_identity": _source_identity(train),
         "cache_before": cache,
         "data_cache_max_bytes": 80_000_000_000,
-        "runs": build_matrix_plan(cfg),
+        "runs": matrix_runs,
+        "run_config_authorities": authorities,
         "selected": None,
         "matrix_summary_identity": None,
     }
@@ -247,6 +269,10 @@ def _fake_run(
     resolved = run_dir / "resolved_config.yaml"
     OmegaConf.save(config, resolved, resolve=True)
     source = {item["path"]: item for item in plan["source_identity"]["files"]}
+    authority_key = f"matrix:{entry['candidate_id']}:r{entry['repetition']}"
+    authority = next(
+        item for item in plan["run_config_authorities"] if item["authority_key"] == authority_key
+    )
     manifest = {
         "git": {"sha": COMMIT, "dirty": False, "status": []},
         "lock": {"sha256": source["uv.lock"]["sha256"]},
@@ -265,6 +291,11 @@ def _fake_run(
                 ]
             },
         ],
+        "config": {"path": resolved.name, "sha256": _sha256(resolved)},
+        "experiment_identity": {
+            "config_sha256": authority["experiment_config_sha256"],
+            "operational_exclusions": ["artifacts.resume_path", "measurement", "wandb"],
+        },
     }
     _write_json(run_dir / "run_manifest.json", manifest)
     rows = []
@@ -449,7 +480,7 @@ def _fake_run(
 
 
 def _matrix_fixture(root: Path):
-    config = compose_dgx()
+    config = compose_dgx(["mode=matrix"])
     plan = _write_plan(root, config)
     for entry in build_matrix_plan(config):
         _fake_run(root, entry, plan, _throughput(entry))
@@ -504,6 +535,27 @@ def test_summary_accounts_cache_and_output_filesystems_separately(tmp_path, monk
     reports = {tuple(item["roles"]): item for item in summary["plan"]["storage_filesystems"]}
     assert reports[("cache",)]["headroom_passed"] is True
     assert reports[("output",)]["headroom_passed"] is False
+
+
+def test_post_plan_free_reserve_is_separate_from_headroom_ratio(tmp_path, monkeypatch):
+    config, _ = _matrix_fixture(tmp_path)
+    monkeypatch.setattr(
+        "dgx.planning._filesystem_device",
+        lambda path: 1 if Path(path).name == "cache" else 2,
+    )
+    monkeypatch.setattr(
+        "dgx.planning.shutil.disk_usage",
+        lambda path: SimpleNamespace(
+            free=160_000_000_000 if Path(path).name == "cache" else 1_000_000_000_000
+        ),
+    )
+    summary = summarize_evidence(tmp_path, config)
+    reports = {tuple(item["roles"]): item for item in summary["plan"]["storage_filesystems"]}
+    assert reports[("cache",)]["headroom_passed"] is True
+    assert reports[("cache",)]["post_plan_reserve_passed"] is False
+    assert summary["plan"]["storage_headroom_passed"] is True
+    assert summary["plan"]["post_plan_reserve_passed"] is False
+    assert summary["verdict"] == "FAIL"
 
 
 def test_primary_denominator_includes_scheduled_pauses_exactly_once(tmp_path):
@@ -585,6 +637,43 @@ def test_mislabeled_matrix_shape_is_rejected(tmp_path):
         summarize_run(run_dir, config["gates"], expected=entry, plan=plan)
 
 
+@pytest.mark.parametrize(
+    ("config_path", "value"),
+    [
+        ("model.dropout", 0.9),
+        ("training.optimizer.lr", 0.9),
+        ("training.scheduler.warmup_steps", 999),
+        ("data.streaming.train.sources.0.ratio", 0.9),
+        ("reproducibility.seed", 999),
+    ],
+)
+def test_self_consistent_scientific_config_mutation_is_rejected(tmp_path, config_path, value):
+    config = OmegaConf.to_container(compose_dgx(), resolve=True)
+    plan = _write_plan(tmp_path, config)
+    entry = build_matrix_plan(config)[0]
+    run_dir = _fake_run(tmp_path, entry, plan, 18_000)
+    resolved_path = run_dir / "resolved_config.yaml"
+    resolved = OmegaConf.load(resolved_path)
+    OmegaConf.update(resolved, config_path, value)
+    OmegaConf.save(resolved, resolved_path, resolve=True)
+    plain = OmegaConf.to_container(resolved, resolve=True)
+
+    manifest_path = run_dir / "run_manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest["config"]["sha256"] = _sha256(resolved_path)
+    manifest["experiment_identity"]["config_sha256"] = experiment_config_sha256(plain)
+    _write_json(manifest_path, manifest)
+
+    run_path = run_dir / "run.json"
+    run = json.loads(run_path.read_text())
+    run["resolved_config_sha256"] = _sha256(resolved_path)
+    run["run_manifest_sha256"] = _sha256(manifest_path)
+    _write_json(run_path, run)
+
+    with pytest.raises(ValueError, match="full-config authority"):
+        summarize_run(run_dir, config["gates"], expected=entry, plan=plan)
+
+
 def test_swap_growth_and_telemetry_gap_are_hard_gates(tmp_path):
     config = OmegaConf.to_container(compose_dgx(), resolve=True)
     plan = _write_plan(tmp_path, config)
@@ -599,6 +688,52 @@ def test_swap_growth_and_telemetry_gap_are_hard_gates(tmp_path):
     gap_run = _fake_run(gap_root, entry, gap_plan, 18_000, telemetry_gap=4.0)
     gap_result = summarize_run(gap_run, config["gates"], expected=entry, plan=gap_plan)
     assert gap_result["gates"]["telemetry_temporal_coverage"] is False
+
+
+@pytest.mark.parametrize(
+    ("field", "gate"),
+    [
+        ("sm_clock_mhz", "gpu_clock_observed"),
+        ("power_watts", "gpu_power_observed"),
+        ("gpu_utilization_percent", "gpu_utilization_observed"),
+    ],
+)
+def test_required_gpu_telemetry_cannot_be_missing_or_all_none(tmp_path, field, gate):
+    config = OmegaConf.to_container(compose_dgx(), resolve=True)
+    for missing in (False, True):
+        root = tmp_path / ("missing" if missing else "none") / field
+        plan = _write_plan(root, config)
+        entry = build_matrix_plan(config)[0]
+        run_dir = _fake_run(root, entry, plan, 18_000)
+        telemetry_path = run_dir / "system.jsonl"
+        telemetry = [json.loads(line) for line in telemetry_path.read_text().splitlines()]
+        for row in telemetry:
+            if missing:
+                row["gpu"].pop(field)
+            else:
+                row["gpu"][field] = None
+        telemetry_path.write_text(
+            "".join(json.dumps(row) + "\n" for row in telemetry), encoding="utf-8"
+        )
+        result = summarize_run(run_dir, config["gates"], expected=entry, plan=plan)
+        assert result["gates"][gate] is False
+        assert result["passed"] is False
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), -1.0])
+def test_required_gpu_telemetry_rejects_nonfinite_or_negative_values(tmp_path, value):
+    config = OmegaConf.to_container(compose_dgx(), resolve=True)
+    plan = _write_plan(tmp_path, config)
+    entry = build_matrix_plan(config)[0]
+    run_dir = _fake_run(tmp_path, entry, plan, 18_000)
+    telemetry_path = run_dir / "system.jsonl"
+    telemetry = [json.loads(line) for line in telemetry_path.read_text().splitlines()]
+    telemetry[0]["gpu"]["power_watts"] = value
+    telemetry_path.write_text(
+        "".join(json.dumps(row) + "\n" for row in telemetry), encoding="utf-8"
+    )
+    with pytest.raises(ValueError, match="power_watts"):
+        summarize_run(run_dir, config["gates"], expected=entry, plan=plan)
 
 
 def test_periodic_allocator_peaks_do_not_look_like_monotonic_growth(tmp_path):
@@ -660,6 +795,73 @@ def test_selection_requires_all_runs_repeatability_and_exact_rule():
         },
     )
     assert selected["candidate_id"] == "deep-long"
+
+
+def test_auxiliary_authority_requires_exact_matrix_plan_protocol_and_selection(tmp_path):
+    matrix_root = tmp_path / "matrix"
+    matrix_config = OmegaConf.to_container(compose_dgx(["mode=matrix"]), resolve=True)
+    matrix_plan = _write_plan(matrix_root, matrix_config)
+    selected = {
+        key: value
+        for key, value in build_matrix_plan(matrix_config)[0].items()
+        if key != "repetition"
+    }
+    summary_path = matrix_root / "dgx-summary.json"
+    summary = {
+        "schema_version": 3,
+        "verdict": "PASS",
+        "plan_id": matrix_plan["plan_id"],
+        "git_commit": COMMIT,
+        "image_id": IMAGE,
+        "selection_rule": matrix_config["selection"],
+        "selected": {**selected, "conservative_tokens_per_second": 10.0},
+    }
+
+    def write_summary() -> None:
+        _write_json(summary_path, summary)
+
+    def authority() -> dict:
+        protocol = {key: matrix_plan["config"][key] for key in PROTOCOL_CONFIG_KEYS}
+        return {
+            "path": str(summary_path),
+            "sha256": _sha256(summary_path),
+            "matrix_plan_path": str(matrix_root / "plan.json"),
+            "matrix_plan_sha256": _sha256(matrix_root / "plan.json"),
+            "matrix_plan_id": matrix_plan["plan_id"],
+            "matrix_protocol_sha256": _canonical_sha256(protocol),
+            "git_commit": COMMIT,
+            "image_id": IMAGE,
+            "selection_rule": matrix_config["selection"],
+            "selected": selected["candidate_id"],
+            "end_to_end_tokens_per_second": 10.0,
+        }
+
+    write_summary()
+    auxiliary_config = json.loads(json.dumps(matrix_config))
+    auxiliary_config["mode"] = "decompose"
+    auxiliary_plan = {
+        "config": auxiliary_config,
+        "git_commit": COMMIT,
+        "image_id": IMAGE,
+        "matrix_summary_identity": authority(),
+    }
+    assert _validate_matrix_authority(auxiliary_plan)["plan_id"] == matrix_plan["plan_id"]
+
+    summary["plan_id"] = "f" * 64
+    write_summary()
+    auxiliary_plan["matrix_summary_identity"] = authority()
+    with pytest.raises(ValueError, match="one passing exact summary"):
+        _validate_matrix_authority(auxiliary_plan)
+
+    summary["plan_id"] = matrix_plan["plan_id"]
+    summary["selection_rule"] = {
+        **matrix_config["selection"],
+        "max_slowdown_fraction": 0.99,
+    }
+    write_summary()
+    auxiliary_plan["matrix_summary_identity"] = authority()
+    with pytest.raises(ValueError, match="one passing exact summary"):
+        _validate_matrix_authority(auxiliary_plan)
 
 
 def test_wandb_evidence_rejects_scalar_or_summary_failures(tmp_path):
