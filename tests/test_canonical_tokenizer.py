@@ -98,6 +98,17 @@ def test_canonical_tokenizer_rejects_invalid_utf8_and_ids():
         tokenizer.decode([tokenizer.vocab_size])
 
 
+def test_normal_encode_does_not_materialize_benchmark_offsets(monkeypatch):
+    tokenizer = CanonicalTokenizer.from_config(CONFIG)
+    monkeypatch.setattr(
+        tokenizer,
+        "encode_with_offsets",
+        lambda _text: pytest.fail("ordinary encoding must not request tokenizer offsets"),
+    )
+
+    assert tokenizer.encode("日本語 and English")
+
+
 @pytest.mark.parametrize(
     ("role", "special_token", "special_id"),
     [(role, config["token"], config["id"]) for role, config in SPECIAL_TOKENS.items()],

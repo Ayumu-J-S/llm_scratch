@@ -86,7 +86,11 @@ class CanonicalTokenizer:
         return cls(tokenizer, manifest_path=manifest_path, manifest=manifest)
 
     def encode(self, text: str) -> list[int]:
-        token_ids, _ = self.encode_with_offsets(text)
+        _validate_text(text)
+        token_ids = [
+            int(token_id) for token_id in self._tokenizer.encode(text, add_special_tokens=False).ids
+        ]
+        self._validate_raw_text_ids(token_ids)
         return token_ids
 
     def encode_with_offsets(self, text: str) -> tuple[list[int], list[tuple[int, int]]]:
@@ -95,6 +99,16 @@ class CanonicalTokenizer:
         _validate_text(text)
         encoding = self._tokenizer.encode(text, add_special_tokens=False)
         token_ids = [int(token_id) for token_id in encoding.ids]
+        self._validate_raw_text_ids(token_ids)
+        offsets = [(int(start), int(end)) for start, end in encoding.offsets]
+        if len(offsets) != len(token_ids):
+            raise ValueError("canonical tokenizer returned mismatched IDs and offsets")
+        for start, end in offsets:
+            if start < 0 or start > end or end > len(text):
+                raise ValueError("canonical tokenizer returned an invalid source offset")
+        return token_ids, offsets
+
+    def _validate_raw_text_ids(self, token_ids: list[int]) -> None:
         self._validate_ids(token_ids)
         for token_id in token_ids:
             reserved = self._reserved_special_tokens.get(token_id)
@@ -104,13 +118,6 @@ class CanonicalTokenizer:
                     "raw text encoded to reserved canonical special token: "
                     f"role={role}, token={token!r}, id={token_id}"
                 )
-        offsets = [(int(start), int(end)) for start, end in encoding.offsets]
-        if len(offsets) != len(token_ids):
-            raise ValueError("canonical tokenizer returned mismatched IDs and offsets")
-        for start, end in offsets:
-            if start < 0 or start > end or end > len(text):
-                raise ValueError("canonical tokenizer returned an invalid source offset")
-        return token_ids, offsets
 
     def decode(
         self,

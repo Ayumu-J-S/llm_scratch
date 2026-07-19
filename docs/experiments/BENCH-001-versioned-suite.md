@@ -40,7 +40,11 @@
 | 17 | Repair | Complete | Changed JCommonsenseQA to one exact joint encoding with tokenizer-offset suffix masking and a new scorer identity; added CUDA BF16 capability preflight before suite loading/scanning; required protocol-bound no-truncation evidence, per-task required context, and a fixed 129-token external minimum |
 | 18 | Focused validation | PASS | Corrected fixture golden, joint-tokenization invariant, external context contract, CUDA BF16 preflight, and Ruff pass; canonical sources reverify to 256 examples, protocol hash `79cf8b2…`, registry fingerprint `39e658f…`, and context requirements JCommonsenseQA=97/GSM8K=264 |
 | 19 | Full validation | PASS | Official CPU gate: 345 passed, 1 skipped; Ruff, Hydra config preflight, lock drift, offline smoke, `uv lock --check`, changed-path format, and diff checks pass |
-| 20 | Independent re-review | Pending | Repeat against the exact committed fifth-repair head and preserve the verdict in the pull request |
+| 20 | Independent re-review | FAIL | Exact-head review of `cd8fade` reran 345 tests (1 skipped), then found that the new offset API made ordinary training tokenization materialize discarded offsets for every token and that repository benchmark output could overwrite a sibling checkpoint in the selected run's checkpoint namespace |
+| 21 | Repair | Complete | Restored the original ID-only canonical `encode` hot path while keeping offset extraction explicit to benchmark scoring; derived the checkpoint-owned root after verified checkpoint/config loading and rejected JSON output/temp placement, checkpoint namespaces, symlink aliases, and hardlinks before suite loading or scanning |
+| 22 | Focused validation | PASS | ID-only training encode, sibling checkpoint, directory-symlink alias, hardlink alias, scoring golden, benchmark/tokenizer/generation/config suites, and Ruff pass (87 focused tests) |
+| 23 | Full validation | PASS | Official CPU gate: 348 passed, 1 skipped; Ruff, Hydra config preflight, lock drift, offline smoke, `uv lock --check`, changed-path format, and diff checks pass |
+| 24 | Independent re-review | Pending | Repeat against the exact committed sixth-repair head and preserve the verdict in the pull request |
 
 ## Resolved protocol
 
@@ -76,7 +80,7 @@
 
 ## Current conclusion
 
-All five independent failed reviews remain visible. Their fourteen findings are
+All six independent failed reviews remain visible. Their sixteen findings are
 repaired without weakening the fixed protocol or complete contamination gate:
 cheap context incompatibility precedes scanning, both tasks honor checkpoint
 precision, external records are pinned, evaluator/runtime and dirty source
@@ -87,9 +91,11 @@ invalidates stale scan evidence, and completed suite/corpus/producer-bound scan
 evidence is reused across milestones. Choice scoring now uses an exact joint
 encoding and offset-defined suffix, unsupported CUDA BF16 is rejected before
 the training scan, and external records prove sufficient no-truncation context.
+Normal training encoding remains ID-only, while local result paths cannot enter
+or alias the checkpoint-owned namespace.
 An extra
 repository-wide format diagnostic identified four pre-existing, unrelated
 files outside this ticket's diff; the configured Ruff lint gate and all changed
-benchmark paths pass, so those files were not rewritten here. The fifth repair's
+benchmark paths pass, so those files were not rewritten here. The sixth repair's
 full gate passes and its exact-head independent review is pending. No
 benchmark score from the zero-weight fixture is a model-quality result.
