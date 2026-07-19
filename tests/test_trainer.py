@@ -355,6 +355,27 @@ def test_wandb_does_not_repeat_last_step_validation_in_the_epoch_log(tmp_path: P
     assert not any(key.startswith(("validation/", "memorization/")) for key in tracking.logs[1])
 
 
+def test_wandb_epoch_only_log_uses_token_weighted_epoch_aggregate(tmp_path: Path):
+    trainer = _trainer(
+        tmp_path,
+        [_batch([[3, 3]]), _batch([[0, 0]])],
+        max_steps=2,
+        log_every_n_steps=None,
+        validation_every_n_steps=99,
+    )
+    tracking = RecordingWandbTracker()
+    trainer.wandb = tracking
+
+    trainer.fit()
+
+    epoch = next(row for row in trainer.metrics if row["event"] == "epoch_summary")
+    last_step = [row for row in trainer.metrics if row["event"] == "step"][-1]
+    assert len(tracking.logs) == 1
+    assert tracking.logs[0]["train/nll"] == pytest.approx(epoch["train/loss"])
+    assert tracking.logs[0]["train/perplexity"] == pytest.approx(epoch["train/perplexity"])
+    assert tracking.logs[0]["train/nll"] != pytest.approx(last_step["train/loss_step"])
+
+
 def test_wandb_logs_reduce_on_plateau_validation_at_the_epoch_boundary(tmp_path: Path):
     trainer = _trainer(
         tmp_path,

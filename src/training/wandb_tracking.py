@@ -15,7 +15,7 @@ import threading
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 import wandb
 from omegaconf import DictConfig, OmegaConf
@@ -97,23 +97,52 @@ def finish_run_bounded(run: Any, *, timeout_seconds: float) -> None:
     )
 
 
-def call_bounded(call, *, timeout_seconds: float, operation: str) -> Any:
+def call_bounded(
+    call: Callable[[], Any],
+    *,
+    timeout_seconds: float,
+    operation: str,
+    on_late_result: Callable[[Any], None] | None = None,
+    on_late_error: Callable[[Exception], None] | None = None,
+) -> Any:
     """Run one external SDK call behind an actual wall-clock timeout."""
 
     errors: list[Exception] = []
     results: list[Any] = []
+    timed_out = threading.Event()
+    state_lock = threading.Lock()
 
     def invoke() -> None:
         try:
-            results.append(call())
+            result = call()
+            with state_lock:
+                late = timed_out.is_set()
+                if not late:
+                    results.append(result)
+            if late and on_late_result is not None:
+                try:
+                    on_late_result(result)
+                except Exception:
+                    pass
         except Exception as error:
-            errors.append(error)
+            with state_lock:
+                late = timed_out.is_set()
+                if not late:
+                    errors.append(error)
+            if late and on_late_error is not None:
+                try:
+                    on_late_error(error)
+                except Exception:
+                    pass
 
     thread = threading.Thread(target=invoke, name="wandb-bounded-call", daemon=True)
     thread.start()
     thread.join(timeout_seconds)
     if thread.is_alive():
-        raise TimeoutError(f"{operation} exceeded {timeout_seconds:.3f} seconds")
+        with state_lock:
+            if not results and not errors:
+                timed_out.set()
+                raise TimeoutError(f"{operation} exceeded {timeout_seconds:.3f} seconds")
     if errors:
         raise errors[0]
     return results[0]
@@ -258,6 +287,7 @@ class WandbTracker:
         self._evidence_path = self.evidence_dir / "wandb_events.jsonl"
         self._watched_model = None
         self._scalar_logging_disabled = False
+        self._summary_updates_disabled = False
         self._scalar_log_queue: queue.Queue[
             tuple[Any, dict[str, Any], threading.Event, list[Exception]] | None
         ] = queue.Queue(maxsize=1)
@@ -295,13 +325,18 @@ class WandbTracker:
                 )
                 if not login_succeeded:
                     raise RuntimeError("verified W&B login did not succeed")
-            self.run = self.wandb.init(
-                project=self.wandb_cfg.get("project"),
-                entity=self.wandb_cfg.get("entity"),
-                name=self.wandb_cfg.get("name"),
-                mode=self.mode,
-                config=wandb_run_config(self.cfg),
-                settings=self.wandb.Settings(init_timeout=init_timeout),
+            self.run = call_bounded(
+                lambda: self.wandb.init(
+                    project=self.wandb_cfg.get("project"),
+                    entity=self.wandb_cfg.get("entity"),
+                    name=self.wandb_cfg.get("name"),
+                    mode=self.mode,
+                    config=wandb_run_config(self.cfg),
+                    settings=self.wandb.Settings(init_timeout=init_timeout),
+                ),
+                timeout_seconds=init_timeout,
+                operation="W&B initialization",
+                on_late_result=self._finish_abandoned_run,
             )
             if self.run is None:
                 raise RuntimeError("wandb.init returned no run")
@@ -322,17 +357,33 @@ class WandbTracker:
         watch = self.wandb_cfg.get("watch", {}) or {}
         if watch.get("enabled", False):
             self._watched_model = model
+            watch_timeout = float(self.wandb_cfg.get("log_timeout_seconds", 5.0))
+            run = self.run
             try:
-                self.run.watch(
-                    model,
-                    log=str(watch.get("log", "gradients")),
-                    log_freq=int(watch.get("log_freq", 1000)),
+                call_bounded(
+                    lambda: run.watch(
+                        model,
+                        log=str(watch.get("log", "gradients")),
+                        log_freq=int(watch.get("log_freq", 1000)),
+                    ),
+                    timeout_seconds=watch_timeout,
+                    operation="W&B watch installation",
+                    on_late_result=lambda _result: self._cleanup_late_watch(
+                        run,
+                        model,
+                        timeout_seconds=watch_timeout,
+                    ),
+                    on_late_error=lambda _error: self._cleanup_late_watch(
+                        run,
+                        model,
+                        timeout_seconds=watch_timeout,
+                    ),
                 )
                 self._record("watch", "succeeded")
             except Exception as error:
                 self._record_failure("watch", error)
                 self._watch_cleanup_all = True
-                self._teardown_watch()
+                self._teardown_watch(timeout_seconds=watch_timeout)
         else:
             self._record("watch", "disabled")
 
@@ -431,12 +482,23 @@ class WandbTracker:
             self._scalar_log_worker.start()
 
     def update_summary(self, values: Mapping[str, Any]) -> None:
-        if self.run is None:
+        if self.run is None or self._summary_updates_disabled:
             return
+        run = self.run
+        timeout_seconds = float(self.wandb_cfg.get("log_timeout_seconds", 5.0))
         try:
-            self.run.summary.update(dict(values))
+            call_bounded(
+                lambda: run.summary.update(dict(values)),
+                timeout_seconds=timeout_seconds,
+                operation="W&B summary update",
+            )
         except Exception as error:
-            self._record_failure("summary", error)
+            self._summary_updates_disabled = True
+            self._record_failure(
+                "summary",
+                error,
+                {"circuit_breaker": "opened"},
+            )
 
     def consider_artifact(
         self, *, reason: str, checkpoint_path: str | Path, step: int
@@ -552,20 +614,30 @@ class WandbTracker:
             if block_reason is not None:
                 return self._artifact_blocked(decision, block_reason, auth_error)
 
-            artifact = self.wandb.Artifact(
-                name=self._artifact_name(),
-                type="model",
-                metadata={
-                    "reason": reason,
-                    "optimizer_step": step,
-                    "sha256": candidate.sha256,
-                    "size_bytes": candidate.size_bytes,
-                },
-            )
-            artifact.add_file(
-                candidate.path,
-                name=Path(candidate.path).name,
-                policy="immutable",
+            upload_timeout = float(artifact_cfg.get("upload_timeout_seconds", 600))
+
+            def prepare_artifact():
+                artifact = self.wandb.Artifact(
+                    name=self._artifact_name(),
+                    type="model",
+                    metadata={
+                        "reason": reason,
+                        "optimizer_step": step,
+                        "sha256": candidate.sha256,
+                        "size_bytes": candidate.size_bytes,
+                    },
+                )
+                artifact.add_file(
+                    candidate.path,
+                    name=Path(candidate.path).name,
+                    policy="immutable",
+                )
+                return artifact
+
+            artifact = call_bounded(
+                prepare_artifact,
+                timeout_seconds=upload_timeout,
+                operation="W&B artifact preparation",
             )
             current = Path(candidate.path).stat()
             if (
@@ -583,7 +655,6 @@ class WandbTracker:
             ):
                 raise RuntimeError("checkpoint changed while W&B captured the artifact")
 
-            upload_timeout = float(artifact_cfg.get("upload_timeout_seconds", 600))
             cloud_submission_started = True
 
             def submit_and_wait():
@@ -623,6 +694,7 @@ class WandbTracker:
                     self._reserved_bytes_by_tracker -= candidate.size_bytes
             decision["outcome"] = "upload_failed"
             decision["retry_outcome"] = "operator_retry_required"
+            decision["error"] = self._safe_error(error)
             self._record_failure("artifact", error, decision)
             self._update_artifact_summary(decision)
         return decision
@@ -631,17 +703,25 @@ class WandbTracker:
         if self.run is None:
             return
         finish_timeout = float(self.wandb_cfg.get("finish_timeout_seconds", 30.0))
+        errors: list[Exception] = []
         try:
             worker_stopped = self._stop_scalar_log_worker(timeout_seconds=finish_timeout)
-            self._teardown_watch()
             if not worker_stopped:
-                raise TimeoutError(
-                    f"W&B scalar log worker exceeded {finish_timeout:.3f} seconds during finish"
+                errors.append(
+                    TimeoutError(
+                        f"W&B scalar log worker exceeded {finish_timeout:.3f} seconds during finish"
+                    )
                 )
-            finish_run_bounded(
-                self.run,
-                timeout_seconds=finish_timeout,
-            )
+            self._teardown_watch(timeout_seconds=finish_timeout)
+            try:
+                finish_run_bounded(
+                    self.run,
+                    timeout_seconds=finish_timeout,
+                )
+            except Exception as error:
+                errors.append(error)
+            if errors:
+                raise errors[0]
             self._record("finish", "succeeded")
         except Exception as error:
             self._record_failure("finish", error)
@@ -679,28 +759,80 @@ class WandbTracker:
             errors.append(RuntimeError("W&B scalar log cancelled during shutdown"))
             completed.set()
 
-    def _teardown_watch(self) -> None:
+    def _teardown_watch(self, *, timeout_seconds: float | None = None) -> None:
         if self.run is None or self._watched_model is None:
             return
         model = self._watched_model
+        run = self.run
+        timeout = (
+            float(self.wandb_cfg.get("log_timeout_seconds", 5.0))
+            if timeout_seconds is None
+            else timeout_seconds
+        )
         try:
             if self._watch_cleanup_all:
-                self.run.unwatch()
-                if hasattr(model, "_wandb_hook_names"):
-                    delattr(model, "_wandb_hook_names")
+                call_bounded(
+                    run.unwatch,
+                    timeout_seconds=timeout,
+                    operation="W&B global unwatch",
+                    on_late_result=lambda _result: self._clear_watch_bookkeeping(model),
+                )
+                self._clear_watch_bookkeeping(model)
             else:
                 try:
-                    self.run.unwatch(model)
+                    call_bounded(
+                        lambda: run.unwatch(model),
+                        timeout_seconds=timeout,
+                        operation="W&B model unwatch",
+                    )
                 except Exception:
                     self._watch_cleanup_all = True
-                    self.run.unwatch()
-                    if hasattr(model, "_wandb_hook_names"):
-                        delattr(model, "_wandb_hook_names")
+                    call_bounded(
+                        run.unwatch,
+                        timeout_seconds=timeout,
+                        operation="W&B global unwatch",
+                        on_late_result=lambda _result: self._clear_watch_bookkeeping(model),
+                    )
+                    self._clear_watch_bookkeeping(model)
             self._watched_model = None
             self._watch_cleanup_all = False
             self._record("unwatch", "succeeded")
         except Exception as error:
             self._record_failure("unwatch", error)
+
+    def _finish_abandoned_run(self, run: Any) -> None:
+        if run is None:
+            return
+        try:
+            finish_run_bounded(
+                run,
+                timeout_seconds=float(self.wandb_cfg.get("finish_timeout_seconds", 30.0)),
+            )
+        except Exception:
+            pass
+
+    @staticmethod
+    def _cleanup_late_watch(
+        run: Any,
+        model: Any,
+        *,
+        timeout_seconds: float,
+    ) -> None:
+        try:
+            call_bounded(
+                run.unwatch,
+                timeout_seconds=timeout_seconds,
+                operation="W&B late global unwatch",
+                on_late_result=lambda _result: WandbTracker._clear_watch_bookkeeping(model),
+            )
+        except Exception:
+            return
+        WandbTracker._clear_watch_bookkeeping(model)
+
+    @staticmethod
+    def _clear_watch_bookkeeping(model: Any) -> None:
+        if hasattr(model, "_wandb_hook_names"):
+            delattr(model, "_wandb_hook_names")
 
     def _candidate(
         self,

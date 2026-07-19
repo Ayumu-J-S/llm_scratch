@@ -167,7 +167,68 @@ def test_normalized_config_removes_only_predeclared_arm_selectors():
     assert config["wandb"]["mode"] == "offline"
 
 
-def test_summarize_steps_uses_aggregate_targets_and_post_warmup_wall_time():
+def test_fresh_measurement_reads_schema_three_segment_rows():
+    payload = {
+        "schema_version": 3,
+        "complete": True,
+        "segments": [
+            {
+                "segment_index": 0,
+                "start_counters": {"optimizer_step": 0},
+                "end_counters": {"optimizer_step": 260},
+                "resumed_from": None,
+                "parent_boundary_id": None,
+                "measurement": {
+                    "warmup_optimizer_steps": 26,
+                    "cuda_events": True,
+                    "device": "cuda",
+                },
+                "complete": True,
+                "rows": [{"event": "optimizer_step", "optimizer_step": 1}],
+            }
+        ],
+    }
+
+    measurement = VERIFY._fresh_measurement(payload)
+
+    assert measurement["warmup_optimizer_steps"] == 26
+    assert measurement["cuda_events"] is True
+    assert measurement["rows"] == [{"event": "optimizer_step", "optimizer_step": 1}]
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda payload: payload.update(schema_version=2),
+        lambda payload: payload.update(complete=False),
+        lambda payload: payload["segments"].append(dict(payload["segments"][0])),
+        lambda payload: payload["segments"][0].update(resumed_from={"path": "prior"}),
+    ],
+)
+def test_fresh_measurement_rejects_noncurrent_or_resumed_evidence(mutation):
+    payload = {
+        "schema_version": 3,
+        "complete": True,
+        "segments": [
+            {
+                "segment_index": 0,
+                "start_counters": {"optimizer_step": 0},
+                "end_counters": {"optimizer_step": 260},
+                "resumed_from": None,
+                "parent_boundary_id": None,
+                "measurement": {"warmup_optimizer_steps": 26, "cuda_events": True},
+                "complete": True,
+                "rows": [],
+            }
+        ],
+    }
+    mutation(payload)
+
+    with pytest.raises(ValueError, match="measurement"):
+        VERIFY._fresh_measurement(payload)
+
+
+def test_summarize_steps_uses_end_to_end_post_warmup_wall_time():
     rows = []
     for step in range(1, 13):
         rows.append(
@@ -183,11 +244,18 @@ def test_summarize_steps_uses_aggregate_targets_and_post_warmup_wall_time():
                 "pytorch_reserved_bytes": 2000 + step,
             }
         )
-    summary = VERIFY.summarize_steps(rows)
+    scheduled = [
+        {"optimizer_step": 10, "scheduled_log_seconds": 10.0},
+        {"optimizer_step": 11, "scheduled_log_seconds": 0.25},
+        {"optimizer_step": 12, "scheduled_log_seconds": 0.75},
+    ]
+    summary = VERIFY.summarize_steps(rows, scheduled)
     assert summary["steps"] == 2
     assert summary["target_tokens"] == 128
-    assert summary["wall_seconds"] == 3.0
-    assert summary["target_tokens_per_second"] == pytest.approx(128 / 3)
+    assert summary["optimizer_wall_seconds"] == 3.0
+    assert summary["scheduled_log_seconds"] == 1.0
+    assert summary["wall_seconds"] == 4.0
+    assert summary["target_tokens_per_second"] == pytest.approx(128 / 4)
     assert summary["step_median_seconds"] == 1.5
     assert summary["step_p95_seconds"] == 2.0
     assert summary["data_wait_fraction"] == pytest.approx(0.2 / 3)

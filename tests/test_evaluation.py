@@ -5,6 +5,8 @@ import hashlib
 import json
 import os
 import runpy
+import threading
+import time
 from contextlib import nullcontext
 from dataclasses import replace
 from pathlib import Path
@@ -789,6 +791,83 @@ def test_standalone_wandb_summary_records_compact_identities_and_local_hash(tmp_
         "sha256": hashlib.sha256(local_bytes).hexdigest(),
         "size_bytes": len(local_bytes),
     }
+
+
+def test_standalone_wandb_summary_is_wall_clock_bounded(monkeypatch):
+    release = threading.Event()
+
+    class Summary:
+        def update(self, values):
+            release.wait(1.0)
+
+    class Run:
+        def __init__(self):
+            self.summary = Summary()
+            self.finished = False
+
+        def finish(self):
+            self.finished = True
+
+    run = Run()
+    monkeypatch.setattr(evaluate_module.wandb, "init", lambda **kwargs: run)
+    config = _compose("profile=evaluation")
+    with open_dict(config):
+        config.evaluation.wandb.mode = "offline"
+        config.evaluation.wandb.init_timeout_seconds = 0.01
+    result = _scorer().score(FixedLogitModel([0.0, 1.0]), lambda: [_batch([[0, 1]])])
+
+    started = time.monotonic()
+    evaluate_module._maybe_log_wandb(
+        config.evaluation,
+        result,
+        checkpoint_kind="milestone",
+        local_result_identity={"sha256": "fixture"},
+    )
+    elapsed = time.monotonic() - started
+    release.set()
+
+    assert elapsed < 0.2
+    assert run.finished is True
+
+
+def test_standalone_wandb_initialization_is_wall_clock_bounded(monkeypatch):
+    release = threading.Event()
+
+    class Run:
+        def __init__(self):
+            self.finished = False
+
+        def finish(self):
+            self.finished = True
+
+    run = Run()
+
+    def blocking_init(**kwargs):
+        release.wait(1.0)
+        return run
+
+    monkeypatch.setattr(evaluate_module.wandb, "init", blocking_init)
+    config = _compose("profile=evaluation")
+    with open_dict(config):
+        config.evaluation.wandb.mode = "offline"
+        config.evaluation.wandb.init_timeout_seconds = 0.01
+    result = _scorer().score(FixedLogitModel([0.0, 1.0]), lambda: [_batch([[0, 1]])])
+    started = time.monotonic()
+
+    evaluate_module._maybe_log_wandb(
+        config.evaluation,
+        result,
+        checkpoint_kind="milestone",
+        local_result_identity={"sha256": "fixture"},
+    )
+    elapsed = time.monotonic() - started
+    release.set()
+    deadline = time.monotonic() + 1.0
+    while not run.finished and time.monotonic() < deadline:
+        time.sleep(0.001)
+
+    assert elapsed < 0.2
+    assert run.finished is True
 
 
 def test_standalone_preflight_rejects_cpu_for_bf16_checkpoint(tmp_path, monkeypatch):

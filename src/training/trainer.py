@@ -31,6 +31,7 @@ from training.checkpoint import (
     build_checkpoint_identity,
     capture_rng_state,
     configured_manifest_fingerprints,
+    load_checkpoint_for_generation,
     require_exact_stream_resume_state,
     restore_rng_state,
 )
@@ -137,6 +138,7 @@ class Trainer:
         self._start_time: float | None = None
         self._latest_wandb_scalars: dict[str, Any] = {}
         self._best_checkpoint_path: Path | None = None
+        self._expected_best_checkpoint_path = self.checkpoint_dir / "best.pt"
         self._best_checkpoint_step: int | None = None
         measurement = self.cfg.get("measurement", {}) or {}
         self._measurement_enabled = bool(measurement.get("enabled", False))
@@ -362,11 +364,18 @@ class Trainer:
             artifact_policy = str(
                 ((self.cfg.get("wandb", {}) or {}).get("artifact", {}) or {}).get("policy", "none")
             )
-            if artifact_policy == "best" and self._best_checkpoint_path is not None:
+            if artifact_policy == "best":
+                best_artifact_path = (
+                    self._best_checkpoint_path or self._expected_best_checkpoint_path
+                )
                 self.wandb.consider_artifact(
                     reason="best",
-                    checkpoint_path=self._best_checkpoint_path,
-                    step=self._best_checkpoint_step or self.optimizer_step,
+                    checkpoint_path=best_artifact_path,
+                    step=(
+                        self._best_checkpoint_step
+                        if self._best_checkpoint_step is not None
+                        else self.optimizer_step
+                    ),
                 )
             elif artifact_policy == "final":
                 self.wandb.consider_artifact(
@@ -702,6 +711,9 @@ class Trainer:
                 for key, value in self._latest_wandb_scalars.items()
                 if not (key.startswith("validation/") or key.startswith("memorization/"))
             }
+            if epoch_end and train_loss is not None:
+                latest_scalars["train/nll"] = train_loss
+                latest_scalars["train/perplexity"] = _perplexity(train_loss)
             values = {
                 "event": "log",
                 "optimizer_step": step,
@@ -1720,8 +1732,11 @@ class Trainer:
         ):
             raise CheckpointCompatibilityError("checkpoint best-checkpoint step is invalid")
         self._best_checkpoint_step = best_step
-        best_path = self.checkpoint_dir / "best.pt"
-        self._best_checkpoint_path = best_path if best_path.is_file() else None
+        self._best_checkpoint_path = self._recover_best_checkpoint(
+            resumed,
+            best_validation_loss=self._best_validation_loss,
+            best_checkpoint_step=best_step,
+        )
         restore_rng_state(state["rng"])
         self._resume_measurement_config = dict(resume_measurement_config)
         self._resume_measurement_evidence_id = prior_measurement_id
@@ -1735,6 +1750,53 @@ class Trainer:
             )
         else:
             logger.info("Resuming verified full state from {}", resumed.path)
+
+    def _recover_best_checkpoint(
+        self,
+        resumed: ResumeCheckpoint,
+        *,
+        best_validation_loss: float | None,
+        best_checkpoint_step: int | None,
+    ) -> Path | None:
+        """Recover a verified retained best checkpoint without changing run state."""
+
+        current_path = self.checkpoint_dir / "best.pt"
+        resumed_path = resumed.path.parent / "best.pt"
+        self._expected_best_checkpoint_path = (
+            resumed_path if best_checkpoint_step is not None else current_path
+        )
+        candidates = [current_path]
+        if resumed_path != current_path:
+            candidates.append(resumed_path)
+        for candidate in candidates:
+            if not candidate.is_file():
+                continue
+            try:
+                loaded = load_checkpoint_for_generation(candidate)
+                payload = loaded.payload
+                state = payload["state"]
+                event_state = state.get("event_state", {})
+                if (
+                    payload["kind"] != "best"
+                    or dict(payload["identity"]) != self.checkpoint_identity
+                    or state["counters"]["optimizer_step"] != best_checkpoint_step
+                    or not isinstance(event_state, dict)
+                    or event_state.get("best_checkpoint_step") != best_checkpoint_step
+                    or event_state.get("best_validation_loss") != best_validation_loss
+                ):
+                    raise CheckpointCompatibilityError(
+                        "retained best checkpoint does not match restored best state"
+                    )
+            except Exception as error:
+                logger.warning(
+                    "Ignoring unusable retained best checkpoint {}: {}",
+                    candidate,
+                    error,
+                )
+                continue
+            self._expected_best_checkpoint_path = candidate
+            return candidate
+        return None
 
     def _stream_cursor_state(self) -> dict[str, Any] | None:
         dataset = getattr(self.train_loader, "dataset", None)

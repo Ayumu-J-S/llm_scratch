@@ -194,6 +194,59 @@ def test_interrupted_resume_matches_uninterrupted_model_optimizer_scheduler_and_
     )
 
 
+def test_cross_directory_resume_recovers_or_explicitly_selects_prior_best(tmp_path: Path):
+    source_dir = tmp_path / "source"
+    source = _trainer(source_dir)
+    source.optimizer_step = 1
+    source.target_tokens = 2
+    source._best_validation_loss = -1.0
+    source._best_checkpoint_step = 1
+    best = source._save_best_checkpoint()
+    source._best_checkpoint_path = best
+    source.optimizer_step = 2
+    source.target_tokens = 4
+    recovery = source._save_checkpoint()
+
+    recovered = _trainer(tmp_path / "recovered", resume_path=recovery)
+    assert recovered._best_checkpoint_path == best
+    assert recovered._expected_best_checkpoint_path == best
+
+    best.unlink()
+    missing = _trainer(tmp_path / "missing", resume_path=recovery)
+    missing.cfg.wandb.artifact = {"policy": "best"}
+
+    class RecordingArtifacts:
+        def __init__(self) -> None:
+            self.decisions = []
+
+        def reset_local_evidence(self) -> None:
+            pass
+
+        def start(self, model) -> None:
+            pass
+
+        def log(self, values) -> None:
+            pass
+
+        def update_summary(self, values) -> None:
+            pass
+
+        def consider_artifact(self, **decision):
+            self.decisions.append(decision)
+            return {"outcome": "blocked", "block_reason": "checkpoint_identity_unavailable"}
+
+        def finish(self) -> None:
+            pass
+
+    tracking = RecordingArtifacts()
+    missing.wandb = tracking
+    missing.fit()
+
+    assert missing._best_checkpoint_path is None
+    assert missing._expected_best_checkpoint_path == best
+    assert tracking.decisions == [{"reason": "best", "checkpoint_path": best, "step": 1}]
+
+
 def test_measurement_evidence_preserves_verified_segments_across_resume(tmp_path: Path):
     checkpoint_dir = tmp_path / "checkpoints"
     first_path = tmp_path / "first-measurement.json"

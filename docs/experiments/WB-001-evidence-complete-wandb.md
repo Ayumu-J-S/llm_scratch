@@ -3,12 +3,12 @@
 - Roadmap ticket: `WB-001`
 - Branch: `codex/wb-001-main-integration`
 - Draft PR: [#46](https://github.com/Ayumu-J-S/llm_scratch/pull/46)
-- Status: current-main integration is complete; the exact-head review outcome
-  is recorded in live PR #46. The retained pre-integration review was
-  `PASS WITH NOTE`; all six findings from its prior `FAIL` were closed. R1 and
-  the repaired-code depth-26 DGX Attempt 9 result are `PASS WITH NOTE`, with all
-  168 applicable measurement gates passing. Attempt 9 supersedes Attempt 8 as
-  repaired-code performance evidence, while Attempt 8 remains as history.
+- Status: current-main integration repair is in progress after exact-head review
+  cycle 20 returned `FAIL`; the complete cycle trail is in live PR #46. R1
+  functional evidence remains supported. Attempt 9's historical
+  `PASS WITH NOTE` and 168-gate result are retained, but its paired-overhead
+  figures are withdrawn from current acceptance because scheduled scalar-log
+  pauses were absent from the throughput denominator.
 - Started (UTC): 2026-07-13
 - Last updated (UTC): 2026-07-19
 
@@ -486,7 +486,7 @@ re-review of exact clean implementation/evidence head
 `5a0a7437e9f94fe56f0ed2dd4cad622cd9d9e25e` returned `PASS WITH NOTE` and
 closed all six prior findings without adding an online/cloud claim.
 
-## Attempt 9 — repaired exact-head DGX result, PASS WITH NOTE
+## Attempt 9 — historical repaired-head DGX result, PASS WITH NOTE at the time
 
 An independent prelaunch audit returned `PASS` at exact clean repair commit
 `e507a3447ab0895960530cdb207ca0702ec41f85`. It confirmed that the runner,
@@ -509,7 +509,8 @@ byte-identical to that summary. A second independent policy/quality validator
 also returned `PASS WITH NOTE` with no actionable finding, classifying the
 result as 159 required gates plus nine passing per-arm data-wait note gates.
 
-All 168 applicable dynamically emitted gates passed with zero failures. The
+The historical verifier reported all 168 applicable dynamically emitted gates
+passing with zero failures. The
 nine warnings are exactly one predeclared `data_wait_investigate` note per arm:
 data wait ranged from 6.3273% to 8.1949%, below the unchanged 10% failure
 threshold. Paired median throughput changes were 1.913997% for
@@ -518,7 +519,11 @@ disabled, and 2.632986% for watch-on versus offline/watch-off. Every paired
 value was below 10%, and all three medians were below 5%. Attempt 9 therefore
 has 168 gates rather than Attempt 8's 170: the verifier emits the two aggregate
 investigation gates only when a relevant paired median is at least 5%; neither
-conditional gate applies here.
+conditional gate applied at the time. Cycle-20 review later found that the
+throughput denominator ended before scheduled W&B scalar logging. These exact
+figures and the original verdict remain immutable history, but they are
+withdrawn as current overhead-acceptance evidence rather than silently
+reinterpreted with a changed verifier.
 
 Every arm completed 260 total, 26 warm-up, and 234 measured optimizer steps;
 the corresponding target counts were 133,120 total and 119,808 measured.
@@ -531,14 +536,16 @@ CUDA reserved, and 1,078,947 local W&B bytes. The minimum post-run disk free
 space was 367,225,155,584 bytes, and the maximum sustained swap-I/O run was
 zero.
 
-Attempt 9 supersedes Attempt 8 as the repaired implementation's performance
-evidence; Attempt 8 remains retained for audit history. This network-isolated,
+Attempt 9 previously superseded Attempt 8 as performance evidence; neither is
+now cited for current overhead acceptance. Both remain retained for audit
+history. This network-isolated,
 artifact-policy-none matrix does not exercise or support claims about online
 authentication, authoritative quota, retention, upload, or cloud behavior.
 DGX Spark unified-memory headroom is supported by host, container, and allocator
 evidence, and decoded W&B binary records prove only local history/watch content.
-The mandatory heavy re-review accepted this evidence and the repaired
-implementation with the nonblocking limitations below.
+The historical mandatory heavy re-review accepted this evidence and the then
+repaired implementation with the nonblocking limitations below; cycle 20
+supersedes that acceptance for the current integration head.
 
 ## Independent implementation re-review — PASS WITH NOTE
 
@@ -567,26 +574,61 @@ stay bounded. Draft PR
 guarded self-merge is authorized for the bounded roadmap goal series only after
 the exact-head review and every merge gate pass.
 
+## Current-main exact-head cycle 20 — FAIL; cycle 21 repair
+
+Independent review of exact clean head
+`31947afb540ad6044cd0b86074799a22d98e9555` returned `FAIL` after reproducing
+the full CPU suite at 423 passed and one skipped. It found four actionable
+defects: direct summary updates could hang optional tracking; epoch-only W&B
+history used the final update rather than the token-weighted epoch aggregate;
+cross-directory resume could silently lose the retained best artifact; and the
+DGX verifier omitted scheduled scalar-log pauses from throughput.
+
+The subsequent WB-only call-site audit also found that complete training and
+standalone-evaluation initialization lacked caller-owned wall-clock bounds,
+watch/unwatch and local artifact staging were direct SDK calls, and the DGX
+verifier still read the pre-VAL top-level measurement layout rather than
+schema-v3 segments. Cycle 21 therefore:
+
+- bounds login, complete initialization, summaries, watch/unwatch, artifact
+  staging/submission, entity verification, scalar logs, and finish; late
+  initialization/watch results are cleaned up without blocking local work;
+- reports token-weighted epoch NLL/perplexity at epoch-only history boundaries;
+- verifies a prior `best.pt` across resume directories and emits an explicit
+  blocked artifact decision when the expected retained best is unavailable;
+- consumes one complete fresh schema-v3 measurement segment; and
+- includes post-warm-up scheduled scalar-log pauses in the primary throughput
+  denominator while keeping the data-wait fraction compute-only.
+
+No exact repaired-head DGX rerun is available in this cycle. The Attempt 9
+overhead numbers are therefore withdrawn/qualified, not reused as acceptance.
+The functional roadmap acceptance matrix remains covered by test doubles,
+offline smoke, policy/size/auth/quota cases, metric schema, and the online
+no-artifact visibility smoke. A fresh independent exact-head review must return
+at least `PASS WITH NOTE` before handoff. Opt-in watch histogram hooks still
+perform SDK-owned local-backend publication in the model hot path outside the
+tracker scalar worker; watch remains default-off and no universal timeout claim
+is made for hook-generated records.
+
 ## Conclusion
 
-- Hypothesis result: supported at R1 and `PASS WITH NOTE` at R2. Repaired-code
-  Attempt 9 passed all 168 applicable dynamic gates. Its only notes are the
-  nine 5–10% per-arm data-wait investigations; all paired overhead medians are
-  below 5% and all paired values are below 10%.
+- Hypothesis result: functional/failure-isolation behavior is supported at R1.
+  Attempt 9's historical R2 exactness, resource, watch-content, and data-wait
+  observations remain retained, but its paired-overhead result is withdrawn
+  because the old verifier excluded scheduled scalar-log pauses.
 - Evidence-backed conclusion: the implementation can preserve local metrics and
   checkpoints across disabled/offline W&B and tested external failure paths,
-  while the repaired exact-head measurement evidence remains valid. The live
+  while cycle-21 local validation is pending final exact-head review. The live
   three-step smoke also confirms authenticated online scalar visibility and
   clean no-artifact completion. Cycle-13
-  quota, scalar-boundary, and watch-cleanup repairs pass local validation, a
-  focused repair audit, the full fresh Attempt 9 matrix, and the mandatory heavy
-  re-review. The ticket is technically accepted `PASS WITH NOTE` at the
-  reviewed implementation/evidence head.
+  quota, scalar-boundary, and watch-cleanup history remains useful, while the
+  current repair no longer cites the flawed overhead denominator. The ticket is
+  not ready until cycle-21 validation and independent exact-head review finish.
 - Uncertainty and limitations: the online smoke did not consume artifact quota
   or exercise artifact retention/upload; failed DGX evidence is retained, and
-  no cross-attempt performance claim is made. The positive R2 result is scoped
-  to the depth-26 target workload and the pinned runtime; quota reservation is
-  tracker-lifetime, and a stuck daemon SDK worker is process-lifetime bounded.
-- Exactly one next step: complete current-main integration validation and the
-  independent exact-head `/review`, then use the live PR handoff for the guarded
-  merge audit.
+  no current overhead or cross-attempt performance claim is made. Quota
+  reservation is tracker-lifetime, and a stuck daemon SDK worker is
+  process-lifetime bounded.
+- Exactly one next step: validate cycle 21 and obtain an independent exact-head
+  `PASS` or justified `PASS WITH NOTE`, then use the live PR handoff for the
+  guarded merge audit.

@@ -309,6 +309,39 @@ def test_online_login_verification_is_wall_clock_bounded(tmp_path: Path):
     assert failure["error"]["type"] == "TimeoutError"
 
 
+def test_wandb_initialization_is_wall_clock_bounded_and_late_run_is_finished(tmp_path: Path):
+    release = threading.Event()
+
+    class BlockingInitWandb(FakeWandb):
+        def init(self, **kwargs):
+            self.init_calls.append(kwargs)
+            release.wait(1.0)
+            return self.run
+
+    cfg = _config(mode="offline", policy="none")
+    cfg.wandb.init_timeout_seconds = 0.01
+    fake = BlockingInitWandb()
+    tracker = _tracker(tmp_path, cfg, fake)
+    started = time.monotonic()
+
+    tracker.start(object())
+    elapsed = time.monotonic() - started
+    release.set()
+    deadline = time.monotonic() + 1.0
+    while not fake.run.finished and time.monotonic() < deadline:
+        time.sleep(0.001)
+
+    assert elapsed < 0.2
+    assert tracker.run is None
+    assert fake.run.finished is True
+    failure = next(
+        json.loads(line)
+        for line in (tmp_path / "wandb_events.jsonl").read_text(encoding="utf-8").splitlines()
+        if '"action": "init"' in line and '"outcome": "failed"' in line
+    )
+    assert failure["error"]["type"] == "TimeoutError"
+
+
 def test_artifact_entity_verification_is_wall_clock_bounded(tmp_path: Path):
     release = threading.Event()
 
@@ -664,6 +697,42 @@ def test_local_artifact_preparation_failure_releases_quota_for_retry(tmp_path: P
     assert len(fake.run.uploads) == 1
 
 
+def test_blocking_artifact_preparation_is_bounded_and_releases_reservation(tmp_path: Path):
+    release = threading.Event()
+
+    class BlockingArtifact(FakeArtifact):
+        def add_file(self, path, name, policy=None) -> None:
+            release.wait(1.0)
+            super().add_file(path, name, policy)
+
+    class BlockingArtifactWandb(FakeWandb):
+        def Artifact(self, *args, **kwargs):
+            artifact = BlockingArtifact(*args, **kwargs)
+            self.artifacts.append(artifact)
+            return artifact
+
+    snapshot = tmp_path / "usage.json"
+    _snapshot(snapshot, limit_bytes=10_000_000)
+    cfg = _config(snapshot_path=snapshot)
+    cfg.wandb.artifact.upload_timeout_seconds = 0.01
+    fake = BlockingArtifactWandb()
+    tracker = _tracker(tmp_path, cfg, fake)
+    tracker.start(object())
+    checkpoint = _checkpoint(tmp_path / "checkpoint", tracker=tracker, kind="final", step=5)
+    started = time.monotonic()
+
+    decision = tracker.consider_artifact(reason="final", checkpoint_path=checkpoint, step=5)
+    elapsed = time.monotonic() - started
+    release.set()
+
+    assert elapsed < 0.2
+    assert decision["outcome"] == "upload_failed"
+    assert decision["error"]["type"] == "TimeoutError"
+    assert tracker._reserved_bytes_by_tracker == 0
+    assert tracker._reserved_sha256 == set()
+    assert fake.run.uploads == []
+
+
 def test_quota_ledger_retains_strictest_values_across_snapshot_refreshes(tmp_path: Path):
     snapshot = tmp_path / "usage.json"
     fake = FakeWandb()
@@ -1015,6 +1084,42 @@ def test_blocking_scalar_log_is_bounded_and_opens_circuit_breaker(tmp_path: Path
     assert "scalar log worker exceeded" in finish_failure["error"]["message"]
 
 
+def test_blocking_summary_update_is_bounded_and_opens_circuit_breaker(tmp_path: Path):
+    release = threading.Event()
+
+    class BlockingSummary(FakeSummary):
+        def __init__(self) -> None:
+            super().__init__()
+            self.calls = 0
+
+        def update(self, values) -> None:
+            self.calls += 1
+            release.wait(1.0)
+            super().update(values)
+
+    cfg = _config(mode="offline", policy="none")
+    cfg.wandb.log_timeout_seconds = 0.01
+    fake = FakeWandb()
+    fake.run.summary = BlockingSummary()
+    tracker = _tracker(tmp_path, cfg, fake)
+
+    started = time.monotonic()
+    tracker.start(object())
+    elapsed = time.monotonic() - started
+    tracker.update_summary({"run/final_optimizer_step": 1})
+    release.set()
+
+    assert elapsed < 0.2
+    assert fake.run.summary.calls == 1
+    failure = next(
+        json.loads(line)
+        for line in (tmp_path / "wandb_events.jsonl").read_text(encoding="utf-8").splitlines()
+        if '"action": "summary"' in line and '"outcome": "failed"' in line
+    )
+    assert failure["error"]["type"] == "TimeoutError"
+    assert failure["circuit_breaker"] == "opened"
+
+
 def test_scalar_log_worker_exits_after_normal_finish(tmp_path: Path):
     fake = FakeWandb()
     tracker = _tracker(
@@ -1093,6 +1198,89 @@ def test_watch_is_off_by_default_and_optional_hooks_are_torn_down(tmp_path: Path
         assert len(fake.run.unwatches) == int(enabled)
         if enabled:
             assert fake.run.watches[0][1] == {"log": "gradients", "log_freq": 17}
+
+
+def test_blocking_watch_install_is_bounded_and_late_hooks_are_removed(tmp_path: Path):
+    entered = threading.Event()
+    release = threading.Event()
+    late_finished = threading.Event()
+
+    class BlockingWatchRun(FakeRun):
+        def __init__(self) -> None:
+            super().__init__()
+            self.torch_history = TorchHistory()
+
+        def watch(self, model, **kwargs) -> None:
+            try:
+                self.watches.append((model, kwargs))
+                entered.set()
+                release.wait(1.0)
+                self.torch_history.add_log_parameters_hook(model, log_freq=kwargs["log_freq"])
+                raise RuntimeError("late watch failure after installing hooks")
+            finally:
+                late_finished.set()
+
+        def unwatch(self, model=None) -> None:
+            self.unwatches.append(model)
+            self.torch_history.unhook_all()
+
+    cfg = _config(mode="offline", policy="none", watch=True)
+    cfg.wandb.log_timeout_seconds = 0.01
+    fake = FakeWandb()
+    fake.run = BlockingWatchRun()
+    tracker = _tracker(tmp_path, cfg, fake)
+    model = torch.nn.Linear(2, 2)
+    started = time.monotonic()
+
+    tracker.start(model)
+    elapsed = time.monotonic() - started
+    assert entered.is_set()
+    release.set()
+    assert late_finished.wait(1.0)
+    deadline = time.monotonic() + 1.0
+    while fake.run.torch_history._hook_handles and time.monotonic() < deadline:
+        time.sleep(0.001)
+
+    assert elapsed < 0.2
+    assert not model._forward_hooks
+    assert fake.run.torch_history._hook_handles == {}
+    assert fake.run.unwatches == [None, None]
+    failure = next(
+        json.loads(line)
+        for line in (tmp_path / "wandb_events.jsonl").read_text(encoding="utf-8").splitlines()
+        if '"action": "watch"' in line and '"outcome": "failed"' in line
+    )
+    assert failure["error"]["type"] == "TimeoutError"
+
+
+def test_blocking_unwatch_is_bounded_and_finish_is_still_attempted(tmp_path: Path):
+    release = threading.Event()
+
+    class BlockingUnwatchRun(FakeRun):
+        def unwatch(self, model=None) -> None:
+            self.unwatches.append(model)
+            release.wait(1.0)
+
+    cfg = _config(mode="offline", policy="none", watch=True)
+    cfg.wandb.finish_timeout_seconds = 0.01
+    fake = FakeWandb()
+    fake.run = BlockingUnwatchRun()
+    tracker = _tracker(tmp_path, cfg, fake)
+    tracker.start(torch.nn.Linear(2, 2))
+    started = time.monotonic()
+
+    tracker.finish()
+    elapsed = time.monotonic() - started
+    release.set()
+
+    assert elapsed < 0.2
+    assert fake.run.finished is True
+    failure = next(
+        json.loads(line)
+        for line in (tmp_path / "wandb_events.jsonl").read_text(encoding="utf-8").splitlines()
+        if '"action": "unwatch"' in line and '"outcome": "failed"' in line
+    )
+    assert failure["error"]["type"] == "TimeoutError"
 
 
 def test_partial_watch_installation_is_torn_down_immediately(tmp_path: Path):
@@ -1224,7 +1412,7 @@ def test_stuck_scalar_worker_does_not_prevent_watch_hook_cleanup(tmp_path: Path)
     assert fake.run.torch_history._hook_handles == {}
     assert not hasattr(model, "_wandb_hook_names")
     assert fake.run.unwatches == [model]
-    assert fake.run.finished is False
+    assert fake.run.finished is True
 
 
 @pytest.mark.parametrize(

@@ -17,12 +17,14 @@ behavior](https://docs.wandb.ai/support/models/articles/what-is-the-difference-b
 [`wandb.login`](https://docs.wandb.ai/models/ref/python/functions/login)
 references.
 
-Login and entity verification run behind a tracker-owned wall-clock boundary
-using `wandb.init_timeout_seconds`. This outer boundary is intentional: the
-SDK's login `timeout` controls interactive input and does not itself bound all
-credential-verification retries. A timeout fails closed without starting an
-offline run or delaying local training indefinitely. Standalone evaluation
-uses the same boundary after committing its local result.
+Login, complete run initialization, and entity verification run behind
+tracker-owned wall-clock boundaries using `wandb.init_timeout_seconds`. These
+outer boundaries are intentional: SDK settings and operation-specific timeouts
+do not bound every setup, service, or credential-verification path. A timeout
+fails closed without starting an offline run or delaying local training
+indefinitely. A run that finishes initializing after the caller deadline is
+finished on the late worker. Standalone evaluation uses the same boundaries
+after committing its local result.
 
 ```bash
 # Local repository evidence only
@@ -64,16 +66,29 @@ records local failure evidence, and suppresses later W&B scalar calls without
 stopping local training, metrics, or checkpoints. This bounds the external SDK
 boundary without creating a thread per log event.
 
+Compact summary updates use the same timeout and their own circuit breaker.
+Training startup, finalization, artifact decisions, and standalone evaluation
+therefore cannot wait indefinitely on `Summary.update`. When step/token logging
+cadences are both unset, the epoch boundary reports the token-weighted epoch NLL
+and perplexity rather than relabeling the final optimizer update as the epoch.
+
 `wandb.watch.enabled=false` is the default. When explicitly enabled, its hook
-type and frequency are configured under `wandb.watch`, and the hooks are
-removed before finish. The tracker records the watched model before asking the
-SDK to install hooks; if installation partially fails, it immediately requests
-global unwatch cleanup and removes residual W&B hook bookkeeping. Normal
-model-specific unwatch also falls back to global cleanup on failure. The default
-watch interval is 1,000 batches, matching the SDK's documented default and
-avoiding the failed R2's excessive 100-batch histogram volume. Model watching
-can add gradient/parameter collection work independent of ordinary scalar
-logging; see the official [PyTorch integration](https://docs.wandb.ai/models/integrations/pytorch).
+type and frequency are configured under `wandb.watch`, and bounded hook
+installation/removal calls use the scalar/finish timeouts. The tracker records
+the watched model before asking the SDK to install hooks; if installation
+partially fails or times out, it requests global unwatch cleanup immediately
+and again after a late installation returns. Normal model-specific unwatch also
+falls back to bounded global cleanup on failure. Hook bookkeeping is cleared
+only after successful cleanup. The default watch interval is 1,000 batches,
+matching the SDK's documented default and avoiding the failed R2's excessive
+100-batch histogram volume. Model watching can add gradient/parameter
+collection work independent of ordinary scalar logging; see the official
+[PyTorch integration](https://docs.wandb.ai/models/integrations/pytorch).
+When watch is enabled, W&B's own autograd/forward hooks compute histograms and
+publish them to the local SDK backend from the model hot path; those hook-owned
+records do not pass through the tracker's scalar worker. This is an explicit
+opt-in overhead limitation, not a claim that watch-generated work is
+caller-timeout bounded.
 
 The W&B run config contains the resolved training configuration except that
 dataset values are reduced to manifest and external-reference metadata. Inline
@@ -103,14 +118,22 @@ an artifact policy. A candidate must pass all of these gates:
    run.
 8. The asynchronous artifact reaches `COMMITTED` within the configured timeout.
 
+After cross-directory resume, a `best` policy reuses only a verified prior
+`best.pt` whose kind, run identity, optimizer step, best step, and best score
+match restored event state. If that retained file is missing or unusable, the
+trainer still submits the expected path to artifact admission so the local
+decision is explicitly blocked rather than silently skipped.
+
 The tracker reserves candidate bytes under one lock before cloud submission,
 so serial or concurrent milestones cannot each spend the same visible
 headroom. A reservation is retained when submission or completion is ambiguous;
 operator review is required rather than assuming the service stored nothing.
 If artifact construction or local file preparation demonstrably fails before
 any upload request, the reservation is rolled back so the same checkpoint can
-be retried without phantom quota use. Artifact submission plus completion are
-covered by one wall-clock `upload_timeout_seconds` boundary.
+be retried without phantom quota use. SDK artifact construction/file staging
+and cloud submission/completion each have a caller wall-clock
+`upload_timeout_seconds` boundary; only an ambiguous cloud submission retains
+the conservative reservation.
 Snapshot refreshes can only tighten the tracker ledger: lower observed usage or
 a higher observed limit never relaxes a prior stricter observation.
 
@@ -169,7 +192,7 @@ but local completion never depends on that external behavior.
 
 ## WB-001 target-hardware protocol
 
-The current repaired-code DGX R2 comparison is Attempt 9 at exact commit
+The retained historical DGX R2 comparison is Attempt 9 at exact commit
 `e507a3447ab0895960530cdb207ca0702ec41f85` in pinned image
 `sha256:23a1bee69fe189e77105cdddeee9aeff6ef0763d58a691625fbfcab64efd1887`.
 All arms use the same resolved config, seed, pinned data/cache, depth-26 model,
@@ -193,12 +216,14 @@ arm records arm-local operational metadata. A median throughput regression of
 default.
 
 `docs/experiments/evidence/run_wb001_dgx.sh` executes the fixed network-isolated
-matrix after priming the shared cache, and
-`docs/experiments/evidence/verify_wb001_dgx.py` reconstructs the declared
-trajectory, checkpoint, lifecycle, resource, storage, and paired-performance
-gates from the retained raw evidence.
+matrix after priming the shared cache. The current
+`docs/experiments/evidence/verify_wb001_dgx.py` consumes fresh schema-v3
+measurement segments and includes post-warm-up scheduled scalar-log pauses in
+the primary wall-time and target-throughput denominator without diluting the
+compute-only data-wait fraction.
 
-Attempt 9 passed all 168 applicable dynamically emitted verifier gates. Per-arm
+The historical Attempt 9 verifier reported all 168 applicable dynamically
+emitted gates passing. Per-arm
 data wait was 6.3273–8.1949%; the paired median changes were 1.913997% for
 offline/watch-off versus disabled, 2.224572% for offline/watch-on versus
 disabled, and 2.632986% for watch-on versus offline/watch-off. Every median is
@@ -207,17 +232,20 @@ nine warnings are exactly one predeclared 5–10% data-wait investigation per
 arm, so the R2 result is `PASS WITH NOTE`. The dynamic gate total is two lower
 than Attempt 8's 170 because the verifier emits its two aggregate investigation
 gates only when a paired median is at least 5%; neither is applicable here.
-The durable summary is
-`docs/experiments/evidence/WB-001-dgx-r9-pass-with-note.json`. Attempt 9
-supersedes Attempt 8 as repaired-code performance evidence; Attempt 8 and all
-failed or aborted earlier attempts remain in the experiment record.
+The durable historical summary is
+`docs/experiments/evidence/WB-001-dgx-r9-pass-with-note.json`. Exact-head review
+later found that its throughput denominator ended before scheduled W&B scalar
+logging. The figures and original `PASS WITH NOTE` are retained for audit
+history but are withdrawn as current overhead acceptance evidence; no corrected
+exact-repair-head DGX matrix was run in this cycle. Attempt 8 and all failed or
+aborted earlier attempts likewise remain in the experiment record.
 
 The independent re-review of exact clean
 implementation/evidence head `5a0a7437e9f94fe56f0ed2dd4cad622cd9d9e25e`
 returned `PASS WITH NOTE` and closed all six findings from the retained prior
 `FAIL`. It independently confirmed the byte-identical Attempt 9 summary and
 159 required plus nine data-wait-note gates with zero failures. The remaining
-implementation notes are bounded: quota reservations are conservative within
+historical implementation notes were bounded: quota reservations are conservative within
 one tracker lifetime rather than account-global across multiple processes, and
 a permanently stuck daemon SDK worker may live until process exit while local
 training and tracker shutdown remain bounded.
@@ -227,6 +255,7 @@ human/operator supplies credentials and a fresh usage snapshot with headroom.
 It is not required for the network-free implementation proof and must not
 upload raw data or recovery checkpoints. Attempt 9 used network isolation and
 artifact policy `none`; it does not validate online authentication, live quota
-accounting, retention, artifact upload, or other cloud behavior. Its performance
-conclusion is limited to the pinned depth-26 workload/runtime and within-attempt
-comparisons; it makes no cross-attempt or long-run R3 claim.
+accounting, retention, artifact upload, or other cloud behavior. Its historical
+performance comparison is no longer cited as acceptance because scheduled
+scalar pauses were excluded. A future exact-head matrix may use the corrected
+schema-v3 verifier; no cross-attempt or long-run R3 claim is made here.

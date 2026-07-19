@@ -185,6 +185,34 @@ def _jsonl(path: Path) -> list[dict[str, Any]]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
 
 
+def _fresh_measurement(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Return the one fresh-run segment required by the WB-001 matrix."""
+
+    if payload.get("schema_version") != 3 or payload.get("complete") is not True:
+        raise ValueError("WB-001 requires complete measurement schema 3 evidence")
+    segments = payload.get("segments")
+    if not isinstance(segments, list) or len(segments) != 1:
+        raise ValueError("WB-001 matrix arms require exactly one fresh measurement segment")
+    segment = segments[0]
+    if (
+        not isinstance(segment, Mapping)
+        or segment.get("segment_index") != 0
+        or segment.get("resumed_from") is not None
+        or segment.get("parent_boundary_id") is not None
+        or segment.get("complete") is not True
+        or not isinstance(segment.get("measurement"), Mapping)
+        or not isinstance(segment.get("rows"), list)
+    ):
+        raise ValueError("WB-001 measurement segment is incomplete or not fresh")
+    return {
+        **dict(segment["measurement"]),
+        "complete": True,
+        "start_counters": segment.get("start_counters"),
+        "end_counters": segment.get("end_counters"),
+        "rows": segment["rows"],
+    }
+
+
 def _config(path: Path) -> dict[str, Any]:
     value = OmegaConf.to_container(OmegaConf.load(path), resolve=True)
     if not isinstance(value, dict):
@@ -228,22 +256,35 @@ def _finite(value: Any) -> bool:
     return True
 
 
-def summarize_steps(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+def summarize_steps(
+    rows: Sequence[Mapping[str, Any]],
+    scheduled_logs: Sequence[Mapping[str, Any]] = (),
+) -> dict[str, Any]:
     rows = [row for row in rows if row.get("event") == "optimizer_step" and not row["warmup"]]
     if not rows:
         raise ValueError("no post-warmup optimizer rows")
     seconds = [float(row["step_wall_seconds"]) for row in rows]
     targets = [int(row["target_tokens_step"]) for row in rows]
     wait = [float(row["host_seconds"]["data_wait"]) for row in rows]
+    measured_steps = {int(row["optimizer_step"]) for row in rows}
+    scalar_log_seconds = sum(
+        float(row["scheduled_log_seconds"])
+        for row in scheduled_logs
+        if int(row["optimizer_step"]) in measured_steps
+    )
+    optimizer_wall_seconds = sum(seconds)
+    end_to_end_wall_seconds = optimizer_wall_seconds + scalar_log_seconds
     result = {
         "steps": len(rows),
         "target_tokens": sum(targets),
-        "wall_seconds": sum(seconds),
-        "target_tokens_per_second": sum(targets) / sum(seconds),
+        "wall_seconds": end_to_end_wall_seconds,
+        "optimizer_wall_seconds": optimizer_wall_seconds,
+        "scheduled_log_seconds": scalar_log_seconds,
+        "target_tokens_per_second": sum(targets) / end_to_end_wall_seconds,
         "step_median_seconds": statistics.median(seconds),
         "step_p95_seconds": nearest_rank_percentile(seconds, 0.95),
         "step_max_seconds": max(seconds),
-        "data_wait_fraction": sum(wait) / sum(seconds),
+        "data_wait_fraction": sum(wait) / optimizer_wall_seconds,
     }
     for name, key in (
         ("allocated", "pytorch_allocated_bytes"),
@@ -510,7 +551,7 @@ def _run(
     manifest = _json(root / "hydra/run_manifest.json")
     metrics = _jsonl(root / "checkpoints/metrics.jsonl")
     events = _jsonl(root / "checkpoints/wandb_events.jsonl")
-    measurement = _json(root / "measurement.json")
+    measurement = _fresh_measurement(_json(root / "measurement.json"))
     checkpoint = _checkpoint(root / "checkpoints/final.pt")
     wall = (int(conditions["end_unix_ns"]) - int(conditions["start_unix_ns"])) / 1e9
 
@@ -627,7 +668,7 @@ def _run(
         },
     )
 
-    performance = summarize_steps(measured)
+    performance = summarize_steps(measured, scheduled)
     start_ns = int(conditions["start_unix_ns"])
     end_ns = int(conditions["end_unix_ns"])
     resources = {
