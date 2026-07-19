@@ -91,7 +91,7 @@ def test_training_roles_fail_closed_and_preserve_low_disk_evidence(monkeypatch, 
             "training": {
                 "precision": "bf16",
                 "max_steps": max_steps,
-                "max_time": None if role == "matrix" else 1800,
+                "max_time": None if role == "matrix" else 1680,
                 "sequence_length": 1024,
                 "batch_size": 8,
                 "gradient_accumulation_steps": 4,

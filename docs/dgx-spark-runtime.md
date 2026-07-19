@@ -155,10 +155,14 @@ make dgx-pilot \
   EXPECTED_COMMIT="$HEAD" \
   OUTPUT_ROOT="/tmp/dgx-001-pilot-$HEAD" \
   CACHE_ROOT="/absolute/path/to/hash-verified/stream_loader_cache" \
-  SELECTED="p85-ctx2048"
+  SELECTED="p85-ctx2048" \
+  MATRIX_SUMMARY="/tmp/dgx-001-$HEAD/dgx-summary.json"
 ```
 
-The committed `profile=pretrain_baseline` is a separate one-hour cap. It uses
+The committed `profile=pretrain_baseline` has a 3,480-second optimizer-work cap
+plus a 120-second finalization reserve inside its one-hour wall budget. Matrix
+evidence must show that one worst observed update/event tail and the final
+checkpoint fit that reserve with a 2x margin. It uses
 online W&B scalar logging with watch disabled and artifact policy `none`, while
 validation, rotating recovery checkpoints, and milestones run every 5M, 2.5M,
 and 100M trained targets. A final DGX-001 record must show that its model/context

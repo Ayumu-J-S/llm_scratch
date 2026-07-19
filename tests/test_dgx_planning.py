@@ -9,6 +9,8 @@ from omegaconf import OmegaConf
 
 from dgx.planning import (
     PROTOCOL_CONFIG_KEYS,
+    _decomposition_conclusion,
+    _project_token_budget,
     _validate_matrix_authority,
     _validated_wandb_evidence,
     build_matrix_plan,
@@ -69,7 +71,8 @@ def test_dgx_profiles_are_real_cuda_bf16_and_baseline_is_bounded():
     assert smoke.measurement.enabled is True
     assert candidate.measurement.enabled is True
     assert baseline.measurement.enabled is False
-    assert baseline.training.max_time == 3600
+    assert baseline.training.max_time == 3480
+    assert baseline.training.max_time + compose_dgx().pilot.finalization_reserve_seconds == 3600
     assert baseline.training.validation_every_n_tokens == 5_000_000
     assert baseline.training.checkpoint_every_n_tokens == 2_500_000
     assert baseline.training.milestone_every_n_tokens == 100_000_000
@@ -518,6 +521,12 @@ def test_summary_gates_exact_matrix_and_selects_committed_profile(tmp_path, monk
     assert summary["plan"]["checkpoint_copies"]["milestones"] > 0
     assert summary["plan"]["storage_headroom_passed"] is True
     assert summary["plan"]["storage_same_filesystem"] is True
+    assert summary["plan"]["one_hour_wall_budget_seconds"] == 3600
+    assert summary["plan"]["one_hour_training_max_time_seconds"] == 3480
+    assert summary["plan"]["pilot_wall_budget_seconds"] == 1800
+    assert summary["plan"]["pilot_training_max_time_seconds"] == 1680
+    assert summary["plan"]["finalization_reserve"]["configured_seconds"] == 120
+    assert summary["selected"]["projected_overhead_seconds"]["scheduled_log_each"] == 0.1
 
 
 def test_summary_fails_explicit_low_storage_without_weakening_gate(tmp_path, monkeypatch):
@@ -586,6 +595,72 @@ def test_primary_denominator_includes_scheduled_pauses_exactly_once(tmp_path):
     }
     assert result["decision_wall_seconds"] == pytest.approx(result["step_wall_seconds"] + 5.2)
     assert result["tokens_per_second"] < result["compute_tokens_per_second"]
+    assert result["data_wait_fraction"] == pytest.approx(0.01)
+
+
+def test_data_wait_gate_uses_optimizer_step_wall_not_scheduled_pause(tmp_path):
+    config = OmegaConf.to_container(compose_dgx(), resolve=True)
+    plan = _write_plan(tmp_path, config)
+    entry = build_matrix_plan(config)[0]
+    run_dir = _fake_run(tmp_path, entry, plan, 18_000)
+    measurement_path = run_dir / "measurement.json"
+    measurement = json.loads(measurement_path.read_text())
+    rows = measurement["segments"][0]["rows"]
+    for row in rows:
+        if row.get("event") == "optimizer_step" and row.get("warmup") is False:
+            row["host_seconds"]["data_wait"] = row["step_wall_seconds"] * 0.11
+        if row.get("event") == "validation":
+            row["full_event_pause_seconds"] = 1000.0
+    _write_json(measurement_path, measurement)
+    result = summarize_run(run_dir, config["gates"], expected=entry, plan=plan, role="matrix")
+    assert result["data_wait_fraction"] == pytest.approx(0.11)
+    assert result["gates"]["data_wait"] is False
+
+
+def test_projected_token_budget_charges_scheduled_logging():
+    pilot = {
+        "log_every_optimizer_steps": 2,
+        "validation_every_target_tokens": 1_000_000,
+        "recovery_every_target_tokens": 1_000_000,
+        "milestone_every_target_tokens": 1_000_000,
+    }
+    without_logging = _project_token_budget(
+        50,
+        compute_tokens_per_second=100.0,
+        logging_seconds=0.0,
+        validation_seconds=0.0,
+        recovery_seconds=0.0,
+        milestone_seconds=0.0,
+        final_seconds=0.0,
+        effective_target_tokens_per_step=100,
+        pilot=pilot,
+    )
+    with_logging = _project_token_budget(
+        50,
+        compute_tokens_per_second=100.0,
+        logging_seconds=10.0,
+        validation_seconds=0.0,
+        recovery_seconds=0.0,
+        milestone_seconds=0.0,
+        final_seconds=0.0,
+        effective_target_tokens_per_step=100,
+        pilot=pilot,
+    )
+    assert without_logging == 5000
+    assert with_logging < without_logging
+
+
+def test_only_loader_supply_threshold_blocks_decomposition():
+    passed, bottleneck = _decomposition_conclusion(
+        model_ratio=0.8, loader_ratio=1.3, min_loader_ratio=1.2
+    )
+    assert passed is True
+    assert bottleneck == "model forward/backward/optimizer is the nearer measured ceiling"
+    failed, reason = _decomposition_conclusion(
+        model_ratio=2.0, loader_ratio=1.1, min_loader_ratio=1.2
+    )
+    assert failed is False
+    assert reason == "insufficient loader headroom; long run blocked"
 
 
 def test_schema_v1_measurement_is_rejected_without_fallback(tmp_path):
@@ -816,6 +891,7 @@ def test_selection_requires_all_runs_repeatability_and_exact_rule():
     base = {
         "all_runs_passed": True,
         "repeatability_passed": True,
+        "finalization_reserve_passed": True,
         "token_budgets": {"7_days": 1_100_000_000},
         "conservative_tokens_per_second": 100.0,
         "num_layers": 18,
@@ -843,6 +919,15 @@ def test_selection_requires_all_runs_repeatability_and_exact_rule():
         },
     )
     assert selected["candidate_id"] == "deep-long"
+    with pytest.raises(ValueError, match="no candidate"):
+        select_candidate(
+            [{**base, "finalization_reserve_passed": False}],
+            {
+                "target_tokens_7d": 1_000_000_000,
+                "max_slowdown_fraction": 0.20,
+                "context_throughput_floor_fraction": 0.85,
+            },
+        )
 
 
 def test_auxiliary_authority_requires_exact_matrix_plan_protocol_and_selection(tmp_path):
@@ -862,7 +947,11 @@ def test_auxiliary_authority_requires_exact_matrix_plan_protocol_and_selection(t
         "git_commit": COMMIT,
         "image_id": IMAGE,
         "selection_rule": matrix_config["selection"],
-        "selected": {**selected, "conservative_tokens_per_second": 10.0},
+        "selected": {
+            **selected,
+            "conservative_tokens_per_second": 9.0,
+            "conservative_compute_tokens_per_second": 10.0,
+        },
     }
 
     def write_summary() -> None:
@@ -881,7 +970,7 @@ def test_auxiliary_authority_requires_exact_matrix_plan_protocol_and_selection(t
             "image_id": IMAGE,
             "selection_rule": matrix_config["selection"],
             "selected": selected["candidate_id"],
-            "end_to_end_tokens_per_second": 10.0,
+            "end_to_end_compute_tokens_per_second": 10.0,
         }
 
     write_summary()

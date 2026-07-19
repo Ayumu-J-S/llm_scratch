@@ -212,6 +212,9 @@ def validate_dgx_config(config: Mapping[str, Any] | DictConfig) -> dict[str, Any
         raise ValueError("decomposition is exactly 3 repetitions of 10 warmup + 20 measured")
     if int(cfg["pilot"]["duration_seconds"]) != 1800:
         raise ValueError("selected-profile pilot must be capped at 1,800 seconds")
+    finalization_reserve = int(cfg["pilot"]["finalization_reserve_seconds"])
+    if finalization_reserve != 120:
+        raise ValueError("pilot finalization reserve is exactly 120 seconds")
     if int(cfg["selection"]["target_tokens_7d"]) != 1_000_000_000:
         raise ValueError("DGX selection requires the one-billion-target seven-day floor")
     spread = float(cfg["selection"]["max_repeat_spread_fraction"])
@@ -582,10 +585,13 @@ def _validate_manifest_and_config(
             raise ValueError("matrix resolved config differs from its exact 30-step protocol")
     elif role == "pilot":
         pilot = plan["config"]["pilot"]
+        pilot_training_seconds = int(pilot["duration_seconds"]) - int(
+            pilot["finalization_reserve_seconds"]
+        )
         if (
             cfg.profile.name != "pretrain_baseline"
             or cfg.training.max_steps is not None
-            or cfg.training.max_time != 1800
+            or cfg.training.max_time != pilot_training_seconds
             or cfg.data.streaming.validation.max_target_tokens != pilot["validation_target_tokens"]
             or cfg.training.validation_every_n_tokens != pilot["validation_every_target_tokens"]
             or cfg.training.checkpoint_every_n_tokens != pilot["recovery_every_target_tokens"]
@@ -888,7 +894,7 @@ def summarize_run(
         ),
         **telemetry_gates,
         "allocator_stable": allocator_growth <= int(gates["max_allocator_growth_bytes"]),
-        "data_wait": data_wait_seconds / decision_wall_seconds
+        "data_wait": data_wait_seconds / step_wall_seconds
         <= float(gates["max_data_wait_fraction"]),
         "checkpoint_verified": bool(run.get("checkpoint_verified")) and bool(final_checkpoint_rows),
     }
@@ -921,7 +927,7 @@ def summarize_run(
             "max": max(step_times),
         },
         "data_wait_seconds": data_wait_seconds,
-        "data_wait_fraction": data_wait_seconds / decision_wall_seconds,
+        "data_wait_fraction": data_wait_seconds / step_wall_seconds,
         "cuda_phase_seconds": dict(sorted(phase_cuda.items())),
         "pytorch_peak_allocated_bytes": max(allocated),
         "pytorch_peak_reserved_bytes": max(reserved),
@@ -929,6 +935,11 @@ def summarize_run(
         "checkpoint_size_bytes": max(
             (int(row["checkpoint/size_bytes"]) for row in checkpoint_rows), default=0
         ),
+        "scheduled_log_pause_seconds": [
+            float(row["scheduled_log_seconds"])
+            for row in rows
+            if row.get("event") == "scheduled_log"
+        ],
         "validation_pause_seconds": validation_pauses,
         "recovery_checkpoint_pause_seconds": recovery_pauses,
         "final_checkpoint_pause_seconds": final_pauses,
@@ -943,15 +954,19 @@ def _project_token_budget(
     duration_seconds: int,
     *,
     compute_tokens_per_second: float,
+    logging_seconds: float,
     validation_seconds: float,
     recovery_seconds: float,
     milestone_seconds: float,
     final_seconds: float,
+    effective_target_tokens_per_step: int,
     pilot: Mapping[str, Any],
 ) -> int:
     def elapsed(tokens: int) -> float:
+        optimizer_steps = math.ceil(tokens / effective_target_tokens_per_step) if tokens else 0
         return (
             tokens / compute_tokens_per_second
+            + (optimizer_steps // int(pilot["log_every_optimizer_steps"])) * logging_seconds
             + (tokens // int(pilot["validation_every_target_tokens"])) * validation_seconds
             + (tokens // int(pilot["recovery_every_target_tokens"])) * recovery_seconds
             + (tokens // int(pilot["milestone_every_target_tokens"])) * milestone_seconds
@@ -973,6 +988,9 @@ def _candidate_summary(runs: list[dict[str, Any]], cfg: Mapping[str, Any]) -> di
     first = runs[0]
     throughputs = [float(run["tokens_per_second"]) for run in runs]
     compute_throughputs = [float(run["compute_tokens_per_second"]) for run in runs]
+    logging = max(
+        (pause for run in runs for pause in run["scheduled_log_pause_seconds"]), default=0.0
+    )
     spread = (max(throughputs) - min(throughputs)) / statistics.median(throughputs)
     validation = max(
         (pause for run in runs for pause in run["validation_pause_seconds"]), default=0.0
@@ -985,15 +1003,22 @@ def _candidate_summary(runs: list[dict[str, Any]], cfg: Mapping[str, Any]) -> di
         (pause for run in runs for pause in run["final_checkpoint_pause_seconds"]), default=0.0
     )
     checkpoint = max(recovery, final)
+    max_step = max(float(run["step_time_seconds"]["max"]) for run in runs)
+    required_finalization_reserve = math.ceil(
+        2.0 * (max_step + logging + validation + recovery + checkpoint + final)
+    )
+    configured_finalization_reserve = int(cfg["pilot"]["finalization_reserve_seconds"])
     conservative_compute = min(compute_throughputs)
     token_budgets = {
         label: _project_token_budget(
             seconds,
             compute_tokens_per_second=conservative_compute,
+            logging_seconds=logging,
             validation_seconds=validation,
             recovery_seconds=recovery,
             milestone_seconds=checkpoint,
             final_seconds=final,
+            effective_target_tokens_per_step=int(first["effective_target_tokens_per_step"]),
             pilot=cfg["pilot"],
         )
         for label, seconds in SECONDS.items()
@@ -1015,6 +1040,22 @@ def _candidate_summary(runs: list[dict[str, Any]], cfg: Mapping[str, Any]) -> di
         "repetitions": len(runs),
         "all_runs_passed": all(run["passed"] for run in runs),
         "repeatability_passed": spread <= float(cfg["selection"]["max_repeat_spread_fraction"]),
+        "finalization_reserve_passed": (
+            required_finalization_reserve <= configured_finalization_reserve
+        ),
+        "finalization_reserve": {
+            "configured_seconds": configured_finalization_reserve,
+            "required_seconds": required_finalization_reserve,
+            "safety_factor": 2.0,
+            "components_seconds": {
+                "optimizer_step_max": max_step,
+                "scheduled_log_max": logging,
+                "validation_max": validation,
+                "recovery_checkpoint_max": recovery,
+                "milestone_checkpoint_max": checkpoint,
+                "final_checkpoint_max": final,
+            },
+        },
         "throughput": {
             "min": min(throughputs),
             "median": statistics.median(throughputs),
@@ -1043,6 +1084,7 @@ def _candidate_summary(runs: list[dict[str, Any]], cfg: Mapping[str, Any]) -> di
         ),
         "checkpoint_size_bytes_max": max(int(run["checkpoint_size_bytes"]) for run in runs),
         "projected_overhead_seconds": {
+            "scheduled_log_each": logging,
             "validation_each": validation,
             "recovery_each": recovery,
             "milestone_each": checkpoint,
@@ -1061,6 +1103,7 @@ def select_candidate(
         for candidate in candidates
         if candidate["all_runs_passed"]
         and candidate["repeatability_passed"]
+        and candidate["finalization_reserve_passed"]
         and candidate["token_budgets"]["7_days"] >= target
     ]
     if not eligible:
@@ -1229,14 +1272,16 @@ def _validate_matrix_authority(plan: Mapping[str, Any]) -> dict[str, Any]:
         or summary.get("selection_rule") != authority.get("selection_rule")
         or summary.get("selection_rule") != matrix_plan["config"]["selection"]
         or summary.get("selected", {}).get("candidate_id") != authority.get("selected")
-        or summary.get("selected", {}).get("conservative_tokens_per_second")
-        != authority.get("end_to_end_tokens_per_second")
+        or summary.get("selected", {}).get("conservative_compute_tokens_per_second")
+        != authority.get("end_to_end_compute_tokens_per_second")
     ):
         raise ValueError("matrix selection authority is not one passing exact summary")
     return summary
 
 
-def _committed_profile_matches(selected: Mapping[str, Any]) -> bool:
+def _committed_profile_matches(
+    selected: Mapping[str, Any], *, finalization_reserve_seconds: int
+) -> bool:
     root = Path(__file__).resolve().parents[2]
     with hydra.initialize_config_dir(version_base=None, config_dir=str(root / "config")):
         cfg = hydra.compose(config_name="train", overrides=["profile=pretrain_baseline"])
@@ -1256,7 +1301,9 @@ def _committed_profile_matches(selected: Mapping[str, Any]) -> bool:
         "batch_size": int(cfg.training.batch_size),
         "gradient_accumulation_steps": int(cfg.training.gradient_accumulation_steps),
     }
-    return observed == {key: int(selected[key]) for key in keys}
+    return observed == {key: int(selected[key]) for key in keys} and int(cfg.training.max_time) == (
+        SECONDS["1_hour"] - finalization_reserve_seconds
+    )
 
 
 def summarize_evidence(
@@ -1321,7 +1368,10 @@ def summarize_evidence(
         post_plan_free_reserve_bytes=int(cfg["gates"]["post_plan_free_reserve_bytes"]),
     )
     storage_passed = bool(storage["passed"])
-    profile_matches = _committed_profile_matches(selected)
+    profile_matches = _committed_profile_matches(
+        selected,
+        finalization_reserve_seconds=int(cfg["pilot"]["finalization_reserve_seconds"]),
+    )
     verdict = "PASS" if storage_passed and profile_matches else "FAIL"
     return {
         "schema_version": 3,
@@ -1350,7 +1400,16 @@ def summarize_evidence(
         "committed_pretrain_baseline_matches_selected": profile_matches,
         "plan": {
             "token_budgets": selected["token_budgets"],
-            "one_hour_max_time_seconds": 3600,
+            "one_hour_wall_budget_seconds": 3600,
+            "one_hour_training_max_time_seconds": (
+                3600 - int(cfg["pilot"]["finalization_reserve_seconds"])
+            ),
+            "pilot_wall_budget_seconds": int(cfg["pilot"]["duration_seconds"]),
+            "pilot_training_max_time_seconds": (
+                int(cfg["pilot"]["duration_seconds"])
+                - int(cfg["pilot"]["finalization_reserve_seconds"])
+            ),
+            "finalization_reserve": selected["finalization_reserve"],
             "validation_every_target_tokens": cfg["pilot"]["validation_every_target_tokens"],
             "recovery_checkpoint_every_target_tokens": cfg["pilot"]["recovery_every_target_tokens"],
             "milestone_every_target_tokens": cfg["pilot"]["milestone_every_target_tokens"],
@@ -1381,6 +1440,17 @@ def summarize_evidence(
         "bottleneck_status": "pending selected-profile decomposition",
         "verdict": verdict,
     }
+
+
+def _decomposition_conclusion(
+    *, model_ratio: float, loader_ratio: float, min_loader_ratio: float
+) -> tuple[bool, str]:
+    loader_headroom_passed = loader_ratio >= min_loader_ratio
+    if not loader_headroom_passed:
+        return False, "insufficient loader headroom; long run blocked"
+    if loader_ratio <= model_ratio:
+        return True, "data loader is the nearer measured ceiling"
+    return True, "model forward/backward/optimizer is the nearer measured ceiling"
 
 
 def summarize_decomposition(
@@ -1466,7 +1536,7 @@ def summarize_decomposition(
         results[raw["role"]].append(result)
     if observed_keys != expected_keys:
         raise ValueError("decomposition is incomplete")
-    end_to_end = float(authority["end_to_end_tokens_per_second"])
+    end_to_end = float(authority["end_to_end_compute_tokens_per_second"])
     summaries = {}
     for role, items in sorted(results.items()):
         rates = [item["tokens_per_second"] for item in items]
@@ -1483,13 +1553,11 @@ def summarize_decomposition(
     model_ratio = summaries["model-only"]["supply_ratio_min"]
     loader_ratio = summaries["loader-only"]["supply_ratio_min"]
     threshold = float(cfg["gates"]["min_loader_supply_ratio"])
-    capacity_passed = model_ratio >= threshold and loader_ratio >= threshold
-    if not capacity_passed:
-        bottleneck = "insufficient decomposition headroom; long run blocked"
-    elif loader_ratio <= model_ratio:
-        bottleneck = "data loader is the nearer measured ceiling"
-    else:
-        bottleneck = "model forward/backward/optimizer is the nearer measured ceiling"
+    loader_headroom_passed, bottleneck = _decomposition_conclusion(
+        model_ratio=model_ratio,
+        loader_ratio=loader_ratio,
+        min_loader_ratio=threshold,
+    )
     return {
         "schema_version": 3,
         "ticket": "DGX-001",
@@ -1498,11 +1566,12 @@ def summarize_decomposition(
         "image_id": plan["image_id"],
         "selected_candidate": selected["candidate_id"],
         "matrix_summary": dict(authority),
-        "end_to_end_tokens_per_second": end_to_end,
-        "minimum_supply_ratio": threshold,
+        "end_to_end_compute_tokens_per_second": end_to_end,
+        "minimum_loader_supply_ratio": threshold,
         "decomposition": summaries,
+        "loader_headroom_passed": loader_headroom_passed,
         "named_bottleneck": bottleneck,
-        "verdict": "PASS" if capacity_passed else "FAIL",
+        "verdict": "PASS" if loader_headroom_passed else "FAIL",
     }
 
 
@@ -1572,8 +1641,16 @@ def summarize_pilot(evidence_root: Path, config: Mapping[str, Any] | DictConfig)
     wandb = _validated_wandb_evidence(run_dirs[0], run)
     pilot_gates = {
         "training_gates": result["passed"],
-        "duration_representative": float(run["final_elapsed_seconds"]) >= 1500.0
-        and float(run["final_elapsed_seconds"]) <= 1860.0,
+        "duration_representative": float(run["final_elapsed_seconds"])
+        >= (
+            int(cfg["pilot"]["duration_seconds"])
+            - int(cfg["pilot"]["finalization_reserve_seconds"])
+        ),
+        "training_and_final_checkpoint_within_wall_budget": (
+            float(run["final_elapsed_seconds"])
+            + max(result["final_checkpoint_pause_seconds"], default=0.0)
+            <= int(cfg["pilot"]["duration_seconds"])
+        ),
         "validation_observed": bool(result["validation_pause_seconds"]),
         "recovery_observed": bool(result["recovery_checkpoint_pause_seconds"]),
         "sample_observed": (run_dirs[0] / str(run.get("samples"))).is_file(),

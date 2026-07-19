@@ -76,7 +76,7 @@ def test_pilot_uses_selected_baseline_online_without_serializing_auth(monkeypatc
     assert any(item.endswith(":/evidence/home/.netrc:ro") for item in command)
     assert not any("api_key" in item.lower() or "apikey" in item.lower() for item in command)
     assert "profile=pretrain_baseline" in command
-    assert "training.max_time=1800" in command
+    assert "training.max_time=1680" in command
     assert "data.streaming.validation.max_target_tokens=65536" in command
     assert "training.validation_every_n_tokens=5000000" in command
     assert "training.checkpoint_every_n_tokens=2500000" in command
@@ -253,7 +253,11 @@ def test_selected_entry_requires_a_passing_summary_for_current_commit(monkeypatc
         "image_id": cfg["image"]["expected_id"],
         "plan_id": matrix_plan["plan_id"],
         "selection_rule": cfg["selection"],
-        "selected": {**selected, "conservative_tokens_per_second": 10.0},
+        "selected": {
+            **selected,
+            "conservative_tokens_per_second": 9.0,
+            "conservative_compute_tokens_per_second": 10.0,
+        },
     }
     summary_path.write_text(json.dumps(summary), encoding="utf-8")
     cfg["selected_candidate"] = selected["candidate_id"]

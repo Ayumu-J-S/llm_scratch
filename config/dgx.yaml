@@ -44,6 +44,10 @@ decomposition:
 
 pilot:
   duration_seconds: 1800
+  # Hold back the final 120 seconds from optimizer work. Matrix evidence must
+  # show that one worst observed update/event tail plus the final checkpoint,
+  # with a 2x margin, fits this reserve before a candidate can be selected.
+  finalization_reserve_seconds: 120
   warmup_optimizer_steps: 10
   validation_target_tokens: 65536
   validation_every_target_tokens: 5000000

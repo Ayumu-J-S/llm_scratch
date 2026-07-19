@@ -3,8 +3,8 @@
 - Roadmap ticket: `DGX-001`
 - Branch: `codex/dgx-001-final-integration`
 - Draft PR: [#47](https://github.com/Ayumu-J-S/llm_scratch/pull/47)
-- Status: supplemental pre-measurement repair implemented; exact-head re-review
-  remains blocked by review-service quota until 2026-07-25 23:43 UTC
+- Status: formal pre-measurement review findings repaired; fresh exact-head
+  `/review` pending, with no target compute authorized before it passes
 - Baseline input: merged `WB-001` head
   `8791bb7237663b08c001b732393a76b240362476`
 
@@ -48,9 +48,13 @@ logs/evidence. No destructive cleanup is part of this ticket.
 - `profile=dgx_candidate` is the repeated timed training path.
 - `profile=pretrain_baseline` carries the provisional P70 shape only so the
   exact final matrix can enforce that the committed profile matches its result.
-  It is not a selection claim. The profile is a one-hour cap with online W&B,
-  watch off, artifact policy `none`, 5M-target validation, 2.5M-target rotating
-  recovery, and 100M-target milestones.
+  It is not a selection claim. The profile keeps optimizer work to 3,480
+  seconds plus a 120-second finalization reserve inside the one-hour wall
+  budget, with online W&B, watch off, artifact policy `none`, 5M-target
+  validation, 2.5M-target rotating recovery, and 100M-target milestones. A
+  candidate passes only when twice its worst observed update/event tail plus
+  final checkpoint fits that reserve; the pilot independently gates observed
+  training plus final-checkpoint time against its 1,800-second wall budget.
 - `scripts/measure_dgx.py` runs the canonical trainer, records physical
   config/manifest/checkpoint identities, samples host/GPU state out of band,
   enforces fail-closed watchdog limits for matrix and pilot roles, and binds the
@@ -82,7 +86,10 @@ logs/evidence. No destructive cleanup is part of this ticket.
   buffer, while a larger future shape raises the floor automatically.
 - `scripts/summarize_dgx_measurements.py` gates every raw run and writes the
   repeat statistics, selection, pause-aware token/checkpoint/storage plan, and
-  named bottleneck.
+  named bottleneck. Data wait is divided only by optimizer-step wall time;
+  projections charge scheduled scalar logging; decomposition compares isolated
+  roles with the selected candidate's conservative compute throughput and uses
+  the 1.2x threshold only for loader supply.
 
 No compilation, native extension, custom kernel, architecture change, or
 optimization ticket is introduced. The final summary will name the selected
@@ -155,7 +162,11 @@ to claim that a measured profile has been selected.
 | 20 | Supplemental exact-head re-audit | `FAIL` at `016b323` | Evidence-file open/write/flush/fsync or malformed-sample failure could kill only the telemetry worker, leaving the workload un-interrupted and no machine-readable error | Exact `/dev/full` reproduction and PR #47 trail |
 | 21 | Protocol repair 5 | implemented; re-audit pending | Contain the complete telemetry worker lifecycle, retain fatal state independently of the evidence file, interrupt every armed workload, and make `stop()` reject captured failure or unexpected thread death | Open/write/flush/malformed-sample/fsync/close/`/dev/full` adversarial tests |
 | 22 | Exact-head CI | `FAIL` at `0fc8703` | The fsync adversarial test used host GPU sampling, so x86 CI correctly failed closed on missing `nvidia-smi` before reaching the intended fsync assertion | Actions run `29682842745` |
-| 23 | CI fixture repair | implemented; CI pending | Pin the fsync test to a synthetic safe sample so it exercises only the intended finalization failure on every platform | Full and focused local suites |
+| 23 | CI fixture repair | implemented | Pin the fsync test to a synthetic safe sample so it exercises only the intended finalization failure on every platform | Full and focused local suites |
+| 24 | Exact-head CI and supplemental audit | `PASS` at `0f13389` | The repaired telemetry lifecycle, all-role watchdog, storage reserve, exact config authority, and deterministic fixture passed; this supplemental pass did not replace formal `/review` | PR quality run `29683131461` and PR #47 trail |
+| 25 | Formal pre-measurement `/review` | `FAIL` at `0f13389` | Data-wait and decomposition used pause-inclusive throughput; model-only was incorrectly subject to the loader threshold; projections omitted scheduled logs; the one-hour profile left its final checkpoint outside the cap; runtime pilot docs omitted `MATRIX_SUMMARY` | Exact review findings retained in PR #47 |
+| 26 | Protocol repair 6 | implemented; re-review pending | Use optimizer-step wall for data wait, conservative compute throughput for decomposition, loader-only headroom gating, log-aware token budgets, a measured 2x-tail 120-second finalization reserve inside both wall plans, and a complete pilot command | Focused DGX/config suite: 84 passed; targeted planning/runner/watchdog suite: 49 passed |
+| 27 | Full CPU validation | passed | Network-free full suite, lint, Hydra config preflight, lock-drift rejection, offline disabled/W&B smoke, exact 27-arm plan composition, and baseline resolved config all pass; no GPU or online W&B work ran | `make ci-cpu`: 503 passed, 1 skipped; about 425 GB free |
 
 Independent `/review` will cover `PHILOSOPHY.md`, DGX-001 acceptance, and the
 applicable `CHECK.md` minimum, comparison, data supply, DGX/UMA, training-health,

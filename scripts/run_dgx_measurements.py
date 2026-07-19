@@ -331,12 +331,14 @@ def _selected_entry(cfg: dict, plan: list[dict]) -> dict:
         "image_id": cfg["image"]["expected_id"],
         "selection_rule": cfg["selection"],
         "selected": selected,
-        "end_to_end_tokens_per_second": summary["selected"]["conservative_tokens_per_second"],
+        "end_to_end_compute_tokens_per_second": summary["selected"][
+            "conservative_compute_tokens_per_second"
+        ],
     }
     return entry
 
 
-def _validate_committed_selected_profile(entry: dict) -> None:
+def _validate_committed_selected_profile(entry: dict, cfg: dict) -> None:
     with hydra.initialize_config_dir(version_base=None, config_dir=str(ROOT / "config")):
         profile = hydra.compose(config_name="train", overrides=["profile=pretrain_baseline"])
     observed = {
@@ -352,6 +354,11 @@ def _validate_committed_selected_profile(entry: dict) -> None:
         raise RuntimeError(
             f"committed pretrain_baseline shape is not the selected candidate: {observed} != {expected}"
         )
+    if int(profile.training.max_time) != 3600 - int(cfg["pilot"]["finalization_reserve_seconds"]):
+        raise RuntimeError(
+            "committed pretrain_baseline must retain the 120-second finalization reserve "
+            "inside its one-hour wall budget"
+        )
 
 
 def _pilot_overrides(cfg: dict, entry: dict) -> list[str]:
@@ -365,7 +372,7 @@ def _pilot_overrides(cfg: dict, entry: dict) -> list[str]:
         f"training.batch_size={entry['batch_size']}",
         f"training.gradient_accumulation_steps={entry['gradient_accumulation_steps']}",
         "training.max_steps=null",
-        f"training.max_time={int(pilot['duration_seconds'])}",
+        f"training.max_time={int(pilot['duration_seconds']) - int(pilot['finalization_reserve_seconds'])}",
         "data.streaming.train.max_target_tokens=1073741824",
         f"data.streaming.validation.max_target_tokens={int(pilot['validation_target_tokens'])}",
         f"training.validation_every_n_tokens={int(pilot['validation_every_target_tokens'])}",
@@ -657,7 +664,7 @@ def main(config: DictConfig) -> None:
     selected = None
     if cfg["mode"] in {"decompose", "pilot"}:
         selected = _selected_entry(cfg, matrix_plan)
-        _validate_committed_selected_profile(selected)
+        _validate_committed_selected_profile(selected, cfg)
     if cfg["mode"] == "matrix":
         roles = [(entry, "matrix") for entry in matrix_plan]
     elif cfg["mode"] == "decompose":
