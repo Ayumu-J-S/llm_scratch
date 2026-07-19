@@ -280,8 +280,8 @@ def test_wandb_uses_training_log_cadence_and_compact_scalar_schema(tmp_path: Pat
 def test_wandb_logs_validation_at_its_exact_boundary_when_cadences_differ(tmp_path: Path):
     trainer = _trainer(
         tmp_path,
-        [_batch([[0, 1]]) for _ in range(2)],
-        max_steps=2,
+        [_batch([[0, 1]]) for _ in range(4)],
+        max_steps=4,
         log_every_n_steps=3,
         validation_every_n_steps=2,
     )
@@ -290,13 +290,48 @@ def test_wandb_logs_validation_at_its_exact_boundary_when_cadences_differ(tmp_pa
 
     trainer.fit()
 
-    assert len(tracking.logs) == 1
-    logged = tracking.logs[0]
-    assert logged["event"] == "validation_log"
-    assert logged["optimizer_step"] == 2
-    assert logged["target_tokens"] == 4
-    assert logged["validation/nll"] > 0
-    assert "train/nll" not in logged
+    assert [(row["event"], row["optimizer_step"]) for row in tracking.logs] == [
+        ("validation_log", 2),
+        ("log", 3),
+        ("validation_log", 4),
+    ]
+    first_validation, training_log, second_validation = tracking.logs
+    assert first_validation["target_tokens"] == 4
+    assert first_validation["validation/nll"] > 0
+    assert "train/nll" not in first_validation
+    assert training_log["target_tokens"] == 6
+    assert training_log["train/nll"] > 0
+    assert not any(key.startswith(("validation/", "memorization/")) for key in training_log)
+    assert second_validation["target_tokens"] == 8
+    assert second_validation["validation/nll"] > 0
+    assert "train/nll" not in second_validation
+
+
+def test_wandb_logs_epoch_end_validation_after_a_same_step_training_log(tmp_path: Path):
+    trainer = _trainer(
+        tmp_path,
+        [_batch([[0, 1]]) for _ in range(3)],
+        max_steps=3,
+        log_every_n_steps=1,
+        validation_every_n_steps=None,
+    )
+    tracking = RecordingWandbTracker()
+    trainer.wandb = tracking
+
+    trainer.fit()
+
+    assert [(row["event"], row["optimizer_step"]) for row in tracking.logs] == [
+        ("log", 1),
+        ("log", 2),
+        ("log", 3),
+        ("validation_log", 3),
+    ]
+    assert not any(
+        key.startswith(("validation/", "memorization/")) for row in tracking.logs[:3] for key in row
+    )
+    final_validation = tracking.logs[-1]
+    assert final_validation["validation/nll"] > 0
+    assert "train/nll" not in final_validation
 
 
 def test_benchmark_measurement_is_explicit_and_flushed_once(tmp_path: Path):

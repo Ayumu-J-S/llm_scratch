@@ -113,10 +113,11 @@ uv run python src/train.py profile=pretrain_streaming \
   artifacts.resume_path=recovery-step-000000001000.pt
 ```
 
-`artifacts.resume_path` and the complete top-level `measurement` section are
-operational controls, not experiment changes. Both remain in the byte-exact
-resolved-config evidence, while run/checkpoint experiment identity excludes
-them so enabling timing or changing its output path cannot invalidate resume.
+`artifacts.resume_path` and the complete top-level `measurement` and `wandb`
+sections are operational controls, not experiment changes. They remain in the
+byte-exact resolved-config evidence, while run/checkpoint experiment identity
+excludes them so enabling timing, changing its output path, or changing
+observability cannot invalidate resume.
 Standalone evaluator-run identity still records and hashes its full resolved
 evaluation config, including `measurement`; the exclusion applies only to the
 training experiment/checkpoint identity.

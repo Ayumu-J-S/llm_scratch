@@ -472,33 +472,6 @@ class WandbTracker:
             return self._artifact_blocked(decision, "usage_snapshot_invalid", error)
 
         try:
-            artifact = self.wandb.Artifact(
-                name=self._artifact_name(),
-                type="model",
-                metadata={
-                    "reason": reason,
-                    "optimizer_step": step,
-                    "sha256": candidate.sha256,
-                    "size_bytes": candidate.size_bytes,
-                },
-            )
-            artifact.add_file(candidate.path, name=Path(candidate.path).name)
-            current = Path(candidate.path).stat()
-            if (
-                current.st_dev,
-                current.st_ino,
-                current.st_size,
-                current.st_mtime_ns,
-                current.st_ctime_ns,
-            ) != (
-                candidate.device,
-                candidate.inode,
-                candidate.size_bytes,
-                candidate.mtime_ns,
-                candidate.ctime_ns,
-            ):
-                raise RuntimeError("checkpoint changed while W&B captured the artifact")
-
             block_reason = None
             auth_error = None
             with self._artifact_lock:
@@ -553,6 +526,37 @@ class WandbTracker:
                             self._reserved_bytes_by_tracker += candidate.size_bytes
             if block_reason is not None:
                 return self._artifact_blocked(decision, block_reason, auth_error)
+
+            artifact = self.wandb.Artifact(
+                name=self._artifact_name(),
+                type="model",
+                metadata={
+                    "reason": reason,
+                    "optimizer_step": step,
+                    "sha256": candidate.sha256,
+                    "size_bytes": candidate.size_bytes,
+                },
+            )
+            artifact.add_file(
+                candidate.path,
+                name=Path(candidate.path).name,
+                policy="immutable",
+            )
+            current = Path(candidate.path).stat()
+            if (
+                current.st_dev,
+                current.st_ino,
+                current.st_size,
+                current.st_mtime_ns,
+                current.st_ctime_ns,
+            ) != (
+                candidate.device,
+                candidate.inode,
+                candidate.size_bytes,
+                candidate.mtime_ns,
+                candidate.ctime_ns,
+            ):
+                raise RuntimeError("checkpoint changed while W&B captured the artifact")
 
             logged = self.run.log_artifact(
                 artifact,

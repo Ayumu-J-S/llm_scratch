@@ -572,6 +572,7 @@ class Trainer:
         self._latest_validation_loss = getattr(self, "_latest_validation_loss", None)
 
         should_log = self._event_due("log_every_n_steps", "log_every_n_tokens", epoch_end)
+        scheduled_log_pending = should_log and self._last_log_step != step
 
         should_validate = self._event_due(
             "validation_every_n_steps", "validation_every_n_tokens", epoch_end
@@ -619,7 +620,7 @@ class Trainer:
                 )
             validation_metrics_started = time.perf_counter() if self._measurement_enabled else None
             compact_validation = self._record_validation_metrics(validation_result)
-            if not should_log and self._last_log_step != step:
+            if not scheduled_log_pending:
                 validation_log_started = time.perf_counter() if self._measurement_enabled else None
                 self.wandb.log(
                     {
@@ -691,14 +692,20 @@ class Trainer:
                     }
                 )
 
-        if should_log and self._last_log_step != step:
+        if scheduled_log_pending:
             self._last_log_step = step
+            latest_scalars = {
+                key: value
+                for key, value in self._latest_wandb_scalars.items()
+                if self._last_validation_step == step
+                or not (key.startswith("validation/") or key.startswith("memorization/"))
+            }
             values = {
                 "event": "log",
                 "optimizer_step": step,
                 "target_tokens": self.target_tokens,
                 "elapsed_seconds": self.elapsed_seconds,
-                **self._latest_wandb_scalars,
+                **latest_scalars,
                 **self._system_wandb_scalars(),
             }
             scheduled_log_started = time.perf_counter() if self._measurement_enabled else None

@@ -88,8 +88,8 @@ class FakeArtifact:
         self.metadata = metadata
         self.files = []
 
-    def add_file(self, path, name) -> None:
-        self.files.append((path, name))
+    def add_file(self, path, name, policy=None) -> None:
+        self.files.append((path, name, policy))
 
 
 class FakeWandb:
@@ -108,6 +108,7 @@ class FakeWandb:
         self.login_calls = []
         self.init_calls = []
         self.string_teams = string_teams
+        self.artifacts = []
 
     def Settings(self, **kwargs):
         return kwargs
@@ -130,7 +131,10 @@ class FakeWandb:
             )
         return SimpleNamespace(viewer=viewer)
 
-    Artifact = FakeArtifact
+    def Artifact(self, *args, **kwargs):
+        artifact = FakeArtifact(*args, **kwargs)
+        self.artifacts.append(artifact)
+        return artifact
 
 
 def _config(
@@ -386,6 +390,7 @@ def test_unknown_stale_mismatched_or_insufficient_usage_fails_closed(
     decision = tracker.consider_artifact(reason="final", checkpoint_path=checkpoint, step=5)
 
     assert decision["block_reason"] == expected
+    assert fake.artifacts == []
     assert fake.run.uploads == []
 
 
@@ -407,6 +412,7 @@ def test_verified_login_entity_quota_upload_and_duplicate_are_recorded(tmp_path:
 
     assert fake.login_calls == [{"force": True, "verify": True, "timeout": 3}]
     assert first["outcome"] == "uploaded"
+    assert fake.artifacts[0].files == [(str(checkpoint), checkpoint.name, "immutable")]
     assert first["checkpoint"]["checkpoint_kind"] == kind
     assert first["checkpoint"]["checkpoint_optimizer_step"] == 5
     assert first["checkpoint"]["size_bytes"] == checkpoint.stat().st_size
@@ -770,8 +776,8 @@ def test_artifact_identity_race_is_detected_before_log_artifact(tmp_path: Path):
     fake = FakeWandb()
 
     class MutatingArtifact(FakeArtifact):
-        def add_file(self, path, name) -> None:
-            super().add_file(path, name)
+        def add_file(self, path, name, policy=None) -> None:
+            super().add_file(path, name, policy)
             with Path(path).open("ab") as handle:
                 handle.write(b"changed-after-identity")
 
