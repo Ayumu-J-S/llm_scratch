@@ -60,17 +60,13 @@ def validate_suite_context(sampler: CheckpointSampler, suite: LoadedSuite) -> di
             required = 0
             for example in task.examples:
                 prompt, choices, _ = format_jcommonsenseqa(example)
-                prompt_tokens = sampler.tokenizer.encode(prompt)
-                if not prompt_tokens:
-                    raise BenchmarkScoringError("benchmark prompt encoded to zero tokens")
                 for choice in choices:
-                    continuation_tokens = sampler.tokenizer.encode(choice)
-                    if not continuation_tokens:
-                        raise BenchmarkScoringError("benchmark continuation encoded to zero tokens")
-                    required = max(
-                        required,
-                        len(prompt_tokens) + len(continuation_tokens),
+                    joint_ids, _, _ = _joint_continuation_tokens(
+                        sampler,
+                        prompt=prompt,
+                        continuation=choice,
                     )
+                    required = max(required, len(joint_ids))
         elif task.name == "gsm8k":
             max_new_tokens = int(suite.protocol["gsm8k"]["decoding"]["max_new_tokens"])
             required = 0
@@ -160,30 +156,70 @@ def conditional_log_probability(
     continuation: str,
     precision: str,
 ) -> tuple[float, int]:
-    """Score continuation tokens after an explicitly tokenized prompt boundary."""
+    """Score the exact joint prompt-plus-continuation tokenization at its source span."""
 
-    prompt_ids = sampler.tokenizer.encode(prompt)
-    continuation_ids = sampler.tokenizer.encode(continuation)
-    if not prompt_ids:
-        raise BenchmarkScoringError("benchmark prompt encoded to zero tokens")
-    if not continuation_ids:
-        raise BenchmarkScoringError("benchmark continuation encoded to zero tokens")
-    if len(prompt_ids) + len(continuation_ids) > sampler.model.max_len:
+    joint_ids, continuation_start, continuation_ids = _joint_continuation_tokens(
+        sampler,
+        prompt=prompt,
+        continuation=continuation,
+    )
+    if len(joint_ids) > sampler.model.max_len:
         raise BenchmarkScoringError(
             "benchmark prompt plus continuation exceeds checkpoint context; "
             "the fixed protocol does not truncate"
         )
-    input_ids = prompt_ids + continuation_ids[:-1]
+    input_ids = joint_ids[:-1]
     inputs = torch.tensor([input_ids], dtype=torch.long, device=sampler.device)
     with torch.inference_mode(), autocast_context(sampler.device, precision):
         logits = sampler.model(inputs)[0]
-        start = len(prompt_ids) - 1
-        end = start + len(continuation_ids)
+        start = continuation_start - 1
+        end = len(joint_ids) - 1
         continuation_logits = logits[start:end]
         targets = torch.tensor(continuation_ids, dtype=torch.long, device=sampler.device)
         log_probabilities = F.log_softmax(continuation_logits.float(), dim=-1)
         score = log_probabilities.gather(1, targets.unsqueeze(1)).sum()
     return float(score.item()), len(continuation_ids)
+
+
+def _joint_continuation_tokens(
+    sampler: CheckpointSampler,
+    *,
+    prompt: str,
+    continuation: str,
+) -> tuple[list[int], int, list[int]]:
+    """Tokenize the declared string once and locate its exact continuation span."""
+
+    joint_text = prompt + continuation
+    joint_ids, offsets = sampler.tokenizer.encode_with_offsets(joint_text)
+    boundary = len(prompt)
+    continuation_start: int | None = None
+    for index, (start, end) in enumerate(offsets):
+        if start < boundary < end:
+            raise BenchmarkScoringError(
+                "canonical tokenization crosses the declared continuation boundary"
+            )
+        if end > boundary:
+            if start < boundary:
+                raise BenchmarkScoringError(
+                    "canonical tokenization crosses the declared continuation boundary"
+                )
+            continuation_start = index
+            break
+    if continuation_start is None:
+        raise BenchmarkScoringError("benchmark continuation encoded to zero scoreable tokens")
+    if continuation_start < 1:
+        raise BenchmarkScoringError("benchmark prompt encoded to zero scoreable tokens")
+    continuation_offsets = offsets[continuation_start:]
+    if (
+        continuation_offsets[0][0] != boundary
+        or continuation_offsets[-1][1] != len(joint_text)
+        or any(start < boundary or end <= boundary for start, end in continuation_offsets)
+    ):
+        raise BenchmarkScoringError(
+            "canonical token offsets do not form the complete continuation suffix"
+        )
+    continuation_ids = joint_ids[continuation_start:]
+    return joint_ids, continuation_start, continuation_ids
 
 
 def _score_gsm8k(

@@ -9,7 +9,7 @@ a leaderboard framework or any chat/SFT behavior.
 The immutable registry is
 [`data/benchmarks/suite-v1.json`](../data/benchmarks/suite-v1.json). Its compiled
 fingerprint is
-`20af73847cdc67b083cfd4fe4cacc2d5d6db0bc3fb468bea5a1f43cf0ee95511`.
+`39e658f55b445b5390a01390523b077018a1337c257ad82f0a167085636b7bd2`.
 The evaluator refuses a registry whose canonical fingerprint differs.
 
 | Task | Development source | Reserved final source | Revision | Scoring |
@@ -60,7 +60,8 @@ against its results.
 
 Both commands take model dimensions, tokenizer, precision, training manifests,
 and counters only from the verified full-state checkpoint. A CPU request for a
-BF16 checkpoint fails; there is no implicit precision or device fallback.
+BF16 checkpoint fails, as does a CUDA request when the selected runtime/device
+does not support BF16; there is no implicit precision or device fallback.
 Before opening any training shard, the evaluator tokenizes every fixed prompt
 and choice and requires enough checkpoint context for JCommonsenseQA scoring
 and the complete 128-token GSM8K generation allowance. Both task scorers run
@@ -109,9 +110,12 @@ model artifacts are not uploaded.
 
 Optional external baselines use the separate
 `llm-scratch-benchmark-external` aggregate recorder. It requires parameter
-count, training-compute, tokenizer, context-length, and data-access disclosure;
-rejects raw text, outputs, logits, token IDs, and weights; and marks the record
-ineligible for training data or targets. The recorder itself attaches the
+count, training-compute, tokenizer, context-length, and data-access disclosure.
+It also requires a protocol-hash-bound no-truncation preflight with per-task
+required lengths, enforces a fixed minimum of 129 tokens for the GSM8K
+generation contract, and rejects subjects shorter than their disclosed
+requirement. It rejects raw text, outputs, logits, token IDs, and weights; and
+marks the record ineligible for training data or targets. The recorder itself attaches the
 compiled development-suite fingerprint, protocol hash, source hashes,
 selected-example hashes, selector, access level, and fixed 128-example totals;
 callers cannot supply an alternate protocol or partition identity. It does not

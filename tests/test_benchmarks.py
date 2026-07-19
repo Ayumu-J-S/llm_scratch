@@ -22,7 +22,11 @@ from benchmarks.contamination import (
 )
 from benchmarks.external import ExternalComparisonError, write_external_comparison
 from benchmarks.runner import BenchmarkContaminationError, run_benchmark
-from benchmarks.scoring import BenchmarkScoringError, score_suite
+from benchmarks.scoring import (
+    BenchmarkScoringError,
+    conditional_log_probability,
+    score_suite,
+)
 from benchmarks.suite import (
     FINAL_ACKNOWLEDGEMENT,
     GSM8K_PROMPT_REVISION,
@@ -177,10 +181,11 @@ def _pretraining_checkpoint(
     tmp_path: Path,
     *,
     sequence_length: int = 256,
+    precision: str = "fp32",
 ) -> tuple[Path, dict[str, Any]]:
     config = compose("profile=pretrain_streaming")
     config.runtime.device = "cpu"
-    config.training.precision = "fp32"
+    config.training.precision = precision
     config.training.sequence_length = sequence_length
     config.training.batch_size = 1
     config.model.embed_size = 8
@@ -471,6 +476,28 @@ def test_runner_rejects_short_context_before_training_corpus_scan(monkeypatch, t
         )
 
 
+def test_runner_rejects_unsupported_cuda_bf16_before_training_scan(monkeypatch, tmp_path: Path):
+    registry, fingerprint = _registry(tmp_path)
+    checkpoint, _ = _pretraining_checkpoint(tmp_path, precision="bf16")
+    config = _benchmark_config(tmp_path, checkpoint)
+    config.benchmark.device = "cuda"
+    monkeypatch.setattr("runtime.config.torch.cuda.is_available", lambda: True)
+    monkeypatch.setattr("runtime.config.torch.cuda.is_bf16_supported", lambda: False)
+    monkeypatch.setattr(
+        "benchmarks.runner.scan_checkpoint_training_data",
+        lambda *_args, **_kwargs: pytest.fail(
+            "unsupported CUDA BF16 must fail before the complete contamination scan"
+        ),
+    )
+
+    with pytest.raises(ConfigPreflightError, match="does not support BF16"):
+        run_benchmark(
+            config,
+            registry_path=registry,
+            expected_registry_fingerprint=fingerprint,
+        )
+
+
 def test_fixture_checkpoint_scoring_and_result_identity_are_deterministic(
     monkeypatch, tmp_path: Path
 ):
@@ -501,12 +528,12 @@ def test_fixture_checkpoint_scoring_and_result_identity_are_deterministic(
                 "raw_prediction": 0,
                 "correct": True,
                 "score_sha256": (
-                    "bc6b31d024d7fae41498cfb575440cf3c60a8afdc62144229bf289154c2ee3fc"
+                    "e9490f58d16f2462a9668afc8b364b7310feee2849d971757910ccc4b623cf2f"
                 ),
             }
         ],
         "prediction_trace_sha256": (
-            "310663e4b3769e0578aba4e1b958c4b7fed4db6f5f2e70f0b63c990e08c8dc26"
+            "da8e6d9f41fced7c5aaff8df454c238d9f5e5b9f1512a3a21d84909c4d364529"
         ),
     }
     assert first_scores["gsm8k"] == {
@@ -561,6 +588,36 @@ def test_fixture_checkpoint_scoring_and_result_identity_are_deterministic(
     assert '"completion"' not in serialized
 
 
+def test_jcommonsenseqa_scores_exact_joint_tokenization(monkeypatch, tmp_path: Path):
+    checkpoint, _ = _pretraining_checkpoint(tmp_path)
+    sampler = CheckpointSampler.from_checkpoint(checkpoint, device="cpu")
+    prompt = "質問: 生き物を一つ選んでください。\n答え:\n"
+    continuation = "動物"
+    joint_ids, offsets = sampler.tokenizer.encode_with_offsets(prompt + continuation)
+    separately_encoded = sampler.tokenizer.encode(prompt) + sampler.tokenizer.encode(continuation)
+    assert joint_ids != separately_encoded
+    continuation_start = next(
+        index for index, (start, end) in enumerate(offsets) if start >= len(prompt) and end > start
+    )
+    observed_inputs: list[list[int]] = []
+    original_forward = sampler.model.forward
+
+    def capture_forward(input_ids: torch.Tensor, *args, **kwargs):
+        observed_inputs.append(input_ids[0].tolist())
+        return original_forward(input_ids, *args, **kwargs)
+
+    monkeypatch.setattr(sampler.model, "forward", capture_forward)
+    _, token_count = conditional_log_probability(
+        sampler,
+        prompt=prompt,
+        continuation=continuation,
+        precision="fp32",
+    )
+
+    assert observed_inputs == [joint_ids[:-1]]
+    assert token_count == len(joint_ids[continuation_start:])
+
+
 def test_gsm8k_generation_receives_checkpoint_precision(monkeypatch, tmp_path: Path):
     registry, fingerprint = _registry(tmp_path)
     checkpoint, _ = _pretraining_checkpoint(tmp_path)
@@ -600,6 +657,18 @@ def test_external_baseline_record_is_aggregate_only_and_isolated(monkeypatch, tm
             "tokenizer": "upstream tokenizer",
             "context_length": 2048,
             "data_access": "upstream disclosure",
+            "protocol_context_preflight": {
+                "protocol_sha256": (
+                    "79cf8b28ec8746043abc05d40a701520d3423f7cdcdbc098c956364a8e09eb7b"
+                ),
+                "passed": True,
+                "no_truncation": True,
+                "required_context_length": 300,
+                "task_required_context_lengths": {
+                    "jcommonsenseqa": 120,
+                    "gsm8k": 300,
+                },
+            },
         },
         "tasks": {
             "jcommonsenseqa": {
@@ -625,8 +694,9 @@ def test_external_baseline_record_is_aggregate_only_and_isolated(monkeypatch, tm
     assert record["isolation"]["repository_checkpoint_runner"] is False
     assert record["isolation"]["eligible_for_training_data_or_targets"] is False
     assert record["suite"]["access"] == "dev"
+    assert record["suite"]["minimum_context_length"] == 129
     assert record["suite"]["protocol_sha256"] == (
-        "169058462fd2ea3c3dddddce6486d6f1fceebaf1836f228bada6b5c5c8e602e2"
+        "79cf8b28ec8746043abc05d40a701520d3423f7cdcdbc098c956364a8e09eb7b"
     )
     assert record["suite"]["tasks"]["jcommonsenseqa"]["selected_examples_sha256"] == (
         "fa5ce35310f98b171da7db6afeff222381161f1987a99d70e7ede9b77a283b0e"
@@ -647,6 +717,29 @@ def test_external_baseline_record_is_aggregate_only_and_isolated(monkeypatch, tm
             wrong_partition,
             output_path="wrong-partition.json",
         )
+
+    impossible_context = copy.deepcopy(payload)
+    impossible_context["subject"]["context_length"] = 1
+    with pytest.raises(ExternalComparisonError, match="fixed protocol minimum"):
+        write_external_comparison(impossible_context, output_path="impossible-context.json")
+
+    failed_preflight = copy.deepcopy(payload)
+    failed_preflight["subject"]["protocol_context_preflight"]["passed"] = False
+    with pytest.raises(ExternalComparisonError, match="complete no-truncation"):
+        write_external_comparison(failed_preflight, output_path="failed-preflight.json")
+
+    wrong_protocol = copy.deepcopy(payload)
+    wrong_protocol["subject"]["protocol_context_preflight"]["protocol_sha256"] = "0" * 64
+    with pytest.raises(ExternalComparisonError, match="compiled benchmark protocol"):
+        write_external_comparison(wrong_protocol, output_path="wrong-protocol.json")
+
+    truncated_context = copy.deepcopy(payload)
+    truncated_context["subject"]["protocol_context_preflight"]["required_context_length"] = 3000
+    truncated_context["subject"]["protocol_context_preflight"]["task_required_context_lengths"][
+        "gsm8k"
+    ] = 3000
+    with pytest.raises(ExternalComparisonError, match="below its protocol preflight"):
+        write_external_comparison(truncated_context, output_path="truncated-context.json")
 
     checkpoint_dir = tmp_path / "artifacts/checkpoints"
     checkpoint_dir.mkdir(parents=True)
