@@ -27,12 +27,12 @@ from runtime.reproducibility import sha256_file
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 SHINGLE_CODEPOINTS = 48
-SCAN_REVISION = "BENCH-001-contamination-v13"
-NORMALIZATION_REVISION = "normalize-text-identity-nfc-strip-plus-json-object-v11"
+SCAN_REVISION = "BENCH-001-contamination-v14"
+NORMALIZATION_REVISION = "normalize-text-identity-nfc-strip-plus-json-object-v12"
 SCAN_INDEX_SCHEMA_VERSION = 2
 MATCHER_REVISION = "collision-verified-rolling-hash-codepoint-v1"
 JSON_OBJECT_NORMALIZATION_REVISION = (
-    "constant-memory-leaf-object-string-fail-closed-json-nfc-sha256-v10"
+    "constant-memory-leaf-object-string-fail-closed-json-nfc-sha256-v11"
 )
 PRODUCER_IDENTITY_REVISION = "contamination-producer-v1"
 PRODUCER_SOURCE_SCOPE_REVISION = "src-python-pyproject-lock-v1"
@@ -710,6 +710,8 @@ def _normalize_decoded_json(
             normalized_key = unicodedata.normalize("NFC", key)
             if normalized_key in normalized:
                 raise ValueError("decoded JSON object keys collide after NFC normalization")
+            if decoded_values is not None:
+                decoded_values.append((normalized_key, depth + 1))
             normalized[normalized_key] = _normalize_decoded_json(
                 item,
                 budget=active_budget,
