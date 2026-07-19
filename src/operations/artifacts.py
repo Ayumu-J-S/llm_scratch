@@ -8,6 +8,7 @@ import os
 import re
 import socket
 import tempfile
+from contextlib import contextmanager
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -111,13 +112,14 @@ class Attempt:
         return load_json(self.state_path)
 
     def transition(self, status: str, **fields: Any) -> dict[str, Any]:
-        state = self.state()
-        previous = state.get("status")
-        allowed = _TRANSITIONS.get(str(previous), set())
-        if status not in allowed:
-            raise AttemptError(f"invalid attempt transition: {previous!r} -> {status!r}")
-        updated = {**state, **fields, "status": status, "updated_at": utc_now()}
-        atomic_write_json(self.state_path, updated)
+        with _exclusive_lock(self.path / ".state.lock"):
+            state = self.state()
+            previous = state.get("status")
+            allowed = _TRANSITIONS.get(str(previous), set())
+            if status not in allowed:
+                raise AttemptError(f"invalid attempt transition: {previous!r} -> {status!r}")
+            updated = {**state, **fields, "status": status, "updated_at": utc_now()}
+            atomic_write_json(self.state_path, updated)
         self.event("state_transition", previous=previous, status=status, fields=fields)
         return updated
 
@@ -125,21 +127,25 @@ class Attempt:
         if not isinstance(kind, str) or not kind:
             raise AttemptError("event kind must be a non-empty string")
         self.events_dir.mkdir(parents=True, exist_ok=True)
-        existing = sorted(self.events_dir.glob("*.json"))
-        sequence = len(existing) + 1
-        destination = self.events_dir / f"{sequence:06d}.json"
-        if destination.exists():
-            raise AttemptError(f"event path already exists: {destination}")
-        atomic_write_json(
-            destination,
-            {
-                "schema_version": 1,
-                "sequence": sequence,
-                "timestamp": utc_now(),
-                "kind": kind,
-                **fields,
-            },
-        )
+        with _exclusive_lock(self.events_dir / ".writer.lock"):
+            sequences = [
+                int(path.stem)
+                for path in self.events_dir.glob("[0-9][0-9][0-9][0-9][0-9][0-9].json")
+            ]
+            sequence = max(sequences, default=0) + 1
+            destination = self.events_dir / f"{sequence:06d}.json"
+            if destination.exists():
+                raise AttemptError(f"event path already exists: {destination}")
+            atomic_write_json(
+                destination,
+                {
+                    "schema_version": 1,
+                    "sequence": sequence,
+                    "timestamp": utc_now(),
+                    "kind": kind,
+                    **fields,
+                },
+            )
         return destination
 
 
@@ -160,8 +166,6 @@ def create_attempt(
     attempt = Attempt(root, run_id, attempt_id)
     if attempt.path.exists():
         raise AttemptError(f"attempt already exists and will not be replaced: {attempt.path}")
-    attempt.path.mkdir(parents=True, mode=0o700)
-    attempt.path.chmod(0o700)
 
     retry_binding: dict[str, Any] | None = None
     if retry_from is not None:
@@ -170,8 +174,8 @@ def create_attempt(
             raise AttemptError("an attempt cannot retry itself")
         parent = Attempt(root, run_id, retry_from)
         parent_state = parent.state()
-        if parent_state.get("status") not in _TERMINAL:
-            raise AttemptError("a retry requires a terminal sibling attempt")
+        if parent_state.get("status") not in {"failed", "stopped"}:
+            raise AttemptError("a retry requires a failed or stopped sibling attempt")
         parent_result = parent.path / "result.json"
         if not parent_result.is_file():
             raise AttemptError("a retry requires the sibling result.json")
@@ -181,22 +185,30 @@ def create_attempt(
             "result_sha256": sha256_file(parent_result),
         }
 
+    attempt.run_dir.mkdir(parents=True, exist_ok=True)
     run_record = attempt.run_dir / "run.json"
-    if run_record.exists():
-        existing = load_json(run_record)
-        if existing.get("run_id") != run_id:
-            raise AttemptError("run directory identity does not match the requested run ID")
-    else:
-        attempt.run_dir.mkdir(parents=True, exist_ok=True)
-        atomic_write_json(
-            run_record,
-            {
-                "schema_version": 1,
-                "run_id": run_id,
-                "created_at": utc_now(),
-                "hostname": socket.gethostname(),
-            },
-        )
+    with _exclusive_lock(attempt.run_dir / ".run.lock"):
+        if attempt.path.exists():
+            raise AttemptError(f"attempt already exists and will not be replaced: {attempt.path}")
+        if run_record.exists():
+            existing = load_json(run_record)
+            if existing.get("run_id") != run_id:
+                raise AttemptError("run directory identity does not match the requested run ID")
+        else:
+            atomic_write_json(
+                run_record,
+                {
+                    "schema_version": 1,
+                    "run_id": run_id,
+                    "created_at": utc_now(),
+                    "hostname": socket.gethostname(),
+                },
+            )
+
+        # All fallible parent/run validation happens before the non-overwriting
+        # attempt path is committed. mkdir is the exclusive reservation.
+        attempt.path.mkdir(parents=True, mode=0o700)
+        attempt.path.chmod(0o700)
 
     state = {
         "schema_version": 1,
@@ -221,18 +233,23 @@ def process_identity(pid: int) -> dict[str, Any]:
     stat_path = Path(f"/proc/{pid}/stat")
     cmdline_path = Path(f"/proc/{pid}/cmdline")
     try:
-        stat_fields = stat_path.read_text(encoding="utf-8").split()
+        stat_payload = stat_path.read_bytes()
         cmdline = cmdline_path.read_bytes()
         boot_id = Path("/proc/sys/kernel/random/boot_id").read_text(encoding="utf-8").strip()
     except OSError as error:
         raise AttemptError(f"cannot capture ownership for PID {pid}") from error
-    if len(stat_fields) < 22:
+    # proc(5) permits spaces and parentheses in comm. The final ')' terminates
+    # that field; the tail then begins at field 3 (state), so starttime (22) is
+    # tail index 19.
+    comm_end = stat_payload.rfind(b")")
+    stat_tail = stat_payload[comm_end + 1 :].split() if comm_end >= 0 else []
+    if len(stat_tail) <= 19:
         raise AttemptError(f"invalid /proc stat for PID {pid}")
     return {
         "schema_version": 1,
         "pid": pid,
         "process_group_id": os.getpgid(pid),
-        "proc_start_ticks": int(stat_fields[21]),
+        "proc_start_ticks": int(stat_tail[19]),
         "boot_id": boot_id,
         "cmdline_sha256": hashlib.sha256(cmdline).hexdigest(),
     }
@@ -261,4 +278,19 @@ def _fsync_directory(directory: Path) -> None:
     try:
         os.fsync(descriptor)
     finally:
+        os.close(descriptor)
+
+
+@contextmanager
+def _exclusive_lock(path: Path):
+    """Serialize the single-attempt event writer without exposing partial JSON."""
+
+    import fcntl
+
+    descriptor = os.open(path, os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        fcntl.flock(descriptor, fcntl.LOCK_EX)
+        yield
+    finally:
+        fcntl.flock(descriptor, fcntl.LOCK_UN)
         os.close(descriptor)

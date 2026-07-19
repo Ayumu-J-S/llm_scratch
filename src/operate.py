@@ -40,6 +40,8 @@ def _parser() -> argparse.ArgumentParser:
             command.add_argument("--device", choices=("cpu", "cuda"), required=True)
             command.add_argument("--image")
             command.add_argument("--retry-from")
+            if action in {"preflight", "train"}:
+                command.add_argument("--profile", required=True)
         else:
             command.add_argument("--attempt-id", required=True)
         if action == "resume":
