@@ -2,12 +2,15 @@
   "dev_subset": {
     "selector": "sha256-example-id-v1",
     "selected_examples_sha256": {
-      "gsm8k": "3f5c12085bfcb2e4dc94d91d1d3630b476d06343c6c2fc6c6df2d5d87f90daba",
-      "jcommonsenseqa": "fa5ce35310f98b171da7db6afeff222381161f1987a99d70e7ede9b77a283b0e"
+      "gsm8k": "03fa95e872665b2be1633781879fe10cc5d04f5b2d1d3add055d60deecf6d9c6",
+      "jcommonsenseqa": "37e39dca6ce5108fe720dda6e0246f7c8ef858e22961229540d2023faeabe0bd"
     },
     "size": 128
   },
   "protocol": {
+    "contamination": {
+      "probe_revision": "source-record-and-canonical-json-object-v1"
+    },
     "few_shot_examples": 0,
     "gsm8k": {
       "decoding": {
@@ -25,7 +28,7 @@
     }
   },
   "schema_version": 1,
-  "suite_fingerprint": "39e658f55b445b5390a01390523b077018a1337c257ad82f0a167085636b7bd2",
+  "suite_fingerprint": "adf433c320252b4d2cbdd6f9817f6f9e34a846bf81b39915a697def1ab477042",
   "suite_id": "BENCH-001-suite-v1",
   "tasks": {
     "gsm8k": {

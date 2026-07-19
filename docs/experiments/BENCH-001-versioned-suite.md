@@ -52,6 +52,10 @@
 | 29 | Repair | Complete | Restricted namespace protection to checkpoint-configured/recognized roots and exact symlink/hardlink aliases without treating an arbitrary selected file's parent as a checkpoint tree; constructed the sampler in a tight helper scope and proved both the loaded wrapper and an injected optimizer-state tensor are reclaimed before suite loading/scanning |
 | 30 | Focused validation and BENCH sweep | PASS | 29 benchmark/reproducibility tests, scoped Ruff/format, and diff checks pass. A systematic read-only sweep of runner lifetime/path isolation, protocol/result identity, large-scan retained state/complexity, W&B retention, and external aggregate isolation found no additional acceptance-blocking defect |
 | 31 | Full validation | PASS | Official CPU gate: 353 passed, 1 skipped; Ruff, Hydra config preflight, lock drift, offline smoke, `uv lock --check`, changed-path format, and diff checks pass |
+| 32 | Independent re-review | FAIL | Exact-head review of `57d6ac0` reran 353 tests (1 skipped), then proved that 126/128 verbatim selected JCommonsenseQA source records escaped contamination detection because canonical serialization changed source key order/spacing and their short individual fields produced no 48-codepoint shingle |
+| 33 | Repair | Complete | Retained each selected example's exact pinned JSONL source record, bound its SHA-256 into selected-example identity, and added a protocol-versioned canonical JSON-object identity that is invariant to key order and insignificant whitespace while remaining linear per candidate document |
+| 34 | Focused validation | PASS | 103 benchmark/config/tokenizer/generation/reproducibility tests and scoped Ruff/format/diff checks pass; a 256-example synthetic all-selected invariant detects 128/128 source-faithful and reordered/indented variants for each task. Canonical online acceptance independently detects 128/128 exact source records and 128/128 reordered JSON objects for both JCommonsenseQA and GSM8K; registry `adf433c…`, protocol `d56ffdb…`, JCommonsenseQA selection `37e39dc…`, GSM8K selection `03fa95e…` |
+| 35 | Full validation | PASS | Official CPU gate: 354 passed, 1 skipped; Ruff, Hydra config preflight, lock drift, offline smoke, `uv lock --check`, changed-path format, and diff checks pass |
 
 ## Resolved protocol
 
@@ -69,7 +73,9 @@
 - Final acknowledgement: `BENCHMARK_FINAL_ACK=BENCH-001-suite-v1`; checked
   outside Hydra.
 - Contamination: complete checkpoint-owned train selections, exact/normalized
-  whole-document identity, and normalized 48-codepoint shingles.
+  whole-document identity, source-faithful record identity, canonical JSON-object
+  identity across key-order/whitespace variants, and normalized 48-codepoint
+  shingles.
 
 ## Review selection
 
@@ -87,7 +93,7 @@
 
 ## Current conclusion
 
-All eight independent failed reviews remain visible. Their twenty-one findings are
+All nine independent failed reviews remain visible. Their twenty-two findings are
 repaired without weakening the fixed protocol or complete contamination gate:
 cheap context incompatibility precedes scanning, both tasks honor checkpoint
 precision, external records are pinned, evaluator/runtime and dirty source
@@ -104,11 +110,14 @@ checkpoint inode without misclassifying a broad ad hoc parent. Per-document
 contamination evidence is reference-deduplicated, generation traces bind
 canonical token-sequence hashes, evaluator identity rejects symlinked or special
 producer paths, and the full optimizer-bearing load is reclaimed before the
-suite and corpus scan.
+suite and corpus scan. Selected examples now retain and hash the pinned source
+record representation, while a structure-normalized JSON identity detects
+equivalent key-order and whitespace variants; canonical acceptance covers every
+selected development record in both tasks.
 An extra
 repository-wide format diagnostic identified four pre-existing, unrelated
 files outside this ticket's diff; the configured Ruff lint gate and all changed
-benchmark paths pass, so those files were not rewritten here. The eighth repair's
-focused and full gates plus BENCH-only systematic sweep pass; exact-head independent
+benchmark paths pass, so those files were not rewritten here. The ninth repair's
+focused and full gates plus canonical online acceptance pass; exact-head independent
 re-review remains. No
 benchmark score from the zero-weight fixture is a model-quality result.
