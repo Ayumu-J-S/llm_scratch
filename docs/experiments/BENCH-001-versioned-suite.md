@@ -107,6 +107,10 @@
 | 84 | Repair | Complete | Normalized object keys now enter the same bounded decoded-value work queue as normalized string values. The scan, normalization, and JSON-object revisions were advanced so prior false-clean cache evidence cannot be reused |
 | 85 | Focused validation | PASS | Direct all-selected coverage detects 128/128 JCommonsenseQA and GSM8K records serialized as valid JSON object keys, and a complete-scan regression verifies contaminated report and cache evidence by exact training document ID. The broader benchmark suite passes 41 tests; scoped Ruff and format checks pass |
 | 86 | Full validation | PASS | Official network-isolated CPU gate passes 495 tests with 1 skipped, repository Ruff, resolved smoke Hydra preflight, lock-drift rejection, and disabled/offline process-tree smoke. No GPU, network dataset access, full-corpus scan, or large artifact was used; exact-head re-review remains pending |
+| 87 | Exact-head independent `/review` | FAIL | Formal review of clean head `a2f0a69` reproduced that one unterminated quote before a reordered benchmark JSON record kept the object extractor in string state. Short JCommonsenseQA fields then lacked a 48-codepoint fallback, allowing the complete scan to publish false-clean evidence |
+| 88 | Repair | Complete | Leaf-object extraction now runs two bounded constant-state lexical interpretations and deduplicates physical ranges, so an unmatched prose quote cannot hide a later valid object. Scan, normalization, and JSON-object identities were advanced to reject prior false-clean cache evidence |
+| 89 | Focused validation | PASS | Direct all-selected coverage detects 128/128 JCommonsenseQA and GSM8K reordered/ASCII-NFD records after an unmatched quote, and a complete-scan regression verifies contaminated cached evidence by exact document ID. All 42 benchmark tests plus scoped Ruff and format checks pass |
+| 90 | Full validation | PASS | Official network-isolated CPU gate passes 496 tests with 1 skipped, repository Ruff, resolved smoke Hydra preflight, lock-drift rejection, and disabled/offline process-tree smoke. No GPU, network dataset access, full-corpus scan, or large artifact was used |
 
 ## Resolved protocol
 
@@ -164,7 +168,7 @@
 
 ## Current conclusion
 
-All twenty-one failed review/audit cycles remain visible. Their thirty-nine findings are
+All twenty-two failed review/audit cycles remain visible. Their forty findings are
 repaired without weakening the fixed protocol or complete contamination gate:
 cheap context incompatibility precedes scanning, both tasks honor checkpoint
 precision, external records are pinned, evaluator/runtime and dirty source

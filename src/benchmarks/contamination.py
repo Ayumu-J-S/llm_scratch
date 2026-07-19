@@ -27,12 +27,12 @@ from runtime.reproducibility import sha256_file
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 SHINGLE_CODEPOINTS = 48
-SCAN_REVISION = "BENCH-001-contamination-v14"
-NORMALIZATION_REVISION = "normalize-text-identity-nfc-strip-plus-json-object-v12"
+SCAN_REVISION = "BENCH-001-contamination-v15"
+NORMALIZATION_REVISION = "normalize-text-identity-nfc-strip-plus-json-object-v13"
 SCAN_INDEX_SCHEMA_VERSION = 2
 MATCHER_REVISION = "collision-verified-rolling-hash-codepoint-v1"
 JSON_OBJECT_NORMALIZATION_REVISION = (
-    "constant-memory-leaf-object-string-fail-closed-json-nfc-sha256-v11"
+    "constant-memory-leaf-object-string-fail-closed-json-nfc-sha256-v12"
 )
 PRODUCER_IDENTITY_REVISION = "contamination-producer-v1"
 PRODUCER_SOURCE_SCOPE_REVISION = "src-python-pyproject-lock-v1"
@@ -908,12 +908,32 @@ def _may_contain_json(text: str) -> bool:
 def _embedded_json_object_ranges(
     text: str,
 ) -> Iterable[tuple[int, int, int]]:
-    """Yield disjoint leaf objects with constant state, regardless of wrapper depth."""
+    """Yield leaf objects under both lexical parities to recover malformed prose quotes."""
+
+    observed: set[tuple[int, int]] = set()
+    for initial_in_string in (False, True):
+        for start, end in _leaf_json_object_ranges(
+            text,
+            initial_in_string=initial_in_string,
+        ):
+            identity = (start, end)
+            if identity in observed:
+                continue
+            observed.add(identity)
+            yield start, end, 0
+
+
+def _leaf_json_object_ranges(
+    text: str,
+    *,
+    initial_in_string: bool,
+) -> Iterable[tuple[int, int]]:
+    """Extract disjoint leaf objects with one constant-state lexical interpretation."""
 
     object_depth = 0
     leaf_start: int | None = None
     leaf_depth = 0
-    in_string = False
+    in_string = initial_in_string
     escaped = False
     for index, character in enumerate(text):
         if in_string:
@@ -940,7 +960,7 @@ def _embedded_json_object_ranges(
             if object_depth == 0:
                 continue
             if leaf_start is not None and object_depth == leaf_depth:
-                yield leaf_start, index + 1, 0
+                yield leaf_start, index + 1
                 leaf_start = None
                 leaf_depth = 0
             object_depth -= 1
