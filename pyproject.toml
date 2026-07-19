@@ -21,6 +21,9 @@ llm-scratch-train = "cli:train"
 llm-scratch-config-check = "cli:config_check"
 llm-scratch-generate = "generate:main"
 llm-scratch-evaluate = "cli:evaluate"
+llm-scratch-benchmark = "benchmark:main"
+llm-scratch-benchmark-final = "benchmark:final_main"
+llm-scratch-benchmark-external = "benchmark_external:main"
 
 [build-system]
 requires = ["setuptools>=75"]
@@ -28,7 +31,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
-py-modules = ["cli", "train", "evaluate"]
+py-modules = ["cli", "train", "evaluate", "benchmark", "benchmark_external"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

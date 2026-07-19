@@ -26,6 +26,7 @@ def test_canonical_profiles_compose_with_real_root_sections():
     stream = compose("profile=pretrain_streaming")
     gate = compose("profile=gate_overfit")
     evaluation = compose("profile=evaluation")
+    benchmark = compose("profile=benchmark")
 
     assert smoke.profile.name == "smoke_overfit"
     assert smoke.data.mode == "memorization_smoke"
@@ -38,6 +39,10 @@ def test_canonical_profiles_compose_with_real_root_sections():
     assert evaluation.profile.task == "evaluate_checkpoint"
     assert evaluation.evaluation.device == "cuda"
     assert evaluation.runtime.device == "cuda"
+    assert benchmark.profile.name == "benchmark"
+    assert benchmark.profile.task == "benchmark_checkpoint"
+    assert benchmark.benchmark.device == "cuda"
+    assert "access" not in benchmark.benchmark
 
 
 def test_streaming_profile_has_distinct_manifest_selections():

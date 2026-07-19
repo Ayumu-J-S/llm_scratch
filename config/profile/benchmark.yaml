@@ -1,0 +1,29 @@
+# @package _global_
+# BENCH-001 development benchmark profile. Dataset registry, access level, and
+# reserved-final acknowledgement are intentionally absent from Hydra so an
+# override cannot turn a routine command into a final-test run.
+profile:
+  name: benchmark
+  purpose: benchmark
+  task: benchmark_checkpoint
+
+benchmark:
+  checkpoint_path: null
+  output_path: benchmark.json
+  device: cuda
+  cache:
+    dir: data/benchmark_cache
+    max_size_bytes: 100000000
+    min_free_bytes: 1000000000
+    wait_timeout_seconds: 120.0
+    timeout_seconds: 30.0
+  wandb:
+    mode: disabled
+    project: llm-scratch
+    entity: sunday-research
+    name: null
+    init_timeout_seconds: 10
+    finish_timeout_seconds: 30
+
+runtime:
+  device: ${benchmark.device}
