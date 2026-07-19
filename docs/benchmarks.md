@@ -30,6 +30,10 @@ specification has its own SHA-256 in addition to its readable revision.
 Decoding configuration, source identity, selected-example identity, checkpoint
 logical and physical identity, tokenizer fingerprint, device, and
 checkpoint-owned precision are all attached to the stable evaluation identity.
+The identity also binds the executable evaluator's Git commit and dirty state,
+dependency-lock hash, OS/Python/PyTorch/CUDA stack, visible device identity, and
+container-image metadata so code or runtime changes cannot masquerade as an
+identical comparison.
 
 ## Commands and reserved-test boundary
 

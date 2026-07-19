@@ -388,8 +388,50 @@ def test_fixture_checkpoint_scoring_and_result_identity_are_deterministic(
     first_scores = score_suite(sampler, suite)
     second_scores = score_suite(sampler, suite)
     assert first_scores == second_scores
-    assert first_scores["jcommonsenseqa"]["total"] == 1
-    assert first_scores["gsm8k"]["total"] == 1
+    assert first_scores["jcommonsenseqa"] == {
+        "primary_metric": "length_normalized_accuracy",
+        "correct": 1,
+        "total": 1,
+        "length_normalized_accuracy": 1.0,
+        "raw_log_probability_accuracy": 1.0,
+        "prediction_trace": [
+            {
+                "example_id": "1",
+                "prediction": 0,
+                "raw_prediction": 0,
+                "correct": True,
+                "score_sha256": (
+                    "bc6b31d024d7fae41498cfb575440cf3c60a8afdc62144229bf289154c2ee3fc"
+                ),
+            }
+        ],
+        "prediction_trace_sha256": (
+            "310663e4b3769e0578aba4e1b958c4b7fed4db6f5f2e70f0b63c990e08c8dc26"
+        ),
+    }
+    assert first_scores["gsm8k"] == {
+        "primary_metric": "exact_match",
+        "correct": 0,
+        "total": 1,
+        "exact_match": 0.0,
+        "valid_answer_format": 0,
+        "valid_answer_format_rate": 0.0,
+        "prediction_trace": [
+            {
+                "example_id": "0",
+                "correct": False,
+                "valid_answer_format": False,
+                "generated_token_count": 128,
+                "stop_reason": "max_new_tokens",
+                "completion_sha256": (
+                    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                ),
+            }
+        ],
+        "prediction_trace_sha256": (
+            "1324e33caac696f2ca5f233879d69616399761449e055b71485005c2b2b6aae4"
+        ),
+    }
 
     monkeypatch.setattr("benchmarks.runner.score_suite", lambda *_args: copy.deepcopy(first_scores))
     first_config = _benchmark_config(tmp_path, checkpoint, "first.json")
@@ -408,6 +450,12 @@ def test_fixture_checkpoint_scoring_and_result_identity_are_deterministic(
     second = json.loads(second_path.read_text(encoding="utf-8"))
     assert first == second
     assert first["evaluation_identity_sha256"] == second["evaluation_identity_sha256"]
+    assert set(first["evaluation_identity"]["evaluator"]) == {
+        "git",
+        "lock_sha256",
+        "environment",
+    }
+    assert len(first["evaluation_identity"]["evaluator"]["git"]["sha"]) == 40
     serialized = json.dumps(first, ensure_ascii=False).lower()
     assert '"prompt"' not in serialized
     assert '"completion"' not in serialized

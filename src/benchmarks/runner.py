@@ -32,7 +32,8 @@ from runtime.config import (
     validate_training_config,
 )
 from runtime.device import select_device
-from runtime.reproducibility import sha256_file
+from runtime.environment import collect_environment
+from runtime.reproducibility import collect_git_identity, sha256_file
 from training.checkpoint import load_checkpoint_for_generation
 
 
@@ -101,6 +102,7 @@ def run_benchmark(
         sampler,
         suite.identity(),
         context_preflight=context_preflight,
+        evaluator_identity=_evaluator_identity(),
     )
     evaluation_identity_sha256 = hashlib.sha256(
         canonical_json_bytes(evaluation_identity)
@@ -142,6 +144,7 @@ def _evaluation_identity(
     suite_identity: Mapping[str, Any],
     *,
     context_preflight: Mapping[str, Any],
+    evaluator_identity: Mapping[str, Any],
 ) -> dict[str, Any]:
     physical = sampler.physical_checkpoint_identity
     return {
@@ -157,7 +160,38 @@ def _evaluation_identity(
         "device": str(sampler.device),
         "precision": str(sampler.resolved_config.get("training", {}).get("precision", "fp32")),
         "context_preflight": dict(context_preflight),
+        "evaluator": dict(evaluator_identity),
         "suite": dict(suite_identity),
+    }
+
+
+def _evaluator_identity() -> dict[str, Any]:
+    """Bind scores to the executable revision, dependency lock, and runtime stack."""
+
+    environment = collect_environment()
+    cuda = environment["cuda"]
+    torch_identity = environment["torch"]
+    return {
+        "git": collect_git_identity(ROOT_DIR),
+        "lock_sha256": sha256_file(ROOT_DIR / "uv.lock"),
+        "environment": {
+            "os": environment["os"],
+            "os_release": environment["os_release"],
+            "architecture": environment["architecture"],
+            "python": environment["python"],
+            "torch": {
+                "version": torch_identity["version"],
+                "compiled_cuda": torch_identity["compiled_cuda"],
+            },
+            "cuda": {
+                "available": cuda["available"],
+                "runtime_version": cuda["runtime_version"],
+                "driver_version": cuda["driver_version"],
+                "devices": cuda["devices"],
+                "bf16_supported": cuda["bf16_supported"],
+            },
+            "container_image": environment["container_image"],
+        },
     }
 
 

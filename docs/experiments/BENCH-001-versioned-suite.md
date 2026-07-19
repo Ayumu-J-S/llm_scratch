@@ -26,7 +26,10 @@
 | 3 | Independent `/review` | FAIL | Review of `db221fe` plus the complete working-tree diff passed 337 tests and Ruff, then found three integrity defects: context incompatibility was detected only after the complete corpus scan, GSM8K ignored checkpoint BF16 precision, and external records accepted caller-asserted protocol/partition identity |
 | 4 | Repair | Complete | Added a prompt/continuation/full-generation context preflight before the scan, passed checkpoint precision into every GSM8K forward, and made the recorder attach and enforce the compiled development protocol, source, selection, and 128-example totals |
 | 5 | Full validation | PASS | Official CPU gate: 339 passed, 1 skipped; Ruff, Hydra config preflight, lock drift, offline smoke, `uv lock --check`, changed-path format, and diff checks pass. Canonical sources reverify to 256 examples, the pinned hashes, and context requirements JCommonsenseQA=98/GSM8K=264 |
-| 6 | Independent re-review | Pending | Repeat against the exact committed repair head; preserve the verdict and any remaining note in the pull request |
+| 6 | Independent re-review | FAIL | Exact-head review of `6053008` reran 339 tests (1 skipped) successfully, then found that result identity bound the training commit but not the executable evaluator/runtime, and that fixture scoring asserted repeatability rather than pinned golden outputs |
+| 7 | Repair | Complete | Added evaluator Git dirty/commit, dependency-lock, OS/Python/PyTorch/CUDA/device/container identity to the result hash; pinned both fixture task metrics, predictions, trace hashes, generation length/stop reason, and empty-completion hash |
+| 8 | Full validation | PASS | Official CPU gate: 339 passed, 1 skipped; Ruff, Hydra config preflight, lock drift, offline smoke, `uv lock --check`, changed-path format, and diff checks pass |
+| 9 | Independent re-review | Pending | Repeat against the exact committed second-repair head; preserve the verdict and any remaining note in the pull request |
 
 ## Resolved protocol
 
@@ -61,12 +64,15 @@
 
 ## Current conclusion
 
-The first independent review correctly rejected the initial implementation.
-All three findings are repaired without weakening the fixed protocol or the
-complete contamination scan, and the repair-head full gate passes. An extra
-repository-wide format diagnostic identified four pre-existing, unrelated
-files outside this ticket's diff; the configured Ruff lint gate and all changed
-benchmark paths pass, so those files were not rewritten here. This record
-remains pending until the exact-head independent re-review is retained in the
-pull request. No benchmark score from the zero-weight fixture is a
-model-quality result.
+Both independent failed reviews remain visible. Their five findings are now
+repaired without weakening the fixed protocol or the complete contamination
+scan: the benchmark fails cheap context incompatibility before the scan, both
+tasks honor checkpoint precision, external records are pinned, executable
+evaluator identity is complete, and fixture outputs are golden rather than
+merely repeatable. An extra repository-wide format diagnostic identified four
+pre-existing, unrelated files outside this ticket's diff; the configured Ruff
+lint gate and all changed benchmark paths pass, so those files were not
+rewritten here. The second repair's full gate passes; this record remains
+pending until its exact-head independent re-review is retained in the pull
+request. No benchmark score from the zero-weight fixture is a model-quality
+result.
