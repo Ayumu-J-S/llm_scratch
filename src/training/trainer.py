@@ -13,6 +13,7 @@ import os
 import re
 import tempfile
 import time
+import uuid
 from pathlib import Path
 from typing import Any, Callable
 
@@ -119,7 +120,12 @@ class Trainer:
             self.checkpoint_dir, measurement.get("output_path")
         )
         self._measurement_rows: list[dict[str, Any]] = []
+        self._measurement_segments: list[dict[str, Any]] = []
+        self._measurement_segment: dict[str, Any] | None = None
         self._measurement_completed = False
+        self._measurement_evidence_id = uuid.uuid4().hex if self._measurement_enabled else None
+        self._resume_measurement_config: dict[str, Any] | None = None
+        self._resume_measurement_evidence_id: str | None = None
 
         self.max_steps = self._positive_budget("max_steps")
         self.max_tokens = self._positive_budget("max_tokens")
@@ -172,15 +178,14 @@ class Trainer:
         """Run training and return the local metric records."""
 
         # A checkpoint directory can be reused by a later run. Metrics are
-        # run-local evidence, not append-only checkpoint state. Initialize W&B
-        # first; if that fails, preserve the previous evidence for diagnosis.
+        # run-local evidence, not append-only checkpoint state. Validate and
+        # initialize measurement evidence before external logging or training.
         self.metrics.clear()
         self.run = None
+        self._initialize_measurements()
         self.run = self._init_wandb()
         if self._resumed_from is None:
             self._reset_local_metrics()
-        self._measurement_rows.clear()
-        self._measurement_completed = False
         self._start_time = time.monotonic() - self.elapsed_seconds
         saw_batch = False
 
@@ -897,14 +902,16 @@ class Trainer:
     def _flush_measurements(self) -> None:
         if not self._measurement_enabled:
             return
+        if self._measurement_segment is None:
+            raise RuntimeError("enabled measurement has no active evidence segment")
+        self._measurement_segment["end_counters"] = dict(self.counters)
+        self._measurement_segment["complete"] = self._measurement_completed
         payload = {
-            "schema_version": 1,
-            "enabled": True,
-            "warmup_optimizer_steps": self._measurement_warmup_steps,
-            "cuda_events": self._measurement_cuda_events,
-            "device": str(self.device),
+            "schema_version": 2,
+            "checkpoint_identity": self.checkpoint_identity,
+            "measurement_evidence_id": self._measurement_evidence_id,
             "complete": self._measurement_completed,
-            "rows": self._measurement_rows,
+            "segments": self._measurement_segments,
         }
         self._measurement_path.parent.mkdir(parents=True, exist_ok=True)
         descriptor, temporary_name = tempfile.mkstemp(
@@ -921,6 +928,180 @@ class Trainer:
         except BaseException:
             temporary_path.unlink(missing_ok=True)
             raise
+
+    def _initialize_measurements(self) -> None:
+        self._measurement_rows.clear()
+        self._measurement_segments.clear()
+        self._measurement_segment = None
+        self._measurement_completed = False
+        if not self._measurement_enabled:
+            return
+
+        prior_path: Path | None = None
+        prior_status = "fresh"
+        if self._resumed_from is not None:
+            prior_config = self._resume_measurement_config or {}
+            if bool(prior_config.get("enabled", False)):
+                if self._resume_measurement_evidence_id is None:
+                    raise ValueError("resume checkpoint has no measurement evidence identity")
+                self._measurement_evidence_id = self._resume_measurement_evidence_id
+                prior_path = _resolve_measurement_output_path(
+                    self._resumed_from.path.parent,
+                    prior_config.get("output_path"),
+                )
+                self._measurement_segments.extend(
+                    self._load_measurement_segments(prior_path)
+                )
+                prior_status = "verified"
+            else:
+                prior_status = "disabled"
+
+        if self._measurement_path.exists() and self._measurement_path != prior_path:
+            raise ValueError(
+                "measurement output already exists without matching resume evidence: "
+                f"{self._measurement_path}"
+            )
+
+        start_counters = dict(self.counters)
+        resumed_from = None
+        if self._resumed_from is not None:
+            resumed_from = {
+                "path": str(self._resumed_from.path.resolve()),
+                "counters": start_counters,
+                "prior_measurement": {
+                    "status": prior_status,
+                    "path": str(prior_path) if prior_path is not None else None,
+                },
+            }
+        self._measurement_segment = {
+            "segment_index": len(self._measurement_segments),
+            "start_counters": start_counters,
+            "end_counters": start_counters,
+            "resumed_from": resumed_from,
+            "measurement": {
+                "warmup_optimizer_steps": self._measurement_warmup_steps,
+                "cuda_events": self._measurement_cuda_events,
+                "device": str(self.device),
+                "output_path": str(self._measurement_path),
+            },
+            "complete": False,
+            "rows": self._measurement_rows,
+        }
+        self._measurement_segments.append(self._measurement_segment)
+
+    def _load_measurement_segments(self, path: Path) -> list[dict[str, Any]]:
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except FileNotFoundError as error:
+            raise ValueError(
+                f"resume checkpoint requires prior measurement evidence at {path}"
+            ) from error
+        except (OSError, json.JSONDecodeError) as error:
+            raise ValueError(f"prior measurement evidence is unreadable: {path}") from error
+        if not isinstance(payload, dict) or payload.get("schema_version") != 2:
+            raise ValueError("prior measurement evidence has an unsupported schema")
+        if payload.get("checkpoint_identity") != self.checkpoint_identity:
+            raise ValueError("prior measurement evidence checkpoint identity does not match")
+        if payload.get("measurement_evidence_id") != self._resume_measurement_evidence_id:
+            raise ValueError("prior measurement evidence chain identity does not match")
+        raw_segments = payload.get("segments")
+        if not isinstance(raw_segments, list) or not raw_segments:
+            raise ValueError("prior measurement evidence has no segments")
+
+        segments: list[dict[str, Any]] = []
+        for expected_index, segment in enumerate(raw_segments):
+            if not isinstance(segment, dict) or segment.get("segment_index") != expected_index:
+                raise ValueError("prior measurement evidence has invalid segment ordering")
+            start = self._validated_measurement_counters(
+                segment.get("start_counters"), f"segment {expected_index} start"
+            )
+            end = self._validated_measurement_counters(
+                segment.get("end_counters"), f"segment {expected_index} end"
+            )
+            if (
+                end["optimizer_step"] < start["optimizer_step"]
+                or end["target_tokens"] < start["target_tokens"]
+                or end["elapsed_seconds"] < start["elapsed_seconds"]
+            ):
+                raise ValueError("prior measurement evidence segment counters move backwards")
+            if not isinstance(segment.get("complete"), bool):
+                raise ValueError("prior measurement evidence segment completion is invalid")
+            measurement = segment.get("measurement")
+            if not isinstance(measurement, dict):
+                raise ValueError("prior measurement evidence segment settings are invalid")
+            rows = segment.get("rows")
+            if not isinstance(rows, list):
+                raise ValueError("prior measurement evidence segment rows are invalid")
+            previous_step = start["optimizer_step"]
+            previous_tokens = start["target_tokens"]
+            for row in rows:
+                if not isinstance(row, dict):
+                    raise ValueError("prior measurement evidence contains an invalid row")
+                step = row.get("optimizer_step")
+                tokens = row.get("target_tokens")
+                if (
+                    isinstance(step, bool)
+                    or not isinstance(step, int)
+                    or isinstance(tokens, bool)
+                    or not isinstance(tokens, int)
+                    or step < previous_step
+                    or tokens < previous_tokens
+                    or step > end["optimizer_step"]
+                    or tokens > end["target_tokens"]
+                ):
+                    raise ValueError("prior measurement evidence row counters are invalid")
+                previous_step = step
+                previous_tokens = tokens
+            segments.append(segment)
+
+        complete = payload.get("complete")
+        if not isinstance(complete, bool) or complete != segments[-1]["complete"]:
+            raise ValueError("prior measurement evidence completion state is inconsistent")
+        assert self._resumed_from is not None
+        resume_step = self.optimizer_step
+        resume_tokens = self.target_tokens
+        checkpoint_events = {"checkpoint", "final_checkpoint", "milestone"}
+        boundary_found = any(
+            row.get("optimizer_step") == resume_step
+            and row.get("target_tokens") == resume_tokens
+            and (
+                row.get("event") in checkpoint_events
+                or (row.get("event") == "validation" and row.get("best_checkpoint_written") is True)
+            )
+            for segment in segments
+            for row in segment["rows"]
+        )
+        if not boundary_found:
+            raise ValueError(
+                "prior measurement evidence does not contain the selected resume boundary"
+            )
+        return segments
+
+    @staticmethod
+    def _validated_measurement_counters(value: Any, label: str) -> dict[str, int | float]:
+        if not isinstance(value, dict):
+            raise ValueError(f"prior measurement evidence {label} counters are invalid")
+        optimizer_step = value.get("optimizer_step")
+        target_tokens = value.get("target_tokens")
+        elapsed_seconds = value.get("elapsed_seconds")
+        if (
+            isinstance(optimizer_step, bool)
+            or not isinstance(optimizer_step, int)
+            or optimizer_step < 0
+            or isinstance(target_tokens, bool)
+            or not isinstance(target_tokens, int)
+            or target_tokens < 0
+            or isinstance(elapsed_seconds, bool)
+            or not isinstance(elapsed_seconds, (int, float))
+            or not math.isfinite(float(elapsed_seconds))
+            or elapsed_seconds < 0
+        ):
+            raise ValueError(f"prior measurement evidence {label} counters are invalid")
+        return {
+            "optimizer_step": optimizer_step,
+            "target_tokens": target_tokens,
+            "elapsed_seconds": float(elapsed_seconds),
+        }
 
     def _event_trigger(self, prefix: str, epoch_end: bool) -> str:
         if epoch_end:
@@ -988,6 +1169,10 @@ class Trainer:
             "stream_cursor": self._stream_cursor_state(),
             "resolved_config": OmegaConf.to_container(self.cfg, resolve=True),
             "run_identity": dict(self.checkpoint_identity),
+            "measurement_evidence": {
+                "enabled": self._measurement_enabled,
+                "evidence_id": self._measurement_evidence_id,
+            },
         }
 
     def _restore_checkpoint(self, resume_path: str | Path) -> None:
@@ -1005,6 +1190,7 @@ class Trainer:
             "stream_cursor",
             "resolved_config",
             "run_identity",
+            "measurement_evidence",
         }
         missing = required.difference(state)
         if missing:
@@ -1018,6 +1204,27 @@ class Trainer:
             raise CheckpointCompatibilityError(
                 "checkpoint run/data/tokenizer identity differs from this run"
             )
+        resolved_config = state["resolved_config"]
+        if not isinstance(resolved_config, dict):
+            raise CheckpointCompatibilityError("checkpoint resolved config is invalid")
+        resume_measurement_config = resolved_config.get("measurement", {}) or {}
+        if not isinstance(resume_measurement_config, dict):
+            raise CheckpointCompatibilityError("checkpoint measurement config is invalid")
+        measurement_evidence = state["measurement_evidence"]
+        if not isinstance(measurement_evidence, dict):
+            raise CheckpointCompatibilityError("checkpoint measurement evidence state is invalid")
+        prior_measurement_enabled = measurement_evidence.get("enabled")
+        prior_measurement_id = measurement_evidence.get("evidence_id")
+        if (
+            not isinstance(prior_measurement_enabled, bool)
+            or prior_measurement_enabled != bool(resume_measurement_config.get("enabled", False))
+            or (
+                prior_measurement_enabled
+                and (not isinstance(prior_measurement_id, str) or not prior_measurement_id)
+            )
+            or (not prior_measurement_enabled and prior_measurement_id is not None)
+        ):
+            raise CheckpointCompatibilityError("checkpoint measurement evidence state is invalid")
         counters = state["counters"]
         if not isinstance(counters, dict):
             raise CheckpointCompatibilityError("checkpoint counters are invalid")
@@ -1066,6 +1273,8 @@ class Trainer:
         best = event_state.get("best_validation_loss")
         self._best_validation_loss = float(best) if best is not None else None
         restore_rng_state(state["rng"])
+        self._resume_measurement_config = dict(resume_measurement_config)
+        self._resume_measurement_evidence_id = prior_measurement_id
         self._resumed_from = resumed
         if resumed.rejected_paths:
             logger.warning(

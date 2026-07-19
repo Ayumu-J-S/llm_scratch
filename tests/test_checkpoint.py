@@ -93,7 +93,12 @@ def _state(step: int) -> dict[str, object]:
     return {"counters": {"optimizer_step": step, "target_tokens": step * 2, "elapsed_seconds": 0.0}}
 
 
-def _trainer(directory: Path, *, resume_path: str | Path | None = None) -> Trainer:
+def _trainer(
+    directory: Path,
+    *,
+    resume_path: str | Path | None = None,
+    measurement: dict[str, object] | None = None,
+) -> Trainer:
     model = TinyModel()
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.05, betas=(0.9, 0.95))
     scheduler = WarmupCosineScheduler(
@@ -122,6 +127,7 @@ def _trainer(directory: Path, *, resume_path: str | Path | None = None) -> Train
             },
             "artifacts": {"checkpoints_dir": "checkpoints", "keep_last_n": 2, "resume_path": None},
             "wandb": {"enabled": False},
+            "measurement": measurement or {"enabled": False},
         }
     )
     dataset = CursorDataset(total_batches=6)
@@ -185,6 +191,129 @@ def test_interrupted_resume_matches_uninterrupted_model_optimizer_scheduler_and_
     full_steps = [item for item in uninterrupted.metrics if item.get("event") == "step"]
     assert [item["train/loss_step"] for item in resumed_steps] == pytest.approx(
         [item["train/loss_step"] for item in full_steps[3:]], rel=0, abs=0
+    )
+
+
+def test_measurement_evidence_preserves_verified_segments_across_resume(tmp_path: Path):
+    checkpoint_dir = tmp_path / "checkpoints"
+    first_path = tmp_path / "first-measurement.json"
+    resumed_path = tmp_path / "resumed-measurement.json"
+    measurement = {
+        "enabled": True,
+        "warmup_optimizer_steps": 1,
+        "cuda_events": False,
+        "output_path": str(first_path),
+    }
+    _seed_all()
+    interrupted = _trainer(checkpoint_dir, measurement=measurement)
+    original_events = interrupted._run_events
+
+    def stop_after_verified_recovery(*, epoch_end: bool, train_loss: float | None = None) -> None:
+        original_events(epoch_end=epoch_end, train_loss=train_loss)
+        if interrupted.optimizer_step == 3 and not epoch_end:
+            raise InterruptedRun("simulated interruption with measurement evidence")
+
+    interrupted._run_events = stop_after_verified_recovery  # type: ignore[method-assign]
+    with pytest.raises(InterruptedRun, match="measurement evidence"):
+        interrupted.fit()
+
+    first_payload = json.loads(first_path.read_text(encoding="utf-8"))
+    assert first_payload["complete"] is False
+    assert len(first_payload["segments"]) == 1
+    first_segment = first_payload["segments"][0]
+    assert first_segment["complete"] is False
+    assert first_segment["end_counters"]["optimizer_step"] == 3
+
+    resumed_measurement = {
+        "enabled": True,
+        "warmup_optimizer_steps": 0,
+        "cuda_events": False,
+        "output_path": str(resumed_path),
+    }
+    _seed_all()
+    resumed = _trainer(
+        checkpoint_dir,
+        resume_path="latest",
+        measurement=resumed_measurement,
+    )
+    resumed.fit()
+
+    payload = json.loads(resumed_path.read_text(encoding="utf-8"))
+    assert payload["schema_version"] == 2
+    assert payload["complete"] is True
+    assert payload["segments"][0] == first_segment
+    assert len(payload["segments"]) == 2
+    suffix = payload["segments"][1]
+    assert suffix["segment_index"] == 1
+    assert suffix["start_counters"]["optimizer_step"] == 3
+    assert suffix["end_counters"]["optimizer_step"] == 6
+    assert suffix["resumed_from"]["counters"] == suffix["start_counters"]
+    assert suffix["resumed_from"]["prior_measurement"] == {
+        "status": "verified",
+        "path": str(first_path),
+    }
+    assert suffix["complete"] is True
+    suffix_steps = [
+        row["optimizer_step"]
+        for row in suffix["rows"]
+        if row["event"] == "optimizer_step"
+    ]
+    assert suffix_steps == [4, 5, 6]
+    assert json.loads(first_path.read_text(encoding="utf-8")) == first_payload
+
+
+@pytest.mark.parametrize("mismatch", ["identity", "evidence_chain", "resume_boundary"])
+def test_resume_rejects_mismatched_prior_measurement_evidence_before_training(
+    tmp_path: Path, mismatch: str
+):
+    checkpoint_dir = tmp_path / "checkpoints"
+    measurement_path = tmp_path / "measurement.json"
+    measurement = {
+        "enabled": True,
+        "warmup_optimizer_steps": 0,
+        "cuda_events": False,
+        "output_path": str(measurement_path),
+    }
+    _seed_all()
+    interrupted = _trainer(checkpoint_dir, measurement=measurement)
+    original_events = interrupted._run_events
+
+    def stop_after_verified_recovery(*, epoch_end: bool, train_loss: float | None = None) -> None:
+        original_events(epoch_end=epoch_end, train_loss=train_loss)
+        if interrupted.optimizer_step == 3 and not epoch_end:
+            raise InterruptedRun("simulated interruption before evidence mismatch")
+
+    interrupted._run_events = stop_after_verified_recovery  # type: ignore[method-assign]
+    with pytest.raises(InterruptedRun, match="evidence mismatch"):
+        interrupted.fit()
+
+    payload = json.loads(measurement_path.read_text(encoding="utf-8"))
+    if mismatch == "identity":
+        payload["checkpoint_identity"] = {"stale": True}
+        expected_error = "checkpoint identity"
+    elif mismatch == "evidence_chain":
+        payload["measurement_evidence_id"] = "unrelated-evidence-chain"
+        expected_error = "chain identity"
+    else:
+        checkpoint_row = next(
+            row
+            for row in payload["segments"][0]["rows"]
+            if row["event"] == "checkpoint" and row["optimizer_step"] == 3
+        )
+        checkpoint_row["event"] = "scheduled_log"
+        expected_error = "resume boundary"
+    measurement_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    _seed_all()
+    resumed = _trainer(checkpoint_dir, resume_path="latest", measurement=measurement)
+    parameters_before = [parameter.detach().clone() for parameter in resumed.model.parameters()]
+    with pytest.raises(ValueError, match=expected_error):
+        resumed.fit()
+
+    assert resumed.optimizer_step == 3
+    assert all(
+        torch.equal(before, after)
+        for before, after in zip(parameters_before, resumed.model.parameters(), strict=True)
     )
 
 

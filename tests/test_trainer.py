@@ -214,9 +214,13 @@ def test_benchmark_measurement_is_explicit_and_flushed_once(tmp_path: Path):
     trainer.fit()
 
     payload = json.loads((tmp_path / "timing.json").read_text(encoding="utf-8"))
+    assert payload["schema_version"] == 2
     assert payload["complete"] is True
-    assert payload["cuda_events"] is False
-    steps = [row for row in payload["rows"] if row["event"] == "optimizer_step"]
+    assert len(payload["segments"]) == 1
+    segment = payload["segments"][0]
+    assert segment["complete"] is True
+    assert segment["measurement"]["cuda_events"] is False
+    steps = [row for row in segment["rows"] if row["event"] == "optimizer_step"]
     assert [row["optimizer_step"] for row in steps] == [1, 2]
     assert [row["warmup"] for row in steps] == [True, False]
     assert all(row["data_wait_calls"] == 1 for row in steps)
@@ -242,7 +246,8 @@ def test_benchmark_measurement_separates_validation_from_optimizer_steps(tmp_pat
 
     trainer.fit()
 
-    rows = json.loads((tmp_path / "timing.json").read_text(encoding="utf-8"))["rows"]
+    payload = json.loads((tmp_path / "timing.json").read_text(encoding="utf-8"))
+    rows = payload["segments"][0]["rows"]
     steps = [row for row in rows if row["event"] == "optimizer_step"]
     validations = [row for row in rows if row["event"] == "validation"]
     assert len(steps) == len(validations) == 2
