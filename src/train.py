@@ -172,6 +172,10 @@ def build_streaming_dataloader(
     stream_config["require_manifests"] = True
     stream_config["tokenizer"] = build_tokenizer_config(cfg)
     stream_config["seed"] = base_seed + (0 if split_name == "train" else 1)
+    # Validation needs source attribution for token-weighted per-corpus scores.
+    # The factory creates a fresh deterministic stream for every score pass.
+    if split_name == "validation":
+        stream_config["preserve_metadata"] = True
     return create_streaming_token_dataloader(
         config=stream_config,
         sequence_length=cfg.training.sequence_length,
@@ -182,6 +186,51 @@ def build_streaming_dataloader(
         generator=dataloader_generator(base_seed, stream=split_name),
         worker_init_fn=dataloader_worker_init_fn,
     )
+
+
+def build_validation_loader_factory(
+    cfg: DictConfig,
+    *,
+    tokenizer=None,
+    device: torch.device | None = None,
+):
+    """Return a fresh fixed-window validation loader for each scoring event."""
+
+    data_mode = cfg.data.get("mode")
+    if data_mode == "streaming":
+        return lambda: build_streaming_dataloader(cfg, "validation", device=device)
+    if data_mode != "memorization_smoke":
+        raise ValueError("data.mode must be either 'memorization_smoke' or 'streaming'")
+    if tokenizer is None:
+        tokenizer = CanonicalTokenizer.from_config(cfg.tokenizer)
+    smoke_manifest = resolve_memorization_smoke(cfg.data)
+    token_ids = resolved_manifest_token_ids(smoke_manifest, tokenizer)
+
+    def factory():
+        loader = create_autoregressive_dataloader(
+            token_ids=list(token_ids),
+            seq_len=cfg.training.sequence_length,
+            batch_size=cfg.training.batch_size,
+            shuffle=False,
+            generator=dataloader_generator(int(cfg.reproducibility.seed), stream="validation"),
+            worker_init_fn=dataloader_worker_init_fn,
+        )
+        # Map-style memorization smoke has no stream dataset object, but its
+        # manifest remains part of the evaluation identity.
+        loader.dataset.resolved_manifests = {smoke_manifest.name: smoke_manifest}
+        loader.dataset.config = {
+            "datasets": [
+                {
+                    "name": smoke_manifest.name,
+                    "type": "manifest",
+                    "expected_fingerprint": smoke_manifest.manifest_fingerprint,
+                    "selection": smoke_manifest.selection,
+                }
+            ]
+        }
+        return loader
+
+    return factory
 
 
 def validate_streaming_dataloaders(train_loader, validation_loader) -> None:
@@ -273,7 +322,6 @@ def prepare_trainer(cfg: DictConfig, *, run_dir: Path | None = None) -> Trainer:
     if data_mode == "memorization_smoke":
         assert smoke_manifest is not None
         train_token_ids = resolved_manifest_token_ids(smoke_manifest, tokenizer)
-        validation_token_ids = list(train_token_ids)
         logger.info(
             "Explicit memorization smoke uses manifest {} for both train and validation",
             smoke_manifest.manifest_fingerprint,
@@ -288,19 +336,16 @@ def prepare_trainer(cfg: DictConfig, *, run_dir: Path | None = None) -> Trainer:
             generator=dataloader_generator(int(cfg.reproducibility.seed), stream="train"),
             worker_init_fn=dataloader_worker_init_fn,
         )
-        validation_loader = create_autoregressive_dataloader(
-            token_ids=validation_token_ids,
-            seq_len=cfg.training.sequence_length,
-            batch_size=cfg.training.batch_size,
-            shuffle=False,
-            generator=dataloader_generator(int(cfg.reproducibility.seed), stream="validation"),
-            worker_init_fn=dataloader_worker_init_fn,
+        validation_loader_factory = build_validation_loader_factory(
+            cfg, tokenizer=tokenizer, device=device
         )
+        validation_loader = validation_loader_factory()
     elif data_mode == "streaming":
         logger.info("Building streaming causal-LM dataloaders...")
         train_loader = build_streaming_dataloader(cfg, "train", device=device)
         validation_loader = build_streaming_dataloader(cfg, "validation", device=device)
         validate_streaming_dataloaders(train_loader, validation_loader)
+        validation_loader_factory = build_validation_loader_factory(cfg, device=device)
     else:
         raise ValueError("data.mode must be either 'memorization_smoke' or 'streaming'")
 
@@ -351,7 +396,7 @@ def prepare_trainer(cfg: DictConfig, *, run_dir: Path | None = None) -> Trainer:
         optimizer=optimizer,
         scheduler=scheduler,
         train_loader=train_loader,
-        validation_loader=validation_loader,
+        validation_loader_factory=validation_loader_factory,
         checkpoint_dir=checkpoint_dir,
         cfg=cfg,
         device=device,

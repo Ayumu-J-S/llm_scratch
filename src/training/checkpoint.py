@@ -20,7 +20,7 @@ import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, BinaryIO
 
 import numpy as np
 import torch
@@ -80,6 +80,14 @@ class CheckpointWriteMeasurement:
         return self.size_bytes / self.write_seconds if self.write_seconds > 0 else float("inf")
 
 
+@dataclass(frozen=True)
+class LoadedCheckpoint:
+    """A verified payload and physical identity captured through one open file."""
+
+    payload: dict[str, Any]
+    physical_identity: dict[str, Any]
+
+
 def capture_rng_state() -> dict[str, Any]:
     """Capture every process RNG that can affect a resumed single-process run."""
 
@@ -124,11 +132,6 @@ def build_checkpoint_identity(
     """
 
     config = _plain_config(cfg)
-    artifacts = config.get("artifacts")
-    if isinstance(artifacts, dict):
-        artifacts = copy.deepcopy(artifacts)
-        artifacts.pop("resume_path", None)
-        config["artifacts"] = artifacts
 
     run_manifest: dict[str, Any] = {}
     if run_manifest_path is not None:
@@ -150,9 +153,17 @@ def build_checkpoint_identity(
         for item in data
         if isinstance(item, Mapping) and item.get("fingerprint") is not None
     ]
+    configured_data_fingerprints = configured_manifest_fingerprints(config)
+    if run_manifest_path is not None and data_fingerprints != configured_data_fingerprints:
+        if data_fingerprints or configured_data_fingerprints:
+            raise CheckpointError(
+                "configured and captured data manifest fingerprints are out of order or differ"
+            )
+    if configured_data_fingerprints:
+        data_fingerprints = configured_data_fingerprints
     identity = {
         "schema_version": CHECKPOINT_SCHEMA_VERSION,
-        "config_sha256": _sha256_json(config),
+        "config_sha256": checkpoint_config_sha256(config),
         "model_config": copy.deepcopy(config.get("model", {})),
         "tokenizer_fingerprint": tokenizer.get("fingerprint")
         if isinstance(tokenizer, Mapping)
@@ -181,6 +192,100 @@ def build_checkpoint_identity(
         identity["git_sha"] = git["sha"]
         identity["lock_sha256"] = lock["sha256"]
     return identity
+
+
+def checkpoint_config_sha256(cfg: DictConfig | Mapping[str, Any]) -> str:
+    """Hash a resolved config using the checkpoint identity's one exclusion."""
+
+    config = _plain_config(cfg)
+    artifacts = config.get("artifacts")
+    if isinstance(artifacts, dict):
+        artifacts = copy.deepcopy(artifacts)
+        artifacts.pop("resume_path", None)
+        config["artifacts"] = artifacts
+    return _sha256_json(config)
+
+
+def configured_manifest_fingerprints(cfg: DictConfig | Mapping[str, Any]) -> list[str]:
+    """Return configured manifest fingerprints in train-then-validation order."""
+
+    config = _plain_config(cfg)
+    data = config.get("data", {})
+    if not isinstance(data, Mapping):
+        return []
+    if data.get("mode") == "memorization_smoke":
+        smoke = data.get("memorization", {})
+        fingerprint = smoke.get("expected_fingerprint") if isinstance(smoke, Mapping) else None
+        return [str(fingerprint)] if fingerprint else []
+    if data.get("mode") != "streaming":
+        return []
+
+    result: list[str] = []
+    streaming = data.get("streaming", {})
+    if not isinstance(streaming, Mapping):
+        return result
+    for split_name in ("train", "validation"):
+        split = streaming.get(split_name, {})
+        if not isinstance(split, Mapping):
+            continue
+        sources = split.get("sources", split.get("datasets", []))
+        if not isinstance(sources, list):
+            continue
+        for source in sources:
+            if not isinstance(source, Mapping):
+                continue
+            source_type = source.get("type", source.get("source", "hf"))
+            fingerprint = source.get("expected_fingerprint")
+            if source_type == "manifest" and fingerprint:
+                result.append(str(fingerprint))
+    return result
+
+
+def verify_checkpoint_config_identity(
+    state: Mapping[str, Any], identity: Mapping[str, Any]
+) -> None:
+    """Prove that a full-state checkpoint config belongs to its envelope."""
+
+    resolved_config = state.get("resolved_config")
+    expected = identity.get("config_sha256")
+    if not isinstance(resolved_config, Mapping) or not isinstance(expected, str):
+        raise CheckpointVerificationError(
+            "full-state checkpoint requires resolved_config and identity.config_sha256"
+        )
+    actual = checkpoint_config_sha256(resolved_config)
+    if actual != expected:
+        raise CheckpointCompatibilityError(
+            "checkpoint resolved_config does not match identity.config_sha256"
+        )
+    expected_data = identity.get("data_fingerprints")
+    configured_data = configured_manifest_fingerprints(resolved_config)
+    if expected_data != configured_data:
+        raise CheckpointCompatibilityError(
+            "checkpoint resolved_config data manifests do not match identity.data_fingerprints"
+        )
+
+
+def build_logical_checkpoint_identity(
+    checkpoint_identity: Mapping[str, Any], counters: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Build the logical model identity shared by training and evaluation."""
+
+    optimizer_step = counters.get("optimizer_step")
+    target_tokens = counters.get("target_tokens")
+    if (
+        isinstance(optimizer_step, bool)
+        or not isinstance(optimizer_step, int)
+        or optimizer_step < 0
+        or isinstance(target_tokens, bool)
+        or not isinstance(target_tokens, int)
+        or target_tokens < 0
+    ):
+        raise CheckpointVerificationError("logical checkpoint counters are invalid")
+    return {
+        "checkpoint_identity": copy.deepcopy(dict(checkpoint_identity)),
+        "optimizer_step": optimizer_step,
+        "target_tokens": target_tokens,
+    }
 
 
 class CheckpointManager:
@@ -260,6 +365,8 @@ class CheckpointManager:
             raise CheckpointCompatibilityError(
                 "checkpoint payload identity differs from manager identity"
             )
+        if "resolved_config" in state:
+            verify_checkpoint_config_identity(state, self.identity)
         return {
             "schema_version": CHECKPOINT_SCHEMA_VERSION,
             "kind": kind,
@@ -322,6 +429,8 @@ class CheckpointManager:
             payload["state"], Mapping
         ):
             raise CheckpointVerificationError(f"checkpoint {path} has invalid identity or state")
+        if "resolved_config" in payload["state"]:
+            verify_checkpoint_config_identity(payload["state"], payload["identity"])
         _checkpoint_step(payload["state"])
         return payload
 
@@ -408,7 +517,7 @@ def _torch_load(path: Path) -> Any:
         return torch.load(path, map_location="cpu")
 
 
-def load_checkpoint_for_generation(path: str | Path) -> dict[str, Any]:
+def load_checkpoint_for_generation(path: str | Path) -> LoadedCheckpoint:
     """Load the verified inference-relevant part of a full-state checkpoint.
 
     Generation deliberately accepts only repository checkpoint files.  The
@@ -417,16 +526,43 @@ def load_checkpoint_for_generation(path: str | Path) -> dict[str, Any]:
     dimensions or tokenizer settings with CLI arguments.
     """
 
-    checkpoint_path = Path(path)
-    if not checkpoint_path.is_file():
+    checkpoint_path = Path(path).resolve()
+    try:
+        with checkpoint_path.open("rb") as handle:
+            stat = os.fstat(handle.fileno())
+            digest = hashlib.sha256()
+            size_bytes = 0
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+                size_bytes += len(chunk)
+            if size_bytes != stat.st_size:
+                raise CheckpointVerificationError(
+                    f"checkpoint {checkpoint_path} changed while its identity was captured"
+                )
+            if size_bytes == 0:
+                raise CheckpointVerificationError(f"checkpoint {checkpoint_path} is empty")
+            physical_identity = {
+                "path": str(checkpoint_path),
+                "sha256": digest.hexdigest(),
+                "size_bytes": size_bytes,
+                "device": stat.st_dev,
+                "inode": stat.st_ino,
+            }
+            handle.seek(0)
+            try:
+                payload = _torch_load_handle(handle)
+            except Exception as error:  # Torch exposes several format-specific error types.
+                raise CheckpointVerificationError(
+                    f"unable to read checkpoint {checkpoint_path}: {error}"
+                ) from error
+            final_stat = os.fstat(handle.fileno())
+            if final_stat.st_size != stat.st_size or final_stat.st_mtime_ns != stat.st_mtime_ns:
+                raise CheckpointVerificationError(
+                    f"checkpoint {checkpoint_path} changed while it was loaded"
+                )
+    except OSError as error:
         raise CheckpointVerificationError(
             f"generation checkpoint does not exist or is not a file: {checkpoint_path}"
-        )
-    try:
-        payload = _torch_load(checkpoint_path)
-    except Exception as error:  # torch exposes several format-specific error types.
-        raise CheckpointVerificationError(
-            f"unable to read checkpoint {checkpoint_path}: {error}"
         ) from error
     if not isinstance(payload, dict):
         raise CheckpointVerificationError(f"checkpoint {checkpoint_path} is not a mapping")
@@ -463,11 +599,22 @@ def load_checkpoint_for_generation(path: str | Path) -> dict[str, Any]:
         raise CheckpointVerificationError("checkpoint resolved_config must be a mapping")
     if not isinstance(state["run_identity"], Mapping):
         raise CheckpointVerificationError("checkpoint run_identity must be a mapping")
+    verify_checkpoint_config_identity(state, identity)
     if dict(state["run_identity"]) != dict(identity):
         raise CheckpointCompatibilityError(
             "checkpoint envelope identity differs from its full-state run_identity"
         )
-    return payload
+    return LoadedCheckpoint(payload=payload, physical_identity=physical_identity)
+
+
+def _torch_load_handle(handle: BinaryIO) -> Any:
+    """Deserialize from the same open checkpoint file used to hash its bytes."""
+
+    try:
+        return torch.load(handle, map_location="cpu", weights_only=False)
+    except TypeError:  # Older PyTorch does not expose weights_only.
+        handle.seek(0)
+        return torch.load(handle, map_location="cpu")
 
 
 def _fsync_file(path: Path) -> None:

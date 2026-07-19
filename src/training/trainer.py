@@ -12,7 +12,7 @@ import math
 import re
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import torch
 import torch.nn.functional as F
@@ -21,12 +21,15 @@ from loguru import logger
 from omegaconf import DictConfig, OmegaConf
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
+from evaluation.scoring import CausalLMScorer, EvaluationResult
 from training.checkpoint import (
     CheckpointCompatibilityError,
     CheckpointManager,
     ResumeCheckpoint,
+    build_logical_checkpoint_identity,
     build_checkpoint_identity,
     capture_rng_state,
+    configured_manifest_fingerprints,
     require_exact_stream_resume_state,
     restore_rng_state,
 )
@@ -49,7 +52,7 @@ class Trainer:
         optimizer,
         scheduler,
         train_loader,
-        validation_loader,
+        validation_loader_factory: Callable[[], Any],
         checkpoint_dir: Path,
         cfg: DictConfig,
         device: torch.device,
@@ -60,7 +63,7 @@ class Trainer:
         self.optimizer = optimizer
         self.scheduler = scheduler
         self.train_loader = train_loader
-        self.validation_loader = validation_loader
+        self.validation_loader_factory = validation_loader_factory
         self.checkpoint_dir = Path(checkpoint_dir)
         self.cfg = cfg
         self.device = device
@@ -80,6 +83,27 @@ class Trainer:
         self._last_log_step: int | None = None
         self._last_token_event_boundary: dict[str, int] = {}
         self._start_time: float | None = None
+        measurement = self.cfg.get("measurement", {}) or {}
+        self._measurement_enabled = bool(measurement.get("enabled", False))
+        self._measurement_warmup_steps = int(measurement.get("warmup_optimizer_steps", 10))
+        self._measurement_cuda_events = bool(
+            self._measurement_enabled
+            and measurement.get("cuda_events", True)
+            and self.device.type == "cuda"
+        )
+        configured_measurement_path = measurement.get("output_path")
+        measurement_path = (
+            Path(configured_measurement_path)
+            if configured_measurement_path
+            else self.checkpoint_dir / "measurement.json"
+        )
+        self._measurement_path = (
+            measurement_path
+            if measurement_path.is_absolute() or not configured_measurement_path
+            else self.checkpoint_dir / measurement_path
+        )
+        self._measurement_rows: list[dict[str, Any]] = []
+        self._measurement_completed = False
 
         self.max_steps = self._positive_budget("max_steps")
         self.max_tokens = self._positive_budget("max_tokens")
@@ -112,6 +136,11 @@ class Trainer:
         self.resume_path = Path(resume_path) if resume_path is not None else configured_resume
         self._resumed_from: ResumeCheckpoint | None = None
         self._best_validation_loss: float | None = None
+        self.validation_scorer = CausalLMScorer(
+            device=self.device,
+            precision=self.precision,
+            ignore_index=int(self._training_value("ignore_index", -100)),
+        )
         if self.resume_path is not None:
             self._restore_checkpoint(self.resume_path)
 
@@ -132,6 +161,8 @@ class Trainer:
         self.run = self._init_wandb()
         if self._resumed_from is None:
             self._reset_local_metrics()
+        self._measurement_rows.clear()
+        self._measurement_completed = False
         self._start_time = time.monotonic() - self.elapsed_seconds
         saw_batch = False
 
@@ -148,10 +179,18 @@ class Trainer:
                 try:
                     while not self._budget_reached():
                         self._update_elapsed()
+                        step_started = time.perf_counter() if self._measurement_enabled else None
+                        wall_start_unix_ns = time.time_ns() if self._measurement_enabled else None
+                        if self._measurement_cuda_events:
+                            torch.cuda.reset_peak_memory_stats(self.device)
+                        wait_started = time.perf_counter() if self._measurement_enabled else None
                         try:
                             batch = next(iterator)
                         except StopIteration:
                             break
+                        initial_data_wait_seconds = (
+                            time.perf_counter() - wait_started if wait_started is not None else 0.0
+                        )
                         batch_index += 1
                         (
                             loss_sum,
@@ -160,11 +199,15 @@ class Trainer:
                             gradient_norm,
                             clipped,
                             learning_rate_used,
+                            step_timing,
                         ) = self._train_update(
                             batch,
                             iterator=iterator,
                             first_batch_index=batch_index,
                         )
+                        if step_timing is not None:
+                            step_timing["host_seconds"]["data_wait"] += initial_data_wait_seconds
+                            step_timing["data_wait_calls"] += 1
                         batch_index += micro_batches - 1
                         if token_count == 0:
                             break
@@ -172,6 +215,7 @@ class Trainer:
                         epoch_loss_sum += loss_sum
                         epoch_tokens += token_count
                         self._update_elapsed()
+                        metrics_started = time.perf_counter() if self._measurement_enabled else None
                         self._record_step_metrics(
                             loss_sum / token_count,
                             token_count,
@@ -180,6 +224,17 @@ class Trainer:
                             clipped=clipped,
                             learning_rate_used=learning_rate_used,
                         )
+                        if step_timing is not None:
+                            step_timing["host_seconds"]["step_metrics"] += (
+                                time.perf_counter() - metrics_started
+                            )
+                            self._finish_step_measurement(
+                                step_timing,
+                                step_started=step_started,
+                                wall_start_unix_ns=wall_start_unix_ns,
+                                target_tokens_step=token_count,
+                                micro_batches=micro_batches,
+                            )
                         self._run_events(epoch_end=False)
                         if self._budget_reached():
                             break
@@ -214,8 +269,11 @@ class Trainer:
                     validation_loss = self._latest_validation_loss
                     if isinstance(self.scheduler, ReduceLROnPlateau):
                         if validation_loss is None:
-                            validation_loss = self._evaluate()
-                            self._record_validation_metrics(validation_loss)
+                            validation_result = self._evaluate()
+                            self._update_elapsed()
+                            validation_loss = validation_result.nll
+                            self._latest_validation_loss = validation_loss
+                            self._record_validation_metrics(validation_result)
                         self._step_scheduler(validation_loss)
                     else:
                         self._step_scheduler()
@@ -226,7 +284,9 @@ class Trainer:
             if not saw_batch:
                 raise ValueError("training loader is empty; no optimizer steps were taken")
             self._update_elapsed()
+            final_checkpoint_started = time.perf_counter()
             final_path = self._save_final_checkpoint()
+            final_checkpoint_seconds = time.perf_counter() - final_checkpoint_started
             self._record_metrics(
                 {
                     "event": "final_checkpoint",
@@ -238,8 +298,20 @@ class Trainer:
                 },
                 send_to_wandb=False,
             )
+            if self._measurement_enabled:
+                self._measurement_rows.append(
+                    {
+                        "event": "final_checkpoint",
+                        "optimizer_step": self.optimizer_step,
+                        "target_tokens": self.target_tokens,
+                        "checkpoint_seconds": final_checkpoint_seconds,
+                        **self._checkpoint_measurement_metrics(),
+                    }
+                )
+                self._measurement_completed = True
             return list(self.metrics)
         finally:
+            self._flush_measurements()
             if self.run is not None:
                 self.run.finish()
                 self.run = None
@@ -250,7 +322,7 @@ class Trainer:
         *,
         iterator,
         first_batch_index: int,
-    ) -> tuple[float, int, int, float, bool, float]:
+    ) -> tuple[float, int, int, float, bool, float, dict[str, Any] | None]:
         """Accumulate a token-weighted gradient and perform one optimizer update."""
 
         ignore_index = int(self._training_value("ignore_index", -100))
@@ -261,12 +333,21 @@ class Trainer:
         micro_batches = 0
         batch = first_batch
         batch_index = first_batch_index
+        timing = self._new_step_measurement() if self._measurement_enabled else None
 
         while micro_batches < self.gradient_accumulation_steps:
+            phase = self._start_measurement_phase() if timing is not None else None
             input_batch = batch["inputs"].to(self.device)
             label_batch = batch["labels"].to(self.device)
+            if timing is not None:
+                self._end_measurement_phase(timing, "host_device_prepare", phase)
+            phase = self._start_measurement_phase() if timing is not None else None
             with autocast_context(self.device, self.precision):
                 logits = self.model(input_batch)
+            if timing is not None:
+                self._end_measurement_phase(timing, "forward", phase)
+            phase = self._start_measurement_phase() if timing is not None else None
+            with autocast_context(self.device, self.precision):
                 flat_labels = label_batch.reshape(-1)
                 flat_losses = F.cross_entropy(
                     logits.reshape(-1, logits.size(-1)),
@@ -274,6 +355,8 @@ class Trainer:
                     reduction="none",
                     ignore_index=ignore_index,
                 )
+            if timing is not None:
+                self._end_measurement_phase(timing, "loss", phase)
             valid_indices = torch.nonzero(flat_labels != ignore_index, as_tuple=False).flatten()
             if valid_indices.numel() == 0:
                 raise ValueError("training batch contains zero target tokens")
@@ -289,7 +372,10 @@ class Trainer:
             if not torch.isfinite(micro_loss):
                 self._record_numeric_failure("loss", batch_index)
                 raise FloatingPointError(self._numeric_failure_message("loss", batch_index))
+            phase = self._start_measurement_phase() if timing is not None else None
             selected_loss_sum.backward()
+            if timing is not None:
+                self._end_measurement_phase(timing, "backward", phase)
             total_loss_sum = (
                 selected_loss_sum.detach()
                 if total_loss_sum is None
@@ -302,87 +388,94 @@ class Trainer:
                 break
             if micro_batches == self.gradient_accumulation_steps:
                 break
+            wait_started = time.perf_counter() if timing is not None else None
             try:
                 batch = next(iterator)
             except StopIteration:
                 break
+            if timing is not None:
+                timing["host_seconds"]["data_wait"] += time.perf_counter() - wait_started
+                timing["data_wait_calls"] += 1
             batch_index += 1
 
         if total_tokens == 0 or total_loss_sum is None:
             self.optimizer.zero_grad(set_to_none=True)
-            return 0.0, 0, micro_batches, 0.0, False, learning_rate_used
+            return 0.0, 0, micro_batches, 0.0, False, learning_rate_used, timing
 
+        phase = self._start_measurement_phase() if timing is not None else None
         self._scale_gradients(1.0 / total_tokens)
+        if timing is not None:
+            self._end_measurement_phase(timing, "gradient_scale", phase)
+        phase = self._start_measurement_phase() if timing is not None else None
         if not self._gradients_are_finite():
             self._record_numeric_failure("gradients", batch_index)
             raise FloatingPointError(self._numeric_failure_message("gradients", batch_index))
+        if timing is not None:
+            self._end_measurement_phase(timing, "gradient_finite_check", phase)
+        phase = self._start_measurement_phase() if timing is not None else None
         gradient_norm = self._global_gradient_norm()
         if not torch.isfinite(gradient_norm):
             self._record_numeric_failure("gradient_norm", batch_index)
             raise FloatingPointError(self._numeric_failure_message("gradient_norm", batch_index))
         gradient_norm_value = float(gradient_norm.item())
+        if timing is not None:
+            self._end_measurement_phase(timing, "gradient_norm_and_scalar_read", phase)
         clipped = self.max_grad_norm is not None and gradient_norm_value > self.max_grad_norm
+        phase = self._start_measurement_phase() if timing is not None else None
         if self.max_grad_norm is not None:
             torch.nn.utils.clip_grad_norm_(
                 self.model.parameters(), self.max_grad_norm, error_if_nonfinite=False
             )
+        if timing is not None:
+            self._end_measurement_phase(timing, "clipping", phase)
+        phase = self._start_measurement_phase() if timing is not None else None
         self.optimizer.step()
+        if timing is not None:
+            self._end_measurement_phase(timing, "optimizer", phase)
+        phase = self._start_measurement_phase() if timing is not None else None
         if not self._parameters_are_finite():
             self._record_numeric_failure("parameters", batch_index)
             raise FloatingPointError(self._numeric_failure_message("parameters", batch_index))
+        if timing is not None:
+            self._end_measurement_phase(timing, "parameter_finite_check", phase)
         self.optimizer_step += 1
         self.target_tokens += total_tokens
         if self.scheduler is not None and self.scheduler_interval == "step":
             # A scheduler observes the update only after optimizer.step and
             # after the authoritative step counter advances.
+            phase = self._start_measurement_phase() if timing is not None else None
             self._step_scheduler()
+            if timing is not None:
+                self._end_measurement_phase(timing, "scheduler", phase)
+        phase = self._start_measurement_phase() if timing is not None else None
+        loss_sum_value = float(total_loss_sum.item())
+        if timing is not None:
+            self._end_measurement_phase(timing, "loss_scalar_read", phase)
         return (
-            float(total_loss_sum.item()),
+            loss_sum_value,
             total_tokens,
             micro_batches,
             gradient_norm_value,
             clipped,
             learning_rate_used,
+            timing,
         )
 
-    def _evaluate(self) -> float:
-        self.model.eval()
-        total_loss = 0.0
-        total_tokens = 0
-        ignore_index = int(self._training_value("ignore_index", -100))
+    def _evaluate(self) -> EvaluationResult:
+        """Score one fresh fixed validation window pass through the shared scorer."""
+
+        namespace = "memorization" if self._is_memorization_run() else "validation"
         try:
-            with torch.no_grad():
-                for batch_index, batch in enumerate(self.validation_loader, start=1):
-                    input_batch = batch["inputs"].to(self.device)
-                    label_batch = batch["labels"].to(self.device)
-                    with autocast_context(self.device, self.precision):
-                        logits = self.model(input_batch)
-                        flat_labels = label_batch.reshape(-1)
-                        losses = F.cross_entropy(
-                            logits.reshape(-1, logits.size(-1)),
-                            flat_labels,
-                            reduction="none",
-                            ignore_index=ignore_index,
-                        )
-                    if not torch.isfinite(losses).all():
-                        self._record_numeric_failure("validation", batch_index)
-                        raise FloatingPointError(
-                            self._numeric_failure_message("validation", batch_index)
-                        )
-                    valid = flat_labels != ignore_index
-                    count = int(valid.sum().item())
-                    if count:
-                        total_loss += float(losses[valid].sum().item())
-                        total_tokens += count
-        finally:
-            self.model.train()
-        if total_tokens == 0:
-            raise ValueError("validation loader is empty or contains zero target tokens")
-        result = total_loss / total_tokens
-        if not math.isfinite(result):
-            self._record_numeric_failure("validation", None)
-            raise FloatingPointError(self._numeric_failure_message("validation", None))
-        return result
+            return self.validation_scorer.score(
+                self.model,
+                self.validation_loader_factory,
+                namespace=namespace,
+                logical_checkpoint_identity=self._logical_checkpoint_identity(),
+                configured_data_fingerprints=configured_manifest_fingerprints(self.cfg),
+            )
+        except FloatingPointError as error:
+            self._record_numeric_failure("validation", getattr(error, "batch_index", None))
+            raise
 
     def _run_events(
         self,
@@ -399,24 +492,93 @@ class Trainer:
             "validation_every_n_steps", "validation_every_n_tokens", epoch_end
         )
         if should_validate and self._last_validation_step != step:
-            validation_loss = self._evaluate()
+            validation_event_started = time.perf_counter() if self._measurement_enabled else None
+            validation_wall_start_unix_ns = time.time_ns() if self._measurement_enabled else None
+            pre_boundary_sync_seconds = self._measurement_boundary_sync()
+            scoring_started = time.perf_counter() if self._measurement_enabled else None
+            validation_result = self._evaluate()
+            scoring_seconds = (
+                time.perf_counter() - scoring_started
+                if scoring_started is not None
+                else validation_result.pause_seconds
+            )
+            self._update_elapsed()
+            validation_loss = validation_result.nll
             self._latest_validation_loss = validation_loss
-            self._record_validation_metrics(validation_loss)
             self._last_validation_step = step
-            if self._best_validation_loss is None or validation_loss < self._best_validation_loss:
+            best_checkpoint_seconds = 0.0
+            best_checkpoint_written = False
+            best_checkpoint_measurement: dict[str, float | int] = {}
+            if not self._is_memorization_run() and (
+                self._best_validation_loss is None or validation_loss < self._best_validation_loss
+            ):
                 self._best_validation_loss = validation_loss
+                checkpoint_started = time.perf_counter()
                 best_path = self._save_best_checkpoint()
+                best_checkpoint_seconds = time.perf_counter() - checkpoint_started
+                best_checkpoint_written = True
+                best_checkpoint_measurement = self._checkpoint_measurement_metrics()
                 self._record_metrics(
                     {
                         "event": "best_checkpoint",
                         "optimizer_step": step,
                         "target_tokens": self.target_tokens,
                         "elapsed_seconds": self.elapsed_seconds,
-                        "validation/loss": validation_loss,
+                        f"{validation_result.namespace}/loss": validation_loss,
                         "checkpoint": str(best_path),
                         **self._checkpoint_measurement_metrics(),
                     },
                     send_to_wandb=False,
+                )
+            validation_metrics_started = time.perf_counter() if self._measurement_enabled else None
+            self._record_validation_metrics(validation_result)
+            validation_metrics_seconds = (
+                time.perf_counter() - validation_metrics_started
+                if validation_metrics_started is not None
+                else 0.0
+            )
+            if validation_event_started is not None:
+                post_boundary_sync_seconds = self._measurement_boundary_sync()
+                full_event_pause_seconds = time.perf_counter() - validation_event_started
+                attributed_seconds = (
+                    pre_boundary_sync_seconds
+                    + scoring_seconds
+                    + best_checkpoint_seconds
+                    + validation_metrics_seconds
+                    + post_boundary_sync_seconds
+                )
+                self._measurement_rows.append(
+                    {
+                        "event": "validation",
+                        "optimizer_step": step,
+                        "target_tokens": self.target_tokens,
+                        "trigger": self._event_trigger("validation", epoch_end),
+                        "wall_start_unix_ns": validation_wall_start_unix_ns,
+                        "wall_end_unix_ns": time.time_ns(),
+                        "pre_boundary_sync_seconds": pre_boundary_sync_seconds,
+                        "scoring_seconds": scoring_seconds,
+                        "best_checkpoint_written": best_checkpoint_written,
+                        "best_checkpoint_seconds": best_checkpoint_seconds,
+                        "best_checkpoint_write_seconds": best_checkpoint_measurement.get(
+                            "checkpoint/write_seconds", 0.0
+                        ),
+                        "best_checkpoint_verification_seconds": (
+                            best_checkpoint_measurement.get("checkpoint/verification_seconds", 0.0)
+                        ),
+                        "validation_metrics_seconds": validation_metrics_seconds,
+                        "post_boundary_sync_seconds": post_boundary_sync_seconds,
+                        "full_event_pause_seconds": full_event_pause_seconds,
+                        "unattributed_seconds": full_event_pause_seconds - attributed_seconds,
+                        "evaluated_windows": validation_result.evaluated_windows,
+                        "evaluated_target_tokens": validation_result.target_tokens,
+                        "nll": validation_result.nll,
+                        "manifest_identity": validation_result.manifest_identity,
+                        "logical_checkpoint_identity": (
+                            validation_result.logical_checkpoint_identity
+                        ),
+                        "evaluated_window_sha256": (validation_result.evaluated_window_sha256),
+                        "evaluated_token_sha256": validation_result.evaluated_token_sha256,
+                    }
                 )
 
         should_log = self._event_due("log_every_n_steps", "log_every_n_tokens", epoch_end)
@@ -429,13 +591,25 @@ class Trainer:
                 "elapsed_seconds": self.elapsed_seconds,
                 "optimizer/lr": get_learning_rate(self.optimizer),
             }
+            scheduled_log_started = time.perf_counter() if self._measurement_enabled else None
             self._record_metrics(values, send_to_wandb=True)
+            if scheduled_log_started is not None:
+                self._measurement_rows.append(
+                    {
+                        "event": "scheduled_log",
+                        "optimizer_step": step,
+                        "target_tokens": self.target_tokens,
+                        "scheduled_log_seconds": time.perf_counter() - scheduled_log_started,
+                    }
+                )
 
         should_save = self._event_due(
             "checkpoint_every_n_steps", "checkpoint_every_n_tokens", epoch_end
         )
         if should_save and self._last_checkpoint_step != step:
+            checkpoint_started = time.perf_counter()
             checkpoint_path = self._save_checkpoint()
+            checkpoint_seconds = time.perf_counter() - checkpoint_started
             self._last_checkpoint_step = step
             self._record_metrics(
                 {
@@ -448,6 +622,16 @@ class Trainer:
                 },
                 send_to_wandb=False,
             )
+            if self._measurement_enabled:
+                self._measurement_rows.append(
+                    {
+                        "event": "checkpoint",
+                        "optimizer_step": step,
+                        "target_tokens": self.target_tokens,
+                        "checkpoint_seconds": checkpoint_seconds,
+                        **self._checkpoint_measurement_metrics(),
+                    }
+                )
 
         # Milestones are retention-class checkpoints, not aliases for the
         # rotating recovery file or a W&B-only implementation detail.
@@ -456,7 +640,9 @@ class Trainer:
         )
         milestone_path: Path | None = None
         if milestone_due and self._last_milestone_step != step:
+            milestone_started = time.perf_counter()
             milestone_path = self._save_milestone_checkpoint()
+            milestone_seconds = time.perf_counter() - milestone_started
             self._last_milestone_step = step
             self._record_metrics(
                 {
@@ -469,6 +655,16 @@ class Trainer:
                 },
                 send_to_wandb=False,
             )
+            if self._measurement_enabled:
+                self._measurement_rows.append(
+                    {
+                        "event": "milestone",
+                        "optimizer_step": step,
+                        "target_tokens": self.target_tokens,
+                        "checkpoint_seconds": milestone_seconds,
+                        **self._checkpoint_measurement_metrics(),
+                    }
+                )
         if milestone_due and self.run is not None:
             assert milestone_path is not None
             self._log_model_artifact(
@@ -506,18 +702,46 @@ class Trainer:
             send_to_wandb=False,
         )
 
-    def _record_validation_metrics(self, validation_loss: float) -> None:
-        self._record_metrics(
-            {
-                "event": "validation",
-                "optimizer_step": self.optimizer_step,
-                "target_tokens": self.target_tokens,
-                "elapsed_seconds": self.elapsed_seconds,
-                "validation/loss": validation_loss,
-                "validation/perplexity": _perplexity(validation_loss),
+    def _record_validation_metrics(self, validation_result: EvaluationResult) -> None:
+        namespace = validation_result.namespace
+        values: dict[str, Any] = {
+            "event": namespace,
+            "optimizer_step": self.optimizer_step,
+            "target_tokens": self.target_tokens,
+            "elapsed_seconds": self.elapsed_seconds,
+            f"{namespace}/loss": validation_result.nll,
+            f"{namespace}/perplexity": validation_result.perplexity,
+            f"{namespace}/target_tokens": validation_result.target_tokens,
+            f"{namespace}/evaluated_windows": validation_result.evaluated_windows,
+            f"{namespace}/evaluated_window_sha256": validation_result.evaluated_window_sha256,
+            f"{namespace}/evaluated_token_sha256": validation_result.evaluated_token_sha256,
+            f"{namespace}/pause_seconds": validation_result.pause_seconds,
+            f"{namespace}/timing": validation_result.timing,
+            f"{namespace}/evaluated_targets_per_second": (
+                validation_result.evaluated_targets_per_second
+            ),
+            f"{namespace}/manifest_identity": validation_result.manifest_identity,
+            f"{namespace}/logical_checkpoint_identity": (
+                validation_result.logical_checkpoint_identity
+            ),
+            f"{namespace}/physical_checkpoint_identity": (
+                validation_result.physical_checkpoint_identity
+            ),
+            f"{namespace}/by_corpus": {
+                name: score.as_dict() for name, score in sorted(validation_result.by_corpus.items())
             },
-            send_to_wandb=True,
-        )
+        }
+        self._record_metrics(values, send_to_wandb=True)
+
+    def _is_memorization_run(self) -> bool:
+        data = self.cfg.get("data", {}) or {}
+        profile = self.cfg.get("profile", {}) or {}
+        return data.get("mode") == "memorization_smoke" or str(
+            profile.get("purpose", "")
+        ).startswith("memorization")
+
+    def _logical_checkpoint_identity(self) -> dict[str, Any]:
+        return build_logical_checkpoint_identity(self.checkpoint_identity, self.counters)
 
     def _record_metrics(self, values: dict[str, Any], *, send_to_wandb: bool) -> None:
         record = {key: value for key, value in values.items() if value is not None}
@@ -536,6 +760,134 @@ class Trainer:
         temporary_path = metrics_path.with_name(f".{metrics_path.name}.tmp")
         temporary_path.write_text("", encoding="utf-8")
         temporary_path.replace(metrics_path)
+
+    def _new_step_measurement(self) -> dict[str, Any]:
+        phases = (
+            "data_wait",
+            "host_device_prepare",
+            "forward",
+            "loss",
+            "backward",
+            "gradient_scale",
+            "gradient_finite_check",
+            "gradient_norm_and_scalar_read",
+            "clipping",
+            "optimizer",
+            "parameter_finite_check",
+            "loss_scalar_read",
+            "scheduler",
+            "step_metrics",
+        )
+        return {
+            "host_seconds": dict.fromkeys(phases, 0.0),
+            "cuda_event_pairs": {},
+            "data_wait_calls": 0,
+        }
+
+    def _start_measurement_phase(
+        self,
+    ) -> tuple[float, torch.cuda.Event | None, torch.cuda.Event | None]:
+        started = time.perf_counter()
+        if not self._measurement_cuda_events:
+            return started, None, None
+        start_event = torch.cuda.Event(enable_timing=True)
+        end_event = torch.cuda.Event(enable_timing=True)
+        start_event.record()
+        return started, start_event, end_event
+
+    def _end_measurement_phase(
+        self,
+        timing: dict[str, Any] | None,
+        name: str,
+        phase: tuple[float, torch.cuda.Event | None, torch.cuda.Event | None] | None,
+    ) -> None:
+        if timing is None or phase is None:
+            return
+        started, start_event, end_event = phase
+        if end_event is not None:
+            end_event.record()
+            timing["cuda_event_pairs"].setdefault(name, []).append((start_event, end_event))
+        timing["host_seconds"][name] += time.perf_counter() - started
+
+    def _measurement_boundary_sync(self) -> float:
+        if not self._measurement_cuda_events:
+            return 0.0
+        started = time.perf_counter()
+        torch.cuda.synchronize(self.device)
+        return time.perf_counter() - started
+
+    def _finish_step_measurement(
+        self,
+        timing: dict[str, Any],
+        *,
+        step_started: float | None,
+        wall_start_unix_ns: int | None,
+        target_tokens_step: int,
+        micro_batches: int,
+    ) -> None:
+        if step_started is None or wall_start_unix_ns is None:
+            raise RuntimeError("enabled measurement is missing its step boundary")
+        boundary_sync_seconds = self._measurement_boundary_sync()
+        wall_end_unix_ns = time.time_ns()
+        step_wall_seconds = time.perf_counter() - step_started
+        cuda_milliseconds: dict[str, float] = {}
+        for name, pairs in timing.pop("cuda_event_pairs").items():
+            cuda_milliseconds[name] = sum(start.elapsed_time(end) for start, end in pairs)
+        host_seconds = timing["host_seconds"]
+        attributed_host_seconds = sum(host_seconds.values()) + boundary_sync_seconds
+        if self.device.type == "cuda":
+            allocated_bytes = int(torch.cuda.max_memory_allocated(self.device))
+            reserved_bytes = int(torch.cuda.max_memory_reserved(self.device))
+        else:
+            allocated_bytes = 0
+            reserved_bytes = 0
+        self._measurement_rows.append(
+            {
+                "event": "optimizer_step",
+                "optimizer_step": self.optimizer_step,
+                "target_tokens": self.target_tokens,
+                "target_tokens_step": target_tokens_step,
+                "micro_batches": micro_batches,
+                "warmup": self.optimizer_step <= self._measurement_warmup_steps,
+                "wall_start_unix_ns": wall_start_unix_ns,
+                "wall_end_unix_ns": wall_end_unix_ns,
+                "step_wall_seconds": step_wall_seconds,
+                "data_wait_calls": timing["data_wait_calls"],
+                "host_seconds": host_seconds,
+                "cuda_milliseconds": cuda_milliseconds,
+                "boundary_sync_seconds": boundary_sync_seconds,
+                "host_reconciliation_error_seconds": (step_wall_seconds - attributed_host_seconds),
+                "pytorch_allocated_bytes": allocated_bytes,
+                "pytorch_reserved_bytes": reserved_bytes,
+            }
+        )
+
+    def _flush_measurements(self) -> None:
+        if not self._measurement_enabled:
+            return
+        payload = {
+            "schema_version": 1,
+            "enabled": True,
+            "warmup_optimizer_steps": self._measurement_warmup_steps,
+            "cuda_events": self._measurement_cuda_events,
+            "device": str(self.device),
+            "complete": self._measurement_completed,
+            "rows": self._measurement_rows,
+        }
+        self._measurement_path.parent.mkdir(parents=True, exist_ok=True)
+        temporary_path = self._measurement_path.with_name(f".{self._measurement_path.name}.tmp")
+        temporary_path.write_text(
+            json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        temporary_path.replace(self._measurement_path)
+
+    def _event_trigger(self, prefix: str, epoch_end: bool) -> str:
+        if epoch_end:
+            return "epoch"
+        step_cadence = self._training_value(f"{prefix}_every_n_steps")
+        if step_cadence is not None and self.optimizer_step % int(step_cadence) == 0:
+            return "optimizer_step"
+        return "target_tokens"
 
     def _init_wandb(self):
         wandb_cfg = self.cfg.get("wandb")

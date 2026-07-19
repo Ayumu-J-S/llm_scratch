@@ -1,0 +1,219 @@
+{
+  "schema_version": 1,
+  "ticket": "VAL-001",
+  "evidence_kind": "matched_validation_off_on_dgx_r2",
+  "measured_code_commit": "21332488e8a1d2334cbb6e2d0593a77a598c1d01",
+  "post_measurement_cleanup_repair_commit": "0a138386a03e178a88b5ccca6334288b57188efb",
+  "result": "pass_with_measurement_notes",
+  "conditions": {
+    "hardware": {
+      "host": "gx10-02db",
+      "architecture": "aarch64",
+      "gpu": "NVIDIA GB10",
+      "compute_capability": [12, 1],
+      "kernel_driver": "580.159.03",
+      "bf16_supported": true,
+      "total_unified_memory_bytes_reported_by_torch": 130596048896
+    },
+    "container": {
+      "tag": "llm-scratch:env-001",
+      "image_id": "sha256:23a1bee69fe189e77105cdddeee9aeff6ef0763d58a691625fbfcab64efd1887",
+      "nvidia_release": "26.06",
+      "pytorch": "2.13.0a0+8145d630e8.nv26.06",
+      "cuda_runtime": "13.3",
+      "lock_sha256": "a02dec14fc9a20e5314eae368e9e22a289616791f55cd81b68ceadd25b71ad91"
+    },
+    "model": {
+      "parameter_count": 49535114,
+      "embed_size": 384,
+      "num_heads": 6,
+      "num_layers": 6,
+      "dropout": 0.1
+    },
+    "training": {
+      "profile": "pretrain_streaming",
+      "device": "cuda",
+      "precision": "bf16",
+      "optimizer_steps": 50,
+      "target_tokens": 102400,
+      "sequence_length": 8,
+      "micro_batch_size": 64,
+      "gradient_accumulation_steps": 4,
+      "effective_target_tokens_per_update": 2048,
+      "log_every_n_steps": 1,
+      "checkpoint_every_n_steps": 1000,
+      "milestone_every_n_steps": 1000,
+      "wandb_enabled": false,
+      "cache_state": "same warm DATA-004 cache mounted for both runs",
+      "cache_path": "/tmp/llm-scratch-data004-repair-cold-fee0f1a"
+    },
+    "tokenizer_fingerprint": "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b",
+    "manifests": {
+      "fineweb2_ja": {
+        "manifest_fingerprint": "2fc3eb60986c96fcb752b14d740dd5a3f7cea8b52bb5a13cb5834a1f805d6bba",
+        "dataset_fingerprint": "522b11e5e13d82180e6d47021b66d5262bc1b6fd60a26977444ebd7a8be740db"
+      },
+      "fineweb_en": {
+        "manifest_fingerprint": "626a1eb095e9089e5c62ee2df9c058ab7c6dfc54064eca5c13e4d84e65a8d60a",
+        "dataset_fingerprint": "928e21caa4b9647c682c65998f2706dd71dedf583f3a91b832ffb3602fa2af6f"
+      },
+      "split_policy_fingerprint": "5e39f1d90692fc67228ecca37cb4700a43fb1bd39c463069c35e42c90ae54127"
+    }
+  },
+  "commands": {
+    "common_train": "docker run --rm --gpus all --ipc=host --ulimit memlock=-1 --ulimit stack=67108864 --name <run-name> -v $PWD:/workspace:ro -v /tmp/llm-scratch-data004-repair-cold-fee0f1a:/cache -v <output>:/evidence -w /workspace llm-scratch:env-001 python src/train.py profile=pretrain_streaming runtime.device=cuda data.streaming.cache.dir=/cache training.max_steps=50 training.max_tokens=null training.max_time=null training.batch_size=64 training.sequence_length=8 training.gradient_accumulation_steps=4 training.log_every_n_steps=1 training.checkpoint_every_n_steps=1000 training.milestone_every_n_steps=1000 artifacts.checkpoints_dir=/evidence/checkpoints wandb.enabled=false hydra.run.dir=/evidence/hydra",
+    "validation_off_override": "training.validation_every_n_steps=1000",
+    "validation_on_override": "training.validation_every_n_steps=25",
+    "standalone": "docker run --rm --gpus all --ipc=host --ulimit memlock=-1 --ulimit stack=67108864 --name val001-r2-standalone-2133248 -v $PWD:/workspace:ro -v /tmp/llm-scratch-data004-repair-cold-fee0f1a:/cache -v /tmp/val001-r2-on-2133248:/evidence -w /workspace llm-scratch:env-001 python src/evaluate.py profile=evaluation evaluation.checkpoint_path=/evidence/checkpoints/best.pt evaluation.device=cuda evaluation.output_path=/evidence/standalone.json hydra.run.dir=/evidence/standalone-hydra"
+  },
+  "failed_attempts": [
+    {
+      "attempt": "container-side resource wrapper",
+      "command_difference": "prefixed the training command with /usr/bin/time -v inside the pinned image",
+      "outcome": "failed before training with exit code 127 because /usr/bin/time is absent from the image",
+      "decision": "retained as a failed attempt; used trainer metrics plus external docker/nvidia-smi sampling for the successful runs"
+    }
+  ],
+  "runs": {
+    "validation_off": {
+      "run_name": "val001-r2-off-2133248",
+      "output_path": "/tmp/val001-r2-off-2133248",
+      "resolved_config_sha256": "31bc8394779cb957008f6da08092f90c254b06e121e39cdec783b7f895c55cfb",
+      "run_manifest_sha256": "b4f0ac943a6f5c9b64523944f2ecdb5019246a968fa56fa4eb8f805df2c8800e",
+      "validation_events": 0,
+      "optimizer_steps": 50,
+      "target_tokens": 102400,
+      "step_50_elapsed_seconds": 29.46351902600145,
+      "step_time_seconds_steps_2_through_50": {
+        "count": 49,
+        "mean": 0.564690227857292,
+        "p50": 0.5087373050046153,
+        "p95": 0.8499926343967672,
+        "max": 1.2167042730143294
+      },
+      "final_checkpoint": {
+        "sha256": "cfac79e6d1a4a0ddb7fce132d78ff737e565a6f71f909c043f49b2b2cdbe0a0e",
+        "size_bytes": 594570400,
+        "pause_seconds": 1.910988609015476
+      },
+      "approximate_total_seconds_including_final_save": 31.44073670502985
+    },
+    "validation_on": {
+      "run_name": "val001-r2-on-2133248",
+      "output_path": "/tmp/val001-r2-on-2133248",
+      "resolved_config_sha256": "6d0d2b5d4b7f4ddeef96db50474df9364370fdbaf791603150418c71aa528b9a",
+      "run_manifest_sha256": "032e3305a1a7af4eb08d235e28bd7642ecef96ce22e72c8050959bcfc4a7bc98",
+      "validation_events": 2,
+      "validation_steps": [25, 50],
+      "optimizer_steps": 50,
+      "target_tokens": 102400,
+      "step_50_elapsed_before_second_validation_seconds": 53.197371051006485,
+      "training_only_step_time_seconds_steps_2_through_50_excluding_step_26": {
+        "count": 48,
+        "mean": 0.611238599,
+        "p50": 0.566095569,
+        "p95": 0.922973423,
+        "max": 1.29316386
+      },
+      "pause_adjusted_step_26_seconds": 0.700232904026052,
+      "validation_scoring_pauses_seconds": [
+        19.521761973999674,
+        19.514782431011554
+      ],
+      "validation_targets_per_second": [
+        3357.0740226873486,
+        3358.274694154657
+      ],
+      "best_checkpoint_pauses_seconds": [
+        1.8076729099848308,
+        2.355465961009031
+      ],
+      "combined_validation_and_best_checkpoint_pause_seconds": 43.19968327600509,
+      "recovery": {
+        "steps_20_through_25_mean_seconds": 0.5954880383311926,
+        "step_27_seconds": 0.586620335,
+        "steps_27_through_31_mean_seconds": 0.5777578911976888,
+        "steps_27_through_31_vs_pre_window_mean_percent": -2.9774,
+        "conclusion": "the first uncontaminated post-validation step returned to the immediate pre-validation timing range"
+      },
+      "best_checkpoint": {
+        "sha256": "0d48d810cd4657473c904b3cfd7e3a63174d2b7a3284248ad97ddbeb82f6ddea",
+        "size_bytes": 594570091
+      },
+      "final_checkpoint": {
+        "sha256": "3803bba98fc18bf542ac14bf6af213c8d39aac464f6a111da66797a86407a883",
+        "size_bytes": 594570400,
+        "pause_seconds": 2.413083840976469
+      },
+      "approximate_total_seconds_including_final_save": 77.66614845197182
+    }
+  },
+  "trajectory_isolation": {
+    "loss_trace_exact": true,
+    "max_absolute_loss_difference": 0.0,
+    "canonical_loss_trace_sha256": "c3e2bb0f155c413ac9250e7b297f365dfc758db330bf59dcbcd8e06bc35d1052",
+    "step_payloads_match_after_removing_elapsed_seconds": true,
+    "matched_fields": [
+      "optimizer_step",
+      "target_tokens",
+      "train/loss_step",
+      "optimizer/gradient_norm",
+      "optimizer/gradient_clipped",
+      "optimizer/lr",
+      "optimizer/lr_used"
+    ]
+  },
+  "step_50_validation": {
+    "aggregate": {
+      "nll": 9.033536911010742,
+      "nll_sum": 592021.875,
+      "perplexity": 8379.444571347854,
+      "target_tokens": 65536
+    },
+    "by_corpus": {
+      "fineweb2_ja_validation": {
+        "nll": 9.078840732574463,
+        "nll_sum": 297495.453125,
+        "target_tokens": 32768
+      },
+      "fineweb_en_validation": {
+        "nll": 8.988233089447021,
+        "nll_sum": 294526.421875,
+        "target_tokens": 32768
+      }
+    },
+    "evaluated_windows": 8192,
+    "evaluated_window_sha256": "01b45094fecbd9cb75d716ea0e7abeb31cef9550d54ba625be39ef5de2cca16b",
+    "evaluated_token_sha256": "850dd8333eb4bc38a226cdc55ca7c9208c6aa9ee329e325b47a8e0645ab43ae6"
+  },
+  "standalone_parity": {
+    "output_sha256": "43bedcad72b138f873e227b8c455cf0598ac6a6b643d10b262ebf986838fa06e",
+    "checkpoint_sha256": "0d48d810cd4657473c904b3cfd7e3a63174d2b7a3284248ad97ddbeb82f6ddea",
+    "checkpoint_kind": "best",
+    "checkpoint_optimizer_step": 50,
+    "checkpoint_target_tokens": 102400,
+    "score_and_identity_exact_match": true,
+    "pause_seconds": 19.695148360013263,
+    "evaluated_targets_per_second": 3327.5199963995533,
+    "training_time_pause_delta_percent": 0.9242528306,
+    "training_time_throughput_delta_percent": -0.9157886283
+  },
+  "resource_samples": {
+    "sampling_method": "docker stats and nvidia-smi snapshots during the matched runs",
+    "container_memory_range_gib": [2.075, 2.534],
+    "gpu_process_memory_mib": 1794,
+    "gpu_utilization_percent_range": [0, 10],
+    "gpu_temperature_c_range": [41, 45],
+    "gpu_power_w_range": [13.2, 16.09],
+    "note": "snapshots are not a continuous time series and cannot establish peak or monotonic-memory behavior"
+  },
+  "limitations": [
+    "This is one matched A/B pair, not three repeats; it supports correctness and pause accounting, not a general performance claim.",
+    "No predeclared warm-up cutoff existed; step distributions exclude only the startup-to-step-1 interval.",
+    "The current trainer does not separately time next(loader), host/device preparation, forward, loss, backward, clipping, optimizer, scheduler, or metrics, so data-wait time and a complete CHECK 6.3 phase breakdown are unavailable.",
+    "GPU and system samples were not retained as a continuous time series.",
+    "The pinned container warned that memory-efficient attention defaults to a nondeterministic algorithm; observed matched loss traces are exact for this pair but are not a cross-platform bitwise reproducibility promise.",
+    "The measured head predates a cleanup-only repair that guarantees model-mode restoration when iterator close raises; the repair does not touch the successful scoring or training hot paths."
+  ],
+  "raw_data_policy": "No corpus text, raw token sequences, prompts, or model outputs are stored in this evidence file."
+}

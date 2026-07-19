@@ -20,6 +20,7 @@ dependencies = [
 llm-scratch-train = "cli:train"
 llm-scratch-config-check = "cli:config_check"
 llm-scratch-generate = "generate:main"
+llm-scratch-evaluate = "evaluate:main"
 
 [build-system]
 requires = ["setuptools>=75"]
@@ -27,7 +28,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
-py-modules = ["cli", "train"]
+py-modules = ["cli", "train", "evaluate"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

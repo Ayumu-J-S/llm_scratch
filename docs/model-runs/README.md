@@ -38,3 +38,4 @@ engineering context, findings, outcomes, and evidence.
 - `ROADMAP-status-refresh.md`
 - `STAB-001-stable-training.md`
 - `TOK-001-canonical-tokenizer.md`
+- `VAL-001-held-out-validation.md`
