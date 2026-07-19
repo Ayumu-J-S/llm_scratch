@@ -7,6 +7,7 @@ from omegaconf import OmegaConf
 import train as train_module
 from runtime.config import (
     ConfigPreflightError,
+    validate_evaluation_checkpoint_runtime,
     validate_evaluation_config,
     validate_training_config,
 )
@@ -35,6 +36,8 @@ def test_canonical_profiles_compose_with_real_root_sections():
     assert gate.data.mode == "streaming"
     assert evaluation.profile.name == "evaluation"
     assert evaluation.profile.task == "evaluate_checkpoint"
+    assert evaluation.evaluation.device == "cuda"
+    assert evaluation.runtime.device == "cuda"
 
 
 def test_streaming_profile_has_distinct_manifest_selections():
@@ -160,6 +163,38 @@ def test_evaluation_preflight_accepts_only_explicit_operational_controls():
     config.evaluation.wandb.raw_documents = True
     with pytest.raises(ConfigPreflightError, match="unknown critical"):
         validate_evaluation_config(config)
+
+
+@pytest.mark.parametrize(
+    ("device", "precision"),
+    [("cpu", "fp32"), ("cuda", "fp32"), ("cuda", "bf16")],
+)
+def test_evaluation_checkpoint_runtime_accepts_compatible_precision(device, precision):
+    evaluation = compose(
+        "profile=evaluation",
+        "evaluation.checkpoint_path=/tmp/milestone.pt",
+        f"evaluation.device={device}",
+    )
+    checkpoint = compose("profile=pretrain_streaming", f"training.precision={precision}")
+
+    validate_evaluation_config(evaluation)
+    validate_training_config(checkpoint)
+    validate_evaluation_checkpoint_runtime(evaluation, checkpoint)
+
+
+def test_evaluation_checkpoint_runtime_rejects_cpu_bf16_without_fallback():
+    evaluation = compose(
+        "profile=evaluation",
+        "evaluation.checkpoint_path=/tmp/milestone.pt",
+        "evaluation.device=cpu",
+    )
+    checkpoint = compose("profile=pretrain_streaming", "training.precision=bf16")
+
+    with pytest.raises(
+        ConfigPreflightError,
+        match=r"evaluation\.device=cpu.*checkpoint-owned training\.precision=bf16",
+    ):
+        validate_evaluation_checkpoint_runtime(evaluation, checkpoint)
 
 
 @pytest.mark.parametrize(

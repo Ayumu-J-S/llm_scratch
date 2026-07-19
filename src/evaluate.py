@@ -17,7 +17,11 @@ from omegaconf import DictConfig, OmegaConf
 from data.identity import canonical_json_bytes
 from evaluation.scoring import CausalLMScorer, EvaluationResult
 from models.simple_decoder_transformer import SimpleDecoderTransformer
-from runtime.config import validate_evaluation_config, validate_training_config
+from runtime.config import (
+    validate_evaluation_checkpoint_runtime,
+    validate_evaluation_config,
+    validate_training_config,
+)
 from runtime.device import select_device
 from runtime.environment import collect_environment
 from runtime.reproducibility import collect_git_identity, sha256_bytes, sha256_file
@@ -67,7 +71,9 @@ def evaluate_checkpoint(cfg: DictConfig) -> Path:
             "held-out evaluation requires explicit train and validation manifest selections"
         )
 
-    device = select_device(str(evaluation_cfg.get("device", "cpu")))
+    validate_evaluation_checkpoint_runtime(cfg, checkpoint_cfg)
+
+    device = select_device(str(evaluation_cfg.device))
     tokenizer = CanonicalTokenizer.from_config(checkpoint_cfg.tokenizer)
     identity = payload["identity"]
     model_config = OmegaConf.to_container(checkpoint_cfg.model, resolve=True)

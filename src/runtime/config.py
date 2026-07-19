@@ -244,6 +244,24 @@ def validate_evaluation_config(config: Mapping[str, Any] | DictConfig) -> dict[s
     return cfg
 
 
+def validate_evaluation_checkpoint_runtime(
+    config: Mapping[str, Any] | DictConfig,
+    checkpoint_config: Mapping[str, Any] | DictConfig,
+) -> None:
+    """Reject evaluator device choices incompatible with checkpoint-owned precision."""
+
+    evaluation = _plain(_plain(config)["evaluation"])
+    training = _plain(_plain(checkpoint_config)["training"])
+    device = str(evaluation["device"])
+    precision = str(training.get("precision", "fp32"))
+    if device == "cpu" and precision == "bf16":
+        raise ConfigPreflightError(
+            "evaluation.device=cpu is incompatible with checkpoint-owned "
+            "training.precision=bf16; use evaluation.device=cuda or evaluate an "
+            "FP32 checkpoint"
+        )
+
+
 def validate_training_config(config: Mapping[str, Any] | DictConfig) -> dict[str, Any]:
     """Validate a composed config before tokenizer/data/model initialization."""
 

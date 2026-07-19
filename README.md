@@ -59,7 +59,7 @@ The equivalent importable console commands are available after `make sync`:
 ```bash
 uv run llm-scratch-config-check profile=pretrain_streaming
 uv run llm-scratch-train profile=smoke_overfit runtime.device=cpu training.epochs=1 training.batch_size=2 wandb.enabled=false
-uv run llm-scratch-evaluate profile=evaluation evaluation.checkpoint_path=/absolute/path/to/milestone.pt
+uv run llm-scratch-evaluate profile=evaluation evaluation.checkpoint_path=/absolute/path/to/milestone.pt evaluation.device=cuda
 ```
 
 `config/profile/smoke_overfit.yaml`, `pretrain_streaming.yaml`, and
@@ -67,7 +67,9 @@ uv run llm-scratch-evaluate profile=evaluation evaluation.checkpoint_path=/absol
 standalone-only checkpoint scoring profile and is rejected by the training
 entrypoint. It takes model, tokenizer, and held-out data authority from the
 verified checkpoint while Hydra controls only device, output, and optional
-compact W&B summary behavior. See `docs/validation.md`. Every training invocation writes
+compact W&B summary behavior. It defaults to CUDA for canonical BF16
+pretraining checkpoints; CPU is an explicit option only for checkpoints that
+own FP32 precision. See `docs/validation.md`. Every training invocation writes
 the fully resolved configuration to `runs/<profile>/<timestamp>/resolved_config.yaml`
 (the installed console wrapper uses `runs/<profile>/manual/`).
 

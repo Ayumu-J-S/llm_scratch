@@ -9,7 +9,22 @@ same-corpus memorization profiles.
 uv run llm-scratch-evaluate \
   profile=evaluation \
   evaluation.checkpoint_path=/absolute/path/to/milestone-step-000000001000.pt \
-  evaluation.device=cuda \
+  evaluation.output_path=evaluation.json
+```
+
+The canonical profile defaults to `evaluation.device=cuda` because real
+pretraining checkpoints own `training.precision=bf16`. The evaluator rejects a
+CPU/BF16 pairing during preflight; it never changes checkpoint precision or
+silently falls back to FP32.
+
+For a bounded fixture checkpoint that itself records
+`training.precision=fp32`, CPU scoring is explicit:
+
+```bash
+uv run llm-scratch-evaluate \
+  profile=evaluation \
+  evaluation.checkpoint_path=/absolute/path/to/fp32-fixture-milestone.pt \
+  evaluation.device=cpu \
   evaluation.output_path=evaluation.json
 ```
 
@@ -38,10 +53,12 @@ To write an optional compact W&B summary after the local JSON succeeds:
 uv run llm-scratch-evaluate \
   profile=evaluation \
   evaluation.checkpoint_path=/absolute/path/to/milestone.pt \
+  evaluation.device=cuda \
   evaluation.wandb.enabled=true \
   evaluation.wandb.mode=online
 ```
 
-Use the same device and precision conditions when exact score parity matters.
+Use the same device and checkpoint-owned precision conditions when exact score
+parity matters. `training.precision` is not an evaluator override.
 Changing an upstream manifest, split, tokenizer, scorer revision, or checkpoint
 invalidates prior result identities and requires a fresh evaluation.

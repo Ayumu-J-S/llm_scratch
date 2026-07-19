@@ -17,6 +17,7 @@ import training.checkpoint as checkpoint_module
 from data.streaming_dataset import causal_lm_collate_fn, target_sources_from_spans
 from evaluation.scoring import CausalLMScorer, manifest_identities
 from models.simple_decoder_transformer import SimpleDecoderTransformer
+from runtime.config import ConfigPreflightError
 from tokenizer.canonical import CanonicalTokenizer
 from train import build_validation_loader_factory
 from training.checkpoint import (
@@ -468,6 +469,7 @@ def test_standalone_rejects_output_checkpoint_collisions_before_evaluation(
     with open_dict(evaluation_config):
         evaluation_config.evaluation.checkpoint_path = str(checkpoint)
         evaluation_config.evaluation.output_path = str(output_path)
+        evaluation_config.evaluation.device = "cpu"
 
     with pytest.raises(ValueError, match=expected):
         evaluate_module.evaluate_checkpoint(evaluation_config)
@@ -500,6 +502,7 @@ def test_standalone_wandb_summary_records_compact_identities_and_local_hash(tmp_
     with open_dict(evaluation_config):
         evaluation_config.evaluation.checkpoint_path = str(checkpoint)
         evaluation_config.evaluation.output_path = str(output_path)
+        evaluation_config.evaluation.device = "cpu"
         evaluation_config.evaluation.wandb.enabled = True
         evaluation_config.evaluation.wandb.mode = "offline"
 
@@ -524,6 +527,52 @@ def test_standalone_wandb_summary_records_compact_identities_and_local_hash(tmp_
         "sha256": hashlib.sha256(local_bytes).hexdigest(),
         "size_bytes": len(local_bytes),
     }
+
+
+def test_standalone_preflight_rejects_cpu_for_bf16_checkpoint(tmp_path, monkeypatch):
+    checkpoint_config = _streaming_checkpoint_config()
+    with open_dict(checkpoint_config):
+        checkpoint_config.runtime.device = "cuda"
+        checkpoint_config.training.precision = "bf16"
+    tokenizer = CanonicalTokenizer.from_config(checkpoint_config.tokenizer)
+    model = SimpleDecoderTransformer(
+        vocab_size=tokenizer.vocab_size,
+        embed_size=checkpoint_config.model.embed_size,
+        num_heads=checkpoint_config.model.num_heads,
+        max_len=checkpoint_config.training.sequence_length,
+        num_layers=checkpoint_config.model.num_layers,
+        dropout=checkpoint_config.model.dropout,
+        pad_token_id=tokenizer.pad_token_id,
+    )
+    identity = build_checkpoint_identity(checkpoint_config)
+    identity["tokenizer_fingerprint"] = tokenizer.fingerprint
+    checkpoint = CheckpointManager(
+        tmp_path / "bf16-checkpoint", keep_last_n=1, identity=identity
+    ).save_milestone(
+        {
+            "model": model.state_dict(),
+            "counters": {"optimizer_step": 1, "target_tokens": 8, "elapsed_seconds": 1.0},
+            "resolved_config": OmegaConf.to_container(checkpoint_config, resolve=True),
+            "run_identity": identity,
+        }
+    )
+    evaluation_config = _compose("profile=evaluation")
+    with open_dict(evaluation_config):
+        evaluation_config.evaluation.checkpoint_path = str(checkpoint)
+        evaluation_config.evaluation.output_path = str(tmp_path / "must-not-exist.json")
+        evaluation_config.evaluation.device = "cpu"
+
+    monkeypatch.setattr(
+        evaluate_module,
+        "select_device",
+        lambda *_args, **_kwargs: pytest.fail("device selection must follow compatibility preflight"),
+    )
+    with pytest.raises(
+        ConfigPreflightError,
+        match=r"evaluation\.device=cpu.*checkpoint-owned training\.precision=bf16",
+    ):
+        evaluate_module.evaluate_checkpoint(evaluation_config)
+    assert not (tmp_path / "must-not-exist.json").exists()
 
 
 def test_checkpoint_resolved_config_tampering_is_rejected_before_evaluation(tmp_path):
@@ -639,6 +688,7 @@ def test_standalone_held_out_evaluation_rejects_memorization_checkpoint(tmp_path
     with open_dict(evaluation_config):
         evaluation_config.evaluation.checkpoint_path = str(checkpoint)
         evaluation_config.evaluation.output_path = str(tmp_path / "must-not-exist.json")
+        evaluation_config.evaluation.device = "cpu"
 
     with pytest.raises(ValueError, match="held-out evaluation requires"):
         evaluate_module.evaluate_checkpoint(evaluation_config)

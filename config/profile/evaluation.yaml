@@ -10,7 +10,10 @@ profile:
 evaluation:
   checkpoint_path: null
   output_path: evaluation.json
-  device: cpu
+  # Canonical pretraining checkpoints own BF16 precision, so standalone
+  # evaluation defaults to the compatible CUDA path. FP32 fixture checkpoints
+  # may opt into CPU explicitly with evaluation.device=cpu.
+  device: cuda
   wandb:
     enabled: false
     project: llm-scratch
@@ -19,7 +22,7 @@ evaluation:
     mode: online
 
 runtime:
-  device: cpu
+  device: ${evaluation.device}
 
 data:
   mode: streaming
