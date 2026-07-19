@@ -9,7 +9,7 @@ a leaderboard framework or any chat/SFT behavior.
 The immutable registry is
 [`data/benchmarks/suite-v1.json`](../data/benchmarks/suite-v1.json). Its compiled
 fingerprint is
-`af22cfe7ad1db1ed8dc30969177cf0b8fae8061da66a5ae9d69af45077593231`.
+`20af73847cdc67b083cfd4fe4cacc2d5d6db0bc3fb468bea5a1f43cf0ee95511`.
 The evaluator refuses a registry whose canonical fingerprint differs.
 
 | Task | Development source | Reserved final source | Revision | Scoring |
@@ -56,6 +56,10 @@ against its results.
 Both commands take model dimensions, tokenizer, precision, training manifests,
 and counters only from the verified full-state checkpoint. A CPU request for a
 BF16 checkpoint fails; there is no implicit precision or device fallback.
+Before opening any training shard, the evaluator tokenizes every fixed prompt
+and choice and requires enough checkpoint context for JCommonsenseQA scoring
+and the complete 128-token GSM8K generation allowance. Both task scorers run
+under the checkpoint-owned FP32 or BF16 precision recorded in the result.
 
 ## Complete contamination gate
 
@@ -89,5 +93,8 @@ Optional external baselines use the separate
 `llm-scratch-benchmark-external` aggregate recorder. It requires parameter
 count, training-compute, tokenizer, context-length, and data-access disclosure;
 rejects raw text, outputs, logits, token IDs, and weights; and marks the record
-ineligible for training data or targets. It does not load external weights into
-the repository checkpoint runner.
+ineligible for training data or targets. The recorder itself attaches the
+compiled development-suite fingerprint, protocol hash, source hashes,
+selected-example hashes, selector, access level, and fixed 128-example totals;
+callers cannot supply an alternate protocol or partition identity. It does not
+load external weights into the repository checkpoint runner.

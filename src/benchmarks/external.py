@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from benchmarks.runner import _write_json_atomic
-from benchmarks.suite import SUITE_ID
+from benchmarks.suite import canonical_external_dev_identity
 
 
 class ExternalComparisonError(ValueError):
@@ -46,16 +46,12 @@ def write_external_comparison(
     payload: Mapping[str, Any],
     *,
     output_path: str | Path,
-    expected_protocol_sha256: str,
 ) -> Path:
     """Write a separate external-comparison record after strict validation."""
 
-    if set(payload) != {"subject", "suite_id", "protocol_sha256", "tasks"}:
+    if set(payload) != {"subject", "tasks"}:
         raise ExternalComparisonError("external comparison fields differ from the v1 schema")
-    if payload["suite_id"] != SUITE_ID:
-        raise ExternalComparisonError(f"external comparison suite_id must be {SUITE_ID}")
-    if payload["protocol_sha256"] != expected_protocol_sha256:
-        raise ExternalComparisonError("external comparison protocol identity does not match")
+    suite_identity = canonical_external_dev_identity()
     subject = _mapping(payload["subject"], "subject")
     if set(subject) != _SUBJECT_FIELDS:
         raise ExternalComparisonError("external subject disclosure is incomplete")
@@ -105,6 +101,12 @@ def write_external_comparison(
             or not 0.0 <= float(value) <= 1.0
         ):
             raise ExternalComparisonError(f"external task {name} metrics are invalid")
+        expected_total = suite_identity["tasks"][name]["selected_examples"]
+        if total != expected_total:
+            raise ExternalComparisonError(
+                f"external task {name} total must match the pinned development partition "
+                f"({expected_total})"
+            )
         if abs(float(value) - correct / total) > 1e-12:
             raise ExternalComparisonError(f"external task {name} value differs from correct/total")
     _reject_forbidden_keys(payload)
@@ -117,6 +119,7 @@ def write_external_comparison(
             "eligible_for_training_data_or_targets": False,
             "contains_model_outputs": False,
         },
+        "suite": suite_identity,
         **dict(payload),
     }
     _write_json_atomic(output, record)

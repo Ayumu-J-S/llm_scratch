@@ -1,6 +1,10 @@
 {
   "dev_subset": {
     "selector": "sha256-example-id-v1",
+    "selected_examples_sha256": {
+      "gsm8k": "3f5c12085bfcb2e4dc94d91d1d3630b476d06343c6c2fc6c6df2d5d87f90daba",
+      "jcommonsenseqa": "fa5ce35310f98b171da7db6afeff222381161f1987a99d70e7ede9b77a283b0e"
+    },
     "size": 128
   },
   "protocol": {
@@ -21,7 +25,7 @@
     }
   },
   "schema_version": 1,
-  "suite_fingerprint": "af22cfe7ad1db1ed8dc30969177cf0b8fae8061da66a5ae9d69af45077593231",
+  "suite_fingerprint": "20af73847cdc67b083cfd4fe4cacc2d5d6db0bc3fb468bea5a1f43cf0ee95511",
   "suite_id": "BENCH-001-suite-v1",
   "tasks": {
     "gsm8k": {

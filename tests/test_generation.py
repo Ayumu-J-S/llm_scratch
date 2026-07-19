@@ -92,6 +92,7 @@ def test_checkpoint_round_trip_reconstructs_model_and_labels_base_continuation(t
     assert result.checkpoint_kind == "final"
     assert result.checkpoint_optimizer_step == 7
     assert result.tokenizer_fingerprint == tokenizer.fingerprint
+    assert result.precision == "fp32"
     assert len(result.generated_token_ids) == 3
     assert result.stop_reason == "max_new_tokens"
 
@@ -170,6 +171,8 @@ def test_sampler_rejects_manual_sampling_knobs_without_a_seed(tmp_path: Path):
         sampler.generate("base", max_new_tokens=1, temperature=1.0)
     with pytest.raises(SamplingError, match="top_k and seed require"):
         sampler.generate("base", max_new_tokens=1, top_k=1)
+    with pytest.raises(SamplingError, match="generation precision is incompatible"):
+        sampler.generate("base", max_new_tokens=1, precision="fp16")
 
 
 def test_sampler_rejects_checkpoint_config_that_disagrees_with_its_identity(tmp_path: Path):

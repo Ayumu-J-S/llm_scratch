@@ -15,8 +15,10 @@ from hydra.core.hydra_config import HydraConfig
 from omegaconf import DictConfig, OmegaConf
 
 from benchmarks.contamination import scan_checkpoint_training_data
-from benchmarks.scoring import score_suite
+from benchmarks.scoring import score_suite, validate_suite_context
 from benchmarks.suite import (
+    CANONICAL_REGISTRY_FINGERPRINT,
+    CANONICAL_REGISTRY_PATH,
     FINAL_ACKNOWLEDGEMENT,
     BenchmarkAccess,
     load_suite,
@@ -35,17 +37,15 @@ from training.checkpoint import load_checkpoint_for_generation
 
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
-SUITE_REGISTRY_PATH = ROOT_DIR / "data/benchmarks/suite-v1.json"
-SUITE_REGISTRY_FINGERPRINT = "af22cfe7ad1db1ed8dc30969177cf0b8fae8061da66a5ae9d69af45077593231"
+SUITE_REGISTRY_PATH = CANONICAL_REGISTRY_PATH
+SUITE_REGISTRY_FINGERPRINT = CANONICAL_REGISTRY_FINGERPRINT
 
 
 class BenchmarkContaminationError(RuntimeError):
     """Scoring was blocked after retaining the completed contamination report."""
 
     def __init__(self, output_path: Path) -> None:
-        super().__init__(
-            f"benchmark contamination was detected; blocked evidence: {output_path}"
-        )
+        super().__init__(f"benchmark contamination was detected; blocked evidence: {output_path}")
         self.output_path = output_path
 
 
@@ -69,8 +69,7 @@ def run_benchmark(
     validate_benchmark_config(cfg)
     if access == "final" and final_acknowledgement != FINAL_ACKNOWLEDGEMENT:
         raise PermissionError(
-            "reserved final benchmark requires BENCHMARK_FINAL_ACK="
-            f"{FINAL_ACKNOWLEDGEMENT}"
+            f"reserved final benchmark requires BENCHMARK_FINAL_ACK={FINAL_ACKNOWLEDGEMENT}"
         )
     if access not in {"dev", "final"}:
         raise ValueError("benchmark access must be dev or final")
@@ -97,7 +96,12 @@ def run_benchmark(
         cache=cache,
         timeout_seconds=float(benchmark_cfg.cache.timeout_seconds),
     )
-    evaluation_identity = _evaluation_identity(sampler, suite.identity())
+    context_preflight = validate_suite_context(sampler, suite)
+    evaluation_identity = _evaluation_identity(
+        sampler,
+        suite.identity(),
+        context_preflight=context_preflight,
+    )
     evaluation_identity_sha256 = hashlib.sha256(
         canonical_json_bytes(evaluation_identity)
     ).hexdigest()
@@ -134,7 +138,10 @@ def run_benchmark(
 
 
 def _evaluation_identity(
-    sampler: CheckpointSampler, suite_identity: Mapping[str, Any]
+    sampler: CheckpointSampler,
+    suite_identity: Mapping[str, Any],
+    *,
+    context_preflight: Mapping[str, Any],
 ) -> dict[str, Any]:
     physical = sampler.physical_checkpoint_identity
     return {
@@ -148,9 +155,8 @@ def _evaluation_identity(
         },
         "tokenizer_fingerprint": sampler.tokenizer.fingerprint,
         "device": str(sampler.device),
-        "precision": str(
-            sampler.resolved_config.get("training", {}).get("precision", "fp32")
-        ),
+        "precision": str(sampler.resolved_config.get("training", {}).get("precision", "fp32")),
+        "context_preflight": dict(context_preflight),
         "suite": dict(suite_identity),
     }
 
