@@ -115,9 +115,39 @@ def require_full_resume_state(
     ):
         raise CheckpointCompatibilityError("checkpoint counters are invalid")
     rng = state["rng"]
-    missing_rng = {"python", "numpy", "torch_cpu", "torch_cuda"}.difference(rng)
+    required_rng = {"python", "numpy", "torch_cpu", "torch_cuda"}
+    missing_rng = required_rng.difference(rng)
     if missing_rng:
         raise CheckpointCompatibilityError(f"checkpoint RNG state is missing {sorted(missing_rng)}")
+    if set(rng) != required_rng:
+        raise CheckpointCompatibilityError("checkpoint RNG state has unexpected entries")
+    try:
+        random.Random().setstate(rng["python"])
+        np.random.RandomState().set_state(rng["numpy"])
+    except (TypeError, ValueError) as error:
+        raise CheckpointCompatibilityError(
+            "checkpoint Python/NumPy RNG state is invalid"
+        ) from error
+    torch_cpu_rng = rng["torch_cpu"]
+    if (
+        not isinstance(torch_cpu_rng, torch.Tensor)
+        or torch_cpu_rng.device.type != "cpu"
+        or torch_cpu_rng.dtype != torch.uint8
+        or torch_cpu_rng.ndim != 1
+    ):
+        raise CheckpointCompatibilityError("checkpoint Torch CPU RNG state is invalid")
+    torch_cuda_rng = rng["torch_cuda"]
+    if torch_cuda_rng is not None and (
+        not isinstance(torch_cuda_rng, (list, tuple))
+        or not all(
+            isinstance(item, torch.Tensor)
+            and item.device.type == "cpu"
+            and item.dtype == torch.uint8
+            and item.ndim == 1
+            for item in torch_cuda_rng
+        )
+    ):
+        raise CheckpointCompatibilityError("checkpoint Torch CUDA RNG state is invalid")
     resolved_config = state["resolved_config"]
     measurement_config = resolved_config.get("measurement", {})
     if not isinstance(measurement_config, Mapping):
@@ -149,14 +179,40 @@ def require_full_resume_state(
             counters=counters,
         )
     event_state = state["event_state"]
+    required_event_state = {
+        "last_validation_step",
+        "last_checkpoint_step",
+        "last_milestone_step",
+        "last_log_step",
+        "last_token_event_boundary",
+        "best_validation_loss",
+        "best_checkpoint_step",
+    }
+    if set(event_state) != required_event_state:
+        raise CheckpointCompatibilityError("checkpoint event state entries are invalid")
+    for key in (
+        "last_validation_step",
+        "last_checkpoint_step",
+        "last_milestone_step",
+        "last_log_step",
+    ):
+        value = event_state[key]
+        if value is not None and (
+            isinstance(value, bool) or not isinstance(value, int) or value < 0
+        ):
+            raise CheckpointCompatibilityError(f"checkpoint {key} state is invalid")
     token_boundaries = event_state.get("last_token_event_boundary", {})
     if not isinstance(token_boundaries, Mapping):
         raise CheckpointCompatibilityError("checkpoint token-event state is invalid")
-    try:
-        for value in token_boundaries.values():
-            int(value)
-    except (TypeError, ValueError, OverflowError) as error:
-        raise CheckpointCompatibilityError("checkpoint token-event state is invalid") from error
+    if any(
+        not isinstance(key, str)
+        or not key
+        or isinstance(value, bool)
+        or not isinstance(value, int)
+        or value < 0
+        for key, value in token_boundaries.items()
+    ):
+        raise CheckpointCompatibilityError("checkpoint token-event state is invalid")
     best = event_state.get("best_validation_loss")
     best_step = event_state.get("best_checkpoint_step")
     if best is not None:
@@ -170,6 +226,10 @@ def require_full_resume_state(
             raise CheckpointCompatibilityError(
                 "checkpoint with a best validation score is missing its checkpoint step"
             )
+    if best is None and best_step is not None:
+        raise CheckpointCompatibilityError(
+            "checkpoint without a best validation score has a checkpoint step"
+        )
     if best_step is not None and (
         isinstance(best_step, bool) or not isinstance(best_step, int) or best_step < 0
     ):

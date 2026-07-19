@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from operations.artifacts import (
     Attempt,
@@ -672,9 +673,9 @@ def _wandb_evidence(
                     )
                 }
             )
-    if outcome == "succeeded" and executed:
-        if not initializations:
-            raise HandoffValidationError("successful attempt lacks a W&B initialization outcome")
+    if records and len(initializations) != 1:
+        raise HandoffValidationError("W&B evidence requires exactly one initialization outcome")
+    if initializations:
         initialization_outcomes = {item.get("outcome") for item in initializations}
         if mode == "disabled":
             if initialization_outcomes != {"disabled"}:
@@ -690,28 +691,38 @@ def _wandb_evidence(
                 )
         else:
             raise HandoffValidationError(f"unsupported preflight W&B mode: {mode}")
-    if mode == "online" and outcome == "succeeded":
-        succeeded = [item for item in initializations if item.get("outcome") == "succeeded"]
-        if any(
-            item.get("project") != configured.get("project")
-            or item.get("entity") != configured.get("entity")
-            or not item.get("run_id")
-            or not item.get("run_url")
-            for item in succeeded
+    if outcome == "succeeded" and executed and not initializations:
+        raise HandoffValidationError("successful attempt lacks a W&B initialization outcome")
+    succeeded = [item for item in initializations if item.get("outcome") == "succeeded"]
+    for item in succeeded:
+        project = item.get("project")
+        entity = item.get("entity")
+        run_id = item.get("run_id")
+        if (
+            not isinstance(project, str)
+            or project != configured.get("project")
+            or not isinstance(entity, str)
+            or entity != configured.get("entity")
+            or not isinstance(run_id, str)
+            or not run_id
         ):
             raise HandoffValidationError(
-                "successful online W&B initialization lacks configured identity or run ID/URL"
+                "successful W&B initialization lacks configured identity or run ID"
             )
-    if mode == "offline" and outcome == "succeeded":
-        succeeded = [item for item in initializations if item.get("outcome") == "succeeded"]
-        if any(
-            item.get("project") != configured.get("project")
-            or item.get("entity") != configured.get("entity")
-            or not item.get("run_id")
-            for item in succeeded
-        ):
+        run_url = item.get("run_url")
+        if mode == "online":
+            if not isinstance(run_url, str):
+                raise HandoffValidationError(
+                    "successful online W&B initialization lacks a valid run URL"
+                )
+            parsed_url = urlparse(run_url)
+            if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
+                raise HandoffValidationError(
+                    "successful online W&B initialization lacks a valid run URL"
+                )
+        elif run_url is not None:
             raise HandoffValidationError(
-                "successful offline W&B initialization lacks configured identity or run ID"
+                "successful offline W&B initialization unexpectedly contains a run URL"
             )
     return {
         "status": "recorded" if records else "not_executed",

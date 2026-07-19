@@ -634,6 +634,27 @@ def test_full_resume_state_rejects_empty_enabled_measurement_boundary(tmp_path: 
         require_full_resume_state(state, checkpoint_kind="recovery")
 
 
+def test_full_resume_state_rejects_rng_values_that_cannot_restore(tmp_path: Path):
+    state = _trainer(tmp_path / "checkpoint")._checkpoint_state()
+    state["rng"] = {
+        "python": None,
+        "numpy": None,
+        "torch_cpu": None,
+        "torch_cuda": None,
+    }
+
+    with pytest.raises(CheckpointCompatibilityError, match="RNG state is invalid"):
+        require_full_resume_state(state, checkpoint_kind="recovery")
+
+
+def test_full_resume_state_rejects_incomplete_event_state(tmp_path: Path):
+    state = _trainer(tmp_path / "checkpoint")._checkpoint_state()
+    state["event_state"] = {}
+
+    with pytest.raises(CheckpointCompatibilityError, match="event state entries"):
+        require_full_resume_state(state, checkpoint_kind="recovery")
+
+
 def test_resume_and_measurement_are_operational_but_model_config_remains_critical(
     tmp_path: Path,
 ):
