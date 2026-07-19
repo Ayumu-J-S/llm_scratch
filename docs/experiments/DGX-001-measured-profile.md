@@ -3,9 +3,9 @@
 - Roadmap ticket: `DGX-001`
 - Branch: `codex/dgx-001-final-integration`
 - Draft PR: [#47](https://github.com/Ayumu-J-S/llm_scratch/pull/47)
-- Status: formal exact-head `/review` failed at `3dd982d`; all four protocol
-  findings are repaired locally, with no target compute authorized before a
-  fresh exact-head review passes
+- Status: formal exact-head `/review` failed at `b117f2c`; its four new P1
+  protocol findings are recorded for repair, with no target compute authorized
+  before a fresh exact-head review passes
 - Baseline input: merged `WB-001` head
   `8791bb7237663b08c001b732393a76b240362476`
 
@@ -181,6 +181,7 @@ to claim that a measured profile has been selected.
 | 29 | Protocol repair 7 | implemented; re-review pending | Record telemetry collection duration and model completion-based cadence; derive the one-hour forecast from the 3,480-second training cap; emit and require successful scalar/runtime/final-summary W&B actions; reject any quantile other than the predeclared slowest repetition | Eight direct regressions passed |
 | 30 | Expanded focused validation | passed | DGX planning/runner/telemetry/watchdog/config and W&B producer/parser behavior pass together; no GPU or online W&B work ran | 142 passed in 53.64 seconds |
 | 31 | Full CPU validation | passed | Network-free full suite, lint, Hydra config preflight, lock-drift rejection, and disabled/offline W&B smoke all pass after the repair; no GPU or online W&B work ran | `make ci-cpu`: 507 passed, 1 skipped in 128.62 seconds; 456.2 GB free before launch |
+| 32 | Formal pre-measurement `/review` | `FAIL` at `b117f2c` | The pinned image cannot be reproduced while the Docker build copies the self-referential source pin; matrix per-step CUDA-event synchronization differs from the deployed baseline/decomposition path; disabled-mode matrix logging latency cannot authorize the online W&B token plan; decomposition can pass and name a bottleneck despite non-repeatable role measurements | Exact review retained in PR #47; focused DGX/config/W&B suite 142 passed; formal focused suite 117 passed; no GPU or online W&B work ran |
 
 Independent `/review` will cover `PHILOSOPHY.md`, DGX-001 acceptance, and the
 applicable `CHECK.md` minimum, comparison, data supply, DGX/UMA, training-health,
