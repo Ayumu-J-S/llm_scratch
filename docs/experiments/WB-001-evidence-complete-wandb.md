@@ -3,8 +3,11 @@
 - Roadmap ticket: `WB-001`
 - Branch: `codex/wb-001-main-integration`
 - Draft PR: [#46](https://github.com/Ayumu-J-S/llm_scratch/pull/46)
-- Status: cycle-24 repair validation passes after exact-head review cycle 23
-  returned `FAIL`; a fresh exact-head review remains pending. The complete
+- Status: exact-head review cycle 26 returned `FAIL` because full-checkpoint
+  artifact upload could expose raw documents serialized in the stream cursor.
+  Cycle 27 replaces it with a strict model-only inference package; cycle-32
+  final validation and supporting re-review pass, while exact-head review
+  remains pending. The complete
   cycle trail is in live PR #46. R1
   functional evidence remains supported. Attempt 9's historical
   `PASS WITH NOTE` and 168-gate result are retained, but its paired-overhead
@@ -640,6 +643,54 @@ blocked AF_INET/AF_INET6/AF_NETLINK calls, allowed AF_UNIX IPC, and the native
 `wandb-core` descendant beneath the inherited filter. This audit is supporting
 evidence, not a substitute for the mandatory exact-head review.
 
+## Current-main exact-head cycle 26 — FAIL; cycle 27 repair
+
+Independent review of exact clean head
+`8c3852362a9e28542fae0e83790fe5e3a6f9cc9f` returned `FAIL` after reproducing
+the full CPU suite at 441 passed and one skipped plus the process-tree-isolated
+offline smoke. It found one P1 privacy defect: the artifact adapter passed the
+full resumable checkpoint to W&B, while a streaming checkpoint's cursor can
+contain buffered raw document text and metadata. Sanitizing the run config did
+not protect that separate path.
+
+Cycle 27 keeps the full selected checkpoint local and derives a distinct,
+strict model-only package. Its exact schema contains only model tensors,
+allowlisted architecture, canonical-tokenizer references, source-checkpoint
+lineage, and optimizer-step/target-token counters. It excludes optimizer,
+scheduler, precision, RNG, stream cursor, measurement, full config, and
+arbitrary payload fields. The package is reconstructed with a strict model
+load before admission; source-checkpoint and model-package SHA/size identities
+remain separate. Conservative quota is reserved before staging, the actual
+package must fit within that reservation, and only the immutable `model.pt`
+stage reaches `Artifact.add_file`. No finding is erased.
+
+Cycle-27 precommit validation passes: the focused tracker/model-artifact suite
+reports 52 passed; the broader WB/checkpoint/trainer/generation/evaluation
+selection reports 209 passed; and the full CPU quality gate reports 442 passed
+and one skipped. Ruff, Hydra config preflight, lock drift, diff checks, and both
+native process-tree-isolated disabled/offline smoke arms pass.
+
+A subsequent read-only cycle-28 repair audit returned `FAIL` with one P2
+evidence issue after confirming the cycle-26 privacy finding was closed: a
+local staging-file unlink failure after W&B returned `COMMITTED` could relabel
+the already-uploaded artifact as `upload_failed`. Cycle 29 makes cleanup
+best-effort and records a separate local `artifact_cleanup` failure without
+changing the committed outcome, reservation, or retry disposition. The same
+guard protects pre-cloud cleanup from masking the original preparation result.
+Cycle-30 re-review returned `FAIL` because that separate evidence write could
+itself fail and escape the cleanup helper. Cycle 31 makes both cleanup and its
+failure recording genuinely non-throwing; nested unlink/evidence-write
+regressions preserve the committed outcome and the original pre-cloud error.
+The audits' other schema, privacy, identity, quota, immutable-lifecycle, and
+reconstruction checks passed. No failed cycle is erased.
+
+Cycle-32 final validation passes: the focused tracker/model-artifact suite
+reports 54 passed; the full CPU quality gate reports 444 passed and one skipped;
+and Ruff, formatting, Hydra config preflight, lock drift, diff checks, and both
+native process-tree-isolated disabled/offline smoke arms pass. The supporting
+cleanup re-review returns `PASS` on all three nested-failure regressions. This
+supporting verdict does not replace the mandatory exact-head review.
+
 ## Conclusion
 
 - Hypothesis result: functional/failure-isolation behavior is supported at R1.
@@ -648,16 +699,17 @@ evidence, not a substitute for the mandatory exact-head review.
   because the old verifier excluded scheduled scalar-log pauses.
 - Evidence-backed conclusion: the implementation can preserve local metrics and
   checkpoints across disabled/offline W&B and tested external failure paths,
-  while cycle-24 local validation passes and exact-head review remains pending.
+  with the cycle-26 privacy and cleanup-evidence findings repaired and locally
+  validated; exact-head review remains pending.
   The live three-step smoke also confirms authenticated online scalar visibility and
   clean no-artifact completion. Cycle-13
   quota, scalar-boundary, and watch-cleanup history remains useful, while the
   current repair no longer cites the flawed overhead denominator. The ticket is
-  not ready until cycle-24 validation and independent exact-head review finish.
+  not ready until an independent exact-head review finishes.
 - Uncertainty and limitations: the online smoke did not consume artifact quota
   or exercise artifact retention/upload; failed DGX evidence is retained, and
   no current overhead or cross-attempt performance claim is made. Quota
   reservation is tracker-lifetime, and a stuck daemon SDK worker is
   process-lifetime bounded.
-- Exactly one next step: obtain an independent exact-head `PASS` or justified
-  `PASS WITH NOTE`, then use the live PR handoff for the guarded merge audit.
+- Exactly one next step: commit the validated repair and obtain an independent
+  exact-head `PASS` or justified `PASS WITH NOTE`, then use the live PR handoff.

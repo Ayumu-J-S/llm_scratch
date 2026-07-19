@@ -22,6 +22,13 @@ from omegaconf import DictConfig, OmegaConf
 
 from runtime.environment import collect_environment
 from training.checkpoint import load_checkpoint_for_generation
+from training.model_artifact import (
+    MODEL_ARTIFACT_SCHEMA_VERSION,
+    ModelArtifactFile,
+    remove_staged_model_artifact,
+    stage_model_artifact,
+    verify_staged_model_artifact,
+)
 
 ARTIFACT_REASONS = {"best", "final", "milestone"}
 DATA_REFERENCE_FIELDS = {
@@ -550,11 +557,26 @@ class WandbTracker:
         except Exception as error:
             return self._artifact_blocked(decision, "usage_snapshot_invalid", error)
 
+        try:
+            timeout = float(self.wandb_cfg.get("init_timeout_seconds", 10.0))
+            auth = call_bounded(
+                self._authenticated_entity,
+                timeout_seconds=timeout,
+                operation="W&B entity verification",
+            )
+            decision["auth"] = {"outcome": "verified", **auth}
+        except Exception as error:
+            return self._artifact_blocked(
+                decision,
+                "authentication_or_entity_mismatch",
+                error,
+            )
+
         reservation_created = False
         cloud_submission_started = False
+        staged_model_artifact: ModelArtifactFile | None = None
         try:
             block_reason = None
-            auth_error = None
             with self._artifact_lock:
                 if self._usage_snapshot is None:
                     self._usage_snapshot = snapshot
@@ -573,87 +595,103 @@ class WandbTracker:
                 if candidate.sha256 in self._uploaded_sha256 | self._reserved_sha256:
                     block_reason = "duplicate_checkpoint"
                 else:
-                    try:
-                        timeout = float(self.wandb_cfg.get("init_timeout_seconds", 10.0))
-                        auth = call_bounded(
-                            self._authenticated_entity,
-                            timeout_seconds=timeout,
-                            operation="W&B entity verification",
-                        )
-                        decision["auth"] = {"outcome": "verified", **auth}
-                    except Exception as error:
-                        auth_error = error
-                        block_reason = "authentication_or_entity_mismatch"
-                    if block_reason is None:
-                        baseline_used_bytes = self._max_observed_used_bytes
-                        effective_limit_bytes = self._min_observed_limit_bytes
-                        assert effective_limit_bytes is not None
-                        projected = (
-                            baseline_used_bytes
-                            + self._reserved_bytes_by_tracker
-                            + candidate.size_bytes
-                            + decision["reserve_bytes"]
-                        )
-                        decision["projected_bytes"] = projected
-                        decision["quota"] = {
-                            "outcome": (
-                                "allowed" if projected <= effective_limit_bytes else "exceeded"
-                            ),
-                            "used_bytes": snapshot.used_bytes,
-                            "effective_baseline_used_bytes": baseline_used_bytes,
-                            "reserved_by_tracker_bytes": self._reserved_bytes_by_tracker,
-                            "limit_bytes": snapshot.limit_bytes,
-                            "effective_limit_bytes": effective_limit_bytes,
-                        }
-                        if projected > effective_limit_bytes:
-                            block_reason = "visible_quota_insufficient"
-                        else:
-                            self._reserved_sha256.add(candidate.sha256)
-                            self._reserved_bytes_by_tracker += candidate.size_bytes
-                            reservation_created = True
+                    baseline_used_bytes = self._max_observed_used_bytes
+                    effective_limit_bytes = self._min_observed_limit_bytes
+                    assert effective_limit_bytes is not None
+                    projected = (
+                        baseline_used_bytes
+                        + self._reserved_bytes_by_tracker
+                        + candidate.size_bytes
+                        + decision["reserve_bytes"]
+                    )
+                    decision["projected_bytes"] = projected
+                    decision["quota"] = {
+                        "outcome": (
+                            "allowed" if projected <= effective_limit_bytes else "exceeded"
+                        ),
+                        "used_bytes": snapshot.used_bytes,
+                        "effective_baseline_used_bytes": baseline_used_bytes,
+                        "reserved_by_tracker_bytes": self._reserved_bytes_by_tracker,
+                        "limit_bytes": snapshot.limit_bytes,
+                        "effective_limit_bytes": effective_limit_bytes,
+                    }
+                    if projected > effective_limit_bytes:
+                        block_reason = "visible_quota_insufficient"
+                    else:
+                        self._reserved_sha256.add(candidate.sha256)
+                        self._reserved_bytes_by_tracker += candidate.size_bytes
+                        reservation_created = True
             if block_reason is not None:
-                return self._artifact_blocked(decision, block_reason, auth_error)
+                return self._artifact_blocked(decision, block_reason)
 
             upload_timeout = float(artifact_cfg.get("upload_timeout_seconds", 600))
 
             def prepare_artifact():
-                artifact = self.wandb.Artifact(
-                    name=self._artifact_name(),
-                    type="model",
-                    metadata={
-                        "reason": reason,
-                        "optimizer_step": step,
-                        "sha256": candidate.sha256,
-                        "size_bytes": candidate.size_bytes,
-                    },
-                )
-                artifact.add_file(
+                model_artifact = stage_model_artifact(
                     candidate.path,
-                    name=Path(candidate.path).name,
-                    policy="immutable",
+                    destination_dir=self.evidence_dir / ".wandb-model-staging",
+                    expected_source_sha256=candidate.sha256,
+                    expected_source_size_bytes=candidate.size_bytes,
+                    expected_source_device=candidate.device,
+                    expected_source_inode=candidate.inode,
+                    expected_source_mtime_ns=candidate.mtime_ns,
+                    expected_source_ctime_ns=candidate.ctime_ns,
                 )
-                return artifact
+                try:
+                    if model_artifact.size_bytes > candidate.size_bytes:
+                        raise RuntimeError(
+                            "model artifact exceeds its conservative checkpoint-size reservation"
+                        )
+                    if model_artifact.sha256 == candidate.sha256:
+                        raise RuntimeError(
+                            "model artifact physical identity must differ from its source checkpoint"
+                        )
+                    artifact = self.wandb.Artifact(
+                        name=self._artifact_name(),
+                        type="model",
+                        metadata={
+                            "schema_version": MODEL_ARTIFACT_SCHEMA_VERSION,
+                            "reason": reason,
+                            "optimizer_step": step,
+                            "source_checkpoint_sha256": candidate.sha256,
+                            "source_checkpoint_size_bytes": candidate.size_bytes,
+                            "model_artifact_sha256": model_artifact.sha256,
+                            "model_artifact_size_bytes": model_artifact.size_bytes,
+                        },
+                    )
+                    artifact.add_file(
+                        model_artifact.path,
+                        name="model.pt",
+                        policy="immutable",
+                    )
+                    try:
+                        verify_staged_model_artifact(model_artifact)
+                    except Exception as error:
+                        raise RuntimeError(
+                            "model artifact changed while W&B captured it"
+                        ) from error
+                    return artifact, model_artifact
+                except BaseException:
+                    self._cleanup_staged_model_artifact(
+                        model_artifact,
+                        context="preparation_failure",
+                    )
+                    raise
 
-            artifact = call_bounded(
+            artifact, staged_model_artifact = call_bounded(
                 prepare_artifact,
                 timeout_seconds=upload_timeout,
                 operation="W&B artifact preparation",
+                on_late_result=lambda result: self._cleanup_staged_model_artifact(
+                    result[1],
+                    context="late_preparation_completion",
+                ),
             )
-            current = Path(candidate.path).stat()
-            if (
-                current.st_dev,
-                current.st_ino,
-                current.st_size,
-                current.st_mtime_ns,
-                current.st_ctime_ns,
-            ) != (
-                candidate.device,
-                candidate.inode,
-                candidate.size_bytes,
-                candidate.mtime_ns,
-                candidate.ctime_ns,
-            ):
-                raise RuntimeError("checkpoint changed while W&B captured the artifact")
+            decision["model_artifact"] = {
+                "schema_version": MODEL_ARTIFACT_SCHEMA_VERSION,
+                "sha256": staged_model_artifact.sha256,
+                "size_bytes": staged_model_artifact.size_bytes,
+            }
 
             cloud_submission_started = True
 
@@ -674,6 +712,7 @@ class WandbTracker:
             )
             if getattr(committed, "state", None) != "COMMITTED":
                 raise RuntimeError("W&B artifact did not reach COMMITTED state")
+            verify_staged_model_artifact(staged_model_artifact)
             with self._artifact_lock:
                 self._uploaded_sha256.add(candidate.sha256)
             decision["outcome"] = "uploaded"
@@ -687,11 +726,19 @@ class WandbTracker:
             }
             self._record("artifact", "uploaded", decision)
             self._update_artifact_summary(decision)
+            self._cleanup_staged_model_artifact(
+                staged_model_artifact,
+                context="committed_upload",
+            )
         except Exception as error:
             if reservation_created and not cloud_submission_started:
                 with self._artifact_lock:
                     self._reserved_sha256.discard(candidate.sha256)
                     self._reserved_bytes_by_tracker -= candidate.size_bytes
+                self._cleanup_staged_model_artifact(
+                    staged_model_artifact,
+                    context="pre_submission_failure",
+                )
             decision["outcome"] = "upload_failed"
             decision["retry_outcome"] = "operator_retry_required"
             decision["error"] = self._safe_error(error)
@@ -935,6 +982,7 @@ class WandbTracker:
 
     def _update_artifact_summary(self, decision: Mapping[str, Any]) -> None:
         checkpoint = decision.get("checkpoint", {}) or {}
+        model_artifact = decision.get("model_artifact", {}) or {}
         artifact = decision.get("artifact", {}) or {}
         self.update_summary(
             {
@@ -944,12 +992,42 @@ class WandbTracker:
                 "artifact/optimizer_step": decision.get("optimizer_step"),
                 "artifact/checkpoint_sha256": checkpoint.get("sha256"),
                 "artifact/checkpoint_size_bytes": checkpoint.get("size_bytes"),
+                "artifact/model_sha256": model_artifact.get("sha256"),
+                "artifact/model_size_bytes": model_artifact.get("size_bytes"),
                 "artifact/id": artifact.get("id"),
                 "artifact/name": artifact.get("name"),
                 "artifact/version": artifact.get("version"),
                 "artifact/digest": artifact.get("digest"),
             }
         )
+
+    def _cleanup_staged_model_artifact(
+        self,
+        artifact: ModelArtifactFile | None,
+        *,
+        context: str,
+    ) -> None:
+        if artifact is None:
+            return
+        try:
+            remove_staged_model_artifact(artifact)
+        except Exception as error:
+            try:
+                self._record_failure(
+                    "artifact_cleanup",
+                    error,
+                    {
+                        "context": context,
+                        "model_artifact_sha256": artifact.sha256,
+                        "model_artifact_size_bytes": artifact.size_bytes,
+                        "staging_path": artifact.path,
+                    },
+                )
+            except Exception:
+                # Cleanup is non-authoritative. Even loss of its local failure
+                # event must not rewrite a committed cloud outcome or mask the
+                # original pre-submission error.
+                pass
 
     def _artifact_name(self) -> str:
         experiment_id = self.checkpoint_identity.get("experiment_id")

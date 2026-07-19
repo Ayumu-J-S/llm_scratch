@@ -165,8 +165,9 @@ for both train and validation:
 - compact scheduled scalars include the trainer's measured gradient norm;
   optional W&B watch hooks are a separate, potentially costly diagnostic
 - local recovery, best, final, and milestone checkpoints remain complete and
-  usable with W&B disabled; WB-001 permits only an explicitly selected best,
-  final, or milestone artifact after every safety gate passes
+  usable with W&B disabled; WB-001 permits only a strict model-only inference
+  package derived from an explicitly selected best, final, or milestone after
+  every safety gate passes—the resumable checkpoint itself is never uploaded
 
 At inference time, the model predicts one tokenizer token at a time, not one
 whole word at a time. The canonical vocabulary has 50,570 IDs; BOS is 1, PAD is

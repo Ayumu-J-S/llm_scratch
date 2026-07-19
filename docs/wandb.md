@@ -111,7 +111,18 @@ the experiment, Git, config, lock, tokenizer, and ordered data fingerprints.
 ## Artifact policy and quota preflight
 
 Model artifact policy is one of `none|best|final|milestone` and defaults to
-`none`. Recovery checkpoints are never upload candidates. Smoke, CI, stability
+`none`. W&B receives a strict inference/model package derived from the selected
+checkpoint, never the resumable checkpoint itself. The package contains only
+model tensors, an allowlisted `SimpleDecoderTransformer` architecture,
+canonical-tokenizer references, source-checkpoint lineage, and optimizer-step/
+target-token counters. Optimizer, scheduler, precision, RNG, stream cursor,
+measurement, full resolved config, and arbitrary state fields are excluded.
+The loader rejects extra/missing schema keys and reconstructs the canonical
+tokenizer plus model with a strict state-dict load before upload. Local full
+checkpoints remain the only resume authority; a downloaded W&B model package
+cannot resume training.
+
+Recovery checkpoints are never upload candidates. Smoke, CI, stability
 smoke, and memorization profiles are denied by code even if an override selects
 an artifact policy. A candidate must pass all of these gates:
 
@@ -124,12 +135,15 @@ an artifact policy. A candidate must pass all of these gates:
 5. A fresh operator-supplied usage snapshot names that same entity and records
    visible plan, storage usage/limit, and retention behavior.
 6. Across the tracker lifetime, the maximum observed `used_bytes`, bytes
-   reserved for every earlier accepted candidate, current checkpoint bytes,
-   and configured safety reserve fit beneath the minimum observed
-   `limit_bytes`.
+   reserved for every earlier accepted candidate, the full selected checkpoint
+   size as a conservative pre-staging upper bound, and configured safety
+   reserve fit beneath the minimum observed `limit_bytes`.
 7. The checkpoint SHA-256 has not already uploaded or been reserved in this
    run.
-8. The asynchronous artifact reaches `COMMITTED` within the configured timeout.
+8. The staged model package is independently hashed and measured, is no larger
+   than its reservation, remains byte-identical through immutable SDK staging,
+   and is distinct from the source-checkpoint physical identity.
+9. The asynchronous artifact reaches `COMMITTED` within the configured timeout.
 
 After cross-directory resume, a `best` policy reuses only a verified prior
 `best.pt` whose kind, run identity, optimizer step, best step, and best score
@@ -137,7 +151,8 @@ match restored event state. If that retained file is missing or unusable, the
 trainer still submits the expected path to artifact admission so the local
 decision is explicitly blocked rather than silently skipped.
 
-The tracker reserves candidate bytes under one lock before cloud submission,
+The tracker reserves the conservative source-checkpoint bytes under one lock
+before model-package construction or cloud submission,
 so serial or concurrent milestones cannot each spend the same visible
 headroom. A reservation is retained when submission or completion is ambiguous;
 operator review is required rather than assuming the service stored nothing.
@@ -187,12 +202,18 @@ uv run python src/train.py profile=pretrain_streaming \
   wandb.artifact.upload_timeout_seconds=600
 ```
 
-`Artifact.add_file` uploads the selected local checkpoint; reference artifacts
-are metadata lineage, not checkpoint backup. See the official [artifact
+`Artifact.add_file` receives only the verified model-only staging file under
+the internal name `model.pt`; it never receives the selected local checkpoint.
+The unique staging file remains immutable until W&B reports `COMMITTED`, then
+is removed on a best-effort basis. A local unlink failure is recorded as a
+separate `artifact_cleanup` event and cannot relabel a committed upload or
+request an unsafe retry. Source-checkpoint SHA/size and model-package SHA/size are recorded
+separately. These inference artifacts are not checkpoint backup. See the official [artifact
 reference](https://docs.wandb.ai/models/ref/python/experiments/artifact) and
 [run artifact methods](https://docs.wandb.ai/models/ref/python/experiments/run).
 
-Every decision records policy, reason, checkpoint SHA-256 and bytes when the
+Every decision records policy, reason, source-checkpoint SHA-256/bytes and
+model-package SHA-256/bytes when available, plus the
 candidate reaches identity preflight, auth result, usage/limit/retention,
 effective maximum observed usage, tracker-reserved bytes, effective minimum
 limit, configured safety reserve, projected bytes, upload outcome, and retry

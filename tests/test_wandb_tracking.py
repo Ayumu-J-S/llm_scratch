@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import copy
+import io
 import json
 import threading
 import time
@@ -13,7 +15,24 @@ import wandb
 from wandb.integration.torch.wandb_torch import TorchHistory
 from omegaconf import OmegaConf
 
-from training.checkpoint import CheckpointManager, build_checkpoint_identity
+from models.simple_decoder_transformer import SimpleDecoderTransformer
+from tokenizer.canonical import CanonicalTokenizer
+from training.checkpoint import (
+    CheckpointManager,
+    CheckpointVerificationError,
+    build_checkpoint_identity,
+    load_checkpoint_for_generation,
+)
+from training.model_artifact import (
+    ARCHITECTURE_KEYS,
+    COUNTER_KEYS,
+    LOGICAL_IDENTITY_KEYS,
+    MODEL_ARTIFACT_TOP_LEVEL_KEYS,
+    MODEL_KEYS,
+    SOURCE_CHECKPOINT_KEYS,
+    TOKENIZER_KEYS,
+    reconstruct_model_artifact,
+)
 from training.wandb_tracking import (
     WandbTracker,
     artifact_uploads_forbidden,
@@ -88,9 +107,11 @@ class FakeArtifact:
         self.type = type
         self.metadata = metadata
         self.files = []
+        self.file_bytes = []
 
     def add_file(self, path, name, policy=None) -> None:
         self.files.append((path, name, policy))
+        self.file_bytes.append(Path(path).read_bytes())
 
 
 class FakeWandb:
@@ -152,6 +173,19 @@ def _config(
         {
             "profile": {"name": profile_name, "purpose": purpose},
             "data": {"mode": "streaming"},
+            "model": {
+                "embed_size": 4,
+                "num_heads": 1,
+                "num_layers": 1,
+                "dropout": 0.0,
+            },
+            "training": {"sequence_length": 8},
+            "tokenizer": {
+                "manifest_path": "assets/tokenizers/llm-jp-v1/manifest.json",
+                "expected_fingerprint": (
+                    "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b"
+                ),
+            },
             "wandb": {
                 "mode": mode,
                 "project": "llm-scratch",
@@ -205,6 +239,15 @@ def _tracker(
     identity: dict | None = None,
 ) -> WandbTracker:
     checkpoint_identity = build_checkpoint_identity(cfg) if identity is None else identity
+    if identity is None:
+        checkpoint_identity.update(
+            {
+                "tokenizer_fingerprint": str(cfg.tokenizer.expected_fingerprint),
+                "experiment_id": "exp-test",
+                "git_sha": "a" * 40,
+                "lock_sha256": "b" * 64,
+            }
+        )
     tracker = WandbTracker(
         cfg=cfg,
         evidence_dir=tmp_path,
@@ -223,12 +266,23 @@ def _checkpoint(
     step: int,
     cfg=None,
     identity: dict | None = None,
+    extra_state: dict | None = None,
 ) -> Path:
     resolved_cfg = tracker.cfg if cfg is None else cfg
     checkpoint_identity = tracker.checkpoint_identity if identity is None else identity
     manager = CheckpointManager(directory, keep_last_n=2, identity=checkpoint_identity)
+    tokenizer = CanonicalTokenizer.from_config(resolved_cfg.tokenizer)
+    model = SimpleDecoderTransformer(
+        vocab_size=tokenizer.vocab_size,
+        embed_size=int(resolved_cfg.model.embed_size),
+        num_heads=int(resolved_cfg.model.num_heads),
+        max_len=int(resolved_cfg.training.sequence_length),
+        num_layers=int(resolved_cfg.model.num_layers),
+        dropout=float(resolved_cfg.model.dropout),
+        pad_token_id=tokenizer.pad_token_id,
+    )
     payload = {
-        "model": {"weight": torch.tensor([1.0])},
+        "model": model.state_dict(),
         "resolved_config": OmegaConf.to_container(resolved_cfg, resolve=True),
         "run_identity": dict(checkpoint_identity),
         "counters": {
@@ -237,6 +291,7 @@ def _checkpoint(
             "elapsed_seconds": float(step),
         },
     }
+    payload.update(extra_state or {})
     save = getattr(manager, f"save_{kind}")
     return save(payload)
 
@@ -516,11 +571,20 @@ def test_verified_login_entity_quota_upload_and_duplicate_are_recorded(tmp_path:
 
     assert fake.login_calls == [{"force": True, "verify": True, "timeout": 3}]
     assert first["outcome"] == "uploaded"
-    assert fake.artifacts[0].files == [(str(checkpoint), checkpoint.name, "immutable")]
+    staged_path, staged_name, staged_policy = fake.artifacts[0].files[0]
+    assert Path(staged_path) != checkpoint
+    assert not Path(staged_path).exists()
+    assert staged_name == "model.pt"
+    assert staged_policy == "immutable"
     assert first["checkpoint"]["checkpoint_kind"] == kind
     assert first["checkpoint"]["checkpoint_optimizer_step"] == 5
     assert first["checkpoint"]["size_bytes"] == checkpoint.stat().st_size
     assert first["checkpoint"]["sha256"]
+    assert first["model_artifact"]["schema_version"] == 1
+    assert first["model_artifact"]["sha256"] != first["checkpoint"]["sha256"]
+    assert first["model_artifact"]["size_bytes"] <= first["checkpoint"]["size_bytes"]
+    assert fake.artifacts[0].metadata["source_checkpoint_sha256"] == first["checkpoint"]["sha256"]
+    assert fake.artifacts[0].metadata["model_artifact_sha256"] == first["model_artifact"]["sha256"]
     assert first["auth"]["outcome"] == "verified"
     assert first["projected_bytes"] == 10 + checkpoint.stat().st_size + 20
     assert first["retry_outcome"] == "not_needed"
@@ -537,6 +601,7 @@ def test_verified_login_entity_quota_upload_and_duplicate_are_recorded(tmp_path:
     assert "runtime/container_image" in fake.run.summary.values
     assert fake.run.summary.values["artifact/id"] == "artifact-id"
     assert fake.run.summary.values["artifact/checkpoint_sha256"] == first["checkpoint"]["sha256"]
+    assert fake.run.summary.values["artifact/model_sha256"] == first["model_artifact"]["sha256"]
 
     second = tracker.consider_artifact(reason=kind, checkpoint_path=checkpoint, step=5)
     tracker.finish()
@@ -558,6 +623,109 @@ def test_verified_login_entity_quota_upload_and_duplicate_are_recorded(tmp_path:
     assert init["run_id"] == "run-id"
     assert init["run_url"] == "https://wandb.example/runs/run-id"
     assert uploaded["artifact"]["id"] == "artifact-id"
+
+
+def test_uploaded_model_artifact_is_strict_private_and_reconstructs_inference(
+    tmp_path: Path,
+):
+    raw_text = "RAW-DOCUMENT-SENTINEL-DO-NOT-UPLOAD"
+    raw_metadata = "RAW-METADATA-SENTINEL-DO-NOT-UPLOAD"
+    snapshot = tmp_path / "usage.json"
+    _snapshot(snapshot, limit_bytes=20_000_000)
+    cfg = _config(snapshot_path=snapshot)
+    cfg.data.streaming = {
+        "train": {
+            "sources": [
+                {
+                    "name": "fixture",
+                    "type": "manifest",
+                    "manifest_path": "data/fixture.json",
+                    "expected_fingerprint": "c" * 64,
+                    "selection": "train",
+                    "documents": [{"text": raw_text, "metadata": raw_metadata}],
+                }
+            ]
+        },
+        "validation": {"sources": []},
+    }
+    fake = FakeWandb()
+    tracker = _tracker(tmp_path, cfg, fake)
+    tracker.start(object())
+    checkpoint = _checkpoint(
+        tmp_path / "checkpoints",
+        tracker=tracker,
+        kind="final",
+        step=5,
+        extra_state={
+            "optimizer": {"private": raw_text},
+            "scheduler": {"private": raw_metadata},
+            "rng": {"private": raw_text},
+            "stream_cursor": {
+                "shuffle_buffer": [{"text": raw_text, "metadata": {"private": raw_metadata}}]
+            },
+            "arbitrary_payload": {"private": raw_metadata},
+        },
+    )
+
+    decision = tracker.consider_artifact(reason="final", checkpoint_path=checkpoint, step=5)
+
+    assert decision["outcome"] == "uploaded"
+    uploaded_bytes = fake.artifacts[0].file_bytes[0]
+    assert raw_text.encode() not in uploaded_bytes
+    assert raw_metadata.encode() not in uploaded_bytes
+    payload = torch.load(io.BytesIO(uploaded_bytes), map_location="cpu", weights_only=True)
+    assert set(payload) == MODEL_ARTIFACT_TOP_LEVEL_KEYS
+    assert set(payload["model"]) == MODEL_KEYS
+    assert set(payload["model"]["architecture"]) == ARCHITECTURE_KEYS
+    assert set(payload["tokenizer"]) == TOKENIZER_KEYS
+    assert set(payload["source_checkpoint"]) == SOURCE_CHECKPOINT_KEYS
+    assert set(payload["source_checkpoint"]["logical_identity"]) == LOGICAL_IDENTITY_KEYS
+    assert set(payload["counters"]) == COUNTER_KEYS
+    assert "optimizer" not in payload
+    assert "scheduler" not in payload
+    assert "rng" not in payload
+    assert "stream_cursor" not in payload
+    assert "resolved_config" not in payload
+    assert "measurement_evidence" not in payload
+    assert "arbitrary_payload" not in payload
+
+    manager = CheckpointManager(
+        checkpoint.parent,
+        keep_last_n=2,
+        identity=tracker.checkpoint_identity,
+    )
+    resumed = manager.load_resume(checkpoint)
+    assert resumed.payload["state"]["stream_cursor"]["shuffle_buffer"][0]["text"] == raw_text
+
+    captured = tmp_path / "captured-model.pt"
+    captured.write_bytes(uploaded_bytes)
+    reconstructed = reconstruct_model_artifact(captured)
+    source = load_checkpoint_for_generation(checkpoint).payload["state"]["model"]
+    for name, tensor in reconstructed.model.state_dict().items():
+        assert torch.equal(tensor, source[name])
+    tokens = torch.tensor([[1, 2, 3]], dtype=torch.long)
+    expected_model = SimpleDecoderTransformer(
+        vocab_size=reconstructed.tokenizer.vocab_size,
+        embed_size=cfg.model.embed_size,
+        num_heads=cfg.model.num_heads,
+        max_len=cfg.training.sequence_length,
+        num_layers=cfg.model.num_layers,
+        dropout=cfg.model.dropout,
+        pad_token_id=reconstructed.tokenizer.pad_token_id,
+    )
+    expected_model.load_state_dict(source, strict=True)
+    expected_model.eval()
+    with torch.no_grad():
+        assert torch.equal(reconstructed.model(tokens), expected_model(tokens))
+    with pytest.raises(CheckpointVerificationError):
+        manager.load_resume(captured)
+
+    unexpected = copy.deepcopy(payload)
+    unexpected["unexpected"] = raw_text
+    invalid = tmp_path / "invalid-model.pt"
+    torch.save(unexpected, invalid)
+    with pytest.raises(ValueError, match="keys must be exactly"):
+        reconstruct_model_artifact(invalid)
 
 
 def test_successful_uploads_accumulate_against_the_same_visible_snapshot(tmp_path: Path):
@@ -629,8 +797,130 @@ def test_cloud_submission_failure_retains_quota_reservation(tmp_path: Path):
     )
 
     assert first["outcome"] == "upload_failed"
+    assert Path(fake.artifacts[0].files[0][0]).is_file()
     assert second["block_reason"] == "visible_quota_insufficient"
     assert second["quota"]["reserved_by_tracker_bytes"] == first_checkpoint.stat().st_size
+
+
+def test_committed_upload_cleanup_failure_keeps_uploaded_outcome(
+    tmp_path: Path,
+    monkeypatch,
+):
+    snapshot = tmp_path / "usage.json"
+    _snapshot(snapshot, limit_bytes=10_000_000)
+    fake = FakeWandb()
+    tracker = _tracker(tmp_path, _config(snapshot_path=snapshot), fake)
+    tracker.start(object())
+    checkpoint = _checkpoint(tmp_path / "checkpoint", tracker=tracker, kind="final", step=5)
+
+    def cleanup_failure(_artifact):
+        raise PermissionError("simulated staging cleanup failure")
+
+    monkeypatch.setattr(
+        "training.wandb_tracking.remove_staged_model_artifact",
+        cleanup_failure,
+    )
+
+    decision = tracker.consider_artifact(reason="final", checkpoint_path=checkpoint, step=5)
+
+    assert decision["outcome"] == "uploaded"
+    assert decision["retry_outcome"] == "not_needed"
+    assert tracker._reserved_bytes_by_tracker == checkpoint.stat().st_size
+    assert fake.run.summary.values["artifact/outcome"] == "uploaded"
+    events = [
+        json.loads(line)
+        for line in (tmp_path / "wandb_events.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+    artifact_events = [event for event in events if event["action"] == "artifact"]
+    assert [event["outcome"] for event in artifact_events] == ["uploaded"]
+    cleanup = next(event for event in events if event["action"] == "artifact_cleanup")
+    assert cleanup["outcome"] == "failed"
+    assert cleanup["context"] == "committed_upload"
+    assert cleanup["error"]["type"] == "PermissionError"
+    assert Path(fake.artifacts[0].files[0][0]).is_file()
+
+
+def test_cleanup_and_cleanup_evidence_failure_cannot_mask_artifact_outcomes(
+    tmp_path: Path,
+    monkeypatch,
+):
+    snapshot = tmp_path / "usage.json"
+    _snapshot(snapshot, limit_bytes=10_000_000)
+
+    def cleanup_failure(_artifact):
+        raise PermissionError("simulated staging cleanup failure")
+
+    monkeypatch.setattr(
+        "training.wandb_tracking.remove_staged_model_artifact",
+        cleanup_failure,
+    )
+
+    committed_fake = FakeWandb()
+    committed = _tracker(tmp_path / "committed", _config(snapshot_path=snapshot), committed_fake)
+    committed.start(object())
+    committed_checkpoint = _checkpoint(
+        tmp_path / "committed-checkpoint",
+        tracker=committed,
+        kind="final",
+        step=5,
+    )
+    committed_record_failure = committed._record_failure
+
+    def fail_committed_cleanup_evidence(action, error, details=None):
+        if action == "artifact_cleanup":
+            raise OSError("simulated cleanup evidence failure")
+        return committed_record_failure(action, error, details)
+
+    committed._record_failure = fail_committed_cleanup_evidence
+    committed_decision = committed.consider_artifact(
+        reason="final",
+        checkpoint_path=committed_checkpoint,
+        step=5,
+    )
+    assert committed_decision["outcome"] == "uploaded"
+    assert committed_decision["retry_outcome"] == "not_needed"
+    assert committed._reserved_bytes_by_tracker == committed_checkpoint.stat().st_size
+
+    preparation_fake = FakeWandb()
+    preparation = _tracker(
+        tmp_path / "preparation",
+        _config(snapshot_path=snapshot),
+        preparation_fake,
+    )
+    preparation.start(object())
+    preparation_checkpoint = _checkpoint(
+        tmp_path / "preparation-checkpoint",
+        tracker=preparation,
+        kind="final",
+        step=5,
+    )
+    prepared = preparation_fake.Artifact
+
+    def fail_add_file(*args, **kwargs):
+        artifact = prepared(*args, **kwargs)
+        artifact.add_file = lambda *args, **kwargs: (_ for _ in ()).throw(
+            OSError("original local preparation failure")
+        )
+        return artifact
+
+    preparation_fake.Artifact = fail_add_file
+    preparation_record_failure = preparation._record_failure
+
+    def fail_preparation_cleanup_evidence(action, error, details=None):
+        if action == "artifact_cleanup":
+            raise OSError("simulated cleanup evidence failure")
+        return preparation_record_failure(action, error, details)
+
+    preparation._record_failure = fail_preparation_cleanup_evidence
+    preparation_decision = preparation.consider_artifact(
+        reason="final",
+        checkpoint_path=preparation_checkpoint,
+        step=5,
+    )
+    assert preparation_decision["outcome"] == "upload_failed"
+    assert preparation_decision["error"]["message"] == "original local preparation failure"
+    assert preparation._reserved_bytes_by_tracker == 0
+    assert preparation_fake.run.uploads == []
 
 
 def test_blocking_cloud_submission_is_bounded_and_retains_reservation(tmp_path: Path):
@@ -644,7 +934,7 @@ def test_blocking_cloud_submission_is_bounded_and_retains_reservation(tmp_path: 
     snapshot = tmp_path / "usage.json"
     _snapshot(snapshot, limit_bytes=10_000_000)
     cfg = _config(policy="milestone", snapshot_path=snapshot)
-    cfg.wandb.artifact.upload_timeout_seconds = 0.01
+    cfg.wandb.artifact.upload_timeout_seconds = 0.5
     fake = FakeWandb()
     fake.run = BlockingUploadRun()
     tracker = _tracker(tmp_path, cfg, fake)
@@ -655,9 +945,10 @@ def test_blocking_cloud_submission_is_bounded_and_retains_reservation(tmp_path: 
     decision = tracker.consider_artifact(reason="milestone", checkpoint_path=checkpoint, step=5)
     release.set()
 
-    assert time.monotonic() - started < 0.2
+    assert time.monotonic() - started < 1.2
     assert decision["outcome"] == "upload_failed"
     assert tracker._reserved_bytes_by_tracker == checkpoint.stat().st_size
+    assert Path(fake.artifacts[0].files[0][0]).is_file()
     failure = next(
         json.loads(line)
         for line in (tmp_path / "wandb_events.jsonl").read_text(encoding="utf-8").splitlines()
