@@ -123,6 +123,10 @@
 | 100 | Repair | Complete | Structured projection now indexes both the complete source record and the task-specific input-only schema: JCommonsenseQA omits `label`, while GSM8K omits `answer`. Changed or absent answers therefore cannot hide exposure to pinned benchmark inputs. All scan/cache identities were advanced |
 | 101 | Focused and canonical validation | PASS | Reordered, pretty-printed input-only mappings report zero misses across all 128 canonical examples in both tasks. A complete-scan regression verifies that an unlabeled selected JCommonsenseQA input publishes contaminated—not reusable clean—cache evidence. The broader benchmark/generation/config/reproducibility/tokenizer selection passes 131 tests; full validation and exact-head re-review remain pending |
 | 102 | Full validation | PASS | Official network-isolated CPU gate passes 501 tests with 1 skipped plus repository Ruff, resolved Hydra preflight, lock-drift rejection, and disabled/offline process-tree smoke. No GPU, online W&B, full-corpus scan, or large artifact was used; exact-head CI and independent re-review remain pending |
+| 103 | Exact-head independent `/review` | FAIL | Formal review of clean head `f40d863` reran the 501-test gate (1 skipped), then reproduced that all 128 selected JCommonsenseQA prompt-input mappings evaded detection when both the answer `label` and source-only `q_id` were absent. The evaluator never consumes `q_id`, so the prior projection did not cover its actual input shape and could permit false-clean cached evidence |
+| 104 | Repair | Complete | The JCommonsenseQA input-only projection now omits both `label` and source-only `q_id`, matching the exact question-plus-five-choice evaluator input. Direct all-selected and complete-scan regressions use that prompt-bearing shape, and every scan/cache identity was advanced |
+| 105 | Focused and canonical validation | PASS | The direct and complete-scan regressions pass; the broader benchmark/generation/config/reproducibility/tokenizer selection passes 145 tests. Pinned canonical development acceptance detects 128/128 prompt-bearing input records in both tasks after answer and source-only record-ID omission, key reordering, pretty printing, and ASCII-escaped NFD normalization |
+| 106 | Full validation | PASS | Official network-isolated CPU gate passes 501 tests with 1 skipped plus repository Ruff, resolved Hydra preflight, lock-drift rejection, and disabled/offline process-tree smoke. No GPU, online W&B, full-corpus scan, or large artifact was used; exact-head CI and independent re-review remain pending |
 
 ## Resolved protocol
 
@@ -152,7 +156,8 @@
   whole-document identity, source-faithful record identity, text-normalized
   canonical JSON-object identity across key-order/whitespace variants, schema
   projection from metadata-enriched mappings, task-specific input-only
-  projections that exclude answer fields, and normalized 48-codepoint shingles.
+  projections that exclude answer fields and source-only record IDs, and
+  normalized 48-codepoint shingles.
   Decoded JSON string values are recursively
   rescanned under fixed total-byte, node, structural-depth, and decoded-string
   limits, including nested object/array, double-serialized, and quoted-prose
@@ -183,7 +188,7 @@
 
 ## Current conclusion
 
-All twenty-five failed review/audit cycles remain visible. Their forty-four findings are
+All twenty-six failed review/audit cycles remain visible. Their forty-five findings are
 repaired without weakening the fixed protocol or complete contamination gate:
 cheap context incompatibility precedes scanning, both tasks honor checkpoint
 precision, external records are pinned, evaluator/runtime and dirty source
@@ -205,7 +210,9 @@ record representation, while text normalization composes with a
 structure-normalized JSON identity to detect BOM, newline, Unicode,
 key-order, whitespace, embedded wrapper, ASCII-escaped decoded-NFD variants,
 complete selected mappings augmented with scalar or nested provenance, and
-unlabeled question/input mappings whose answer field is absent or changed.
+unlabeled question/input mappings whose answer field is absent or changed,
+including the exact prompt-bearing JCommonsenseQA mapping without source-only
+`q_id` metadata.
 Decoded JSON strings are recursively inspected through object, array,
 double-serialized, and quoted-prose wrappers under strict per-document
 byte/node/depth/string caps; normalized-key collisions and parser recursion are
