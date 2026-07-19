@@ -51,6 +51,9 @@ Failed cycles are retained and must not be rewritten as passing cycles.
 | 12 | target integration | `928b832dcaae747f0ad5a04644741b46ea526007` through `6414349fc147e40f6eaef86ca9041b3926468442` | Integrate repaired BENCH target `71c0eee929c1d5c37e47cb8cbc761f648e7630a9` | implemented | Adopted schema-owned mapping projections for augmented records plus nested-candidate follow-up; no duplicate local BENCH implementation | Enriched-record focused gate passes 2 tests; focused reproducibility/HUMAN gate remains 42 passed; exact-head CPU gate passes 531 tests with 1 skip; re-review pending |
 | 13 | re-review | `9e47cdc5b5193377bf77bb1b1d1e95b07c3542c4` against BENCH target `71c0eee929c1d5c37e47cb8cbc761f648e7630a9` | Independent formal `/review` | interrupted; no verdict | The reviewer independently passed the 531-test suite, but the target advanced before a verdict; the stale-base review was stopped rather than represented as exact-head evidence | Reviewer output: 531 passed, 1 skipped; no verdict retained |
 | 14 | target integration | `bd9924bfb9e25b096bc18a5e32d8e156426f1e5f` | Integrate BENCH target `f40d86333eb1b0136d429b0c27ce11856a571a45` | implemented | Adopted input-only projections for unlabeled JCommonsenseQA and GSM8K records; no HUMAN-local scanner fork | Exact-head CPU gate passes 532 tests with 1 skip plus Ruff, Hydra config, lock drift, and offline training/W&B smoke; re-review pending |
+| 15 | re-review | `8dd94ee8e872e4686aefd76c0e06f9e0a33ed60c` against BENCH target `f40d86333eb1b0136d429b0c27ce11856a571a45` | Independent formal `/review` | `FAIL` | P2: the exclusive run-preparation marker survived process death and could permanently block checkpoint recovery | Reviewer independently reran 532 passed, 1 skipped and found no other issue |
+| 16 | repair | `bd9331b766e3bf60c34b32932a5249d85afcfbb1` | Make preparation exclusion process-owned | implemented | Replaced the persistent `O_EXCL` marker with nonblocking advisory `flock`; an unlocked file left by process death is reusable while a live lock still fails closed | Focused reproducibility gate passes 17 tests; full CPU gate passes 533 tests with 1 skip plus Ruff, Hydra config, lock drift, and offline training/W&B smoke |
+| 17 | target integration | `7d1aeae993935568d7b198a6e2d37cb6bf62cc9a` | Integrate BENCH target `c31e96ed9dff530388c663c26d2bed2c2ecdd6ee` | implemented | Adopted the formal `q_id` input-projection repair before certifying HUMAN | Exact integrated CPU gate passes 533 tests with 1 skip plus Ruff, Hydra config, lock drift, and offline training/W&B smoke; re-review pending |
 
 ## Independent check selection and verdicts
 
@@ -304,10 +307,56 @@ Failed cycles are retained and must not be rewritten as passing cycles.
   preflight, lock drift, and credential-isolated offline training/W&B smoke;
   455 GB remained free. Independent exact-head review remains required.
 
+### Review cycle 6 — formal re-review of `8dd94ee`
+
+- Commit reviewed: `8dd94ee8e872e4686aefd76c0e06f9e0a33ed60c` against
+  BENCH target `f40d86333eb1b0136d429b0c27ce11856a571a45`.
+- Selected `CHECK.md` sections: applicable 7, 8, and 9.1; real DGX generation,
+  human ratings, performance, and quality conclusions remained N/A.
+- Ticket acceptance result: `FAIL` because interrupted training preparation
+  could make an otherwise valid checkpoint recovery operationally inaccessible.
+- Philosophy alignment: the lineage design held, but long-running recovery must
+  not require undocumented manual lock-file repair after process death.
+- Complexity / change-surface result: the repair is one standard OS advisory
+  lock at the existing preparation boundary.
+- ML-system result: `FAIL`; no model/data/evaluation finding, but recovery
+  availability is part of the exact checkpoint contract.
+- Verdict: `FAIL` because one P2 finding remained.
+
+#### Finding
+
+| Severity | Area | What was wrong | Required action |
+| --- | --- | --- | --- |
+| P2 | checkpoint recovery | The `O_EXCL` marker file remained after SIGKILL or host restart, causing every later preparation attempt to report a live collision | Use a process-owned advisory lock, or safely validate and reclaim stale ownership |
+
+## Failed-review handoff — cycle 6
+
+- Reproduction: leave `.run-preparation.lock` after the owner exits, then call
+  `prepare_trainer` for a fresh or resume attempt in that run directory.
+- Constraints preserved: reject simultaneous same-directory preparation,
+  retain explicit verified resume lineage, fail before evidence mutation, keep
+  the 100 GB reserve, and do no real GPU/rating work.
+- Repair request: use a lock automatically released by the OS when the owning
+  process dies and add both live-owner rejection and stale-file reuse coverage.
+
+## Repair cycle 6 and final target integration
+
+- Finding addressed: interrupted preparation no longer leaves stale ownership.
+- Change made: `bd9331b` uses nonblocking `flock` on the stable preparation-lock
+  inode. A live owner remains exclusive; process death closes the descriptor
+  and releases ownership without relying on a `finally` block or file removal.
+- Validation rerun: focused reproducibility gate passes 17 tests; exact repair
+  head passes 533 tests with one skip plus Ruff, Hydra config preflight, lock
+  drift, and credential-isolated offline training/W&B smoke.
+- Target integration: merge `7d1aeae` consumes BENCH head `c31e96e`, including
+  its formal `q_id` input-projection repair. The exact integrated head again
+  passes 533 tests with one skip plus the complete CPU gate; 455 GB remained
+  free. Independent exact-head re-review remains required.
+
 ## Independent re-review
 
-- Commit reviewed: pending cycle-14 target-integration successor.
-- Prior findings disposition: cycle-1 through cycle-5 repairs implemented;
+- Commit reviewed: pending cycle-17 target-integration successor.
+- Prior findings disposition: cycle-1 through cycle-6 repairs implemented;
   exact-head re-review pending.
 - New findings: pending.
 - Verdict: pending.
@@ -319,17 +368,17 @@ Failed cycles are retained and must not be rewritten as passing cycles.
   incomplete review state.
 - Human authorization and scope, or `N/A — human merge`: bounded roadmap series
   authorization exists, but review and exact-head gates still block merge.
-- Exact reviewed head: latest reviewed head `7917c9b`; failing.
+- Exact reviewed head: latest reviewed head `8dd94ee`; failing.
 - Final review verdict: `FAIL`.
 - Actionable findings repaired and independently re-reviewed: no.
 - Blocking review decision / newer human objection: actionable review findings
   remain until the successor passes independent re-review.
 - Unresolved review threads: PR audit pending.
 - Required-context and configured-workflow inventory: pending final audit.
-- Exact-head check statuses: integrated target head `bd9924b` passed 532 tests
+- Exact-head check statuses: integrated target head `7d1aeae` passed 533 tests
   with one skip plus Ruff, Hydra config, lock drift, and offline
   training/W&B smoke; independent review pending.
-- Current base and mergeable evidence: BENCH target `f40d863` is integrated;
+- Current base and mergeable evidence: BENCH target `c31e96e` is integrated;
   final GitHub refresh remains pending.
 - PR trail, validation, risks, and authorization parity: this record and PR #50
   must retain all failed cycles.
