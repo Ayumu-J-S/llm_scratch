@@ -24,6 +24,7 @@ from training.checkpoint import LoadedCheckpoint
 
 
 PROMPT_SET_PATH = Path("evaluation/human/prompts-v1.json").resolve()
+TOKENIZER_FINGERPRINT = "12ccbc02d53338d1f5f506f2fec6e483fc08beea56cc1c04539d26e3025f484b"
 SHARED_IDENTITY = {
     "schema_version": 1,
     "experiment_id": "RUN-001-synthetic-human-fixture",
@@ -32,7 +33,7 @@ SHARED_IDENTITY = {
     "lock_sha256": "2" * 64,
     "config_sha256": "3" * 64,
     "model_config": {"embed_size": 8, "num_heads": 2, "num_layers": 1, "dropout": 0.0},
-    "tokenizer_fingerprint": "4" * 64,
+    "tokenizer_fingerprint": TOKENIZER_FINGERPRINT,
     "data_fingerprints": ["5" * 64, "6" * 64],
 }
 
@@ -182,7 +183,14 @@ class FakeSampler:
         )
 
 
-def _loaded(slot: str, *, target_tokens: int, optimizer_step: int) -> LoadedCheckpoint:
+def _loaded(
+    slot: str,
+    *,
+    target_tokens: int,
+    optimizer_step: int,
+    precision: str = "fp32",
+    sequence_length: int = 2048,
+) -> LoadedCheckpoint:
     identity = copy.deepcopy(SHARED_IDENTITY)
     return LoadedCheckpoint(
         payload={
@@ -193,7 +201,16 @@ def _loaded(slot: str, *, target_tokens: int, optimizer_step: int) -> LoadedChec
                     "optimizer_step": optimizer_step,
                     "target_tokens": target_tokens,
                 },
-                "resolved_config": {"training": {"precision": "fp32"}},
+                "resolved_config": {
+                    "training": {
+                        "precision": precision,
+                        "sequence_length": sequence_length,
+                    },
+                    "tokenizer": {
+                        "manifest_path": "assets/tokenizers/llm-jp-v1/manifest.json",
+                        "expected_fingerprint": TOKENIZER_FINGERPRINT,
+                    },
+                },
             },
         },
         physical_identity={
@@ -975,6 +992,108 @@ def test_prepare_rejects_context_limited_generation_before_writing_a_bundle(
             later_checkpoint="/synthetic/later.pt",
             generation_seed=20260719,
             device="cpu",
+        )
+    assert not workspace.exists()
+
+
+def test_prepare_rejects_short_checkpoint_context_before_training_scan(
+    tmp_path: Path, monkeypatch
+):
+    workspace = tmp_path / "human-evaluation" / "short-context-preflight"
+    key = create_blinding_key(tmp_path / "secret" / "short-context-preflight.key")
+
+    def fake_loader(path: str | Path):
+        slot = "earlier" if "earlier" in str(path) else "later"
+        return _loaded(
+            slot,
+            target_tokens=1_000_000 if slot == "earlier" else 1_500_000,
+            optimizer_step=100 if slot == "earlier" else 150,
+            sequence_length=64,
+        )
+
+    monkeypatch.setattr(workflow, "load_checkpoint_for_generation", fake_loader)
+    monkeypatch.setattr(
+        workflow,
+        "scan_checkpoint_training_prompts",
+        lambda *_args, **_kwargs: pytest.fail("context preflight must precede training scan"),
+    )
+    with pytest.raises(HumanEvaluationError, match="context is incompatible.*64-token"):
+        prepare_evaluation(
+            prompt_set_path=PROMPT_SET_PATH,
+            workspace_dir=workspace,
+            blinding_key_path=key,
+            earlier_checkpoint="/synthetic/earlier.pt",
+            later_checkpoint="/synthetic/later.pt",
+            generation_seed=20260719,
+            device="cpu",
+        )
+    assert not workspace.exists()
+
+
+def test_prepare_rejects_cpu_bf16_before_training_scan(tmp_path: Path, monkeypatch):
+    workspace = tmp_path / "human-evaluation" / "cpu-bf16-preflight"
+    key = create_blinding_key(tmp_path / "secret" / "cpu-bf16-preflight.key")
+
+    def fake_loader(path: str | Path):
+        slot = "earlier" if "earlier" in str(path) else "later"
+        return _loaded(
+            slot,
+            target_tokens=1_000_000 if slot == "earlier" else 1_500_000,
+            optimizer_step=100 if slot == "earlier" else 150,
+            precision="bf16",
+        )
+
+    monkeypatch.setattr(workflow, "load_checkpoint_for_generation", fake_loader)
+    monkeypatch.setattr(
+        workflow,
+        "scan_checkpoint_training_prompts",
+        lambda *_args, **_kwargs: pytest.fail("precision preflight must precede training scan"),
+    )
+    with pytest.raises(HumanEvaluationError, match="precision is incompatible.*requires.*cuda"):
+        prepare_evaluation(
+            prompt_set_path=PROMPT_SET_PATH,
+            workspace_dir=workspace,
+            blinding_key_path=key,
+            earlier_checkpoint="/synthetic/earlier.pt",
+            later_checkpoint="/synthetic/later.pt",
+            generation_seed=20260719,
+            device="cpu",
+        )
+    assert not workspace.exists()
+
+
+def test_prepare_rejects_unavailable_cuda_before_training_scan(tmp_path: Path, monkeypatch):
+    workspace = tmp_path / "human-evaluation" / "cuda-preflight"
+    key = create_blinding_key(tmp_path / "secret" / "cuda-preflight.key")
+
+    def fake_loader(path: str | Path):
+        slot = "earlier" if "earlier" in str(path) else "later"
+        return _loaded(
+            slot,
+            target_tokens=1_000_000 if slot == "earlier" else 1_500_000,
+            optimizer_step=100 if slot == "earlier" else 150,
+        )
+
+    monkeypatch.setattr(workflow, "load_checkpoint_for_generation", fake_loader)
+    monkeypatch.setattr(
+        workflow,
+        "select_device",
+        lambda _device: (_ for _ in ()).throw(RuntimeError("CUDA unavailable in fixture")),
+    )
+    monkeypatch.setattr(
+        workflow,
+        "scan_checkpoint_training_prompts",
+        lambda *_args, **_kwargs: pytest.fail("device preflight must precede training scan"),
+    )
+    with pytest.raises(HumanEvaluationError, match="device is unavailable.*CUDA unavailable"):
+        prepare_evaluation(
+            prompt_set_path=PROMPT_SET_PATH,
+            workspace_dir=workspace,
+            blinding_key_path=key,
+            earlier_checkpoint="/synthetic/earlier.pt",
+            later_checkpoint="/synthetic/later.pt",
+            generation_seed=20260719,
+            device="cuda",
         )
     assert not workspace.exists()
 

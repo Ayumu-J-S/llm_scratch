@@ -1,3 +1,5 @@
+import os
+from contextlib import contextmanager
 from pathlib import Path
 
 import hydra
@@ -298,6 +300,25 @@ def log_loader_size(name: str, loader) -> None:
     logger.info("{} windows: {}", name, size)
 
 
+@contextmanager
+def _exclusive_run_preparation(run_dir: Path):
+    """Serialize construction so timestamp-colliding launches cannot share a run."""
+
+    run_dir.mkdir(parents=True, exist_ok=True)
+    lock_path = run_dir / ".run-preparation.lock"
+    try:
+        descriptor = os.open(lock_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError as error:
+        raise ConfigPreflightError(
+            f"run directory is already being prepared by another process: {run_dir}"
+        ) from error
+    try:
+        yield
+    finally:
+        os.close(descriptor)
+        lock_path.unlink(missing_ok=True)
+
+
 def prepare_trainer(cfg: DictConfig, *, run_dir: Path | None = None) -> Trainer:
     """Assemble the canonical training path without beginning optimizer updates.
 
@@ -308,19 +329,30 @@ def prepare_trainer(cfg: DictConfig, *, run_dir: Path | None = None) -> Trainer:
 
     run_dir = _run_directory() if run_dir is None else Path(run_dir)
     validate_training_config(cfg)
+    with _exclusive_run_preparation(run_dir):
+        return _prepare_trainer_locked(cfg, run_dir=run_dir)
+
+
+def _prepare_trainer_locked(cfg: DictConfig, *, run_dir: Path) -> Trainer:
+    checkpoint_dir = run_dir / Path(cfg.artifacts.checkpoints_dir)
+    resume_path = cfg.artifacts.get("resume_path")
+    manifest_path = run_dir / "run_manifest.json"
+    if resume_path is None and manifest_path.exists():
+        raise ConfigPreflightError(
+            "refusing a fresh launch into an occupied run directory; "
+            f"existing run manifest: {manifest_path}"
+        )
+    inherited_run_lineage = None
+    if resume_path is not None:
+        inherited_run_lineage = load_run_lineage_from_resume(
+            resume_path, checkpoint_dir=checkpoint_dir
+        )
     seed_everything(
         int(cfg.reproducibility.seed),
         deterministic=bool(cfg.reproducibility.get("deterministic", True)),
     )
     device = select_device(cfg.runtime.device)
     logger.info("Using device: {}", device)
-    checkpoint_dir = run_dir / Path(cfg.artifacts.checkpoints_dir)
-    resume_path = cfg.artifacts.get("resume_path")
-    inherited_run_lineage = None
-    if resume_path is not None and not (run_dir / "run_manifest.json").exists():
-        inherited_run_lineage = load_run_lineage_from_resume(
-            resume_path, checkpoint_dir=checkpoint_dir
-        )
     resolved_config_path = save_resolved_config(cfg, run_dir=run_dir)
     logger.info("Resolved Hydra config: {}", resolved_config_path)
     tokenizer_config = build_tokenizer_config(cfg)

@@ -38,12 +38,15 @@ from human_evaluation.schema import (
     PromptSet,
     load_prompt_set_bytes,
 )
-from training.checkpoint import LoadedCheckpoint, load_checkpoint_for_generation
+from runtime.device import select_device
 from runtime.evaluation import (
     EVALUATION_DETERMINISM_POLICY,
     apply_evaluation_determinism_policy,
     collect_evaluator_identity,
 )
+from tokenizer.canonical import CanonicalTokenizer
+from training.checkpoint import LoadedCheckpoint, load_checkpoint_for_generation
+from training.optimization import autocast_context
 
 
 _FORBIDDEN_OUTPUT_PARTS = frozenset(
@@ -150,6 +153,7 @@ def prepare_evaluation(
     _require_key_outside_repository(key_path)
 
     candidates = _load_checkpoint_candidates(earlier_checkpoint, later_checkpoint)
+    _preflight_generation_contract(candidates, prompt_set, device=device)
     contamination = scan_checkpoint_training_prompts(
         candidates["earlier"]["_resolved_config"],
         candidates["earlier"]["_checkpoint_identity"],
@@ -640,6 +644,64 @@ def _private_checkpoint(candidate: Mapping[str, Any]) -> dict[str, Any]:
         "precision",
     }
     return {field: copy.deepcopy(candidate[field]) for field in fields}
+
+
+def _preflight_generation_contract(
+    candidates: Mapping[str, Mapping[str, Any]],
+    prompt_set: PromptSet,
+    *,
+    device: str,
+) -> None:
+    """Reject known generation incompatibilities before corpus-scale scanning."""
+
+    try:
+        resolved_device = select_device(device)
+    except (RuntimeError, ValueError) as error:
+        raise HumanEvaluationError(f"HUMAN generation device is unavailable: {error}") from error
+
+    for slot in ("earlier", "later"):
+        candidate = candidates[slot]
+        try:
+            autocast_context(resolved_device, str(candidate["precision"]))
+        except (RuntimeError, ValueError) as error:
+            raise HumanEvaluationError(
+                f"{slot} checkpoint precision is incompatible with HUMAN generation: {error}"
+            ) from error
+
+    earlier_config = _required_mapping(
+        candidates["earlier"].get("_resolved_config"),
+        "earlier checkpoint resolved config",
+    )
+    tokenizer_config = _required_mapping(
+        earlier_config.get("tokenizer"), "earlier checkpoint tokenizer config"
+    )
+    try:
+        tokenizer = CanonicalTokenizer.from_config(tokenizer_config)
+    except (OSError, TypeError, ValueError) as error:
+        raise HumanEvaluationError(f"checkpoint tokenizer is unusable: {error}") from error
+    if tokenizer.fingerprint != candidates["earlier"]["tokenizer_fingerprint"]:
+        raise HumanEvaluationError(
+            "checkpoint tokenizer fingerprint does not match the canonical tokenizer artifact"
+        )
+
+    for slot in ("earlier", "later"):
+        config = _required_mapping(
+            candidates[slot].get("_resolved_config"), f"{slot} checkpoint resolved config"
+        )
+        training = _required_mapping(
+            config.get("training"), f"{slot} checkpoint training config"
+        )
+        context_length = _positive_int(
+            training.get("sequence_length"), f"{slot} checkpoint training.sequence_length"
+        )
+        for prompt in prompt_set.prompts:
+            prompt_token_count = len(tokenizer.encode(prompt.text))
+            if prompt_token_count + MAX_NEW_TOKENS > context_length:
+                raise HumanEvaluationError(
+                    "checkpoint context is incompatible with the fixed 64-token HUMAN "
+                    f"generation budget: {slot} context={context_length}, "
+                    f"prompt={prompt.id}, prompt_tokens={prompt_token_count}"
+                )
 
 
 def _contamination_cache(config: Mapping[str, Any]) -> BoundedShardCache:

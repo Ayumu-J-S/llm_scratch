@@ -275,6 +275,15 @@ def test_operational_controls_preserve_recipe_but_not_independent_run_lineage(
         build_checkpoint_identity(resumed, run_manifest_path=inherited_manifest_path)
     )
 
+    with pytest.raises(ReproducibilityError, match="fresh launch.*already contains"):
+        write_run_manifest(
+            cfg=resumed,
+            run_dir=first_run,
+            root_dir=ROOT,
+            resolved_config_path=resumed_resolved,
+            tokenizer_manifest_path=TOKENIZER,
+            tokenizer_expected_fingerprint=TOKENIZER_FINGERPRINT,
+        )
     retained_manifest_path = write_run_manifest(
         cfg=resumed,
         run_dir=first_run,
@@ -282,9 +291,42 @@ def test_operational_controls_preserve_recipe_but_not_independent_run_lineage(
         resolved_config_path=resumed_resolved,
         tokenizer_manifest_path=TOKENIZER,
         tokenizer_expected_fingerprint=TOKENIZER_FINGERPRINT,
+        run_lineage_id=first_manifest["run_lineage_id"],
     )
     retained_manifest = json.loads(retained_manifest_path.read_text(encoding="utf-8"))
     assert retained_manifest["run_lineage_id"] == first_manifest["run_lineage_id"]
+
+
+def test_prepare_trainer_rejects_fresh_launch_into_existing_run(tmp_path: Path, monkeypatch):
+    with hydra.initialize_config_dir(version_base=None, config_dir=str(ROOT / "config")):
+        config = hydra.compose(config_name="train", overrides=["profile=smoke_overfit"])
+    run_dir = tmp_path / "occupied-run"
+    run_dir.mkdir()
+    (run_dir / "run_manifest.json").write_text("{}\n", encoding="utf-8")
+    monkeypatch.setattr(
+        train_module,
+        "save_resolved_config",
+        lambda *_args, **_kwargs: pytest.fail("occupied run must fail before evidence mutation"),
+    )
+
+    with pytest.raises(train_module.ConfigPreflightError, match="fresh launch into an occupied run"):
+        train_module.prepare_trainer(config, run_dir=run_dir)
+
+
+def test_prepare_trainer_rejects_concurrent_same_directory_launch(tmp_path: Path, monkeypatch):
+    with hydra.initialize_config_dir(version_base=None, config_dir=str(ROOT / "config")):
+        config = hydra.compose(config_name="train", overrides=["profile=smoke_overfit"])
+    run_dir = tmp_path / "colliding-run"
+    run_dir.mkdir()
+    (run_dir / ".run-preparation.lock").write_bytes(b"")
+    monkeypatch.setattr(
+        train_module,
+        "save_resolved_config",
+        lambda *_args, **_kwargs: pytest.fail("colliding run must fail before evidence mutation"),
+    )
+
+    with pytest.raises(train_module.ConfigPreflightError, match="already being prepared"):
+        train_module.prepare_trainer(config, run_dir=run_dir)
 
 
 def test_operational_wandb_controls_do_not_change_checkpoint_compatibility():

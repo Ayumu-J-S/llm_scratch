@@ -353,6 +353,10 @@ def write_run_manifest(
 
     run_path = Path(run_dir)
     root = Path(root_dir).resolve()
+    destination = run_path / "run_manifest.json"
+    resolved_run_lineage_id = _existing_or_new_run_lineage(
+        destination, inherited_run_lineage_id=run_lineage_id
+    )
     run_path.mkdir(parents=True, exist_ok=True)
     git = _git(root)
     real_run = str(cfg.get("profile", {}).get("purpose", "")) == "pretraining"
@@ -415,14 +419,10 @@ def write_run_manifest(
         "data_fingerprints": [item["fingerprint"] for item in snapshots],
     }
     experiment_id = "exp-" + sha256_bytes(canonical_json_bytes(identity_payload))[:20]
-    destination = run_path / "run_manifest.json"
-    run_lineage_id = _existing_or_new_run_lineage(
-        destination, inherited_run_lineage_id=run_lineage_id
-    )
     payload = {
         "schema_version": 1,
         "experiment_id": experiment_id,
-        "run_lineage_id": run_lineage_id,
+        "run_lineage_id": resolved_run_lineage_id,
         "git": git,
         "config": {"path": config_path.name, "sha256": config_hash},
         "experiment_identity": {
@@ -520,6 +520,12 @@ def _existing_or_new_run_lineage(
         if inherited_run_lineage_id is None:
             return f"{_RUN_LINEAGE_PREFIX}{uuid.uuid4().hex}"
         return _require_run_lineage(inherited_run_lineage_id, error_type=ReproducibilityError)
+    if inherited_run_lineage_id is None:
+        raise ReproducibilityError(
+            "refusing a fresh launch into a run directory that already contains "
+            f"a run manifest: {manifest_path}; set artifacts.resume_path to an "
+            "explicit verified checkpoint"
+        )
     try:
         existing = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
