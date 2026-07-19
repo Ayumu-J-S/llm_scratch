@@ -21,6 +21,7 @@ from dgx.planning import (
     training_overrides,
     validate_dgx_config,
 )
+from dgx.runtime_image import RUNTIME_SPEC_LABEL, runtime_image_spec_sha256
 from runtime.reproducibility import canonical_config_sha256, experiment_config_sha256
 
 
@@ -45,13 +46,23 @@ def _git(*args: str) -> str:
     ).stdout.strip()
 
 
-def _image_id(name: str) -> str:
-    return subprocess.run(
-        ["docker", "image", "inspect", name, "--format", "{{.Id}}"],
+def _image_identity(name: str) -> tuple[str, str | None]:
+    output = subprocess.run(
+        ["docker", "image", "inspect", name],
         check=True,
         capture_output=True,
         text=True,
-    ).stdout.strip()
+    ).stdout
+    inspected = json.loads(output)
+    if not isinstance(inspected, list) or len(inspected) != 1:
+        raise RuntimeError(f"docker returned an invalid image inspection for {name!r}")
+    image = inspected[0]
+    image_id = image.get("Id")
+    labels = image.get("Config", {}).get("Labels") or {}
+    runtime_spec = labels.get(RUNTIME_SPEC_LABEL) if isinstance(labels, dict) else None
+    if not isinstance(image_id, str) or not image_id.startswith("sha256:"):
+        raise RuntimeError(f"docker image {name!r} has no exact content identity")
+    return image_id, runtime_spec
 
 
 def _canonical_sha256(payload: object) -> str:
@@ -230,11 +241,19 @@ def _preflight(cfg: dict) -> tuple[str, str, Path, Path, dict[str, object]]:
     status = _git("status", "--porcelain", "--untracked-files=all")
     if status:
         raise RuntimeError(f"DGX evidence requires a clean worktree:\n{status}")
-    image_name = str(cfg["image"]["name"])
-    image_id = _image_id(image_name)
-    if image_id != cfg["image"]["expected_id"]:
+    expected_runtime_spec = str(cfg["image"]["expected_runtime_spec_sha256"])
+    source_runtime_spec = runtime_image_spec_sha256(ROOT)
+    if source_runtime_spec != expected_runtime_spec:
         raise RuntimeError(
-            f"container image identity mismatch: {image_id} != {cfg['image']['expected_id']}"
+            "current runtime build inputs differ from the committed DGX runtime-spec identity: "
+            f"{source_runtime_spec} != {expected_runtime_spec}"
+        )
+    image_name = str(cfg["image"]["name"])
+    image_id, image_runtime_spec = _image_identity(image_name)
+    if image_runtime_spec != expected_runtime_spec:
+        raise RuntimeError(
+            "container image runtime-spec identity mismatch: "
+            f"{image_runtime_spec!r} != {expected_runtime_spec!r}"
         )
     if not cfg.get("output_root"):
         raise RuntimeError("output_root is required outside plan mode")
@@ -266,7 +285,7 @@ def _preflight(cfg: dict) -> tuple[str, str, Path, Path, dict[str, object]]:
     return commit, image_id, output_root, cache_root, cache_identity
 
 
-def _selected_entry(cfg: dict, plan: list[dict]) -> dict:
+def _selected_entry(cfg: dict, plan: list[dict], *, image_id: str) -> dict:
     selected = str(cfg.get("selected_candidate") or "")
     matches = [entry for entry in plan if entry["candidate_id"] == selected]
     if not matches:
@@ -291,11 +310,11 @@ def _selected_entry(cfg: dict, plan: list[dict]) -> dict:
         or summary.get("verdict") != "PASS"
         or summary.get("plan_id") != matrix_plan_id
         or summary.get("git_commit") != current_commit
-        or summary.get("image_id") != cfg["image"]["expected_id"]
+        or summary.get("image_id") != image_id
         or summary.get("selection_rule") != cfg["selection"]
         or summary.get("selected", {}).get("candidate_id") != selected
         or matrix_plan.get("git_commit") != current_commit
-        or matrix_plan.get("image_id") != cfg["image"]["expected_id"]
+        or matrix_plan.get("image_id") != image_id
         or matrix_plan.get("schema_version") != 3
         or matrix_plan.get("ticket") != "DGX-001"
         or matrix_plan.get("config", {}).get("mode") != "matrix"
@@ -328,7 +347,7 @@ def _selected_entry(cfg: dict, plan: list[dict]) -> dict:
         "matrix_plan_id": matrix_plan_id,
         "matrix_protocol_sha256": _canonical_sha256(matrix_protocol),
         "git_commit": current_commit,
-        "image_id": cfg["image"]["expected_id"],
+        "image_id": image_id,
         "selection_rule": cfg["selection"],
         "selected": selected,
         "end_to_end_compute_tokens_per_second": summary["selected"][
@@ -405,16 +424,19 @@ def _role_overrides(cfg: dict, entry: dict, role: str) -> list[str]:
             for item in overrides
             if not item.startswith("training.max_time=")
             and not item.startswith("measurement.output_path=")
-            and not item.startswith("wandb.mode=")
+            and not item.startswith("measurement.enabled=")
+            and not item.startswith("wandb.")
         ]
         overrides.extend(
             [
                 "training.max_time=null",
-                "measurement.enabled=false",
                 "wandb.mode=disabled",
                 "wandb.watch.enabled=false",
                 "wandb.artifact.policy=none",
             ]
+        )
+        overrides.append(
+            "measurement.enabled=true" if role == "model-only" else "measurement.enabled=false"
         )
     overrides.append("data.streaming.cache.dir=/cache")
     return overrides
@@ -663,7 +685,7 @@ def main(config: DictConfig) -> None:
     commit, image_id, output_root, cache_root, cache_before = _preflight(cfg)
     selected = None
     if cfg["mode"] in {"decompose", "pilot"}:
-        selected = _selected_entry(cfg, matrix_plan)
+        selected = _selected_entry(cfg, matrix_plan, image_id=image_id)
         _validate_committed_selected_profile(selected, cfg)
     if cfg["mode"] == "matrix":
         roles = [(entry, "matrix") for entry in matrix_plan]

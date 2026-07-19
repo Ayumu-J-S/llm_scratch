@@ -175,6 +175,16 @@ def validate_dgx_config(config: Mapping[str, Any] | DictConfig) -> dict[str, Any
     missing = sorted(required - set(cfg))
     if missing:
         raise ValueError(f"DGX config is missing: {', '.join(missing)}")
+    image = cfg["image"]
+    if not isinstance(image, Mapping) or not isinstance(image.get("name"), str):
+        raise ValueError("DGX image must name one local runtime image")
+    runtime_spec = image.get("expected_runtime_spec_sha256")
+    if (
+        not isinstance(runtime_spec, str)
+        or len(runtime_spec) != 64
+        or any(character not in "0123456789abcdef" for character in runtime_spec)
+    ):
+        raise ValueError("DGX image runtime spec must be one lowercase SHA-256 identity")
     matrix = cfg["matrix"]
     if not isinstance(matrix, Mapping):
         raise ValueError("matrix must be a mapping")
@@ -582,6 +592,8 @@ def _validate_manifest_and_config(
             cfg.profile.name != "dgx_candidate"
             or cfg.training.max_steps != 30
             or cfg.data.streaming.train.max_target_tokens != 983040
+            or cfg.measurement.enabled is not True
+            or cfg.measurement.cuda_events is not True
             or cfg.wandb.mode != "disabled"
         ):
             raise ValueError("matrix resolved config differs from its exact 30-step protocol")
@@ -599,17 +611,21 @@ def _validate_manifest_and_config(
             or cfg.training.checkpoint_every_n_tokens != pilot["recovery_every_target_tokens"]
             or cfg.training.milestone_every_n_tokens != pilot["milestone_every_target_tokens"]
             or cfg.training.log_every_n_steps != pilot["log_every_optimizer_steps"]
+            or cfg.measurement.enabled is not True
+            or cfg.measurement.cuda_events is not True
             or cfg.wandb.mode != "online"
             or cfg.wandb.watch.enabled
             or cfg.wandb.artifact.policy != "none"
         ):
             raise ValueError("pilot resolved config differs from selected baseline protocol")
     elif role in {"model-only", "loader-only"}:
+        expected_measurement_enabled = role == "model-only"
         if (
             cfg.profile.name != "pretrain_baseline"
             or cfg.training.max_steps is not None
             or cfg.training.max_time is not None
-            or cfg.measurement.enabled
+            or bool(cfg.measurement.enabled) is not expected_measurement_enabled
+            or (role == "model-only" and cfg.measurement.cuda_events is not True)
             or cfg.wandb.mode != "disabled"
             or cfg.wandb.watch.enabled
             or cfg.wandb.artifact.policy != "none"
@@ -989,8 +1005,8 @@ def _project_token_budget(
     effective_target_tokens_per_step: int,
     pilot: Mapping[str, Any],
 ) -> int:
-    def elapsed(tokens: int) -> float:
-        optimizer_steps = math.ceil(tokens / effective_target_tokens_per_step) if tokens else 0
+    def elapsed(optimizer_steps: int) -> float:
+        tokens = optimizer_steps * effective_target_tokens_per_step
         return (
             tokens / compute_tokens_per_second
             + (optimizer_steps // int(pilot["log_every_optimizer_steps"])) * logging_seconds
@@ -1001,14 +1017,132 @@ def _project_token_budget(
         )
 
     low = 0
-    high = max(1, math.floor(compute_tokens_per_second * duration_seconds))
+    high = max(
+        0,
+        math.floor(compute_tokens_per_second * duration_seconds / effective_target_tokens_per_step),
+    )
     while low < high:
         middle = (low + high + 1) // 2
         if elapsed(middle) <= duration_seconds:
             low = middle
         else:
             high = middle - 1
-    return low
+    return low * effective_target_tokens_per_step
+
+
+def _online_adjusted_projection(
+    matrix_summary: Mapping[str, Any],
+    pilot_result: Mapping[str, Any],
+    cfg: Mapping[str, Any],
+) -> dict[str, Any]:
+    pauses = pilot_result.get("scheduled_log_pause_seconds")
+    if not isinstance(pauses, list) or not pauses:
+        raise ValueError("online pilot did not observe a scheduled scalar-log boundary")
+    if any(
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not math.isfinite(float(value))
+        or float(value) < 0.0
+        for value in pauses
+    ):
+        raise ValueError("online pilot scheduled-log latency is invalid")
+    online_logging_seconds = max(float(value) for value in pauses)
+
+    def observed_max(key: str) -> float:
+        values = pilot_result.get(key)
+        if not isinstance(values, list):
+            raise ValueError(f"online pilot {key} evidence is invalid")
+        if any(
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(float(value))
+            or float(value) < 0.0
+            for value in values
+        ):
+            raise ValueError(f"online pilot {key} latency is invalid")
+        return max((float(value) for value in values), default=0.0)
+
+    online_validation_seconds = observed_max("validation_pause_seconds")
+    online_recovery_seconds = observed_max("recovery_checkpoint_pause_seconds")
+    online_final_seconds = observed_max("final_checkpoint_pause_seconds")
+    candidates = matrix_summary.get("candidates")
+    if not isinstance(candidates, list) or not candidates:
+        raise ValueError("matrix summary has no candidates for online projection")
+    adjusted = []
+    for candidate in candidates:
+        if not isinstance(candidate, Mapping):
+            raise ValueError("matrix summary contains an invalid candidate")
+        overhead = candidate.get("projected_overhead_seconds")
+        if not isinstance(overhead, Mapping):
+            raise ValueError("matrix candidate lacks projected event overhead")
+        matrix_logging_seconds = float(overhead["scheduled_log_each"])
+        conservative_logging_seconds = max(matrix_logging_seconds, online_logging_seconds)
+        conservative_validation_seconds = max(
+            float(overhead["validation_each"]), online_validation_seconds
+        )
+        conservative_recovery_seconds = max(
+            float(overhead["recovery_each"]), online_recovery_seconds
+        )
+        conservative_final_seconds = max(float(overhead["final_once"]), online_final_seconds)
+        training_seconds = dict(SECONDS)
+        training_seconds["1_hour"] -= int(cfg["pilot"]["finalization_reserve_seconds"])
+        token_budgets = {
+            label: _project_token_budget(
+                training_seconds[label],
+                compute_tokens_per_second=float(
+                    candidate["conservative_compute_tokens_per_second"]
+                ),
+                logging_seconds=conservative_logging_seconds,
+                validation_seconds=conservative_validation_seconds,
+                recovery_seconds=conservative_recovery_seconds,
+                milestone_seconds=float(overhead["milestone_each"]),
+                final_seconds=0.0 if label == "1_hour" else conservative_final_seconds,
+                effective_target_tokens_per_step=int(candidate["effective_target_tokens_per_step"]),
+                pilot=cfg["pilot"],
+            )
+            for label in SECONDS
+        }
+        adjusted.append(
+            dict(candidate)
+            | {
+                "matrix_conservative_tokens_per_second": float(
+                    candidate["conservative_tokens_per_second"]
+                ),
+                "conservative_tokens_per_second": (token_budgets["7_days"] / SECONDS["7_days"]),
+                "token_budget_training_seconds": training_seconds,
+                "token_budgets": token_budgets,
+                "projected_overhead_seconds": dict(overhead)
+                | {
+                    "scheduled_log_each": conservative_logging_seconds,
+                    "validation_each": conservative_validation_seconds,
+                    "recovery_each": conservative_recovery_seconds,
+                    "final_once": conservative_final_seconds,
+                },
+            }
+        )
+    try:
+        selected, finalists = select_candidate(adjusted, cfg["selection"])
+    except ValueError as error:
+        selected = None
+        finalists = []
+        selection_error = str(error)
+    else:
+        selection_error = None
+    return {
+        "basis": "matrix compute throughput plus worst matrix/online pilot event latency",
+        "matrix_scheduled_log_max_seconds": max(
+            float(candidate["projected_overhead_seconds"]["scheduled_log_each"])
+            for candidate in candidates
+        ),
+        "online_scheduled_log_max_seconds": online_logging_seconds,
+        "online_validation_max_seconds": online_validation_seconds,
+        "online_recovery_checkpoint_max_seconds": online_recovery_seconds,
+        "online_final_checkpoint_max_seconds": online_final_seconds,
+        "candidates": adjusted,
+        "selection_finalists": [item["candidate_id"] for item in finalists],
+        "selected": selected,
+        "selection_error": selection_error,
+    }
 
 
 def _candidate_summary(runs: list[dict[str, Any]], cfg: Mapping[str, Any]) -> dict[str, Any]:
@@ -1487,6 +1621,22 @@ def _decomposition_conclusion(
     return True, "model forward/backward/optimizer is the nearer measured ceiling"
 
 
+def _decomposition_decision(
+    *,
+    model_ratio: float,
+    loader_ratio: float,
+    min_loader_ratio: float,
+    repeatability_passed: bool,
+) -> tuple[bool, str | None]:
+    if not repeatability_passed:
+        return False, None
+    return _decomposition_conclusion(
+        model_ratio=model_ratio,
+        loader_ratio=loader_ratio,
+        min_loader_ratio=min_loader_ratio,
+    )
+
+
 def summarize_decomposition(
     evidence_root: Path, config: Mapping[str, Any] | DictConfig
 ) -> dict[str, Any]:
@@ -1521,6 +1671,12 @@ def summarize_decomposition(
             or raw.get("measured_optimizer_steps") != 20
             or raw.get("telemetry_errors")
             or raw.get("telemetry_violations")
+            or raw.get("timing_protocol")
+            != (
+                "trainer_cuda_events_v3"
+                if raw.get("role") == "model-only"
+                else "completion_wall_v1"
+            )
         ):
             raise ValueError("decomposition run identity/health differs from plan")
         for shape_key in (
@@ -1547,7 +1703,10 @@ def summarize_decomposition(
         if (
             len(measured) != 20
             or any(row.get("target_tokens") != 32768 for row in rows)
-            or any(not math.isfinite(float(row["wall_seconds"])) for row in rows)
+            or any(
+                not math.isfinite(float(row["wall_seconds"])) or float(row["wall_seconds"]) <= 0.0
+                for row in rows
+            )
         ):
             raise ValueError("decomposition rows differ from exact target protocol")
         wall = sum(float(row["wall_seconds"]) for row in measured)
@@ -1567,30 +1726,50 @@ def summarize_decomposition(
                 for row in rows
             ):
                 raise ValueError("model-only decomposition contains non-finite training")
+            for row in rows:
+                cuda_milliseconds = row.get("cuda_milliseconds")
+                if (
+                    not isinstance(cuda_milliseconds, Mapping)
+                    or not REQUIRED_CUDA_PHASES <= set(cuda_milliseconds)
+                    or any(
+                        not math.isfinite(float(value)) or float(value) < 0.0
+                        for value in cuda_milliseconds.values()
+                    )
+                    or not math.isfinite(float(row.get("boundary_sync_seconds", -1.0)))
+                    or float(row.get("boundary_sync_seconds", -1.0)) < 0.0
+                ):
+                    raise ValueError("model-only decomposition lacks complete CUDA-event timing")
         results[raw["role"]].append(result)
     if observed_keys != expected_keys:
         raise ValueError("decomposition is incomplete")
     end_to_end = float(authority["end_to_end_compute_tokens_per_second"])
     summaries = {}
+    repeatability_limit = float(cfg["selection"]["max_repeat_spread_fraction"])
     for role, items in sorted(results.items()):
         rates = [item["tokens_per_second"] for item in items]
+        spread_fraction = (max(rates) - min(rates)) / statistics.median(rates)
         summaries[role] = {
             "runs": sorted(items, key=lambda item: item["repetition"]),
             "throughput": {
                 "min": min(rates),
                 "median": statistics.median(rates),
                 "max": max(rates),
-                "spread_fraction": (max(rates) - min(rates)) / statistics.median(rates),
+                "spread_fraction": spread_fraction,
             },
             "supply_ratio_min": min(rates) / end_to_end,
+            "repeatability_passed": spread_fraction <= repeatability_limit,
         }
     model_ratio = summaries["model-only"]["supply_ratio_min"]
     loader_ratio = summaries["loader-only"]["supply_ratio_min"]
     threshold = float(cfg["gates"]["min_loader_supply_ratio"])
-    loader_headroom_passed, bottleneck = _decomposition_conclusion(
+    decomposition_repeatability_passed = all(
+        summary["repeatability_passed"] for summary in summaries.values()
+    )
+    loader_headroom_passed, bottleneck = _decomposition_decision(
         model_ratio=model_ratio,
         loader_ratio=loader_ratio,
         min_loader_ratio=threshold,
+        repeatability_passed=decomposition_repeatability_passed,
     )
     return {
         "schema_version": 3,
@@ -1602,10 +1781,14 @@ def summarize_decomposition(
         "matrix_summary": dict(authority),
         "end_to_end_compute_tokens_per_second": end_to_end,
         "minimum_loader_supply_ratio": threshold,
+        "maximum_repeat_spread_fraction": repeatability_limit,
         "decomposition": summaries,
+        "decomposition_repeatability_passed": decomposition_repeatability_passed,
         "loader_headroom_passed": loader_headroom_passed,
         "named_bottleneck": bottleneck,
-        "verdict": "PASS" if loader_headroom_passed else "FAIL",
+        "verdict": (
+            "PASS" if decomposition_repeatability_passed and loader_headroom_passed else "FAIL"
+        ),
     }
 
 
@@ -1678,7 +1861,7 @@ def summarize_pilot(evidence_root: Path, config: Mapping[str, Any] | DictConfig)
     cfg = validate_dgx_config(config)
     root = Path(evidence_root)
     plan = _load_plan(root, cfg)
-    _validate_matrix_authority(plan)
+    matrix_summary = _validate_matrix_authority(plan)
     selected = plan.get("selected")
     if not isinstance(selected, Mapping):
         raise ValueError("pilot has no summary-selected matrix entry")
@@ -1689,6 +1872,24 @@ def summarize_pilot(evidence_root: Path, config: Mapping[str, Any] | DictConfig)
     result = summarize_run(run_dirs[0], cfg["gates"], expected=expected, plan=plan, role="pilot")
     run = _read_json(run_dirs[0] / "run.json")
     wandb = _validated_wandb_evidence(run_dirs[0], run)
+    try:
+        online_projection = _online_adjusted_projection(matrix_summary, result, cfg)
+    except ValueError as error:
+        online_projection = {
+            "basis": "matrix compute throughput plus worst matrix/online pilot event latency",
+            "candidates": [],
+            "selection_finalists": [],
+            "selected": None,
+            "selection_error": str(error),
+        }
+    projected_selected = online_projection.get("selected")
+    projection_selection_stable = (
+        isinstance(projected_selected, Mapping)
+        and projected_selected.get("candidate_id") == selected["candidate_id"]
+    )
+    projection_seven_day_floor = projection_selection_stable and int(
+        projected_selected["token_budgets"]["7_days"]
+    ) >= int(cfg["selection"]["target_tokens_7d"])
     pilot_gates = {
         "training_gates": result["passed"],
         "duration_representative": float(run["final_elapsed_seconds"])
@@ -1717,6 +1918,9 @@ def summarize_pilot(evidence_root: Path, config: Mapping[str, Any] | DictConfig)
             and wandb.get("final_summary_succeeded") is True
             and not wandb.get("critical_failures")
         ),
+        "online_log_pause_observed": bool(result["scheduled_log_pause_seconds"]),
+        "online_projection_selection_stable": projection_selection_stable,
+        "online_projection_seven_day_floor": projection_seven_day_floor,
     }
     return {
         "schema_version": 3,
@@ -1727,6 +1931,7 @@ def summarize_pilot(evidence_root: Path, config: Mapping[str, Any] | DictConfig)
         "selected_candidate": selected["candidate_id"],
         "run": result,
         "wandb": wandb,
+        "online_projection": online_projection,
         "gates": pilot_gates,
         "verdict": "PASS" if all(pilot_gates.values()) else "FAIL",
     }

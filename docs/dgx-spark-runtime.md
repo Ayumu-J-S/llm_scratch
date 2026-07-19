@@ -40,7 +40,12 @@ rejects Torch, Triton, NVIDIA, and CUDA provider packages in the overlay, then
 installs the complete export with `pip --require-hashes --no-deps`. Build-time
 guards compare the NGC Torch version, CUDA build, and resolved module path before
 and after installation, along with a SHA-256 over Torch's installed `METADATA`
-and `RECORD` files.
+and `RECORD` files. The dependency image never copies the repository source or
+its own configured pin. `make dgx-build` hashes the Dockerfile, runtime lock,
+overlay guard, and hash implementation into a committed runtime-spec identity,
+passes it as an image label, and the runner verifies that label before binding
+the observed exact image ID into a plan. Every execution mounts the exact clean
+source commit read-only.
 
 ## Diagnose the actual runtime
 
@@ -53,7 +58,9 @@ make dgx-diagnose
 Machine-readable evidence is available with:
 
 ```bash
-docker run --rm --gpus all --entrypoint python llm-scratch:env-001 \
+docker run --rm --gpus all --entrypoint python \
+  --volume "$(pwd):$(pwd):ro" --workdir "$(pwd)" \
+  --env "PYTHONPATH=$(pwd)/src" llm-scratch:env-001 \
   scripts/diagnose_environment.py --json --require-cuda --require-bf16
 ```
 
@@ -70,9 +77,11 @@ spare capacity.
 Both negative checks must exit nonzero when no GPU is passed:
 
 ```bash
-docker run --rm llm-scratch:env-001 \
+docker run --rm --volume "$(pwd):$(pwd):ro" --workdir "$(pwd)" \
+  --env "PYTHONPATH=$(pwd)/src" llm-scratch:env-001 \
   python scripts/diagnose_environment.py --require-cuda --require-bf16
-docker run --rm llm-scratch:env-001 python scripts/cuda_smoke.py
+docker run --rm --volume "$(pwd):$(pwd):ro" --workdir "$(pwd)" \
+  --env "PYTHONPATH=$(pwd)/src" llm-scratch:env-001 python scripts/cuda_smoke.py
 ```
 
 ## Exact ten-step CUDA proof
@@ -138,13 +147,19 @@ missing verified checkpoint. It reports median and spread, step median/p95/max,
 trained-target tokens/s, phase/data-wait decomposition, memory, validation and
 checkpoint overhead, and conservative 1-hour/24-hour/7-day budgets.
 
-Selection is deterministic: a candidate must pass every gate and project at
+Matrix preselection is deterministic: a candidate must pass every gate and project at
 least one billion targets in seven days from its slowest repetition. Among
 candidates no more than 20% slower than the fastest, choose the deepest model;
 then choose the longest context retaining at least 85% of that model's fastest
 throughput. A non-unique result is rejected instead of being resolved by an
 undeclared tie breaker. This leaves quality/storage headroom instead of
 selecting the largest arm that merely avoids OOM.
+
+That preselection is not final deployment authority. The online W&B pilot must
+observe a scheduled scalar-log boundary, then recompute the 1-hour, 24-hour,
+and 7-day token budgets for every matrix candidate using the worse of matrix
+and online log latency. The same seven-day floor and 20%/85% rule run again; a
+changed selection or failed floor makes the pilot fail closed.
 
 After reviewing `dgx-summary.json`, run the selected arm for the required
 30-minute thermal/storage pilot and retain its verified checkpoint plus two
@@ -163,8 +178,10 @@ The committed `profile=pretrain_baseline` has a 3,480-second optimizer-work cap
 plus a 120-second finalization reserve inside its one-hour wall budget. Matrix
 evidence must show that one worst observed update/event tail and the final
 checkpoint fit that reserve with a 2x margin. It uses
+the same per-update CUDA-event/synchronization protocol as the matrix, plus
 online W&B scalar logging with watch disabled and artifact policy `none`, while
 validation, rotating recovery checkpoints, and milestones run every 5M, 2.5M,
 and 100M trained targets. A final DGX-001 record must show that its model/context
 shape agrees with the exact-head summary before the profile is treated as
-selected.
+selected. Decomposition likewise requires three repeatable measurements per
+role before it may pass or name a bottleneck.

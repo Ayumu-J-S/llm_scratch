@@ -4,7 +4,8 @@
 schema_version: 3
 image:
   name: llm-scratch:env-001
-  expected_id: sha256:23a1bee69fe189e77105cdddeee9aeff6ef0763d58a691625fbfcab64efd1887
+  # Updated only when a content-addressed Docker build input intentionally changes.
+  expected_runtime_spec_sha256: 9caeb915d8aa16437d1cbd28b9a435ced98c4c8bb674110b12a14a0d7fcf0b23
 
 matrix:
   repetitions: 3

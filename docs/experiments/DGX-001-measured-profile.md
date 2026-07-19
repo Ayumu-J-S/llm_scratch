@@ -3,9 +3,9 @@
 - Roadmap ticket: `DGX-001`
 - Branch: `codex/dgx-001-final-integration`
 - Draft PR: [#47](https://github.com/Ayumu-J-S/llm_scratch/pull/47)
-- Status: formal exact-head `/review` failed at `b117f2c`; its four new P1
-  protocol findings are recorded for repair, with no target compute authorized
-  before a fresh exact-head review passes
+- Status: the four P1 protocol findings from the formal exact-head `/review` at
+  `b117f2c` are repaired and pass the full CPU gate; a fresh exact-head review
+  remains required before target compute is authorized
 - Baseline input: merged `WB-001` head
   `8791bb7237663b08c001b732393a76b240362476`
 
@@ -55,7 +55,9 @@ logs/evidence. No destructive cleanup is part of this ticket.
   validation, 2.5M-target rotating recovery, and 100M-target milestones. A
   candidate passes only when twice its worst observed update/event tail plus
   final checkpoint fits that reserve; the pilot independently gates observed
-  training plus final-checkpoint time against its 1,800-second wall budget.
+  training plus final-checkpoint time against its 1,800-second wall budget. It
+  retains the matrix's per-update CUDA-event/synchronization measurement
+  protocol.
 - `scripts/measure_dgx.py` runs the canonical trainer, records physical
   config/manifest/checkpoint identities, samples host/GPU state out of band,
   enforces fail-closed watchdog limits for matrix and pilot roles, and binds the
@@ -63,8 +65,11 @@ logs/evidence. No destructive cleanup is part of this ticket.
   Japanese and English base-model continuations from that exact checkpoint.
 - `scripts/measure_dgx_decomposition.py` measures three 10+20-update
   repetitions of the device-resident model path and real streaming loader path
-  for the summary-selected profile. Both roles use the same fail-closed hard
-  resource watchdog and preserve their failed evidence on interruption.
+  for the summary-selected profile. Model-only timing retains the trainer's
+  matrix CUDA-event boundary; loader-only records completion wall time. Both
+  roles use the same fail-closed hard resource watchdog, preserve failed
+  evidence on interruption, and must pass the declared repeat-spread limit
+  before the summary may pass or name a bottleneck.
 - Telemetry evidence I/O is itself fail-closed: open, sample, serialization,
   write, flush, fsync, close, and unexpected worker failures remain available
   through in-memory control state, interrupt the workload, and are surfaced by
@@ -77,7 +82,10 @@ logs/evidence. No destructive cleanup is part of this ticket.
   host UID:GID, preserves commands and logs, hashes the immutable data cache
   before and after, and refuses auxiliary runs without a passing selection
   summary for the same commit. The pilot mounts host W&B authentication
-  read-only without copying or serializing it.
+  read-only without copying or serializing it. The dependency-only container
+  is built from a content-addressed runtime spec without copying the source or
+  its own pin; the runner verifies its label and launches the observed exact
+  image ID while mounting the exact source commit read-only.
 - Every matrix, decomposition, and pilot role has a plan-authorized canonical
   hash of its complete resolved Hydra configuration plus the manifest's
   scientific experiment-config identity. Auxiliary runs also bind the physical
@@ -91,7 +99,8 @@ logs/evidence. No destructive cleanup is part of this ticket.
 - `scripts/summarize_dgx_measurements.py` gates every raw run and writes the
   repeat statistics, selection, pause-aware token/checkpoint/storage plan, and
   named bottleneck. Data wait is divided only by optimizer-step wall time;
-  projections charge scheduled scalar logging; decomposition compares isolated
+  projections are update-aligned and charge scheduled scalar logging;
+  decomposition compares isolated
   roles with the selected candidate's conservative compute throughput and uses
   the 1.2x threshold only for loader supply. The one-hour token forecast uses
   the committed 3,480-second training cap and reports the 120-second
@@ -99,7 +108,9 @@ logs/evidence. No destructive cleanup is part of this ticket.
   policy is the predeclared slowest repetition (`min`).
 - Pilot W&B evidence requires at least one successful scalar-log action plus
   successful runtime and final summary updates, as well as a clean finish and
-  no scalar/summary circuit-breaker failure.
+  no scalar/summary circuit-breaker failure. Its worst observed online log
+  latency reprojects every matrix candidate and reruns the seven-day and
+  20%/85% selection gates; the pilot fails if the final candidate changes.
 
 No compilation, native extension, custom kernel, architecture change, or
 optimization ticket is introduced. The final summary will name the selected
@@ -182,6 +193,8 @@ to claim that a measured profile has been selected.
 | 30 | Expanded focused validation | passed | DGX planning/runner/telemetry/watchdog/config and W&B producer/parser behavior pass together; no GPU or online W&B work ran | 142 passed in 53.64 seconds |
 | 31 | Full CPU validation | passed | Network-free full suite, lint, Hydra config preflight, lock-drift rejection, and disabled/offline W&B smoke all pass after the repair; no GPU or online W&B work ran | `make ci-cpu`: 507 passed, 1 skipped in 128.62 seconds; 456.2 GB free before launch |
 | 32 | Formal pre-measurement `/review` | `FAIL` at `b117f2c` | The pinned image cannot be reproduced while the Docker build copies the self-referential source pin; matrix per-step CUDA-event synchronization differs from the deployed baseline/decomposition path; disabled-mode matrix logging latency cannot authorize the online W&B token plan; decomposition can pass and name a bottleneck despite non-repeatable role measurements | Exact review retained in PR #47; focused DGX/config/W&B suite 142 passed; formal focused suite 117 passed; no GPU or online W&B work ran |
+| 33 | Protocol repair 8 | implemented | Replace the self-referential source image with a labeled content-addressed dependency runtime and exact read-only source mount; retain matrix CUDA-event timing in baseline/model-only paths; reproject and rerun selection for every candidate with observed online log latency; make decomposition repeatability a verdict and bottleneck gate; align projections to whole optimizer updates | Direct regression suite: 83 passed; no GPU or online W&B work ran; about 425 GB free |
+| 34 | Expanded and full CPU validation | passed | DGX planning/runner/runtime identity/telemetry/watchdog/config plus W&B producer/parser behavior pass together; network-free lint, full suite, Hydra preflight, lock drift, disabled/offline W&B smoke, exact plan composition, compileall, and runtime-spec identity also pass | Expanded focused suite: 148 passed in 54.59 seconds; `make ci-cpu`: 513 passed, 1 skipped in 129.47 seconds; about 425 GB free; no GPU or online W&B work ran |
 
 Independent `/review` will cover `PHILOSOPHY.md`, DGX-001 acceptance, and the
 applicable `CHECK.md` minimum, comparison, data supply, DGX/UMA, training-health,

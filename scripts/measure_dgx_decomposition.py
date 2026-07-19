@@ -141,6 +141,8 @@ def _identity(cfg, output_dir: Path) -> dict:
 
 def _model_only(cfg, output_dir: Path, warmup: int, measured: int) -> list[dict]:
     trainer = prepare_trainer(cfg, run_dir=output_dir)
+    if not trainer._measurement_enabled or not trainer._measurement_cuda_events:
+        raise RuntimeError("model-only decomposition requires trainer CUDA-event measurement")
     iterator = iter(trainer.train_loader)
     try:
         source_batch = next(iterator)
@@ -150,23 +152,32 @@ def _model_only(cfg, output_dir: Path, warmup: int, measured: int) -> list[dict]
     rows = []
     total_steps = warmup + measured
     for step in range(1, total_steps + 1):
+        step_started = time.perf_counter()
+        wall_start_unix_ns = time.time_ns()
+        trainer._capture_cuda_run_peaks()
         torch.cuda.reset_peak_memory_stats(trainer.device)
-        torch.cuda.synchronize(trainer.device)
-        started = time.perf_counter()
-        loss_sum, target_tokens, micro_batches, gradient_norm, clipped, lr, _ = (
+        loss_sum, target_tokens, micro_batches, gradient_norm, clipped, lr, step_timing = (
             trainer._train_update(
                 batch,
                 iterator=itertools.repeat(batch),
                 first_batch_index=(step - 1) * int(cfg.training.gradient_accumulation_steps) + 1,
             )
         )
-        torch.cuda.synchronize(trainer.device)
-        wall_seconds = time.perf_counter() - started
+        if step_timing is None:
+            raise RuntimeError("model-only decomposition lost trainer measurement timing")
+        trainer._finish_step_measurement(
+            step_timing,
+            step_started=step_started,
+            wall_start_unix_ns=wall_start_unix_ns,
+            target_tokens_step=target_tokens,
+            micro_batches=micro_batches,
+        )
+        measurement = trainer._measurement_rows[-1]
         rows.append(
             {
                 "optimizer_step": step,
                 "warmup": step <= warmup,
-                "wall_seconds": wall_seconds,
+                "wall_seconds": measurement["step_wall_seconds"],
                 "target_tokens": target_tokens,
                 "loss": loss_sum / target_tokens,
                 "gradient_norm": gradient_norm,
@@ -175,6 +186,8 @@ def _model_only(cfg, output_dir: Path, warmup: int, measured: int) -> list[dict]
                 "learning_rate": lr,
                 "pytorch_peak_allocated_bytes": torch.cuda.max_memory_allocated(trainer.device),
                 "pytorch_peak_reserved_bytes": torch.cuda.max_memory_reserved(trainer.device),
+                "boundary_sync_seconds": measurement["boundary_sync_seconds"],
+                "cuda_milliseconds": measurement["cuda_milliseconds"],
             }
         )
     return rows
@@ -251,8 +264,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         cfg = _compose(args.overrides)
         if cfg.profile.name != "pretrain_baseline":
             raise RuntimeError("DGX decomposition requires profile=pretrain_baseline")
-        if cfg.wandb.mode != "disabled" or cfg.measurement.enabled:
-            raise RuntimeError("DGX decomposition must disable W&B and trainer measurement")
+        if cfg.wandb.mode != "disabled":
+            raise RuntimeError("DGX decomposition must disable W&B")
+        if args.role == "model-only" and (
+            not cfg.measurement.enabled or not cfg.measurement.cuda_events
+        ):
+            raise RuntimeError("model-only decomposition must retain CUDA-event measurement")
+        if args.role == "loader-only" and cfg.measurement.enabled:
+            raise RuntimeError("loader-only decomposition must disable trainer measurement")
         record["environment"] = _environment()
         record["preflight"] = _preflight(args, output_dir, effective_disk_floor)
         record.update(
@@ -267,6 +286,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                     int(cfg.training.sequence_length)
                     * int(cfg.training.batch_size)
                     * int(cfg.training.gradient_accumulation_steps)
+                ),
+                "timing_protocol": (
+                    "trainer_cuda_events_v3" if args.role == "model-only" else "completion_wall_v1"
                 ),
             }
         )

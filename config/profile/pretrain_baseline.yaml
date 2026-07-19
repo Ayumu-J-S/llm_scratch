@@ -98,7 +98,9 @@ model:
   dropout: 0.1
 
 measurement:
-  enabled: false
+  # Keep the selected deployment on the exact per-update CUDA event/sync
+  # protocol used to rank matrix candidates.
+  enabled: true
   warmup_optimizer_steps: 10
   cuda_events: true
   output_path: null

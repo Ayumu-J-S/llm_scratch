@@ -10,6 +10,8 @@ from omegaconf import OmegaConf
 from dgx.planning import (
     PROTOCOL_CONFIG_KEYS,
     _decomposition_conclusion,
+    _decomposition_decision,
+    _online_adjusted_projection,
     _project_token_budget,
     _telemetry_summary,
     _validate_matrix_authority,
@@ -71,7 +73,8 @@ def test_dgx_profiles_are_real_cuda_bf16_and_baseline_is_bounded():
         assert config.wandb.artifact.policy == "none"
     assert smoke.measurement.enabled is True
     assert candidate.measurement.enabled is True
-    assert baseline.measurement.enabled is False
+    assert baseline.measurement.enabled is True
+    assert baseline.measurement.cuda_events is True
     assert baseline.training.max_time == 3480
     assert baseline.training.max_time + compose_dgx().pilot.finalization_reserve_seconds == 3600
     assert baseline.training.validation_every_n_tokens == 5_000_000
@@ -670,6 +673,56 @@ def test_projected_token_budget_charges_scheduled_logging():
     )
     assert without_logging == 5000
     assert with_logging < without_logging
+    assert with_logging % 100 == 0
+
+
+def test_online_log_latency_reprojects_and_regates_every_matrix_candidate():
+    config = OmegaConf.to_container(compose_dgx(), resolve=True)
+    candidates = []
+    for candidate_id, depth, compute in (("shallow", 18, 20_000.0), ("deep", 26, 18_000.0)):
+        candidates.append(
+            {
+                "candidate_id": candidate_id,
+                "num_layers": depth,
+                "sequence_length": 1024,
+                "effective_target_tokens_per_step": 32768,
+                "all_runs_passed": True,
+                "repeatability_passed": True,
+                "finalization_reserve_passed": True,
+                "conservative_tokens_per_second": compute,
+                "conservative_compute_tokens_per_second": compute,
+                "token_budgets": {"1_hour": 1, "24_hours": 1, "7_days": 1_000_000_000},
+                "projected_overhead_seconds": {
+                    "scheduled_log_each": 0.1,
+                    "validation_each": 1.0,
+                    "recovery_each": 1.0,
+                    "milestone_each": 1.0,
+                    "final_once": 1.0,
+                },
+            }
+        )
+    projection = _online_adjusted_projection(
+        {"candidates": candidates},
+        {
+            "scheduled_log_pause_seconds": [2.0, 3.0],
+            "validation_pause_seconds": [4.0],
+            "recovery_checkpoint_pause_seconds": [5.0],
+            "final_checkpoint_pause_seconds": [6.0],
+        },
+        config,
+    )
+    assert projection["online_scheduled_log_max_seconds"] == 3.0
+    assert len(projection["candidates"]) == 2
+    assert projection["selected"]["candidate_id"] == "deep"
+    for candidate, adjusted in zip(candidates, projection["candidates"], strict=True):
+        assert adjusted["projected_overhead_seconds"]["scheduled_log_each"] == 3.0
+        assert adjusted["projected_overhead_seconds"]["validation_each"] == 4.0
+        assert adjusted["projected_overhead_seconds"]["recovery_each"] == 5.0
+        assert adjusted["projected_overhead_seconds"]["final_once"] == 6.0
+        assert adjusted["token_budgets"]["7_days"] % 32768 == 0
+        assert adjusted["token_budgets"]["7_days"] < int(
+            candidate["conservative_compute_tokens_per_second"] * 604800
+        )
 
 
 def test_only_loader_supply_threshold_blocks_decomposition():
@@ -683,6 +736,17 @@ def test_only_loader_supply_threshold_blocks_decomposition():
     )
     assert failed is False
     assert reason == "insufficient loader headroom; long run blocked"
+
+
+def test_unstable_decomposition_cannot_pass_or_name_a_bottleneck():
+    passed, bottleneck = _decomposition_decision(
+        model_ratio=1.5,
+        loader_ratio=1.5,
+        min_loader_ratio=1.2,
+        repeatability_passed=False,
+    )
+    assert passed is False
+    assert bottleneck is None
 
 
 def test_schema_v1_measurement_is_rejected_without_fallback(tmp_path):

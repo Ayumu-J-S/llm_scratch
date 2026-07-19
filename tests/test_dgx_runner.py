@@ -11,6 +11,7 @@ from dgx.planning import build_matrix_plan
 
 
 ROOT = Path(__file__).resolve().parent.parent
+IMAGE = "sha256:" + "a" * 64
 SPEC = importlib.util.spec_from_file_location(
     "run_dgx_measurements", ROOT / "scripts/run_dgx_measurements.py"
 )
@@ -18,6 +19,7 @@ assert SPEC is not None and SPEC.loader is not None
 RUNNER = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(RUNNER)
 _container_command = RUNNER._container_command
+_image_identity = RUNNER._image_identity
 _preflight_storage = RUNNER._preflight_storage
 _run_config_authorities = RUNNER._run_config_authorities
 _resource_budget = RUNNER._resource_budget
@@ -33,6 +35,31 @@ def _config():
     return OmegaConf.to_container(config, resolve=True)
 
 
+def test_image_identity_reads_exact_id_and_runtime_spec_label(monkeypatch):
+    config = _config()
+    inspected = [
+        {
+            "Id": IMAGE,
+            "Config": {
+                "Labels": {
+                    "io.llm-scratch.runtime-spec-sha256": config["image"][
+                        "expected_runtime_spec_sha256"
+                    ]
+                }
+            },
+        }
+    ]
+    monkeypatch.setattr(
+        RUNNER.subprocess,
+        "run",
+        lambda *_args, **_kwargs: type("Result", (), {"stdout": json.dumps(inspected)})(),
+    )
+    assert _image_identity(config["image"]["name"]) == (
+        IMAGE,
+        config["image"]["expected_runtime_spec_sha256"],
+    )
+
+
 def test_matrix_container_is_user_owned_offline_and_tracking_disabled(tmp_path):
     cfg = _config()
     entry = build_matrix_plan(cfg)[0]
@@ -40,14 +67,14 @@ def test_matrix_container_is_user_owned_offline_and_tracking_disabled(tmp_path):
         cfg,
         entry,
         commit="a" * 40,
-        image_id=cfg["image"]["expected_id"],
+        image_id=IMAGE,
         plan_id="plan",
         output_root=tmp_path,
         cache_root=tmp_path,
         role="matrix",
     )
     assert command[command.index("--user") + 1] == f"{os.getuid()}:{os.getgid()}"
-    assert cfg["image"]["expected_id"] in command
+    assert IMAGE in command
     assert cfg["image"]["name"] not in command
     assert "--network=none" in command
     assert "WANDB_MODE=disabled" in command
@@ -66,7 +93,7 @@ def test_pilot_uses_selected_baseline_online_without_serializing_auth(monkeypatc
         cfg,
         entry,
         commit="a" * 40,
-        image_id=cfg["image"]["expected_id"],
+        image_id=IMAGE,
         plan_id="plan",
         output_root=tmp_path,
         cache_root=tmp_path,
@@ -97,7 +124,7 @@ def test_decomposition_commands_are_exact_selected_profile_and_offline(tmp_path)
             cfg,
             entry,
             commit="a" * 40,
-            image_id=cfg["image"]["expected_id"],
+            image_id=IMAGE,
             plan_id="plan",
             output_root=output_root,
             cache_root=tmp_path,
@@ -118,7 +145,9 @@ def test_decomposition_commands_are_exact_selected_profile_and_offline(tmp_path)
         assert "--network=none" in command
         assert "profile=pretrain_baseline" in command
         assert "wandb.mode=disabled" in command
-        assert "measurement.enabled=false" in command
+        assert (
+            "measurement.enabled=true" if role == "model-only" else "measurement.enabled=false"
+        ) in command
 
 
 def test_every_execution_role_has_a_full_config_authority():
@@ -137,6 +166,19 @@ def test_every_execution_role_has_a_full_config_authority():
     assert all(len(item["experiment_config_sha256"]) == 64 for item in authorities)
     assert all(item["max_in_flight_atomic_write_bytes"] < 20_000_000_000 for item in authorities)
     assert all(item["effective_min_free_disk_bytes"] == 120_000_000_000 for item in authorities)
+
+
+def test_timed_training_roles_keep_one_cuda_event_boundary_protocol():
+    cfg = _config()
+    entry = {**build_matrix_plan(cfg)[0], "repetition": 1}
+    matrix = _resolved_role_config(cfg, entry, "matrix")
+    model_only = _resolved_role_config(cfg, entry, "model-only")
+    loader_only = _resolved_role_config(cfg, entry, "loader-only")
+    pilot = _resolved_role_config(cfg, entry, "pilot")
+    for resolved in (matrix, model_only, pilot):
+        assert resolved["measurement"]["enabled"] is True
+        assert resolved["measurement"]["cuda_events"] is True
+    assert loader_only["measurement"]["enabled"] is False
 
 
 def test_atomic_write_budget_raises_floor_when_projection_exceeds_static_buffer():
@@ -239,7 +281,7 @@ def test_selected_entry_requires_a_passing_summary_for_current_commit(monkeypatc
         "ticket": "DGX-001",
         "config": matrix_config,
         "git_commit": commit,
-        "image_id": cfg["image"]["expected_id"],
+        "image_id": IMAGE,
         "runs": plan,
         "selected": None,
         "matrix_summary_identity": None,
@@ -250,7 +292,7 @@ def test_selected_entry_requires_a_passing_summary_for_current_commit(monkeypatc
         "schema_version": 3,
         "verdict": "PASS",
         "git_commit": "b" * 40,
-        "image_id": cfg["image"]["expected_id"],
+        "image_id": IMAGE,
         "plan_id": matrix_plan["plan_id"],
         "selection_rule": cfg["selection"],
         "selected": {
@@ -264,22 +306,22 @@ def test_selected_entry_requires_a_passing_summary_for_current_commit(monkeypatc
     cfg["matrix_summary_path"] = str(summary_path)
     monkeypatch.setattr(RUNNER, "_git", lambda *args: commit)
     with pytest.raises(RuntimeError, match="exact passing matrix"):
-        _selected_entry(cfg, plan)
+        _selected_entry(cfg, plan, image_id=IMAGE)
 
     summary["git_commit"] = commit
     summary_path.write_text(json.dumps(summary), encoding="utf-8")
-    assert _selected_entry(cfg, plan) == selected
+    assert _selected_entry(cfg, plan, image_id=IMAGE) == selected
 
     summary["plan_id"] = "f" * 64
     summary_path.write_text(json.dumps(summary), encoding="utf-8")
     with pytest.raises(RuntimeError, match="exact passing matrix"):
-        _selected_entry(cfg, plan)
+        _selected_entry(cfg, plan, image_id=IMAGE)
 
     summary["plan_id"] = matrix_plan["plan_id"]
     summary["selection_rule"] = {**cfg["selection"], "max_slowdown_fraction": 0.99}
     summary_path.write_text(json.dumps(summary), encoding="utf-8")
     with pytest.raises(RuntimeError, match="exact passing matrix"):
-        _selected_entry(cfg, plan)
+        _selected_entry(cfg, plan, image_id=IMAGE)
 
     summary["selection_rule"] = cfg["selection"]
     matrix_plan["config"]["selection"]["max_slowdown_fraction"] = 0.99
@@ -290,4 +332,4 @@ def test_selected_entry_requires_a_passing_summary_for_current_commit(monkeypatc
     summary["plan_id"] = matrix_plan["plan_id"]
     summary_path.write_text(json.dumps(summary), encoding="utf-8")
     with pytest.raises(RuntimeError, match="exact passing matrix"):
-        _selected_entry(cfg, plan)
+        _selected_entry(cfg, plan, image_id=IMAGE)

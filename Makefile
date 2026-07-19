@@ -5,6 +5,7 @@
 
 DGX_IMAGE := llm-scratch:env-001
 DGX_RUN_FLAGS := --rm --gpus all --ipc=host --ulimit memlock=-1 --ulimit stack=67108864
+DGX_SOURCE_FLAGS := --volume $(CURDIR):$(CURDIR):ro --workdir $(CURDIR) --env PYTHONPATH=$(CURDIR)/src
 
 help:
 	@printf '%s\n' \
@@ -55,13 +56,15 @@ diagnose:
 	PYTHONPATH=src uv run python scripts/diagnose_environment.py
 
 dgx-build:
-	docker build --platform linux/arm64 --no-cache -t $(DGX_IMAGE) .
+	docker build --platform linux/arm64 --no-cache \
+		--build-arg RUNTIME_SPEC_SHA256=$$(python3 src/dgx/runtime_image.py --sha256) \
+		-t $(DGX_IMAGE) .
 
 dgx-diagnose:
-	docker run $(DGX_RUN_FLAGS) $(DGX_IMAGE) python scripts/diagnose_environment.py --require-cuda --require-bf16
+	docker run $(DGX_RUN_FLAGS) $(DGX_SOURCE_FLAGS) $(DGX_IMAGE) python scripts/diagnose_environment.py --require-cuda --require-bf16
 
 dgx-smoke:
-	docker run $(DGX_RUN_FLAGS) $(DGX_IMAGE) python scripts/cuda_smoke.py
+	docker run $(DGX_RUN_FLAGS) $(DGX_SOURCE_FLAGS) $(DGX_IMAGE) python scripts/cuda_smoke.py
 
 dgx-plan:
 	PYTHONPATH=src uv run python scripts/run_dgx_measurements.py mode=plan

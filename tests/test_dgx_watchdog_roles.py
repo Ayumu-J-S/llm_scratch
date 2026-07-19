@@ -149,7 +149,10 @@ def test_decomposition_roles_fail_closed_and_preserve_low_disk_evidence(
         {
             "profile": {"name": "pretrain_baseline"},
             "wandb": {"mode": "disabled"},
-            "measurement": {"enabled": False},
+            "measurement": {
+                "enabled": role == "model-only",
+                "cuda_events": role == "model-only",
+            },
             "model": {"num_layers": 18, "embed_size": 384, "num_heads": 6},
             "training": {
                 "sequence_length": 1024,
