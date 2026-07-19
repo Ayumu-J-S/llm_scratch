@@ -711,6 +711,7 @@ class Trainer:
             "elapsed_seconds": self.elapsed_seconds,
             f"{namespace}/loss": validation_result.nll,
             f"{namespace}/perplexity": validation_result.perplexity,
+            f"{namespace}/perplexity_overflow": validation_result.aggregate.perplexity_overflow,
             f"{namespace}/target_tokens": validation_result.target_tokens,
             f"{namespace}/evaluated_windows": validation_result.evaluated_windows,
             f"{namespace}/evaluated_window_sha256": validation_result.evaluated_window_sha256,
@@ -731,7 +732,11 @@ class Trainer:
                 name: score.as_dict() for name, score in sorted(validation_result.by_corpus.items())
             },
         }
-        self._record_metrics(values, send_to_wandb=True)
+        self._record_metrics(
+            values,
+            send_to_wandb=True,
+            preserve_none=(f"{namespace}/perplexity",),
+        )
 
     def _is_memorization_run(self) -> bool:
         data = self.cfg.get("data", {}) or {}
@@ -743,8 +748,16 @@ class Trainer:
     def _logical_checkpoint_identity(self) -> dict[str, Any]:
         return build_logical_checkpoint_identity(self.checkpoint_identity, self.counters)
 
-    def _record_metrics(self, values: dict[str, Any], *, send_to_wandb: bool) -> None:
-        record = {key: value for key, value in values.items() if value is not None}
+    def _record_metrics(
+        self,
+        values: dict[str, Any],
+        *,
+        send_to_wandb: bool,
+        preserve_none: tuple[str, ...] = (),
+    ) -> None:
+        record = {
+            key: value for key, value in values.items() if value is not None or key in preserve_none
+        }
         self.metrics.append(record)
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         with (self.checkpoint_dir / "metrics.jsonl").open("a", encoding="utf-8") as handle:

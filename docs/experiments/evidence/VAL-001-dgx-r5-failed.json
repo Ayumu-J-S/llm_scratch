@@ -184,7 +184,7 @@
     "record_sha256": "31618b6ae43473a31a5899ca2076136f2953ba8c5b3da49ba15ce7f76bf67be8",
     "scope": "training trajectory, final-model tensor equality, replicated validation score/identity, and training-time/standalone score/identity parity",
     "verifier": "verify_val001_dgx.py",
-    "verifier_sha256": "7b17fec49fc75fc0f8efc3cfdb36a1d8556b06ff1fac88f10816f0df6ac770c8"
+    "verifier_sha256": "f928fcd600a5dabf7a3953485a8c409106d8e06d5b9417727781693b383a34ff"
   },
   "runs": [
     {

@@ -157,12 +157,19 @@ def build_record(root: Path, summary_path: Path) -> dict[str, Any]:
 def _validation_payload(row: dict[str, Any]) -> dict[str, Any]:
     by_corpus = row["validation/by_corpus"]
     nll_sum = sum(value["nll_sum"] for value in by_corpus.values())
+    perplexity = row.get("validation/perplexity")
+    perplexity_overflow = row.get("validation/perplexity_overflow")
+    if perplexity_overflow is None:
+        perplexity_overflow = any(
+            value.get("perplexity_overflow", value.get("perplexity") is None)
+            for value in by_corpus.values()
+        )
     return {
         "aggregate": {
             "nll": row["validation/loss"],
             "nll_sum": nll_sum,
-            "perplexity": row["validation/perplexity"],
-            "perplexity_overflow": False,
+            "perplexity": perplexity,
+            "perplexity_overflow": bool(perplexity_overflow),
             "target_tokens": row["validation/target_tokens"],
         },
         "by_corpus": by_corpus,

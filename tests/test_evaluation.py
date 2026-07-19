@@ -4,6 +4,7 @@ import copy
 import hashlib
 import json
 import os
+import runpy
 from dataclasses import replace
 from pathlib import Path
 
@@ -297,6 +298,76 @@ def test_perplexity_overflow_is_standards_safe_json(tmp_path):
     assert "Infinity" not in destination.read_text(encoding="utf-8")
 
 
+def test_training_metrics_preserve_overflow_and_reconstruct_standalone_parity(tmp_path):
+    result = _scorer().score(
+        FixedLogitModel([0.0, 1000.0]),
+        lambda: [_batch([[0, 0]], [["ja", "en"]])],
+        logical_checkpoint_identity={"kind": "overflow-fixture"},
+    )
+    cfg = OmegaConf.create(
+        {
+            "profile": {"purpose": "pretraining"},
+            "data": {"mode": "streaming"},
+            "training": {
+                "epochs": 1,
+                "max_steps": 1,
+                "max_tokens": None,
+                "max_time": None,
+                "batch_size": 1,
+                "sequence_length": 2,
+                "precision": "fp32",
+                "gradient_accumulation_steps": 1,
+                "max_grad_norm": None,
+                "validation_every_n_steps": None,
+                "log_every_n_steps": None,
+                "checkpoint_every_n_steps": None,
+                "milestone_every_n_steps": None,
+                "scheduler": {"interval": "step"},
+            },
+            "wandb": {"enabled": False},
+        }
+    )
+    trainer_model = FixedLogitModel([0.0, 1.0])
+    trainer = Trainer(
+        model=trainer_model,
+        optimizer=torch.optim.SGD(trainer_model.parameters(), lr=0.0),
+        scheduler=None,
+        train_loader=[],
+        validation_loader_factory=lambda: [],
+        checkpoint_dir=tmp_path,
+        cfg=cfg,
+        device=torch.device("cpu"),
+    )
+
+    class RecordingRun:
+        def __init__(self):
+            self.records = []
+
+        def log(self, record):
+            self.records.append(json.loads(json.dumps(record, allow_nan=False)))
+
+    run = RecordingRun()
+    trainer.run = run
+    trainer._record_validation_metrics(result)
+
+    local_record = json.loads((tmp_path / "metrics.jsonl").read_text(encoding="utf-8"))
+    assert local_record["validation/perplexity"] is None
+    assert local_record["validation/perplexity_overflow"] is True
+    assert run.records == [local_record]
+    assert all(
+        score["perplexity"] is None and score["perplexity_overflow"] is True
+        for score in local_record["validation/by_corpus"].values()
+    )
+
+    verifier = runpy.run_path(
+        str(Path(__file__).parents[1] / "docs/experiments/evidence/verify_val001_dgx.py")
+    )
+    reconstructed = verifier["_validation_payload"](local_record)
+    standalone = result.as_dict()
+    assert reconstructed["aggregate"] == standalone["aggregate"]
+    assert reconstructed["by_corpus"] == standalone["by_corpus"]
+
+
 def test_scoring_closes_iterator_when_model_fails():
     loader = ClosingLoader([_batch([[0, 1]])])
     with pytest.raises(FloatingPointError, match="non-finite"):
@@ -573,7 +644,9 @@ def test_standalone_preflight_rejects_cpu_for_bf16_checkpoint(tmp_path, monkeypa
     monkeypatch.setattr(
         evaluate_module,
         "select_device",
-        lambda *_args, **_kwargs: pytest.fail("device selection must follow compatibility preflight"),
+        lambda *_args, **_kwargs: pytest.fail(
+            "device selection must follow compatibility preflight"
+        ),
     )
     with pytest.raises(
         ConfigPreflightError,
