@@ -111,7 +111,7 @@ def _compose(*overrides: str):
         return hydra.compose(config_name="train", overrides=list(overrides))
 
 
-def _streaming_checkpoint_config():
+def _streaming_checkpoint_config(*, split_field: str = "sources"):
     config = _compose("profile=evaluation")
     with open_dict(config):
         config.profile.name = "pretrain_streaming"
@@ -126,11 +126,18 @@ def _streaming_checkpoint_config():
         config.training.gradient_accumulation_steps = 1
         config.training.max_grad_norm = None
         config.wandb.enabled = False
+        if split_field == "datasets":
+            for split_name in ("train", "validation"):
+                split = config.data.streaming[split_name]
+                split.datasets = split.sources
+                del split.sources
+        elif split_field != "sources":
+            raise ValueError(f"unsupported split field: {split_field}")
     return config
 
 
-def _milestone_checkpoint(tmp_path: Path):
-    config = _streaming_checkpoint_config()
+def _milestone_checkpoint(tmp_path: Path, *, split_field: str = "sources"):
+    config = _streaming_checkpoint_config(split_field=split_field)
     tokenizer = CanonicalTokenizer.from_config(config.tokenizer)
     model = SimpleDecoderTransformer(
         vocab_size=tokenizer.vocab_size,
@@ -368,9 +375,10 @@ def test_trainer_memorization_metrics_have_no_validation_namespace(tmp_path):
     assert not (tmp_path / "best.pt").exists()
 
 
-def test_standalone_milestone_matches_shared_training_time_score(tmp_path):
+@pytest.mark.parametrize("split_field", ["sources", "datasets"])
+def test_standalone_milestone_matches_shared_training_time_score(tmp_path, split_field):
     checkpoint, checkpoint_config, model, identity, counters = _milestone_checkpoint(
-        tmp_path / "checkpoints"
+        tmp_path / "checkpoints", split_field=split_field
     )
     loader_factory = build_validation_loader_factory(checkpoint_config, device=torch.device("cpu"))
     manifest_loader = loader_factory()

@@ -61,11 +61,14 @@ def evaluate_checkpoint(cfg: DictConfig) -> Path:
     validate_training_config(checkpoint_cfg)
     if checkpoint_cfg.data.mode != "streaming" or checkpoint_cfg.profile.purpose != "pretraining":
         raise ValueError("held-out evaluation requires a pretraining streaming checkpoint")
-    if any(
-        source.selection != "train" for source in checkpoint_cfg.data.streaming.train.sources
-    ) or any(
-        source.selection != "validation"
-        for source in checkpoint_cfg.data.streaming.validation.sources
+    train_split = checkpoint_cfg.data.streaming.train
+    validation_split = checkpoint_cfg.data.streaming.validation
+    train_sources = train_split.get("sources", train_split.get("datasets", []))
+    validation_sources = validation_split.get(
+        "sources", validation_split.get("datasets", [])
+    )
+    if any(source.selection != "train" for source in train_sources) or any(
+        source.selection != "validation" for source in validation_sources
     ):
         raise ValueError(
             "held-out evaluation requires explicit train and validation manifest selections"
