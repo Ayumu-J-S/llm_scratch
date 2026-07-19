@@ -16,7 +16,9 @@ from omegaconf import OmegaConf, open_dict
 
 import evaluate as evaluate_module
 import evaluation.scoring as scoring_module
+import train as train_module
 import training.checkpoint as checkpoint_module
+from data.stream_loader.cache import BoundedShardCache
 from data.streaming_dataset import causal_lm_collate_fn, target_sources_from_spans
 from evaluation.scoring import CausalLMScorer, manifest_identities
 from models.simple_decoder_transformer import SimpleDecoderTransformer
@@ -133,6 +135,12 @@ def _streaming_checkpoint_config(*, split_field: str = "sources"):
         config.training.gradient_accumulation_steps = 1
         config.training.max_grad_norm = None
         config.wandb.enabled = False
+        config.data.streaming.cache = {
+            "dir": "data/stream_loader_cache",
+            "max_size_bytes": 4096,
+            "min_free_bytes": 0,
+            "wait_timeout_seconds": 1.0,
+        }
         if split_field == "datasets":
             for split_name in ("train", "validation"):
                 split = config.data.streaming[split_name]
@@ -598,6 +606,22 @@ def test_standalone_milestone_matches_shared_training_time_score(
         evaluation_config.evaluation.device = "cpu"
     foreign_cwd = tmp_path / "foreign-cwd"
     foreign_cwd.mkdir()
+    observed_cache_dirs: list[Path] = []
+    observed_loader_roots: list[tuple[str, Path | None]] = []
+    original_cache_init = BoundedShardCache.__init__
+    original_build_streaming_dataloader = train_module.build_streaming_dataloader
+
+    def record_cache_dir(self, cache_dir, *args, **kwargs):
+        observed_cache_dirs.append(Path(cache_dir))
+        original_cache_init(self, cache_dir, *args, **kwargs)
+
+    def record_loader_root(cfg, split_name, **kwargs):
+        observed_loader_roots.append((split_name, kwargs.get("data_root")))
+        return original_build_streaming_dataloader(cfg, split_name, **kwargs)
+
+    monkeypatch.setattr(BoundedShardCache, "__init__", record_cache_dir)
+    monkeypatch.setattr(train_module, "build_streaming_dataloader", record_loader_root)
+    monkeypatch.setattr(evaluate_module, "build_streaming_dataloader", record_loader_root)
     monkeypatch.chdir(foreign_cwd)
     result_path = evaluate_module.evaluate_checkpoint(evaluation_config)
     standalone = json.loads(result_path.read_text(encoding="utf-8"))
@@ -616,6 +640,12 @@ def test_standalone_milestone_matches_shared_training_time_score(
     assert standalone["checkpoint"]["physical"]["path"] == str(checkpoint.resolve())
     assert len(standalone["checkpoint"]["physical"]["sha256"]) == 64
     assert standalone["evaluation"]["checkpoint_config_sha256"] == identity["config_sha256"]
+    expected_cache = evaluate_module.ROOT_DIR / "data" / "stream_loader_cache"
+    assert {split for split, _root in observed_loader_roots} == {"train", "validation"}
+    assert all(root == evaluate_module.ROOT_DIR for _split, root in observed_loader_roots)
+    assert observed_cache_dirs
+    assert set(observed_cache_dirs) == {expected_cache}
+    assert not (foreign_cwd / "data" / "stream_loader_cache").exists()
     evaluator_run = standalone["evaluator_run"]
     assert len(evaluator_run["git"]["sha"]) == 40
     assert isinstance(evaluator_run["git"]["dirty"], bool)

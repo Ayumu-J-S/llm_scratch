@@ -89,7 +89,7 @@ def evaluate_checkpoint(cfg: DictConfig) -> Path:
     validation_factory = build_validation_loader_factory(
         checkpoint_cfg,
         device=device,
-        manifest_root=ROOT_DIR,
+        data_root=ROOT_DIR,
     )
     validation_loader = validation_factory()
     if checkpoint_cfg.data.mode == "streaming":
@@ -97,7 +97,7 @@ def evaluate_checkpoint(cfg: DictConfig) -> Path:
             checkpoint_cfg,
             "train",
             device=device,
-            manifest_root=ROOT_DIR,
+            data_root=ROOT_DIR,
         )
         validate_streaming_dataloaders(train_loader, validation_loader)
 
