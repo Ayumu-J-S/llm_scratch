@@ -139,6 +139,7 @@
 | 116 | Repair | Complete | The two escape-agnostic linear hypotheses now remain active through incomplete outer objects, while every emitted candidate must still parse as exact JSON before matching. Direct and recursively decoded selected-input coverage exercises that composition, and external subject names require non-whitespace text. Scan, normalization, and JSON-object identities were advanced |
 | 117 | Focused and canonical validation | PASS | The reviewer reproduction detects both complete and input-only selected mappings. Direct, recursive, all-selected, complete-scan, and whitespace-name regressions pass; pinned canonical development acceptance detects 128/128 direct and 128/128 recursively wrapped malformed-outer-object inputs in both tasks. The broader BENCH/generation/config/reproducibility/tokenizer selection passes 159 tests; scoped Ruff, format, and diff checks pass |
 | 118 | Full validation | PASS | Official network-isolated CPU gate passes 509 tests with 1 skipped plus repository Ruff, resolved Hydra preflight, lock-drift rejection, and disabled/offline process-tree smoke. No GPU, online W&B, full-corpus scan, or large artifact was used; exact-head CI and independent re-review remain pending |
+| 119 | Exact-head independent `/review` | blocked | Review was invoked on clean pushed head `89d45e1`, but the reviewer exited before analysis because the account usage limit was reached; retry availability was reported as 2026-07-26 09:06 UTC. No verdict was produced or inferred, and the PR remains draft |
 
 ## Resolved protocol
 
@@ -238,7 +239,7 @@ extractor prevents deep enclosing objects or arrays from hiding a safe innermost
 or intermediate benchmark record, enriched mapping, or serialized record string;
 canonical acceptance covers every selected development record in both tasks.
 External comparisons separately attest the compiled prompt and scorer hashes,
-require substantive non-whitespace compute, tokenizer, and data-access disclosures,
+require a substantive non-whitespace subject name plus compute, tokenizer, and data-access disclosures,
 and generation rejects non-finite logits before any GSM8K token or score is
 accepted; choice scoring rejects non-finite raw logits before normalization or
 extraction and non-finite normalized scores after log-softmax. Benchmark W&B calls use the shared
@@ -258,6 +259,6 @@ cache paths have one stable repository-relative meaning independent of caller st
 An extra repository-wide format diagnostic identified four pre-existing, unrelated
 files outside this ticket's diff; the configured Ruff lint gate and all changed
 benchmark paths pass, so those files were not rewritten here. Every repair's
-focused and full gates pass; exact-head independent re-review remains pending
-on the repaired successor and the PR remains draft. No
+focused and full gates pass; exact-head independent re-review is blocked by the
+recorded usage limit, no verdict is claimed, and the PR remains draft. No
 benchmark score from the zero-weight fixture is a model-quality result.
