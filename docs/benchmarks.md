@@ -100,8 +100,10 @@ block a later clean pretraining run.
 ## Evidence and W&B policy
 
 The local result is written atomically. Per-example traces retain only example
-IDs, correctness/prediction metadata, counts, stop reasons, and hashes; prompts,
-reference text, token IDs, and generated completions are never written.
+IDs, correctness/prediction metadata, counts, stop reasons, and hashes. GSM8K
+generation evidence includes a versioned SHA-256 over the canonical-JSON token
+ID sequence, while the raw IDs remain excluded. Prompts, reference text, token
+IDs, and generated completions are never written.
 
 When `benchmark.wandb.enabled=true`, W&B receives summary metrics and one
 two-row table with task, access level, metric, score, correct/total counts, and
