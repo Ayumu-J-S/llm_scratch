@@ -23,6 +23,8 @@ BenchmarkAccess = Literal["dev", "final"]
 
 SUITE_ID = "BENCH-001-suite-v1"
 FINAL_ACKNOWLEDGEMENT = SUITE_ID
+CANONICAL_REGISTRY_PATH = Path(__file__).resolve().parents[2] / "data/benchmarks/suite-v1.json"
+CANONICAL_REGISTRY_FINGERPRINT = "20af73847cdc67b083cfd4fe4cacc2d5d6db0bc3fb468bea5a1f43cf0ee95511"
 JCOMMONSENSEQA_PROMPT_REVISION = "BENCH-001-jcommonsenseqa-zero-shot-v1"
 JCOMMONSENSEQA_SCORER_REVISION = "BENCH-001-conditional-logprob-v1"
 GSM8K_PROMPT_REVISION = "BENCH-001-gsm8k-zero-shot-v1"
@@ -105,7 +107,8 @@ class LoadedSuite:
             "protocol_sha256": self.protocol_sha256,
             "component_hashes": protocol_component_hashes(),
             "tasks": {
-                task.name: task.source_identity for task in sorted(self.tasks, key=lambda item: item.name)
+                task.name: task.source_identity
+                for task in sorted(self.tasks, key=lambda item: item.name)
             },
         }
 
@@ -180,6 +183,12 @@ def load_suite(
                 canonical_json_bytes(selected_identity)
             ).hexdigest(),
         }
+        if access == "dev":
+            expected_selected = registry["dev_subset"]["selected_examples_sha256"][task_name]
+            if source_identity["selected_examples_sha256"] != expected_selected:
+                raise BenchmarkSuiteError(
+                    f"{task_name} selected development examples differ from the registry identity"
+                )
         tasks.append(
             LoadedTask(name=task_name, examples=tuple(examples), source_identity=source_identity)
         )
@@ -193,11 +202,41 @@ def load_suite(
     )
 
 
+def canonical_external_dev_identity() -> dict[str, Any]:
+    """Return the repository-owned protocol and partition for external records."""
+
+    registry = _load_json_object(CANONICAL_REGISTRY_PATH)
+    _validate_registry(
+        registry,
+        expected_fingerprint=CANONICAL_REGISTRY_FINGERPRINT,
+    )
+    subset = registry["dev_subset"]
+    protocol = registry["protocol"]
+    return {
+        "suite_id": registry["suite_id"],
+        "suite_fingerprint": registry["suite_fingerprint"],
+        "access": "dev",
+        "protocol_sha256": hashlib.sha256(canonical_json_bytes(protocol)).hexdigest(),
+        "subset_selector": subset["selector"],
+        "tasks": {
+            task_name: {
+                "source_sha256": registry["tasks"][task_name]["dev"]["sha256"],
+                "selected_examples": subset["size"],
+                "selected_examples_sha256": subset["selected_examples_sha256"][task_name],
+            }
+            for task_name in ("jcommonsenseqa", "gsm8k")
+        },
+    }
+
+
 def format_jcommonsenseqa(example: BenchmarkExample) -> tuple[str, tuple[str, ...], int]:
     record = example.record
     choices = tuple(str(record[f"choice{index}"]) for index in range(5))
-    prompt = "質問: " + str(record["question"]) + "\n選択肢:\n" + "\n".join(
-        f"{chr(65 + index)}. {choice}" for index, choice in enumerate(choices)
+    prompt = (
+        "質問: "
+        + str(record["question"])
+        + "\n選択肢:\n"
+        + "\n".join(f"{chr(65 + index)}. {choice}" for index, choice in enumerate(choices))
     )
     prompt += "\n答え:\n"
     return prompt, choices, int(record["label"])
@@ -237,10 +276,7 @@ def contamination_probes(example: BenchmarkExample) -> tuple[tuple[str, str], ..
                     ),
                 ),
             ]
-            + [
-                (f"choice{index}", str(example.record[f"choice{index}"]))
-                for index in range(5)
-            ]
+            + [(f"choice{index}", str(example.record[f"choice{index}"])) for index in range(5)]
         )
     if example.task == "gsm8k":
         return (
@@ -263,9 +299,7 @@ def contamination_probes(example: BenchmarkExample) -> tuple[tuple[str, str], ..
     raise BenchmarkSuiteError(f"unsupported benchmark task: {example.task}")
 
 
-def _deterministic_subset(
-    examples: list[BenchmarkExample], *, size: int
-) -> list[BenchmarkExample]:
+def _deterministic_subset(examples: list[BenchmarkExample], *, size: int) -> list[BenchmarkExample]:
     if size < 1 or size > len(examples):
         raise BenchmarkSuiteError("development subset size is outside the source record count")
     ranked = sorted(
@@ -392,10 +426,21 @@ def _validate_registry(registry: dict[str, Any], *, expected_fingerprint: str) -
             "benchmark registry fingerprint differs from the compiled suite identity"
         )
     subset = _mapping(registry["dev_subset"], "dev_subset")
-    if set(subset) != {"size", "selector"} or subset.get("selector") != SUBSET_SELECTOR_REVISION:
+    if (
+        set(subset) != {"size", "selector", "selected_examples_sha256"}
+        or subset.get("selector") != SUBSET_SELECTOR_REVISION
+    ):
         raise BenchmarkSuiteError("benchmark development subset policy is invalid")
     if isinstance(subset.get("size"), bool) or not isinstance(subset.get("size"), int):
         raise BenchmarkSuiteError("benchmark development subset size must be an integer")
+    selected_examples = _mapping(
+        subset["selected_examples_sha256"],
+        "dev_subset.selected_examples_sha256",
+    )
+    if set(selected_examples) != {"jcommonsenseqa", "gsm8k"}:
+        raise BenchmarkSuiteError("benchmark development selected-example identities are invalid")
+    for task_name, value in selected_examples.items():
+        _require_sha256(value, f"dev_subset.selected_examples_sha256.{task_name}")
     protocol = _mapping(registry["protocol"], "protocol")
     expected_protocol = {
         "few_shot_examples": 0,

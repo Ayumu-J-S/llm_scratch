@@ -15,7 +15,7 @@ import benchmark as benchmark_cli
 from benchmarks.contamination import scan_checkpoint_training_data
 from benchmarks.external import ExternalComparisonError, write_external_comparison
 from benchmarks.runner import BenchmarkContaminationError, run_benchmark
-from benchmarks.scoring import score_suite
+from benchmarks.scoring import BenchmarkScoringError, score_suite
 from benchmarks.suite import (
     FINAL_ACKNOWLEDGEMENT,
     GSM8K_PROMPT_REVISION,
@@ -94,7 +94,28 @@ def _registry(
     registry = {
         "schema_version": 1,
         "suite_id": FINAL_ACKNOWLEDGEMENT,
-        "dev_subset": {"size": 1, "selector": SUBSET_SELECTOR_REVISION},
+        "dev_subset": {
+            "size": 1,
+            "selector": SUBSET_SELECTOR_REVISION,
+            "selected_examples_sha256": {
+                "jcommonsenseqa": canonical_fingerprint(
+                    [
+                        {
+                            "example_id": "1",
+                            "record_sha256": canonical_fingerprint(dev_j[0]),
+                        }
+                    ]
+                ),
+                "gsm8k": canonical_fingerprint(
+                    [
+                        {
+                            "example_id": "0",
+                            "record_sha256": canonical_fingerprint(dev_gsm[0]),
+                        }
+                    ]
+                ),
+            },
+        },
         "protocol": PROTOCOL,
         "tasks": {
             "jcommonsenseqa": {
@@ -145,11 +166,15 @@ def _registry(
     return path, str(registry["suite_fingerprint"])
 
 
-def _pretraining_checkpoint(tmp_path: Path) -> tuple[Path, dict[str, Any]]:
+def _pretraining_checkpoint(
+    tmp_path: Path,
+    *,
+    sequence_length: int = 256,
+) -> tuple[Path, dict[str, Any]]:
     config = compose("profile=pretrain_streaming")
     config.runtime.device = "cpu"
     config.training.precision = "fp32"
-    config.training.sequence_length = 128
+    config.training.sequence_length = sequence_length
     config.training.batch_size = 1
     config.model.embed_size = 8
     config.model.num_heads = 2
@@ -179,7 +204,7 @@ def _pretraining_checkpoint(tmp_path: Path) -> tuple[Path, dict[str, Any]]:
         vocab_size=tokenizer.vocab_size,
         embed_size=8,
         num_heads=2,
-        max_len=128,
+        max_len=sequence_length,
         num_layers=1,
         dropout=0.0,
         pad_token_id=tokenizer.pad_token_id,
@@ -327,6 +352,25 @@ def test_runner_retains_blocked_evidence_and_never_scores_contamination(
     assert report["contamination"]["matches"]
 
 
+def test_runner_rejects_short_context_before_training_corpus_scan(monkeypatch, tmp_path: Path):
+    registry, fingerprint = _registry(tmp_path)
+    checkpoint, _ = _pretraining_checkpoint(tmp_path, sequence_length=8)
+    config = _benchmark_config(tmp_path, checkpoint)
+    monkeypatch.setattr(
+        "benchmarks.runner.scan_checkpoint_training_data",
+        lambda *_args, **_kwargs: pytest.fail(
+            "context incompatibility must fail before the complete contamination scan"
+        ),
+    )
+
+    with pytest.raises(BenchmarkScoringError, match="checkpoint context is incompatible"):
+        run_benchmark(
+            config,
+            registry_path=registry,
+            expected_registry_fingerprint=fingerprint,
+        )
+
+
 def test_fixture_checkpoint_scoring_and_result_identity_are_deterministic(
     monkeypatch, tmp_path: Path
 ):
@@ -369,6 +413,34 @@ def test_fixture_checkpoint_scoring_and_result_identity_are_deterministic(
     assert '"completion"' not in serialized
 
 
+def test_gsm8k_generation_receives_checkpoint_precision(monkeypatch, tmp_path: Path):
+    registry, fingerprint = _registry(tmp_path)
+    checkpoint, _ = _pretraining_checkpoint(tmp_path)
+    suite = load_suite(
+        registry,
+        expected_fingerprint=fingerprint,
+        access="dev",
+        cache=BoundedShardCache(tmp_path / "suite-cache", max_size_bytes=10_000_000),
+        timeout_seconds=1.0,
+    )
+    sampler = CheckpointSampler.from_checkpoint(checkpoint, device="cpu")
+    original_generate = sampler.generate
+    observed_precisions: list[str] = []
+
+    def generate(prompt: str, *, max_new_tokens: int, precision: str):
+        observed_precisions.append(precision)
+        return original_generate(
+            prompt,
+            max_new_tokens=max_new_tokens,
+            precision=precision,
+        )
+
+    monkeypatch.setattr(sampler, "generate", generate)
+    score_suite(sampler, suite)
+
+    assert observed_precisions == ["fp32"]
+
+
 def test_external_baseline_record_is_aggregate_only_and_isolated(tmp_path: Path):
     payload = {
         "subject": {
@@ -379,32 +451,36 @@ def test_external_baseline_record_is_aggregate_only_and_isolated(tmp_path: Path)
             "context_length": 2048,
             "data_access": "upstream disclosure",
         },
-        "suite_id": FINAL_ACKNOWLEDGEMENT,
-        "protocol_sha256": "a" * 64,
         "tasks": {
             "jcommonsenseqa": {
                 "primary_metric": "length_normalized_accuracy",
                 "value": 0.5,
-                "correct": 1,
-                "total": 2,
+                "correct": 64,
+                "total": 128,
             },
             "gsm8k": {
                 "primary_metric": "exact_match",
                 "value": 0.0,
                 "correct": 0,
-                "total": 2,
+                "total": 128,
             },
         },
     }
     output = write_external_comparison(
         payload,
         output_path=tmp_path / "external.json",
-        expected_protocol_sha256="a" * 64,
     )
     record = json.loads(output.read_text(encoding="utf-8"))
     assert record["kind"] == "external_baseline_comparison"
     assert record["isolation"]["repository_checkpoint_runner"] is False
     assert record["isolation"]["eligible_for_training_data_or_targets"] is False
+    assert record["suite"]["access"] == "dev"
+    assert record["suite"]["protocol_sha256"] == (
+        "169058462fd2ea3c3dddddce6486d6f1fceebaf1836f228bada6b5c5c8e602e2"
+    )
+    assert record["suite"]["tasks"]["jcommonsenseqa"]["selected_examples_sha256"] == (
+        "fa5ce35310f98b171da7db6afeff222381161f1987a99d70e7ede9b77a283b0e"
+    )
 
     contaminated = copy.deepcopy(payload)
     contaminated["tasks"]["gsm8k"]["completions"] = ["raw output"]
@@ -412,7 +488,14 @@ def test_external_baseline_record_is_aggregate_only_and_isolated(tmp_path: Path)
         write_external_comparison(
             contaminated,
             output_path=tmp_path / "rejected.json",
-            expected_protocol_sha256="a" * 64,
+        )
+
+    wrong_partition = copy.deepcopy(payload)
+    wrong_partition["tasks"]["gsm8k"]["total"] = 2
+    with pytest.raises(ExternalComparisonError, match="pinned development partition"):
+        write_external_comparison(
+            wrong_partition,
+            output_path=tmp_path / "wrong-partition.json",
         )
 
 
@@ -477,9 +560,7 @@ def test_wandb_receives_only_compact_aggregate_rows(monkeypatch, tmp_path: Path)
                 "exact_match": 0.25,
                 "correct": 32,
                 "total": 128,
-                "prediction_trace": [
-                    {"example_id": "secret-id", "completion_sha256": "x" * 64}
-                ],
+                "prediction_trace": [{"example_id": "secret-id", "completion_sha256": "x" * 64}],
             },
         },
     }

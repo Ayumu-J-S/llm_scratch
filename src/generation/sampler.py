@@ -12,6 +12,7 @@ import torch
 
 from models.simple_decoder_transformer import SimpleDecoderTransformer
 from tokenizer.canonical import CanonicalTokenizer
+from training.optimization import autocast_context
 from training.checkpoint import (
     LoadedCheckpoint,
     build_logical_checkpoint_identity,
@@ -44,6 +45,7 @@ class GenerationResult:
     temperature: float | None
     top_k: int | None
     seed: int | None
+    precision: str
     stop_reason: str
 
     def metadata(self) -> dict[str, Any]:
@@ -181,6 +183,7 @@ class CheckpointSampler:
         temperature: float | None = None,
         top_k: int | None = None,
         seed: int | None = None,
+        precision: str = "fp32",
     ) -> GenerationResult:
         """Produce one bounded base-model continuation.
 
@@ -199,6 +202,10 @@ class CheckpointSampler:
             raise SamplingError(
                 f"prompt has {len(prompt_ids)} tokens but checkpoint context is {self.model.max_len}"
             )
+        try:
+            compute_context = autocast_context(self.device, precision)
+        except (RuntimeError, ValueError) as error:
+            raise SamplingError(f"generation precision is incompatible: {error}") from error
         sampling = temperature is not None
         if sampling:
             temperature_value = _positive_finite_float(temperature, "temperature")
@@ -230,7 +237,7 @@ class CheckpointSampler:
         else:
             stop_reason = "max_new_tokens"
             token_ids = list(prompt_ids)
-            with torch.inference_mode():
+            with torch.inference_mode(), compute_context:
                 for _ in range(allowed):
                     tokens = torch.tensor([token_ids], dtype=torch.long, device=self.device)
                     logits = self.model(tokens)[0, -1]
@@ -267,6 +274,7 @@ class CheckpointSampler:
             temperature=temperature_value,
             top_k=top_k,
             seed=seed,
+            precision=precision,
             stop_reason=stop_reason,
         )
 

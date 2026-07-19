@@ -16,7 +16,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument("--input", required=True, help="aggregate comparison JSON")
     parser.add_argument("--output", required=True, help="separate local output JSON")
-    parser.add_argument("--protocol-sha256", required=True)
     args = parser.parse_args(argv)
     try:
         payload = json.loads(Path(args.input).read_text(encoding="utf-8"))
@@ -25,7 +24,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         write_external_comparison(
             payload,
             output_path=args.output,
-            expected_protocol_sha256=args.protocol_sha256,
         )
     except (OSError, json.JSONDecodeError, ExternalComparisonError) as error:
         parser.error(str(error))

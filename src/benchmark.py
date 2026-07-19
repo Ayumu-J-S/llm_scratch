@@ -33,8 +33,7 @@ def final_main() -> None:
 
     if os.environ.get("BENCHMARK_FINAL_ACK") != FINAL_ACKNOWLEDGEMENT:
         raise SystemExit(
-            "reserved final benchmark requires BENCHMARK_FINAL_ACK="
-            f"{FINAL_ACKNOWLEDGEMENT}"
+            f"reserved final benchmark requires BENCHMARK_FINAL_ACK={FINAL_ACKNOWLEDGEMENT}"
         )
     _final_hydra()
 

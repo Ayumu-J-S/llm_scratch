@@ -255,9 +255,7 @@ def _document_matches(
                         **reference,
                         "source": source_name,
                         "training_document_id": document_id,
-                        "training_upstream_id": None
-                        if upstream_id is None
-                        else str(upstream_id),
+                        "training_upstream_id": None if upstream_id is None else str(upstream_id),
                     }
                 )
     return matches
@@ -283,9 +281,7 @@ def _sha256(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8", errors="strict")).hexdigest()
 
 
-def _append(
-    index: dict[str, list[dict[str, str]]], digest: str, reference: dict[str, str]
-) -> None:
+def _append(index: dict[str, list[dict[str, str]]], digest: str, reference: dict[str, str]) -> None:
     index.setdefault(digest, []).append(reference)
 
 

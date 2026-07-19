@@ -27,22 +27,76 @@ class BenchmarkScoringError(ValueError):
 
 def score_suite(sampler: CheckpointSampler, suite: LoadedSuite) -> dict[str, Any]:
     precision = str(sampler.resolved_config.get("training", {}).get("precision", "fp32"))
+    validate_suite_context(sampler, suite)
     results: dict[str, Any] = {}
     for task in suite.tasks:
         if task.name == "jcommonsenseqa":
-            results[task.name] = _score_jcommonsenseqa(
-                sampler, task.examples, precision=precision
-            )
+            results[task.name] = _score_jcommonsenseqa(sampler, task.examples, precision=precision)
         elif task.name == "gsm8k":
             max_new_tokens = int(suite.protocol["gsm8k"]["decoding"]["max_new_tokens"])
             results[task.name] = _score_gsm8k(
                 sampler,
                 task.examples,
                 max_new_tokens=max_new_tokens,
+                precision=precision,
             )
         else:
             raise BenchmarkScoringError(f"unsupported task: {task.name}")
     return results
+
+
+def validate_suite_context(sampler: CheckpointSampler, suite: LoadedSuite) -> dict[str, Any]:
+    """Fail cheaply unless the checkpoint can execute the complete fixed protocol.
+
+    GSM8K requires room for the entire declared generation cap so scores do not
+    silently become context-length-dependent.  The runner invokes this before
+    the complete training-corpus contamination scan; ``score_suite`` invokes it
+    again as a defensive boundary for direct callers.
+    """
+
+    task_requirements: dict[str, int] = {}
+    for task in suite.tasks:
+        if task.name == "jcommonsenseqa":
+            required = 0
+            for example in task.examples:
+                prompt, choices, _ = format_jcommonsenseqa(example)
+                prompt_tokens = sampler.tokenizer.encode(prompt)
+                if not prompt_tokens:
+                    raise BenchmarkScoringError("benchmark prompt encoded to zero tokens")
+                for choice in choices:
+                    continuation_tokens = sampler.tokenizer.encode(choice)
+                    if not continuation_tokens:
+                        raise BenchmarkScoringError("benchmark continuation encoded to zero tokens")
+                    required = max(
+                        required,
+                        len(prompt_tokens) + len(continuation_tokens),
+                    )
+        elif task.name == "gsm8k":
+            max_new_tokens = int(suite.protocol["gsm8k"]["decoding"]["max_new_tokens"])
+            required = 0
+            for example in task.examples:
+                prompt, _ = format_gsm8k(example)
+                prompt_tokens = sampler.tokenizer.encode(prompt)
+                if not prompt_tokens:
+                    raise BenchmarkScoringError("benchmark prompt encoded to zero tokens")
+                required = max(required, len(prompt_tokens) + max_new_tokens)
+        else:
+            raise BenchmarkScoringError(f"unsupported task: {task.name}")
+        task_requirements[task.name] = required
+
+    required_context = max(task_requirements.values(), default=0)
+    if sampler.model.max_len < required_context:
+        limiting_task = max(task_requirements, key=task_requirements.__getitem__)
+        raise BenchmarkScoringError(
+            "checkpoint context is incompatible with the fixed benchmark protocol: "
+            f"{limiting_task} requires {task_requirements[limiting_task]} tokens, "
+            f"checkpoint provides {sampler.model.max_len}"
+        )
+    return {
+        "checkpoint_context_length": sampler.model.max_len,
+        "required_context_length": required_context,
+        "task_required_context_lengths": task_requirements,
+    }
 
 
 def _score_jcommonsenseqa(
@@ -137,13 +191,18 @@ def _score_gsm8k(
     examples: tuple[BenchmarkExample, ...],
     *,
     max_new_tokens: int,
+    precision: str,
 ) -> dict[str, Any]:
     rows: list[dict[str, Any]] = []
     correct = 0
     valid_format = 0
     for example in examples:
         prompt, reference = format_gsm8k(example)
-        result = sampler.generate(prompt, max_new_tokens=max_new_tokens)
+        result = sampler.generate(
+            prompt,
+            max_new_tokens=max_new_tokens,
+            precision=precision,
+        )
         prediction = extract_gsm8k_answer(result.completion)
         is_valid = prediction != INVALID_GSM8K_ANSWER
         is_correct = is_valid and prediction == reference

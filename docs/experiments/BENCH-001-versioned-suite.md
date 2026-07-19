@@ -23,7 +23,10 @@
 | ---: | --- | --- | --- |
 | 1 | Implementation | Complete | Pinned registry, deterministic development subsets, guarded final entrypoint, checkpoint scoring, complete contamination scan, atomic local JSON, compact W&B table, isolated external aggregate recorder |
 | 2 | Focused validation | PASS | Benchmark, generation, and config-profile tests pass; canonical online sources verify to 256 selected development examples and the documented subset hashes |
-| 3 | Independent `/review` | Pending | Must cover `PHILOSOPHY.md`, ticket acceptance criteria, and `CHECK.md` 8.2, 8.3, and 9.2 on the exact proposed head |
+| 3 | Independent `/review` | FAIL | Review of `db221fe` plus the complete working-tree diff passed 337 tests and Ruff, then found three integrity defects: context incompatibility was detected only after the complete corpus scan, GSM8K ignored checkpoint BF16 precision, and external records accepted caller-asserted protocol/partition identity |
+| 4 | Repair | Complete | Added a prompt/continuation/full-generation context preflight before the scan, passed checkpoint precision into every GSM8K forward, and made the recorder attach and enforce the compiled development protocol, source, selection, and 128-example totals |
+| 5 | Full validation | PASS | Official CPU gate: 339 passed, 1 skipped; Ruff, Hydra config preflight, lock drift, offline smoke, `uv lock --check`, changed-path format, and diff checks pass. Canonical sources reverify to 256 examples, the pinned hashes, and context requirements JCommonsenseQA=98/GSM8K=264 |
+| 6 | Independent re-review | Pending | Repeat against the exact committed repair head; preserve the verdict and any remaining note in the pull request |
 
 ## Resolved protocol
 
@@ -35,7 +38,8 @@
   log probability; length normalization is primary and raw log-probability
   accuracy is retained as a secondary metric.
 - GSM8K: fixed `Question`/`Answer` prompt, greedy continuation, 128-token cap,
-  and the dataset repository's `####` answer regex.
+  the checkpoint-owned evaluation precision, and the dataset repository's
+  `####` answer regex.
 - Final acknowledgement: `BENCHMARK_FINAL_ACK=BENCH-001-suite-v1`; checked
   outside Hydra.
 - Contamination: complete checkpoint-owned train selections, exact/normalized
@@ -57,7 +61,12 @@
 
 ## Current conclusion
 
-Implementation evidence satisfies the ticket's acceptance tests locally. This
-record remains pending until the exact-head independent review and full CI
-results are added to the pull request. No benchmark score from the zero-weight
-fixture is a model-quality result.
+The first independent review correctly rejected the initial implementation.
+All three findings are repaired without weakening the fixed protocol or the
+complete contamination scan, and the repair-head full gate passes. An extra
+repository-wide format diagnostic identified four pre-existing, unrelated
+files outside this ticket's diff; the configured Ruff lint gate and all changed
+benchmark paths pass, so those files were not rewritten here. This record
+remains pending until the exact-head independent re-review is retained in the
+pull request. No benchmark score from the zero-weight fixture is a
+model-quality result.
