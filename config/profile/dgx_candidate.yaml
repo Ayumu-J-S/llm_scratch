@@ -1,0 +1,104 @@
+# @package _global_
+# Default matrix arm. scripts/run_dgx_measurements.py supplies only the
+# predeclared model-depth/context/batch overrides from config/dgx.yaml.
+profile:
+  name: dgx_candidate
+  purpose: pretraining
+
+runtime:
+  device: cuda
+
+data:
+  mode: streaming
+  streaming:
+    require_manifests: true
+    repeat: true
+    cache:
+      dir: data/stream_loader_cache
+      max_size_bytes: 80000000000
+      min_free_bytes: 256000000000
+      wait_timeout_seconds: 120.0
+    prefetch:
+      enabled: true
+      buffer_size: 16
+    train:
+      max_tokens: max
+      max_target_tokens: 1048576
+      mixture_basis: trained_targets
+      add_eos: true
+      seed: 42
+      sources:
+        - name: fineweb2_ja_train
+          type: manifest
+          manifest_path: data/manifests/fineweb2-ja-jpn-jpan.manifest.json
+          expected_fingerprint: 2fc3eb60986c96fcb752b14d740dd5a3f7cea8b52bb5a13cb5834a1f805d6bba
+          selection: train
+          ratio: 0.5
+        - name: fineweb_en_train
+          type: manifest
+          manifest_path: data/manifests/fineweb-en-sample-10bt.manifest.json
+          expected_fingerprint: 626a1eb095e9089e5c62ee2df9c058ab7c6dfc54064eca5c13e4d84e65a8d60a
+          selection: train
+          ratio: 0.5
+    validation:
+      max_tokens: max
+      max_target_tokens: 65536
+      mixture_basis: trained_targets
+      add_eos: true
+      seed: 43
+      sources:
+        - name: fineweb2_ja_validation
+          type: manifest
+          manifest_path: data/manifests/fineweb2-ja-jpn-jpan.manifest.json
+          expected_fingerprint: 2fc3eb60986c96fcb752b14d740dd5a3f7cea8b52bb5a13cb5834a1f805d6bba
+          selection: validation
+          ratio: 0.5
+        - name: fineweb_en_validation
+          type: manifest
+          manifest_path: data/manifests/fineweb-en-sample-10bt.manifest.json
+          expected_fingerprint: 626a1eb095e9089e5c62ee2df9c058ab7c6dfc54064eca5c13e4d84e65a8d60a
+          selection: validation
+          ratio: 0.5
+
+training:
+  sequence_length: 2048
+  epochs: 1
+  batch_size: 4
+  shuffle: true
+  max_steps: 30
+  precision: bf16
+  gradient_accumulation_steps: 4
+  max_grad_norm: 10.0
+  log_every_n_steps: 10
+  validation_every_n_steps: null
+  validation_every_n_tokens: 655360
+  checkpoint_every_n_steps: null
+  checkpoint_every_n_tokens: 655360
+  milestone_every_n_steps: null
+  milestone_every_n_tokens: null
+  scheduler:
+    enabled: true
+    interval: step
+    _target_: training.optimization.WarmupCosineScheduler
+    warmup_steps: 10
+    decay_steps: 1000
+    min_lr_ratio: 0.1
+
+model:
+  embed_size: 384
+  num_heads: 6
+  num_layers: 26
+  dropout: 0.1
+
+measurement:
+  enabled: true
+  warmup_optimizer_steps: 10
+  cuda_events: true
+  output_path: measurement.json
+
+wandb:
+  mode: disabled
+  watch:
+    enabled: false
+  artifact:
+    policy: none

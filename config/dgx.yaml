@@ -1,0 +1,72 @@
+# DGX-001 host orchestration policy. Training itself always composes one of the
+# canonical profile configs; this file only declares the repeated matrix and
+# hard resource gates around those runs.
+schema_version: 1
+image:
+  name: llm-scratch:env-001
+  expected_id: sha256:23a1bee69fe189e77105cdddeee9aeff6ef0763d58a691625fbfcab64efd1887
+
+matrix:
+  repetitions: 3
+  warmup_optimizer_steps: 10
+  measured_optimizer_steps: 20
+  model_presets:
+    - id: p70
+      num_layers: 18
+      embed_size: 384
+      num_heads: 6
+    - id: p85
+      num_layers: 26
+      embed_size: 384
+      num_heads: 6
+    - id: p99
+      num_layers: 34
+      embed_size: 384
+      num_heads: 6
+  context_presets:
+    - id: ctx1024
+      sequence_length: 1024
+      batch_size: 8
+      gradient_accumulation_steps: 4
+    - id: ctx2048
+      sequence_length: 2048
+      batch_size: 4
+      gradient_accumulation_steps: 4
+    - id: ctx4096
+      sequence_length: 4096
+      batch_size: 2
+      gradient_accumulation_steps: 4
+
+pilot:
+  duration_seconds: 1800
+  warmup_optimizer_steps: 10
+
+gates:
+  min_available_memory_bytes: 64000000000
+  min_free_disk_bytes: 100000000000
+  max_temperature_c: 80
+  max_swap_in_pages: 0
+  max_swap_out_pages: 0
+  max_allocator_growth_bytes: 268435456
+  min_sampler_coverage: 0.90
+  max_data_wait_fraction: 0.10
+  storage_headroom_ratio: 2.0
+
+selection:
+  target_tokens_7d: 1000000000
+  conservative_throughput_quantile: min
+  max_slowdown_fraction: 0.20
+  context_throughput_floor_fraction: 0.85
+  near_fastest_fraction: 0.03
+
+output_root: null
+expected_commit: null
+mode: plan  # plan | matrix | pilot
+selected_candidate: null
+
+hydra:
+  run:
+    dir: ${hydra:runtime.cwd}/runs/dgx-orchestration/${now:%Y%m%d-%H%M%S}
+  output_subdir: null
+  job:
+    chdir: false
