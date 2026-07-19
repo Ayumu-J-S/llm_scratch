@@ -53,6 +53,8 @@ mapping and result evidence must bind the fixed deterministic CUDA policy, Git
 HEAD and dirty-content digest, `uv.lock`, complete resolved HUMAN Hydra config,
 and concrete OS/PyTorch/CUDA/container identity. These are implementation
 integrity gates, not observed model results or changes to the hypothesis.
+Known device, precision, tokenizer, and fixed-context incompatibilities must
+fail before the complete training-corpus scan begins.
 
 ## Planned budget
 

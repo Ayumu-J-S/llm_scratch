@@ -23,6 +23,9 @@ models resident on the DGX Spark. If any encoded prompt leaves fewer than 64
 context positions, preparation fails instead of publishing a context-truncated
 continuation under the fixed generation contract. The prompt asset is captured
 once; the exact same bytes are parsed and hashed before any checkpoint work.
+Checkpoint-owned precision, requested-device availability/BF16 support, the
+canonical tokenizer, and every prompt's 64-token context capacity are
+preflighted before the potentially corpus-scale contamination scan begins.
 
 Before either model is loaded for generation, the workflow scans every document
 in every checkpoint-owned training manifest for exact and normalized occurrences

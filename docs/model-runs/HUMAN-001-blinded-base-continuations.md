@@ -44,7 +44,9 @@ Failed cycles are retained and must not be rewritten as passing cycles.
 | 5 | re-review | `49e8580ba30f1f6de1174ddd01e43ccf750168ac` against `origin/main` | Independent formal `/review` | `FAIL` | P2: context-limited generation could be published under the fixed 64-token contract. P2: reviewer ratings and their retained checksum came from separate file reads. | `codex review --base origin/main`; reviewer also reproduced 516 passed, 1 skipped |
 | 6 | repair | `6128ad2d185fe87f295576c68020c1d700ccdc78`; target merge through `00c404521089d7694608ee55ec2b1ddaa985dea1` | Reject context truncation and bind parsed score bytes to their digest | implemented | Rejected context-limited samples and parsed/hashed each score from one byte buffer | Focused HUMAN gate passed 23 tests; exact-head CPU gate passed 519 tests with 1 skip |
 | 7 | re-review | `00c404521089d7694608ee55ec2b1ddaa985dea1` against `origin/main` | Independent formal `/review` | `FAIL` | P1: cached prompt scans omitted transitive producer identity. P2: operational/volatile evidence changed assignment identity. P2: prompt parsing and hashing used separate reads. | `codex review --base origin/main`; reviewer independently reran 519 passed, 1 skipped |
-| 8 | repair | `f92dfe97cf46a3ce805523a6243259ef9aeed6af` | Close all cycle-7 identity and byte-binding gaps | implemented | Complete producer identity, stable assignment inputs, and one-buffer prompt parsing implemented with adversarial regressions | Focused HUMAN gate passes 25 tests; exact-head CPU gate passes 521 tests with 1 skip; independent re-review pending |
+| 8 | repair | `f92dfe97cf46a3ce805523a6243259ef9aeed6af` | Close all cycle-7 identity and byte-binding gaps | implemented | Complete producer identity, stable assignment inputs, and one-buffer prompt parsing implemented with adversarial regressions | Focused HUMAN gate passed 25 tests; exact-head CPU gate passed 521 tests with 1 skip |
+| 9 | re-review | `f6ca50bf1e43ce4e68f7c237be78e43554c629f8` against `origin/main` | Independent formal `/review` | `FAIL` | P1: a fresh launch could inherit an occupied run directory's lineage. P2: HUMAN scanned the corpus before rejecting known device/precision/context incompatibility. | `codex review --base origin/main`; reviewer independently inspected the broad branch and confirmed the suite passed |
+| 10 | repair | `774d1bf9e29c8f6adf7c049447cfc63d3d1b5bdc` | Close both cycle-9 fail-closed ordering gaps | implemented | Fresh launches reject existing manifests, preparation is serialized across same-directory collisions, explicit resumes must supply verified lineage, and HUMAN device/precision/tokenizer/context preflight precedes scanning | Focused reproducibility/HUMAN gate passes 42 tests; full CPU gate and independent re-review pending |
 
 ## Independent check selection and verdicts
 
@@ -194,12 +196,55 @@ Failed cycles are retained and must not be rewritten as passing cycles.
 - Validation rerun: focused HUMAN gate passes 25 tests. Exact repair head
   `f92dfe9` passes 521 tests with one skip plus Ruff, Hydra preflight, lock
   drift, and offline smoke; 456 GB remained free.
-- Remaining risk: independent exact-head re-review pending.
+- Remaining risk: cycle-4 independent review found two fail-closed ordering
+  gaps outside the prior three repairs.
+
+### Review cycle 4 — formal re-review of `f6ca50b`
+
+- Commit reviewed: `f6ca50bf1e43ce4e68f7c237be78e43554c629f8`.
+- Selected `CHECK.md` sections: applicable 7, 8, and 9.1; real DGX generation,
+  human ratings, performance, and quality conclusions remained N/A.
+- Ticket acceptance result: `FAIL`.
+- Philosophy alignment: the evaluation design remained aligned, but fresh-run
+  lineage and fail-fast corpus-work ordering were not yet safe enough.
+- Complexity / change-surface result: no unnecessary abstraction finding.
+- ML-system result: `FAIL`; a fresh launch could be mislabeled as a continuation,
+  and known-unusable HUMAN requests could perform corpus-scale work.
+- Verdict: `FAIL` because two actionable findings remained.
+
+#### Findings
+
+| Severity | Area | What was wrong | Required action |
+| --- | --- | --- | --- |
+| P1 | run lineage | A fresh launch into a directory with an existing manifest retained that manifest's `run_lineage_id`, including timestamp-collision cases | Reject occupied fresh launches; serialize same-directory preparation; retain lineage only for an explicit verified resume |
+| P2 | HUMAN preflight | CPU/BF16, unavailable CUDA, unsupported CUDA BF16, and insufficient context were discovered only after a cache-miss corpus scan | Validate device, precision, tokenizer, and every prompt's fixed context before scanning |
+
+## Failed-review handoff — cycle 4
+
+- Reproduction command: `codex review --base origin/main` at `f6ca50b`.
+- Constraints preserved: exact resume lineage, immutable run evidence, fixed
+  HUMAN sampling, complete contamination scan for executable requests, 100 GB
+  free, and no real generation/rating/GPU work.
+- Repair request: fail closed before evidence mutation or corpus scanning, add
+  occupied/concurrent-run and device/precision/context ordering regressions,
+  then rerun the exact-head CPU gate and independent review.
+
+## Repair cycle 4
+
+- Finding addressed: both cycle-4 findings.
+- Change made: `774d1bf` requires explicit verified resume lineage for an
+  existing manifest, rejects fresh or concurrently colliding run preparation,
+  and performs HUMAN device/precision/tokenizer/context checks before scanning.
+- Validation rerun: focused reproducibility/HUMAN gate passes 42 tests; 455 GB
+  remained free.
+- Remaining risk: full CPU validation and independent exact-head re-review are
+  pending.
 
 ## Independent re-review
 
-- Commit reviewed: pending cycle-3 repair successor.
-- Prior findings disposition: pending.
+- Commit reviewed: pending cycle-4 repair successor.
+- Prior findings disposition: cycle-1 through cycle-4 repairs implemented;
+  exact-head re-review pending.
 - New findings: pending.
 - Verdict: pending.
 - Evidence: pending.
