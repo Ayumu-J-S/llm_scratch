@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
+import copy
 import fcntl
 import hashlib
 import json
 import os
+import platform
 import shutil
+import subprocess
+import sys
 import tempfile
-import copy
+import unicodedata
 from collections.abc import Mapping, Sequence
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any
 
@@ -21,10 +26,13 @@ from human_evaluation.schema import Prompt
 from runtime.reproducibility import sha256_file
 
 
-SCAN_REVISION = "HUMAN-001-prompt-contamination-v1"
-NORMALIZATION_REVISION = "normalize-text-identity-v1"
+SCAN_REVISION = "HUMAN-001-prompt-contamination-v2"
+NORMALIZATION_REVISION = "normalize-text-identity-v2"
 MINIMUM_FREE_BYTES = 100_000_000_000
 _ROOT_DIR = Path(__file__).resolve().parents[2]
+_PRODUCER_IDENTITY_REVISION = "HUMAN-001-contamination-producer-v1"
+_PRODUCER_SOURCE_SCOPE_REVISION = "all-src-python-pyproject-lock-v1"
+_PRODUCER_PACKAGES = ("pyarrow",)
 _IMPLEMENTATION_FILES = {
     "human_evaluation.contamination": Path(__file__).resolve(),
     "data.identity": _ROOT_DIR / "src/data/identity.py",
@@ -74,6 +82,7 @@ def scan_checkpoint_training_prompts(
         "implementation_sha256": {
             name: sha256_file(path) for name, path in sorted(_IMPLEMENTATION_FILES.items())
         },
+        "producer": _producer_identity(root),
         "prompt_set": {
             "version": prompt_set_version,
             "sha256": prompt_set_sha256,
@@ -424,6 +433,67 @@ def _write_index(
 def _root_path(root: Path, value: str) -> Path:
     path = Path(value).expanduser()
     return path.resolve() if path.is_absolute() else (root / path).resolve()
+
+
+def _producer_identity(root: Path) -> dict[str, Any]:
+    """Bind reusable scan evidence to its complete text-producing environment."""
+
+    packages: dict[str, str] = {}
+    for package in _PRODUCER_PACKAGES:
+        try:
+            packages[package] = version(package)
+        except PackageNotFoundError as error:
+            raise HumanPromptContaminationError(
+                f"prompt-scan producer dependency is not installed: {package}"
+            ) from error
+    return {
+        "revision": _PRODUCER_IDENTITY_REVISION,
+        "source": _producer_source_identity(root),
+        "dependency_lock_sha256": sha256_file(root / "uv.lock"),
+        "runtime": {
+            "python_implementation": platform.python_implementation(),
+            "python_version": platform.python_version(),
+            "python_cache_tag": sys.implementation.cache_tag,
+            "platform": platform.platform(),
+            "architecture": platform.machine(),
+            "unicode_database_version": unicodedata.unidata_version,
+            "packages": packages,
+        },
+    }
+
+
+def _producer_source_identity(root: Path) -> dict[str, Any]:
+    """Hash all repository Python producer code without traversing generated data."""
+
+    paths = [root / "pyproject.toml", root / "uv.lock"]
+    paths.extend(sorted((root / "src").rglob("*.py")))
+    entries = [
+        {
+            "path": str(path.relative_to(root)),
+            "sha256": sha256_file(path),
+            "size_bytes": path.stat().st_size,
+        }
+        for path in paths
+    ]
+    try:
+        git_head = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=root,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
+        raise HumanPromptContaminationError(
+            "cannot identify the prompt-scan producer revision"
+        ) from error
+    return {
+        "scope_revision": _PRODUCER_SOURCE_SCOPE_REVISION,
+        "git_head": git_head,
+        "files": entries,
+        "content_sha256": hashlib.sha256(canonical_json_bytes(entries)).hexdigest(),
+    }
 
 
 def _sha256(value: str) -> str:

@@ -44,7 +44,10 @@ attempt. Add a dated note and a new attempt if the protocol must change.
 Formal review requires the first real attempt to prove, before generation, a
 complete exact/normalized scan of every checkpoint-owned training manifest for
 all HUMAN prompts. A match blocks and retains authenticated identifier/count/
-digest evidence without prompt text. The two checkpoints must share a unique
+digest evidence without prompt text. Reusable clean scan evidence must bind the
+complete text-producing source, lock, and runtime. Prompt parsing and hashing
+must use one captured byte buffer, and assignment randomization must depend only
+on stable study inputs. The two checkpoints must share a unique
 run lineage rather than only a deterministic experiment recipe ID. Private
 mapping and result evidence must bind the fixed deterministic CUDA policy, Git
 HEAD and dirty-content digest, `uv.lock`, complete resolved HUMAN Hydra config,

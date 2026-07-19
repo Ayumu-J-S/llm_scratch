@@ -413,6 +413,101 @@ def test_prepare_is_reproducible_balanced_and_public_bundle_has_no_identity_leak
     assert third_public["study_id"] != public["study_id"]
 
 
+def test_assignment_identity_excludes_operational_and_volatile_scan_evidence(
+    prepared_study, tmp_path: Path, monkeypatch
+):
+    workspace, key, paths = prepared_study
+    first_public = json.loads(paths["public_bundle"].read_text(encoding="utf-8"))
+    first_private = json.loads(paths["private_mapping"].read_text(encoding="utf-8"))["payload"]
+    original_scan = workflow.scan_checkpoint_training_prompts
+
+    def volatile_scan(*args, **kwargs):
+        report = original_scan(*args, **kwargs)
+        return {
+            **report,
+            "free_bytes_before": 456_000_000_000,
+            "free_bytes_after": 455_000_000_000,
+        }
+
+    def fake_loader(path: str | Path):
+        slot = "earlier" if "earlier" in str(path) else "later"
+        return _loaded(
+            slot,
+            target_tokens=1_000_000 if slot == "earlier" else 1_500_000,
+            optimizer_step=100 if slot == "earlier" else 150,
+        )
+
+    monkeypatch.setattr(workflow, "scan_checkpoint_training_prompts", volatile_scan)
+    monkeypatch.setattr(workflow, "load_checkpoint_for_generation", fake_loader)
+    monkeypatch.setattr(workflow, "CheckpointSampler", FakeSampler)
+    moved_config = copy.deepcopy(OPERATIONAL_CONFIG)
+    moved_config["contamination"]["cache"]["dir"] = str(tmp_path / "moved-cache")
+    second_paths = _prepare_evaluation(
+        prompt_set_path=PROMPT_SET_PATH,
+        workspace_dir=tmp_path / "human-evaluation" / "moved-study",
+        blinding_key_path=key,
+        earlier_checkpoint="/synthetic/earlier.pt",
+        later_checkpoint="/synthetic/later.pt",
+        generation_seed=20260719,
+        operational_config=moved_config,
+    )
+    second_public = json.loads(second_paths["public_bundle"].read_text(encoding="utf-8"))
+    second_private = json.loads(second_paths["private_mapping"].read_text(encoding="utf-8"))[
+        "payload"
+    ]
+
+    assert second_public == first_public
+    assert second_private["assignments"] == first_private["assignments"]
+    assert second_private["evaluator"]["identity"]["resolved_config"] == moved_config
+    assert second_private["contamination"]["free_bytes_before"] == 456_000_000_000
+
+
+def test_prepare_hashes_the_exact_prompt_bytes_it_parsed(tmp_path: Path, monkeypatch):
+    prompt_path = tmp_path / "prompts-v1.json"
+    original_bytes = PROMPT_SET_PATH.read_bytes()
+    prompt_path.write_bytes(original_bytes)
+    key = create_blinding_key(tmp_path / "secret" / "prompt-buffer.key")
+
+    def fake_loader(path: str | Path):
+        slot = "earlier" if "earlier" in str(path) else "later"
+        return _loaded(
+            slot,
+            target_tokens=1_000_000 if slot == "earlier" else 1_500_000,
+            optimizer_step=100 if slot == "earlier" else 150,
+        )
+
+    original_parser = workflow.load_prompt_set_bytes
+
+    def replace_after_parse(payload: bytes):
+        prompt_set = original_parser(payload)
+        prompt_path.write_bytes(
+            payload.replace(
+                b"The research team began by checking whether",
+                b"The audit team started by checking whether",
+            )
+        )
+        return prompt_set
+
+    monkeypatch.setattr(workflow, "_require_prompt_asset_isolated", lambda _path: None)
+    monkeypatch.setattr(workflow, "load_prompt_set_bytes", replace_after_parse)
+    monkeypatch.setattr(workflow, "load_checkpoint_for_generation", fake_loader)
+    monkeypatch.setattr(workflow, "CheckpointSampler", FakeSampler)
+    paths = prepare_evaluation(
+        prompt_set_path=prompt_path,
+        workspace_dir=tmp_path / "human-evaluation" / "prompt-buffer",
+        blinding_key_path=key,
+        earlier_checkpoint="/synthetic/earlier.pt",
+        later_checkpoint="/synthetic/later.pt",
+        generation_seed=20260719,
+    )
+    private = json.loads(paths["private_mapping"].read_text(encoding="utf-8"))["payload"]
+    public = json.loads(paths["public_bundle"].read_text(encoding="utf-8"))
+
+    assert private["prompt_set"]["sha256"] == hashlib.sha256(original_bytes).hexdigest()
+    assert private["prompt_set"]["sha256"] != hashlib.sha256(prompt_path.read_bytes()).hexdigest()
+    assert any(item["prompt"].startswith("The research team began") for item in public["items"])
+
+
 def test_score_import_round_trip_agreement_and_exact_unblinding(prepared_study):
     workspace, key, paths = prepared_study
     public = json.loads(paths["public_bundle"].read_text(encoding="utf-8"))

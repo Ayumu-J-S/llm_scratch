@@ -42,7 +42,9 @@ Failed cycles are retained and must not be rewritten as passing cycles.
 | 3 | repair / review | `56c8f9fca46d238f64f36a3c5803b3d387f756b7` | Anchor evaluator trust to the repository | supplemental `PASS`; formal `FAIL` | Supplemental checks passed, but formal review found no complete prompt scan, no unique launch lineage, incomplete evaluator/runtime/config identity, and no fixed deterministic CUDA policy | Formal `/review` handoff on `56c8f9f` |
 | 4 | repair | `bfc798a871f3d580c13e5e20a4e1791cbfc23a31`; target merges through `49e8580ba30f1f6de1174ddd01e43ccf750168ac` | Close every formal integrity gap | implemented | Added complete exact/NFC training-manifest scan, exact checkpoint-pair binding, unique inherited run lineage, shared BENCH/HUMAN determinism policy, complete prepare/import evaluator identity, 100 GB reserve, and regression coverage | Exact-head `make ci-cpu`: 516 passed, 1 skipped; config/lock/offline smoke passed |
 | 5 | re-review | `49e8580ba30f1f6de1174ddd01e43ccf750168ac` against `origin/main` | Independent formal `/review` | `FAIL` | P2: context-limited generation could be published under the fixed 64-token contract. P2: reviewer ratings and their retained checksum came from separate file reads. | `codex review --base origin/main`; reviewer also reproduced 516 passed, 1 skipped |
-| 6 | repair | successor to `49e8580` | Reject context truncation and bind parsed score bytes to their digest | in progress | Generation-result contract and one-read score evidence are being repaired with focused regression tests | Pending exact-head validation and independent re-review |
+| 6 | repair | `6128ad2d185fe87f295576c68020c1d700ccdc78`; target merge through `00c404521089d7694608ee55ec2b1ddaa985dea1` | Reject context truncation and bind parsed score bytes to their digest | implemented | Rejected context-limited samples and parsed/hashed each score from one byte buffer | Focused HUMAN gate passed 23 tests; exact-head CPU gate passed 519 tests with 1 skip |
+| 7 | re-review | `00c404521089d7694608ee55ec2b1ddaa985dea1` against `origin/main` | Independent formal `/review` | `FAIL` | P1: cached prompt scans omitted transitive producer identity. P2: operational/volatile evidence changed assignment identity. P2: prompt parsing and hashing used separate reads. | `codex review --base origin/main`; reviewer independently reran 519 passed, 1 skipped |
+| 8 | repair | successor to `00c4045` | Close all cycle-7 identity and byte-binding gaps | in progress | Complete producer identity, stable assignment inputs, and one-buffer prompt parsing implemented with adversarial regressions | Focused HUMAN gate passes 25 tests; full gate and independent re-review pending |
 
 ## Independent check selection and verdicts
 
@@ -146,14 +148,55 @@ Failed cycles are retained and must not be rewritten as passing cycles.
 ## Repair cycle 2
 
 - Finding addressed: context truncation and score-read/checksum TOCTOU.
-- Change made: in progress.
-- Validation rerun: pending.
-- Remaining risk: BENCH target has a separate narrow repair in flight; merge and
-  exact-head revalidation are required before re-review.
+- Change made: `6128ad2` rejects insufficient context before bundle publication
+  and returns parsed score payload plus digest evidence from one read.
+- Validation rerun: combined exact head `00c4045` passed 519 tests with one skip,
+  plus Ruff, Hydra preflight, lock drift, and offline smoke.
+- Remaining risk: cycle-3 independent review found three new integrity gaps.
+
+### Review cycle 3 — formal re-review of `00c4045`
+
+- Commit reviewed: `00c404521089d7694608ee55ec2b1ddaa985dea1`.
+- Selected `CHECK.md` sections: applicable 7, 8, and 9.1; real DGX generation,
+  human ratings, performance, and quality conclusions remained N/A.
+- Ticket acceptance result: `FAIL`.
+- Philosophy alignment: `FAIL` until cached clean evidence and reproducible
+  blinding are bound to their real stable inputs.
+- Complexity / change-surface result: no unnecessary abstraction finding.
+- ML-system result: `FAIL`; stale contamination evidence could be reused and
+  prompt/assignment identity could diverge from evaluated inputs.
+- Verdict: `FAIL` because three actionable findings remained.
+
+#### Findings
+
+| Severity | Area | What was wrong | Required action |
+| --- | --- | --- | --- |
+| P1 | contamination cache | The HUMAN cache identity omitted transitive text producers, dependency lock, PyArrow, and Python/Unicode runtime | Bind the complete producer source, lock, and relevant runtime so stale clean evidence is ineligible |
+| P2 | randomization | Evaluator operational config and volatile free-space evidence entered `study_id`, changing item order/A/B across workspace or cache moves | Derive assignment identity only from stable prompt/protocol/seed/checkpoint inputs; retain operational evidence privately |
+| P2 | prompt identity | Prompt JSON was parsed before checkpoint loading and hashed by a later path read | Parse and hash one captured byte buffer |
+
+## Failed-review handoff — cycle 3
+
+- Reproduction command: `codex review --base origin/main` at `00c4045`.
+- Constraints preserved: fixed balanced contract, exact checkpoint pair, private
+  complete evaluator/scan evidence, no prompt text in scan reports, 100 GB free,
+  no real generation/rating/GPU work.
+- Repair request: close all three findings, add cache-invalidation,
+  operational-identity, volatile-report, and prompt-replacement regressions,
+  then rerun the exact-head CPU gate and independent review.
+
+## Repair cycle 3
+
+- Finding addressed: every cycle-3 finding.
+- Change made: all repository Python producer bytes plus lock and relevant
+  runtime now identity-bind prompt scans; study/bundle randomization excludes
+  operational evidence; prompt parsing/hash share one byte buffer.
+- Validation rerun: focused HUMAN gate passes 25 tests; full gate pending.
+- Remaining risk: independent exact-head re-review pending.
 
 ## Independent re-review
 
-- Commit reviewed: pending repair successor.
+- Commit reviewed: pending cycle-3 repair successor.
 - Prior findings disposition: pending.
 - New findings: pending.
 - Verdict: pending.
@@ -165,7 +208,7 @@ Failed cycles are retained and must not be rewritten as passing cycles.
   incomplete review state.
 - Human authorization and scope, or `N/A — human merge`: bounded roadmap series
   authorization exists, but review and exact-head gates still block merge.
-- Exact reviewed head: latest reviewed head `49e8580`; failing.
+- Exact reviewed head: latest reviewed head `00c4045`; failing.
 - Final review verdict: `FAIL`.
 - Actionable findings repaired and independently re-reviewed: no.
 - Blocking review decision / newer human objection: actionable review findings

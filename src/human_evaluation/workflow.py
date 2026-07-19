@@ -36,7 +36,7 @@ from human_evaluation.schema import (
     TOP_K,
     EvaluationSchemaError,
     PromptSet,
-    load_prompt_set,
+    load_prompt_set_bytes,
 )
 from training.checkpoint import LoadedCheckpoint, load_checkpoint_for_generation
 from runtime.evaluation import (
@@ -141,11 +141,15 @@ def prepare_evaluation(
     _require_key_outside_workspace(key_path, workspace)
     prompt_path = Path(prompt_set_path).resolve()
     _require_prompt_asset_isolated(prompt_path)
-    prompt_set = load_prompt_set(prompt_path)
+    try:
+        prompt_bytes = prompt_path.read_bytes()
+    except OSError as error:
+        raise HumanEvaluationError(f"cannot read prompt set: {error}") from error
+    prompt_set = load_prompt_set_bytes(prompt_bytes)
+    prompt_set_sha256 = hashlib.sha256(prompt_bytes).hexdigest()
     _require_key_outside_repository(key_path)
 
     candidates = _load_checkpoint_candidates(earlier_checkpoint, later_checkpoint)
-    prompt_set_sha256 = _sha256_file(prompt_path)
     contamination = scan_checkpoint_training_prompts(
         candidates["earlier"]["_resolved_config"],
         candidates["earlier"]["_checkpoint_identity"],
@@ -156,7 +160,6 @@ def prepare_evaluation(
         fallback_cache=_contamination_cache(operational_config),
         repository_root=_REPOSITORY_ROOT,
     )
-    contamination_sha256 = hashlib.sha256(canonical_json_bytes(contamination)).hexdigest()
     if contamination.get("scan_complete") is not True:
         raise HumanEvaluationError("prompt contamination scan did not complete")
     if contamination.get("contaminated") is True:
@@ -170,32 +173,33 @@ def prepare_evaluation(
         raise HumanEvaluationError(
             f"HUMAN-001 prompts occur in checkpoint training data; blocked evidence: {evidence_path}"
         )
-    study_id = _blind_id(
-        key,
-        "study",
-        {
-            "prompt_set_version": prompt_set.version,
-            "prompt_set_sha256": prompt_set_sha256,
-            "generation_seed": seed,
+    study_identity = {
+        "prompt_set_version": prompt_set.version,
+        "prompt_set_sha256": prompt_set_sha256,
+        "generation": {
+            "seed": seed,
             "device": device,
-            "protocol_version": PROTOCOL_VERSION,
-            "evaluator_revision": EVALUATOR_REVISION,
-            "evaluator_identity_sha256": evaluator_identity_sha256,
-            "determinism_policy": determinism_policy,
-            "contamination_sha256": contamination_sha256,
-            "checkpoint_pair": [
-                {
-                    "slot": slot,
-                    "sha256": candidates[slot]["sha256"],
-                    "target_tokens": candidates[slot]["target_tokens"],
-                    "optimizer_step": candidates[slot]["optimizer_step"],
-                    "experiment_id": candidates[slot]["experiment_id"],
-                    "run_lineage_id": candidates[slot]["run_lineage_id"],
-                }
-                for slot in ("earlier", "later")
-            ],
+            "max_new_tokens": MAX_NEW_TOKENS,
+            "temperature": TEMPERATURE,
+            "top_k": TOP_K,
         },
-    )
+        "protocol_version": PROTOCOL_VERSION,
+        "evaluator_revision": EVALUATOR_REVISION,
+        "determinism_policy_revision": determinism_policy["revision"],
+        "checkpoint_pair": [
+            {
+                "slot": slot,
+                "sha256": candidates[slot]["sha256"],
+                "target_tokens": candidates[slot]["target_tokens"],
+                "optimizer_step": candidates[slot]["optimizer_step"],
+                "experiment_id": candidates[slot]["experiment_id"],
+                "run_lineage_id": candidates[slot]["run_lineage_id"],
+                "precision": candidates[slot]["precision"],
+            }
+            for slot in ("earlier", "later")
+        ],
+    }
+    study_id = _blind_id(key, "study", study_identity)
     assignments = _balanced_assignments(prompt_set, key=key, study_id=study_id)
 
     generation_seeds = {
@@ -300,9 +304,6 @@ def prepare_evaluation(
             "checkpoint_precision": {
                 slot: candidates[slot]["precision"] for slot in ("earlier", "later")
             },
-            "contamination_sha256": contamination_sha256,
-            "evaluator_identity": evaluator_identity,
-            "determinism_policy": determinism_policy,
         },
     )
     public_bundle = {

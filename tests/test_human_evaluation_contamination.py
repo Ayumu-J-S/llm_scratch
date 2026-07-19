@@ -98,6 +98,17 @@ def test_complete_prompt_scan_finds_exact_and_normalized_occurrences_without_tex
     assert normalized_only not in serialized
     assert report["identity"]["checkpoint"] == _checkpoint_identity()
     assert report["identity"]["evaluated_checkpoints"] == _evaluated_checkpoints()
+    producer = report["identity"]["producer"]
+    assert producer["dependency_lock_sha256"]
+    assert producer["runtime"]["packages"]["pyarrow"]
+    assert producer["runtime"]["unicode_database_version"]
+    assert {entry["path"] for entry in producer["source"]["files"]} >= {
+        "pyproject.toml",
+        "uv.lock",
+        "src/data/parquet_source.py",
+        "src/data/quality.py",
+        "src/data/splits.py",
+    }
     assert report["minimum_free_bytes"] == scans.MINIMUM_FREE_BYTES
 
     original_source = scans.ManifestTextSource
@@ -136,6 +147,30 @@ def test_complete_prompt_scan_finds_exact_and_normalized_occurrences_without_tex
     )
     assert source_calls == 1
     assert changed["identity"]["evaluated_checkpoints"] == changed_pair
+
+    original_producer = scans._producer_identity
+
+    def changed_producer(root):
+        producer = original_producer(root)
+        producer["runtime"]["unicode_database_version"] = "changed-fixture"
+        return producer
+
+    monkeypatch.setattr(scans, "_producer_identity", changed_producer)
+    changed_producer_report = scan_checkpoint_training_prompts(
+        _checkpoint_config(tmp_path),
+        _checkpoint_identity(),
+        prompts,
+        prompt_set_version="fixture-v1",
+        prompt_set_sha256="b" * 64,
+        evaluated_checkpoints=_evaluated_checkpoints(),
+        fallback_cache=fallback,
+        repository_root=ROOT,
+    )
+    assert source_calls == 2
+    assert (
+        changed_producer_report["identity"]["producer"]["runtime"]["unicode_database_version"]
+        == "changed-fixture"
+    )
 
 
 def test_complete_prompt_scan_records_clean_checkpoint_owned_manifests(tmp_path: Path):

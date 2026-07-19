@@ -79,7 +79,22 @@ class PromptSet:
 def load_prompt_set(path: str | Path) -> PromptSet:
     """Load exactly eight distinct prompts, balanced across Japanese and English."""
 
-    payload = _json_object(path, "prompt set")
+    try:
+        payload_bytes = Path(path).read_bytes()
+    except OSError as error:
+        raise EvaluationSchemaError(f"cannot read prompt set: {error}") from error
+    return load_prompt_set_bytes(payload_bytes)
+
+
+def load_prompt_set_bytes(payload_bytes: bytes) -> PromptSet:
+    """Parse one captured prompt-set byte buffer."""
+
+    try:
+        payload = json.loads(payload_bytes.decode("utf-8", errors="strict"))
+    except (UnicodeError, json.JSONDecodeError) as error:
+        raise EvaluationSchemaError(f"cannot read prompt set: {error}") from error
+    if not isinstance(payload, dict):
+        raise EvaluationSchemaError("prompt set must be an object")
     _exact_fields(payload, {"schema_version", "prompt_set_version", "prompts"}, "prompt set")
     if payload["schema_version"] != PROMPT_SCHEMA_VERSION:
         raise EvaluationSchemaError("prompt set schema_version is unsupported")
@@ -112,16 +127,6 @@ def load_prompt_set(path: str | Path) -> PromptSet:
             f"prompt set must contain {PROMPTS_PER_LANGUAGE} prompts per language"
         )
     return PromptSet(version=version, prompts=tuple(prompts))
-
-
-def _json_object(path: str | Path, label: str) -> dict[str, Any]:
-    try:
-        payload = json.loads(Path(path).read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as error:
-        raise EvaluationSchemaError(f"cannot read {label}: {error}") from error
-    if not isinstance(payload, dict):
-        raise EvaluationSchemaError(f"{label} must be an object")
-    return payload
 
 
 def _exact_fields(payload: dict[str, Any], expected: set[str], label: str) -> None:

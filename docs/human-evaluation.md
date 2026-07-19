@@ -21,17 +21,19 @@ and the exact physical SHA-256 verified for the private mapping. It loads and
 finishes one checkpoint before loading the other, so it does not keep two
 models resident on the DGX Spark. If any encoded prompt leaves fewer than 64
 context positions, preparation fails instead of publishing a context-truncated
-continuation under the fixed generation contract.
+continuation under the fixed generation contract. The prompt asset is captured
+once; the exact same bytes are parsed and hashed before any checkpoint work.
 
 Before either model is loaded for generation, the workflow scans every document
 in every checkpoint-owned training manifest for exact and normalized occurrences
 of all eight prompts. Any occurrence blocks generation and leaves an
 authenticated private report containing prompt IDs, source/document IDs,
 counts, and digests but no prompt text. The scan cache is identity-bound to the
-prompt set, run/config/data manifests, and scanner implementation, and enforces
-at least 100 GB free disk. Generation uses the same strict deterministic CUDA
-policy as BENCH-001: deterministic algorithms, math SDPA only, TF32 disabled,
-and a pre-initialization cuBLAS workspace policy.
+prompt set, run/config/data manifests, complete repository Python producer
+source, dependency lock, PyArrow/Python/platform/Unicode runtime, and scanner
+implementation, and enforces at least 100 GB free disk. Generation uses the
+same strict deterministic CUDA policy as BENCH-001: deterministic algorithms,
+math SDPA only, TF32 disabled, and a pre-initialization cuBLAS workspace policy.
 
 ## Prepare the study
 
@@ -64,11 +66,14 @@ uv run llm-scratch-human-evaluate \
   device=cuda
 ```
 
-The opaque study ID is an HMAC over the versioned prompt set, generation seed,
-exact private checkpoint pair, completed contamination report, deterministic
-policy, and evaluator identity. The assignment is reproducible with the same
-key and inputs. Within each language, the earlier checkpoint appears as A twice
-and B twice, preventing checkpoint position from being confounded with language.
+The opaque study ID is an HMAC over only stable study inputs: the versioned
+prompt bytes, fixed generation/protocol revisions and seed, device, and exact
+private checkpoint pair. Workspace/cache paths, free-space measurements, and
+evaluator-environment evidence remain authenticated in the private mapping but
+cannot change item order or A/B assignment. The assignment is reproducible with
+the same key and study inputs. Within each language, the earlier checkpoint
+appears as A twice and B twice, preventing checkpoint position from being
+confounded with language.
 
 The workspace separates material by purpose:
 
