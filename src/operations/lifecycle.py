@@ -118,35 +118,47 @@ def stop_owned_process(
                 errors.append("immutable owned container ID could not be stopped or killed")
     else:
         if trusted_ownership is None or process.pid != trusted_ownership.get("pid"):
-            return ["trusted in-memory child ownership is unavailable"]
-        try:
-            disk_ownership = load_json(attempt.path / "pid.json")
-        except AttemptError as error:
-            disk_ownership = None
-            errors.append(f"PID evidence is unreadable: {error}")
-        if disk_ownership != dict(trusted_ownership):
             attempt.event(
-                "ownership_evidence_mutated",
-                trusted_pid=trusted_ownership.get("pid"),
+                "process_group_ownership_unavailable",
+                child_pid=process.pid,
+                trusted_pid=(
+                    trusted_ownership.get("pid") if trusted_ownership is not None else None
+                ),
             )
-            errors.append("on-disk PID ownership evidence changed after launch")
-        trusted_process_group = _trusted_process_is_live(process, trusted_ownership)
-        if trusted_process_group:
-            try:
-                os.killpg(int(trusted_ownership["process_group_id"]), signal.SIGTERM)
-            except ProcessLookupError:
-                return errors
-        else:
             errors.append(
-                "live /proc identity differs from trusted child lifecycle; "
+                "trusted process-group ownership is unavailable; "
                 "descendant process ownership is uncertain"
             )
-            attempt.event(
-                "process_group_ownership_uncertain",
-                trusted_pid=trusted_ownership.get("pid"),
-                trusted_process_group_id=trusted_ownership.get("process_group_id"),
-            )
             process.terminate()
+        else:
+            try:
+                disk_ownership = load_json(attempt.path / "pid.json")
+            except AttemptError as error:
+                disk_ownership = None
+                errors.append(f"PID evidence is unreadable: {error}")
+            if disk_ownership != dict(trusted_ownership):
+                attempt.event(
+                    "ownership_evidence_mutated",
+                    trusted_pid=trusted_ownership.get("pid"),
+                )
+                errors.append("on-disk PID ownership evidence changed after launch")
+            trusted_process_group = _trusted_process_is_live(process, trusted_ownership)
+            if trusted_process_group:
+                try:
+                    os.killpg(int(trusted_ownership["process_group_id"]), signal.SIGTERM)
+                except ProcessLookupError:
+                    return errors
+            else:
+                errors.append(
+                    "live /proc identity differs from trusted child lifecycle; "
+                    "descendant process ownership is uncertain"
+                )
+                attempt.event(
+                    "process_group_ownership_uncertain",
+                    trusted_pid=trusted_ownership.get("pid"),
+                    trusted_process_group_id=trusted_ownership.get("process_group_id"),
+                )
+                process.terminate()
     try:
         process.wait(timeout=12)
     except subprocess.TimeoutExpired:
@@ -233,20 +245,20 @@ def create_container(
         "created_at": utc_now(),
         "removed": False,
     }
-    post_create_identity = container_identity(record)
+    try:
+        post_create_identity = container_identity(record)
+    except BaseException as error:
+        post_create_identity = {
+            "available": False,
+            "error": f"{type(error).__name__}: {error}",
+        }
     record["post_create_identity"] = post_create_identity
     if not _identity_matches(post_create_identity):
-        removed = subprocess.run(
-            ["docker", "rm", "--force", container_id],
-            capture_output=True,
-            text=True,
-        )
-        record["removed"] = removed.returncode == 0
-        record["remove_error"] = removed.stderr.strip() or None
+        removal_error = _force_remove_container(record)
         atomic_write_json(attempt.path / "container.json", record)
         message = "created container does not retain the exact attempt ownership identity"
-        if removed.returncode != 0:
-            message += "; exact container ID force-removal failed: " + removed.stderr.strip()
+        if removal_error is not None:
+            message += "; " + removal_error
         raise AttemptError(message)
     return record
 
@@ -274,16 +286,7 @@ def container_identity(record: Mapping[str, Any]) -> dict[str, Any]:
         return {"available": False, "error": result.stderr.strip()}
     try:
         payload = json.loads(result.stdout)
-        observed = payload[0]
-        labels = observed["Config"]["Labels"] or {}
-        return {
-            "available": True,
-            "id_matches": observed["Id"] == record["id"],
-            "image_matches": observed["Image"] == record["image_id"],
-            "labels_match": all(
-                labels.get(key) == value for key, value in record["labels"].items()
-            ),
-        }
+        return _identity_from_inspect(record, payload)
     except (IndexError, KeyError, TypeError, json.JSONDecodeError):
         return {"available": False, "error": "invalid docker inspect payload"}
 
@@ -297,18 +300,13 @@ def capture_and_remove_container(attempt: Attempt, record: dict[str, Any]) -> li
         if inspect.returncode != 0:
             errors.append("docker inspect failed during finalization: " + inspect.stderr.strip())
             record["inspect_failed"] = True
-            removed = subprocess.run(
-                ["docker", "rm", "--force", record["id"]],
-                capture_output=True,
-                text=True,
-            )
         else:
-            identity = container_identity(record)
-            if not identity.get("labels_match", False):
+            payload = json.loads(inspect.stdout)
+            identity = _identity_from_inspect(record, payload)
+            if not _identity_matches(identity):
                 record["ownership_anomaly"] = identity
-                errors.append("container labels changed before final evidence capture")
-            payload = json.loads(inspect.stdout)[0]
-            state = payload.get("State", {})
+                errors.append("container identity changed before final evidence capture")
+            state = payload[0].get("State", {})
             record["terminal_state"] = {
                 key: state.get(key)
                 for key in (
@@ -320,22 +318,46 @@ def capture_and_remove_container(attempt: Attempt, record: dict[str, Any]) -> li
                     "FinishedAt",
                 )
             }
-            removed = subprocess.run(
-                ["docker", "rm", "--force", record["id"]],
-                capture_output=True,
-                text=True,
-            )
-        record["removed"] = removed.returncode == 0
-        record["remove_error"] = removed.stderr.strip() or None
-        if removed.returncode != 0:
-            errors.append("owned container removal failed: " + removed.stderr.strip())
     except BaseException as error:
         errors.append(f"container finalization: {type(error).__name__}: {error}")
+    removal_error = _force_remove_container(record)
+    if removal_error is not None:
+        errors.append(removal_error)
     try:
         atomic_write_json(attempt.path / "container.json", record)
     except OSError as error:
         errors.append(f"container evidence write: {error}")
     return errors
+
+
+def _identity_from_inspect(record: Mapping[str, Any], payload: Any) -> dict[str, Any]:
+    observed = payload[0]
+    labels = observed["Config"]["Labels"] or {}
+    return {
+        "available": True,
+        "id_matches": observed["Id"] == record["id"],
+        "image_matches": observed["Image"] == record["image_id"],
+        "labels_match": all(labels.get(key) == value for key, value in record["labels"].items()),
+    }
+
+
+def _force_remove_container(record: dict[str, Any]) -> str | None:
+    try:
+        removed = subprocess.run(
+            ["docker", "rm", "--force", str(record["id"])],
+            capture_output=True,
+            text=True,
+        )
+        record["removed"] = removed.returncode == 0
+        record["remove_error"] = removed.stderr.strip() or None
+        if removed.returncode != 0:
+            return "owned container removal failed: " + removed.stderr.strip()
+    except BaseException as error:
+        message = f"owned container removal failed: {type(error).__name__}: {error}"
+        record["removed"] = False
+        record["remove_error"] = message
+        return message
+    return None
 
 
 def watchdog_targets(preflight: Mapping[str, Any]) -> list[dict[str, Any]]:

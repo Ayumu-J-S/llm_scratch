@@ -398,6 +398,42 @@ def test_container_post_create_identity_failure_force_removes_exact_id(tmp_path,
     assert evidence["post_create_identity"]["labels_match"] is False
 
 
+def test_container_post_create_inspection_exception_still_force_removes_exact_id(
+    tmp_path, monkeypatch
+):
+    attempt = _attempt(tmp_path)
+    container_id = "a" * 64
+    image_id = "sha256:" + "b" * 64
+    calls = []
+
+    def run(command, **_kwargs):
+        calls.append(command)
+        if command[:2] == ["docker", "create"]:
+            return SimpleNamespace(returncode=0, stdout=container_id, stderr="")
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(lifecycle.subprocess, "run", run)
+    monkeypatch.setattr(
+        lifecycle,
+        "container_identity",
+        lambda _record: (_ for _ in ()).throw(OSError("docker transport disappeared")),
+    )
+
+    with pytest.raises(AttemptError, match="exact attempt ownership identity"):
+        lifecycle.create_container(
+            attempt,
+            args=SimpleNamespace(action="train", device="cpu"),
+            root_dir=tmp_path,
+            inner_command=[sys.executable, "src/train.py"],
+            preflight={"checks": {"device": {"image_id": image_id}}},
+        )
+
+    assert ["docker", "rm", "--force", container_id] in calls
+    evidence = json.loads((attempt.path / "container.json").read_text(encoding="utf-8"))
+    assert evidence["removed"] is True
+    assert "docker transport disappeared" in evidence["post_create_identity"]["error"]
+
+
 def test_container_wandb_environment_is_forwarded_without_secret_evidence(tmp_path, monkeypatch):
     attempt = _attempt(tmp_path)
     container_id = "a" * 64
@@ -491,6 +527,61 @@ def test_stale_proc_identity_never_signals_old_process_group(tmp_path, monkeypat
     ]
     kinds = [json.loads(path.read_text())["kind"] for path in attempt.events_dir.glob("*.json")]
     assert "process_group_ownership_uncertain" in kinds
+
+
+def test_missing_proc_capture_stops_only_exact_direct_child(tmp_path, monkeypatch):
+    attempt = _attempt(tmp_path)
+    process = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(30)"],
+        start_new_session=True,
+    )
+    killpg_calls = []
+    monkeypatch.setattr(
+        lifecycle.os,
+        "killpg",
+        lambda *args: killpg_calls.append(args),
+    )
+
+    errors = lifecycle.stop_owned_process(
+        process,
+        attempt=attempt,
+        container_record=None,
+        trusted_ownership=None,
+    )
+
+    assert process.poll() is not None
+    assert killpg_calls == []
+    assert errors == [
+        "trusted process-group ownership is unavailable; descendant process ownership is uncertain"
+    ]
+    kinds = [json.loads(path.read_text())["kind"] for path in attempt.events_dir.glob("*.json")]
+    assert "process_group_ownership_unavailable" in kinds
+
+
+def test_malformed_terminal_container_inspect_still_force_removes_exact_id(tmp_path, monkeypatch):
+    attempt = _attempt(tmp_path)
+    container_id = "a" * 64
+    calls = []
+
+    def run(command, **_kwargs):
+        calls.append(command)
+        if command[:2] == ["docker", "inspect"]:
+            return SimpleNamespace(returncode=0, stdout="not-json", stderr="")
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(lifecycle.subprocess, "run", run)
+    record = {
+        "id": container_id,
+        "image_id": "sha256:" + "b" * 64,
+        "labels": {},
+        "removed": False,
+    }
+
+    errors = lifecycle.capture_and_remove_container(attempt, record)
+
+    assert ["docker", "rm", "--force", container_id] in calls
+    assert record["removed"] is True
+    assert errors and errors[0].startswith("container finalization: JSONDecodeError")
 
 
 def test_lifecycle_errors_force_failed_result_and_are_preserved(tmp_path):
