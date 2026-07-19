@@ -23,7 +23,7 @@ Never delete a failed or blocked cycle.
 
 - [ ] Every implementation, review, repair, and re-review cycle is listed.
 - [ ] Failed cycles and their handoffs remain visible.
-- [ ] The latest review covers the exact proposed head.
+- [ ] The latest independent `/review` covers the exact proposed head.
 
 ## Implementation
 
@@ -39,7 +39,7 @@ For every consequential attempt, including negative and aborted attempts:
 
 - [ ] Failed/negative attempts retain their attempted config and evidence.
 
-## Post-implementation review — required
+## Independent post-implementation review — required
 
 - Commit reviewed:
 - Relevant `PHILOSOPHY.md` principles:
@@ -58,7 +58,7 @@ For every failed review, state:
 - evidence or reproduction path;
 - context handed to the repair pass;
 - resulting change; and
-- re-review verdict and evidence.
+- independent re-review verdict and evidence.
 
 Write `N/A — first review passed` only when no repair cycle occurred.
 
@@ -91,8 +91,8 @@ tests that were actually necessary.
 - Human authorization: exact instruction, scope, date/context, or `N/A — human merge`
 - Authorization covers this named PR or bounded ticket/goal series: yes / no / N/A
 - Exact reviewed head SHA:
-- Latest review verdict:
-- Actionable findings repaired and re-reviewed:
+- Latest independent review verdict:
+- Actionable findings repaired and independently re-reviewed:
 - Blocking review decision / outstanding `CHANGES_REQUESTED` evidence:
 - Newer human objections since authorization/review: none / details
 - Human review dismissed by an agent: no / yes (yes blocks self-merge)
@@ -116,3 +116,4 @@ tests that were actually necessary.
 - [ ] No human review was dismissed by an agent to clear a merge gate.
 - [ ] No absent, pending, skipped, cancelled, failed, or otherwise non-successful expected check was waived.
 - [ ] The final audit did not create an unreviewed head commit.
+- [ ] This is not the bootstrap PR that introduces guarded self-merge policy; that PR requires a human merge.

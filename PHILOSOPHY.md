@@ -302,8 +302,8 @@ The pull request remains the handoff: it should be possible to review the
 hypothesis, diff, run status, plots, result, integrity checks, and proposed next
 step in a short session. This matters because routine human attention may be
 limited to one or two hours per week. A policy-changing pull request that first
-introduces agent self-merge cannot bootstrap its own authority; the preceding
-human-only policy governs until a human merges that policy change.
+introduces guarded agent self-merge cannot bootstrap its own authority; the
+preceding human-only policy governs until a human merges that policy change.
 
 ## Simple does not mean improvised
 

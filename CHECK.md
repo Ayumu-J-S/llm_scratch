@@ -21,8 +21,8 @@ Review work in this order:
    performance or resource use.
 4. Record a `PASS`, `PASS WITH NOTE`, or `FAIL` verdict.
 5. Give a short reason when an important area is marked `N/A`.
-6. Record findings, the repair handoff, and the re-review result in the pull
-   request using `.github/pull_request_template.md`.
+6. Record findings, the repair handoff, and the independent re-review result in
+   the pull request using `.github/pull_request_template.md`.
 
 Verdicts mean:
 

@@ -34,7 +34,7 @@ Never delete a failed or blocked row.
 
 Allowed phases: `implementation`, `review`, `repair`, `re-review`, and `handoff`.
 
-## Check selection and verdicts
+## Independent check selection and verdicts
 
 ### Review cycle <N>
 
@@ -73,7 +73,7 @@ occurred.
 - Validation rerun:
 - Remaining risk:
 
-## Re-review
+## Independent re-review
 
 - Commit reviewed:
 - Prior findings disposition:
@@ -87,7 +87,7 @@ occurred.
 - Human authorization and scope, or `N/A — human merge`:
 - Exact reviewed head:
 - Final review verdict:
-- Actionable findings repaired and re-reviewed:
+- Actionable findings repaired and independently re-reviewed:
 - Blocking review decision / newer human objection:
 - Unresolved review threads:
 - Required-context and configured-workflow inventory:

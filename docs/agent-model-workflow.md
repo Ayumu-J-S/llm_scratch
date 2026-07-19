@@ -19,7 +19,8 @@ The implementation pass is responsible for:
 
 ### Review pass
 
-After implementation, run `/review` as a distinct pass on the proposed head.
+After implementation, run `/review` as an independent pass, separate from the
+implementation pass, on the proposed head.
 The review is responsible for:
 
 - checking the ticket goal, scope, dependencies, and acceptance criteria;
@@ -52,8 +53,8 @@ constraints that the fix must preserve. Examples:
 - data semantics, leakage, or resume: include the failing sequence and
   manifest/cursor evidence.
 
-After repair, rerun the affected validation and `/review`. Repeat until the
-result is `PASS` or an explicitly justified `PASS WITH NOTE`.
+After repair, rerun the affected validation and an independent `/review`.
+Repeat until the result is `PASS` or an explicitly justified `PASS WITH NOTE`.
 
 ## Required flow
 
@@ -61,7 +62,7 @@ result is `PASS` or an explicitly justified `PASS WITH NOTE`.
 flowchart TD
     A["Read ticket and start draft PR"] --> B["Implement the smallest coherent change"]
     B --> C["Validate ticket and update PR evidence"]
-    C --> D["Run /review on the proposed head"]
+    C --> D["Run independent /review on the proposed head"]
     D --> E{"Pass PHILOSOPHY, ticket, and CHECK review?"}
     E -->|"PASS / justified PASS WITH NOTE"| F["Complete evidence, findings, and risks in PR"]
     E -->|"FAIL"| G["Record defect, evidence, and repair handoff"]
@@ -120,10 +121,10 @@ superseded, or revoked, leave the PR for a human to merge.
 Before an authorized self-merge, the merging agent audits the exact head and
 records the result in the PR body or a PR comment. All of these gates must pass:
 
-1. The latest `/review` result is `PASS` or a justified `PASS WITH NOTE` for
-   that exact head commit.
-2. Every actionable review finding was repaired and re-reviewed. No GitHub
-   blocking review decision or `CHANGES_REQUESTED` review remains, and no newer
+1. The latest independent `/review` result is `PASS` or a justified
+   `PASS WITH NOTE` for that exact head commit.
+2. Every actionable review finding was repaired and independently re-reviewed.
+   No GitHub blocking review decision or `CHANGES_REQUESTED` review remains, and no newer
    human objection supersedes the authorization or passing review. An agent
    must not dismiss a human review to manufacture a clear decision.
 3. All GitHub review threads are resolved. A note may remain only when it is
@@ -137,7 +138,7 @@ records the result in the PR body or a PR comment. All of these gates must pass:
    applies.
 5. The PR is up to date with the target branch, conflict-free, and reported
    mergeable. If updating the branch changes the head, repeat the applicable
-   validation and `/review` on the new head.
+   validation and independent `/review` on the new head.
 6. The PR implementation/review trail, validation evidence, risks, and
    authorization evidence are complete and consistent.
 7. The change is outside every prohibited category below, and the merge requires
@@ -147,7 +148,8 @@ records the result in the PR body or a PR comment. All of these gates must pass:
    unresolved threads, expected-check inventory and exact-head statuses, and
    mergeability. Compare them with the final audit and record the observation
    in the PR without changing the head. Any drift aborts the merge and triggers
-   the appropriate branch update, validation, evidence update, or `/review`.
+   the appropriate branch update, validation, evidence update, or independent
+   `/review`.
 
 Self-merge is prohibited when the change contains or authorizes:
 
@@ -170,9 +172,9 @@ without committing to the reviewed branch; otherwise the head changes and the
 review gate must run again. The immediate pre-merge refresh is a separate final
 observation of those mutable fields, also recorded without changing the head.
 
-The PR that introduced this self-merge policy could not use it to authorize or
-merge itself. That historical bootstrap restriction does not waive any current
-gate.
+The bootstrap pull request that introduces this guarded self-merge policy cannot
+use its contents or a broader series authorization to authorize or merge itself.
+The preceding human-only policy governs until a human merges it.
 
 ## Failed-review handoff contract
 
