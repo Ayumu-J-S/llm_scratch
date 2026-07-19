@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 import human_evaluation.contamination as scans
 from data.stream_loader.cache import BoundedShardCache
 from human_evaluation.contamination import scan_checkpoint_training_prompts
@@ -196,3 +198,35 @@ def test_complete_prompt_scan_records_clean_checkpoint_owned_manifests(tmp_path:
     assert report["match_counts"] == {"exact": 0, "normalized": 0}
     assert report["training_sources"][0]["manifest_fingerprint"] == MANIFEST_FINGERPRINT
     assert report["scanned_document_order_sha256"]
+
+
+def test_prompt_scan_rejects_producer_identity_drift_before_caching(
+    tmp_path: Path, monkeypatch
+):
+    prompt = Prompt(id="en-clean", language="en", text="A prompt absent from fixture data.")
+    fallback = BoundedShardCache(tmp_path / "fallback", max_size_bytes=10_000_000)
+    original_producer = scans._producer_identity
+    calls = 0
+
+    def volatile_producer(root):
+        nonlocal calls
+        calls += 1
+        producer = original_producer(root)
+        if calls > 1:
+            producer["runtime"]["unicode_database_version"] = "changed-during-scan"
+        return producer
+
+    monkeypatch.setattr(scans, "_producer_identity", volatile_producer)
+    with pytest.raises(scans.HumanPromptContaminationError, match="identity changed"):
+        scan_checkpoint_training_prompts(
+            _checkpoint_config(tmp_path),
+            _checkpoint_identity(),
+            (prompt,),
+            prompt_set_version="fixture-drift-v1",
+            prompt_set_sha256="f" * 64,
+            evaluated_checkpoints=_evaluated_checkpoints(),
+            fallback_cache=fallback,
+            repository_root=ROOT,
+        )
+
+    assert not list((fallback.cache_dir / "human-contamination-scans").glob("*.json"))

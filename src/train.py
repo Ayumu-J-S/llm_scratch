@@ -18,6 +18,7 @@ from runtime.config import ConfigPreflightError, validate_training_config
 from runtime.reproducibility import (
     dataloader_generator,
     dataloader_worker_init_fn,
+    resolve_run_lineage,
     seed_everything,
     write_run_manifest,
 )
@@ -350,6 +351,11 @@ def _prepare_trainer_locked(cfg: DictConfig, *, run_dir: Path) -> Trainer:
         inherited_run_lineage = load_run_lineage_from_resume(
             resume_path, checkpoint_dir=checkpoint_dir
         )
+        if manifest_path.exists():
+            resolve_run_lineage(
+                manifest_path,
+                inherited_run_lineage_id=inherited_run_lineage,
+            )
     seed_everything(
         int(cfg.reproducibility.seed),
         deterministic=bool(cfg.reproducibility.get("deterministic", True)),

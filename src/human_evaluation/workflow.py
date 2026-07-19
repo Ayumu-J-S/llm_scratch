@@ -385,7 +385,7 @@ def import_scores(
         _require_review_path(Path(score_path), workspace)
 
     _require_public_file(public_path, "public bundle")
-    public_bundle = _read_json_object(public_path, "public bundle")
+    public_bundle, public_bytes = _read_json_object_bytes(public_path, "public bundle")
     _validate_public_bundle(public_bundle)
     _require_private_file(mapping_path, "private mapping")
     mapping = _read_json_object(mapping_path, "private mapping")
@@ -394,7 +394,7 @@ def import_scores(
     _require_prompt_asset_isolated(Path(private_payload["prompt_set"]["path"]))
     _require_key_outside_repository(key_path)
     expected_public_hash = private_payload.get("public_bundle_sha256")
-    if expected_public_hash != hashlib.sha256(_json_bytes(public_bundle)).hexdigest():
+    if expected_public_hash != hashlib.sha256(public_bytes).hexdigest():
         raise HumanEvaluationError("public bundle does not match the authenticated private mapping")
     if private_payload.get("study_id") != public_bundle["study_id"]:
         raise HumanEvaluationError("public and private study IDs differ")
@@ -1392,6 +1392,17 @@ def _read_json_object(path: str | Path, label: str) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise HumanEvaluationError(f"{label} must be an object")
     return payload
+
+
+def _read_json_object_bytes(path: str | Path, label: str) -> tuple[dict[str, Any], bytes]:
+    try:
+        payload_bytes = Path(path).read_bytes()
+        payload = json.loads(payload_bytes)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise HumanEvaluationError(f"cannot read {label}: {error}") from error
+    if not isinstance(payload, dict):
+        raise HumanEvaluationError(f"{label} must be an object")
+    return payload, payload_bytes
 
 
 def _sha256_file(path: str | Path) -> str:

@@ -728,6 +728,23 @@ def test_public_and_private_tampering_are_rejected(prepared_study):
         )
 
 
+def test_public_bundle_checksum_authenticates_exact_published_bytes(prepared_study):
+    workspace, key, paths = prepared_study
+    original_public = paths["public_bundle"].read_bytes()
+    public = json.loads(original_public)
+    score_paths = _write_scores(workspace, _score(public, "first"), _score(public, "second"))
+    reformatted = json.dumps(public, ensure_ascii=False, sort_keys=True, indent=4).encode("utf-8")
+    assert reformatted != original_public
+    paths["public_bundle"].write_bytes(reformatted)
+
+    with pytest.raises(HumanEvaluationError, match="does not match"):
+        import_scores(
+            workspace_dir=workspace,
+            blinding_key_path=key,
+            score_paths=score_paths,
+        )
+
+
 def test_import_rejects_wrong_private_and_public_modes_or_hardlinks(prepared_study):
     workspace, key, paths = prepared_study
     public = json.loads(paths["public_bundle"].read_text(encoding="utf-8"))

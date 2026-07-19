@@ -315,6 +315,40 @@ def test_prepare_trainer_rejects_fresh_launch_into_existing_run(tmp_path: Path, 
         train_module.prepare_trainer(config, run_dir=run_dir)
 
 
+def test_prepare_trainer_rejects_foreign_resume_before_evidence_mutation(
+    tmp_path: Path, monkeypatch
+):
+    with hydra.initialize_config_dir(version_base=None, config_dir=str(ROOT / "config")):
+        config = hydra.compose(
+            config_name="train",
+            overrides=["profile=smoke_overfit", "artifacts.resume_path=/synthetic/resume.pt"],
+        )
+    run_dir = tmp_path / "occupied-resume-run"
+    run_dir.mkdir()
+    existing_lineage = "run-11111111111111111111111111111111"
+    (run_dir / "run_manifest.json").write_text(
+        json.dumps({"run_lineage_id": existing_lineage}) + "\n", encoding="utf-8"
+    )
+    resolved_config = run_dir / "resolved_config.yaml"
+    original_bytes = b"prior run evidence\n"
+    resolved_config.write_bytes(original_bytes)
+    monkeypatch.setattr(
+        train_module,
+        "load_run_lineage_from_resume",
+        lambda *_args, **_kwargs: "run-22222222222222222222222222222222",
+    )
+    monkeypatch.setattr(
+        train_module,
+        "save_resolved_config",
+        lambda *_args, **_kwargs: pytest.fail("foreign resume must fail before evidence mutation"),
+    )
+
+    with pytest.raises(ReproducibilityError, match="lineage differs"):
+        train_module.prepare_trainer(config, run_dir=run_dir)
+
+    assert resolved_config.read_bytes() == original_bytes
+
+
 def test_prepare_trainer_rejects_concurrent_same_directory_launch(tmp_path: Path, monkeypatch):
     with hydra.initialize_config_dir(version_base=None, config_dir=str(ROOT / "config")):
         config = hydra.compose(config_name="train", overrides=["profile=smoke_overfit"])

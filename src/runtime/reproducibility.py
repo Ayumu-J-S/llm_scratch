@@ -354,7 +354,7 @@ def write_run_manifest(
     run_path = Path(run_dir)
     root = Path(root_dir).resolve()
     destination = run_path / "run_manifest.json"
-    resolved_run_lineage_id = _existing_or_new_run_lineage(
+    resolved_run_lineage_id = resolve_run_lineage(
         destination, inherited_run_lineage_id=run_lineage_id
     )
     run_path.mkdir(parents=True, exist_ok=True)
@@ -513,9 +513,11 @@ def verify_run_manifest(
     return payload
 
 
-def _existing_or_new_run_lineage(
+def resolve_run_lineage(
     manifest_path: Path, *, inherited_run_lineage_id: str | None
 ) -> str:
+    """Resolve a new lineage or verify a resume against existing run evidence."""
+
     if not manifest_path.exists():
         if inherited_run_lineage_id is None:
             return f"{_RUN_LINEAGE_PREFIX}{uuid.uuid4().hex}"

@@ -108,7 +108,11 @@ def scan_checkpoint_training_prompts(
     with lock_path.open("a+b") as lock:
         fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
         if index_path.is_file():
-            return _read_index(index_path, identity=identity, identity_sha256=identity_sha256)
+            report = _read_index(
+                index_path, identity=identity, identity_sha256=identity_sha256
+            )
+            _assert_producer_identity_stable(identity, root=root)
+            return report
         report = _scan_sources(
             sources,
             prompts,
@@ -118,6 +122,7 @@ def scan_checkpoint_training_prompts(
             identity_sha256=identity_sha256,
             free_bytes_before=free_bytes_before,
         )
+        _assert_producer_identity_stable(identity, root=root)
         if shutil.disk_usage(cache.cache_dir).free < MINIMUM_FREE_BYTES:
             raise HumanPromptContaminationError(
                 "prompt scan violated the required 100 GB free-space reserve"
@@ -448,6 +453,7 @@ def _producer_identity(root: Path) -> dict[str, Any]:
             ) from error
     return {
         "revision": _PRODUCER_IDENTITY_REVISION,
+        "loaded_source": copy.deepcopy(_IMPORTED_PRODUCER_SOURCE_IDENTITY),
         "source": _producer_source_identity(root),
         "dependency_lock_sha256": sha256_file(root / "uv.lock"),
         "runtime": {
@@ -494,6 +500,20 @@ def _producer_source_identity(root: Path) -> dict[str, Any]:
         "files": entries,
         "content_sha256": hashlib.sha256(canonical_json_bytes(entries)).hexdigest(),
     }
+
+
+_IMPORTED_PRODUCER_SOURCE_IDENTITY = _producer_source_identity(_ROOT_DIR)
+
+
+def _assert_producer_identity_stable(
+    expected_identity: Mapping[str, Any], *, root: Path
+) -> None:
+    """Reject evidence produced while its code or runtime identity changed."""
+
+    if _producer_identity(root) != expected_identity.get("producer"):
+        raise HumanPromptContaminationError(
+            "prompt-scan producer identity changed during execution"
+        )
 
 
 def _sha256(value: str) -> str:
