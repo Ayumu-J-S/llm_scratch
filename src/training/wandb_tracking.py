@@ -294,6 +294,7 @@ class WandbTracker:
         self._evidence_path = self.evidence_dir / "wandb_events.jsonl"
         self._watched_model = None
         self._scalar_logging_disabled = False
+        self._scalar_log_success_recorded = False
         self._summary_updates_disabled = False
         self._scalar_log_queue: queue.Queue[
             tuple[Any, dict[str, Any], threading.Event, list[Exception]] | None
@@ -313,6 +314,7 @@ class WandbTracker:
         temporary = self._evidence_path.with_name(f".{self._evidence_path.name}.tmp")
         temporary.write_text("", encoding="utf-8")
         temporary.replace(self._evidence_path)
+        self._scalar_log_success_recorded = False
 
     def start(self, model) -> None:
         if self.mode == "disabled":
@@ -431,6 +433,13 @@ class WandbTracker:
             )
             return
         if not errors:
+            if not self._scalar_log_success_recorded:
+                self._record(
+                    "log",
+                    "succeeded",
+                    {"optimizer_step": values.get("optimizer_step")},
+                )
+                self._scalar_log_success_recorded = True
             return
         self._disable_scalar_logging(errors[0], values)
 
@@ -491,6 +500,12 @@ class WandbTracker:
     def update_summary(self, values: Mapping[str, Any]) -> None:
         if self.run is None or self._summary_updates_disabled:
             return
+        if "run/final_optimizer_step" in values:
+            action = "final_summary"
+        elif "runtime/architecture" in values:
+            action = "runtime_summary"
+        else:
+            action = "summary"
         run = self.run
         timeout_seconds = float(self.wandb_cfg.get("log_timeout_seconds", 5.0))
         try:
@@ -499,10 +514,11 @@ class WandbTracker:
                 timeout_seconds=timeout_seconds,
                 operation="W&B summary update",
             )
+            self._record(action, "succeeded")
         except Exception as error:
             self._summary_updates_disabled = True
             self._record_failure(
-                "summary",
+                action,
                 error,
                 {"circuit_breaker": "opened"},
             )

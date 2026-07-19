@@ -215,6 +215,8 @@ def validate_dgx_config(config: Mapping[str, Any] | DictConfig) -> dict[str, Any
     finalization_reserve = int(cfg["pilot"]["finalization_reserve_seconds"])
     if finalization_reserve != 120:
         raise ValueError("pilot finalization reserve is exactly 120 seconds")
+    if cfg["selection"].get("conservative_throughput_quantile") != "min":
+        raise ValueError("DGX conservative throughput policy is exactly the slowest repetition")
     if int(cfg["selection"]["target_tokens_7d"]) != 1_000_000_000:
         raise ValueError("DGX selection requires the one-billion-target seven-day floor")
     spread = float(cfg["selection"]["max_repeat_spread_fraction"])
@@ -628,7 +630,26 @@ def _telemetry_summary(
     interval = float(run.get("telemetry_interval_seconds", 1.0))
     start = float(run["telemetry_started_monotonic_seconds"])
     end = float(run["telemetry_ended_monotonic_seconds"])
-    expected = max(1.0, (end - start) / interval + 1.0)
+    if not math.isfinite(interval) or interval <= 0 or not start < end:
+        raise ValueError("telemetry interval or run boundary is invalid")
+    collection_durations = []
+    for row in rows:
+        duration = row.get("collection_duration_seconds")
+        if (
+            isinstance(duration, bool)
+            or not isinstance(duration, (int, float))
+            or not math.isfinite(float(duration))
+            or float(duration) < 0
+        ):
+            raise ValueError("telemetry sample lacks a finite collection duration")
+        collection_durations.append(float(duration))
+    mean_collection_duration = statistics.fmean(collection_durations)
+    effective_cadence = interval + mean_collection_duration
+    # The sampler waits ``interval`` after each collection completes.  The first
+    # sample pays only collection cost; subsequent samples pay collection plus
+    # the configured wait.  Model that schedule instead of assuming collection
+    # is free and falsely rejecting healthy nvidia-smi sampling overhead.
+    expected = max(1.0, (end - start + interval) / effective_cadence)
     max_gap = max(gaps)
     max_gap_allowed = interval * float(gates["max_telemetry_gap_factor"])
     host = [row["host"] for row in rows]
@@ -658,6 +679,12 @@ def _telemetry_summary(
         "samples": len(rows),
         "expected_samples": expected,
         "coverage": min(1.0, len(rows) / expected),
+        "collection_duration_seconds": {
+            "mean": mean_collection_duration,
+            "median": statistics.median(collection_durations),
+            "max": max(collection_durations),
+        },
+        "effective_cadence_seconds": effective_cadence,
         "first_sample_offset_seconds": times[0] - start,
         "last_sample_offset_seconds": end - times[-1],
         "max_gap_seconds": max_gap,
@@ -1009,19 +1036,24 @@ def _candidate_summary(runs: list[dict[str, Any]], cfg: Mapping[str, Any]) -> di
     )
     configured_finalization_reserve = int(cfg["pilot"]["finalization_reserve_seconds"])
     conservative_compute = min(compute_throughputs)
+    budget_training_seconds = dict(SECONDS)
+    budget_training_seconds["1_hour"] -= configured_finalization_reserve
     token_budgets = {
         label: _project_token_budget(
-            seconds,
+            budget_training_seconds[label],
             compute_tokens_per_second=conservative_compute,
             logging_seconds=logging,
             validation_seconds=validation,
             recovery_seconds=recovery,
             milestone_seconds=checkpoint,
-            final_seconds=final,
+            # The committed one-hour profile stops optimizer/event work at
+            # 3,480 seconds.  Its final checkpoint is charged separately to the
+            # 120-second wall reserve instead of being double-counted here.
+            final_seconds=0.0 if label == "1_hour" else final,
             effective_target_tokens_per_step=int(first["effective_target_tokens_per_step"]),
             pilot=cfg["pilot"],
         )
-        for label, seconds in SECONDS.items()
+        for label in SECONDS
     }
     return {
         key: first[key]
@@ -1069,6 +1101,7 @@ def _candidate_summary(runs: list[dict[str, Any]], cfg: Mapping[str, Any]) -> di
         },
         "conservative_tokens_per_second": min(throughputs),
         "conservative_compute_tokens_per_second": conservative_compute,
+        "token_budget_training_seconds": budget_training_seconds,
         "token_budgets": token_budgets,
         "data_wait_fraction_median": statistics.median(
             float(run["data_wait_fraction"]) for run in runs
@@ -1400,6 +1433,7 @@ def summarize_evidence(
         "committed_pretrain_baseline_matches_selected": profile_matches,
         "plan": {
             "token_budgets": selected["token_budgets"],
+            "token_budget_training_seconds": selected["token_budget_training_seconds"],
             "one_hour_wall_budget_seconds": 3600,
             "one_hour_training_max_time_seconds": (
                 3600 - int(cfg["pilot"]["finalization_reserve_seconds"])
@@ -1596,12 +1630,25 @@ def _validated_wandb_evidence(run_dir: Path, run: Mapping[str, Any]) -> dict[str
     finished = [
         row for row in rows if row.get("action") == "finish" and row.get("outcome") == "succeeded"
     ]
+    successful_logs = [
+        row for row in rows if row.get("action") == "log" and row.get("outcome") == "succeeded"
+    ]
+    successful_runtime_summaries = [
+        row
+        for row in rows
+        if row.get("action") == "runtime_summary" and row.get("outcome") == "succeeded"
+    ]
+    successful_final_summaries = [
+        row
+        for row in rows
+        if row.get("action") == "final_summary" and row.get("outcome") == "succeeded"
+    ]
     critical_failures = sorted(
         {
             str(row.get("action"))
             for row in rows
             if row.get("outcome") == "failed"
-            and row.get("action") in {"log", "summary", "runtime_summary"}
+            and row.get("action") in {"log", "summary", "runtime_summary", "final_summary"}
         }
     )
     successful_init = init[-1] if len(init) == 1 else {}
@@ -1617,6 +1664,9 @@ def _validated_wandb_evidence(run_dir: Path, run: Mapping[str, Any]) -> dict[str
             row.get("action") == "watch" and row.get("outcome") == "disabled" for row in rows
         ),
         "finish_succeeded": len(finished) == 1,
+        "successful_scalar_logs": len(successful_logs),
+        "runtime_summary_succeeded": bool(successful_runtime_summaries),
+        "final_summary_succeeded": bool(successful_final_summaries),
         "artifact_uploads": sum(
             row.get("action") == "artifact" and row.get("outcome") == "uploaded" for row in rows
         ),
@@ -1661,7 +1711,12 @@ def summarize_pilot(evidence_root: Path, config: Mapping[str, Any] | DictConfig)
         "wandb_finished": wandb.get("finish_succeeded") is True,
         "wandb_watch_off": wandb.get("watch_disabled") is True,
         "wandb_no_artifacts": wandb.get("artifact_uploads") == 0,
-        "wandb_logging_healthy": not wandb.get("critical_failures"),
+        "wandb_logging_healthy": (
+            int(wandb.get("successful_scalar_logs", 0)) >= 1
+            and wandb.get("runtime_summary_succeeded") is True
+            and wandb.get("final_summary_succeeded") is True
+            and not wandb.get("critical_failures")
+        ),
     }
     return {
         "schema_version": 3,

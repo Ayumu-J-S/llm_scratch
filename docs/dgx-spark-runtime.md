@@ -142,9 +142,9 @@ Selection is deterministic: a candidate must pass every gate and project at
 least one billion targets in seven days from its slowest repetition. Among
 candidates no more than 20% slower than the fastest, choose the deepest model;
 then choose the longest context retaining at least 85% of that model's fastest
-throughput. Within a 3% tie, lower measured allocator use wins. This leaves
-quality/storage headroom instead of selecting the largest arm that merely
-avoids OOM.
+throughput. A non-unique result is rejected instead of being resolved by an
+undeclared tie breaker. This leaves quality/storage headroom instead of
+selecting the largest arm that merely avoids OOM.
 
 After reviewing `dgx-summary.json`, run the selected arm for the required
 30-minute thermal/storage pilot and retain its verified checkpoint plus two

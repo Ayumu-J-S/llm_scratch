@@ -72,7 +72,7 @@ def _wandb_evidence(checkpoint_dir: Path) -> dict:
             str(row.get("action"))
             for row in rows
             if row.get("outcome") == "failed"
-            and row.get("action") in {"log", "summary", "runtime_summary"}
+            and row.get("action") in {"log", "summary", "runtime_summary", "final_summary"}
         }
     )
     return {
@@ -88,6 +88,17 @@ def _wandb_evidence(checkpoint_dir: Path) -> dict:
         ),
         "finish_succeeded": any(
             row.get("action") == "finish" and row.get("outcome") == "succeeded" for row in rows
+        ),
+        "successful_scalar_logs": sum(
+            row.get("action") == "log" and row.get("outcome") == "succeeded" for row in rows
+        ),
+        "runtime_summary_succeeded": any(
+            row.get("action") == "runtime_summary" and row.get("outcome") == "succeeded"
+            for row in rows
+        ),
+        "final_summary_succeeded": any(
+            row.get("action") == "final_summary" and row.get("outcome") == "succeeded"
+            for row in rows
         ),
         "artifact_uploads": sum(
             row.get("action") == "artifact" and row.get("outcome") == "uploaded" for row in rows

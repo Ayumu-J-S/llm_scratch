@@ -207,8 +207,21 @@ class TelemetrySampler:
             handle = self._open_output()
             while not self._stop.is_set():
                 try:
+                    collection_started = time.monotonic()
                     sample = system_sample(self.output_path.parent, self.additional_disk_paths)
-                except (OSError, RuntimeError, subprocess.SubprocessError, ValueError) as error:
+                    collection_completed = time.monotonic()
+                    collection_duration = collection_completed - collection_started
+                    if not isinstance(sample, dict):
+                        raise TypeError("telemetry sample must be a dictionary")
+                    sample["monotonic_seconds"] = collection_completed
+                    sample["collection_duration_seconds"] = collection_duration
+                except (
+                    OSError,
+                    RuntimeError,
+                    subprocess.SubprocessError,
+                    TypeError,
+                    ValueError,
+                ) as error:
                     self._record_thread_failure("sample", error)
                 else:
                     try:

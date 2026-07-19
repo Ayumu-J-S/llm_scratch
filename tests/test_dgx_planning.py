@@ -11,6 +11,7 @@ from dgx.planning import (
     PROTOCOL_CONFIG_KEYS,
     _decomposition_conclusion,
     _project_token_budget,
+    _telemetry_summary,
     _validate_matrix_authority,
     _validated_wandb_evidence,
     build_matrix_plan,
@@ -99,6 +100,12 @@ def test_matrix_is_exact_nine_by_three_with_equal_work_and_rotated_repeats():
     assert len(set(first_ids)) == 3
     assert config.gates.min_free_disk_bytes == 120_000_000_000
     assert config.gates.post_plan_free_reserve_bytes == 100_000_000_000
+
+
+def test_dgx_config_rejects_unsupported_conservative_quantile():
+    config = compose_dgx(["selection.conservative_throughput_quantile=median"])
+    with pytest.raises(ValueError, match="slowest repetition"):
+        build_matrix_plan(config)
 
 
 def _source_identity(config) -> dict:
@@ -217,6 +224,7 @@ def _telemetry(swap_out: int = 0, *, gap: float = 1.0) -> list[dict]:
         rows.append(
             {
                 "monotonic_seconds": moment,
+                "collection_duration_seconds": 0.0,
                 "host": {
                     "memory_available_bytes": 900_000_000_000,
                     "process_rss_bytes": 2_000_000_000,
@@ -523,6 +531,20 @@ def test_summary_gates_exact_matrix_and_selects_committed_profile(tmp_path, monk
     assert summary["plan"]["storage_same_filesystem"] is True
     assert summary["plan"]["one_hour_wall_budget_seconds"] == 3600
     assert summary["plan"]["one_hour_training_max_time_seconds"] == 3480
+    assert summary["plan"]["token_budget_training_seconds"]["1_hour"] == 3480
+    selected = summary["selected"]
+    overhead = selected["projected_overhead_seconds"]
+    assert summary["plan"]["token_budgets"]["1_hour"] == _project_token_budget(
+        3480,
+        compute_tokens_per_second=selected["conservative_compute_tokens_per_second"],
+        logging_seconds=overhead["scheduled_log_each"],
+        validation_seconds=overhead["validation_each"],
+        recovery_seconds=overhead["recovery_each"],
+        milestone_seconds=overhead["milestone_each"],
+        final_seconds=0.0,
+        effective_target_tokens_per_step=selected["effective_target_tokens_per_step"],
+        pilot=OmegaConf.to_container(config.pilot, resolve=True),
+    )
     assert summary["plan"]["pilot_wall_budget_seconds"] == 1800
     assert summary["plan"]["pilot_training_max_time_seconds"] == 1680
     assert summary["plan"]["finalization_reserve"]["configured_seconds"] == 120
@@ -813,6 +835,49 @@ def test_swap_growth_and_telemetry_gap_are_hard_gates(tmp_path):
     assert gap_result["gates"]["telemetry_temporal_coverage"] is False
 
 
+def test_completion_based_telemetry_coverage_accounts_collection_overhead():
+    config = OmegaConf.to_container(compose_dgx(), resolve=True)
+    template = _telemetry()[0]
+    telemetry = []
+    for index in range(50):
+        row = json.loads(json.dumps(template))
+        row["monotonic_seconds"] = 0.2 + index * 1.2
+        row["collection_duration_seconds"] = 0.2
+        telemetry.append(row)
+    summary, gates = _telemetry_summary(
+        telemetry,
+        {
+            "telemetry_interval_seconds": 1.0,
+            "telemetry_started_monotonic_seconds": 0.0,
+            "telemetry_ended_monotonic_seconds": 60.0,
+            "telemetry_errors": [],
+            "telemetry_violations": [],
+        },
+        config["gates"],
+    )
+    assert summary["effective_cadence_seconds"] == pytest.approx(1.2)
+    assert summary["coverage"] == pytest.approx(50 / (61 / 1.2))
+    assert gates["telemetry_temporal_coverage"] is True
+
+
+def test_telemetry_coverage_rejects_missing_collection_duration():
+    config = OmegaConf.to_container(compose_dgx(), resolve=True)
+    telemetry = _telemetry()
+    del telemetry[0]["collection_duration_seconds"]
+    with pytest.raises(ValueError, match="collection duration"):
+        _telemetry_summary(
+            telemetry,
+            {
+                "telemetry_interval_seconds": 1.0,
+                "telemetry_started_monotonic_seconds": 0.0,
+                "telemetry_ended_monotonic_seconds": 2.0,
+                "telemetry_errors": [],
+                "telemetry_violations": [],
+            },
+            config["gates"],
+        )
+
+
 @pytest.mark.parametrize(
     ("field", "gate"),
     [
@@ -1001,7 +1066,7 @@ def test_auxiliary_authority_requires_exact_matrix_plan_protocol_and_selection(t
         _validate_matrix_authority(auxiliary_plan)
 
 
-def test_wandb_evidence_rejects_scalar_or_summary_failures(tmp_path):
+def test_wandb_evidence_requires_successful_scalar_runtime_and_final_summaries(tmp_path):
     evidence_path = tmp_path / "checkpoints" / "wandb_events.jsonl"
     evidence_path.parent.mkdir(parents=True)
     rows = [
@@ -1029,6 +1094,25 @@ def test_wandb_evidence_rejects_scalar_or_summary_failures(tmp_path):
 
     evidence = _validated_wandb_evidence(tmp_path, record())
     assert evidence["critical_failures"] == []
+    assert evidence["successful_scalar_logs"] == 0
+    assert evidence["runtime_summary_succeeded"] is False
+    assert evidence["final_summary_succeeded"] is False
+    rows.extend(
+        [
+            {
+                "schema_version": 1,
+                "action": "log",
+                "outcome": "succeeded",
+                "optimizer_step": 25,
+            },
+            {"schema_version": 1, "action": "runtime_summary", "outcome": "succeeded"},
+            {"schema_version": 1, "action": "final_summary", "outcome": "succeeded"},
+        ]
+    )
+    evidence = _validated_wandb_evidence(tmp_path, record())
+    assert evidence["successful_scalar_logs"] == 1
+    assert evidence["runtime_summary_succeeded"] is True
+    assert evidence["final_summary_succeeded"] is True
     rows.append(
         {
             "schema_version": 1,
@@ -1045,5 +1129,13 @@ def test_wandb_evidence_rejects_scalar_or_summary_failures(tmp_path):
             "error": {"type": "RuntimeError", "message": "unavailable"},
         }
     )
+    rows.append(
+        {
+            "schema_version": 1,
+            "action": "final_summary",
+            "outcome": "failed",
+            "error": {"type": "RuntimeError", "message": "unavailable"},
+        }
+    )
     evidence = _validated_wandb_evidence(tmp_path, record())
-    assert evidence["critical_failures"] == ["log", "summary"]
+    assert evidence["critical_failures"] == ["final_summary", "log", "summary"]

@@ -3,8 +3,9 @@
 - Roadmap ticket: `DGX-001`
 - Branch: `codex/dgx-001-final-integration`
 - Draft PR: [#47](https://github.com/Ayumu-J-S/llm_scratch/pull/47)
-- Status: formal pre-measurement review findings repaired; fresh exact-head
-  `/review` pending, with no target compute authorized before it passes
+- Status: formal exact-head `/review` failed at `3dd982d`; all four protocol
+  findings are repaired locally, with no target compute authorized before a
+  fresh exact-head review passes
 - Baseline input: merged `WB-001` head
   `8791bb7237663b08c001b732393a76b240362476`
 
@@ -67,7 +68,10 @@ logs/evidence. No destructive cleanup is part of this ticket.
 - Telemetry evidence I/O is itself fail-closed: open, sample, serialization,
   write, flush, fsync, close, and unexpected worker failures remain available
   through in-memory control state, interrupt the workload, and are surfaced by
-  `stop()` even when the evidence file cannot describe its own failure.
+  `stop()` even when the evidence file cannot describe its own failure. Each
+  sample records its collection duration, so temporal coverage follows the
+  completion-based sampling cadence without treating healthy collection cost as
+  missing evidence.
 - `scripts/run_dgx_measurements.py` checks clean source/image identity, executes
   the rotated triplicate matrix in the network-isolated pinned container as the
   host UID:GID, preserves commands and logs, hashes the immutable data cache
@@ -89,7 +93,13 @@ logs/evidence. No destructive cleanup is part of this ticket.
   named bottleneck. Data wait is divided only by optimizer-step wall time;
   projections charge scheduled scalar logging; decomposition compares isolated
   roles with the selected candidate's conservative compute throughput and uses
-  the 1.2x threshold only for loader supply.
+  the 1.2x threshold only for loader supply. The one-hour token forecast uses
+  the committed 3,480-second training cap and reports the 120-second
+  finalization reserve separately. The only accepted conservative throughput
+  policy is the predeclared slowest repetition (`min`).
+- Pilot W&B evidence requires at least one successful scalar-log action plus
+  successful runtime and final summary updates, as well as a clean finish and
+  no scalar/summary circuit-breaker failure.
 
 No compilation, native extension, custom kernel, architecture change, or
 optimization ticket is introduced. The final summary will name the selected
@@ -167,6 +177,10 @@ to claim that a measured profile has been selected.
 | 25 | Formal pre-measurement `/review` | `FAIL` at `0f13389` | Data-wait and decomposition used pause-inclusive throughput; model-only was incorrectly subject to the loader threshold; projections omitted scheduled logs; the one-hour profile left its final checkpoint outside the cap; runtime pilot docs omitted `MATRIX_SUMMARY` | Exact review findings retained in PR #47 |
 | 26 | Protocol repair 6 | implemented; re-review pending | Use optimizer-step wall for data wait, conservative compute throughput for decomposition, loader-only headroom gating, log-aware token budgets, a measured 2x-tail 120-second finalization reserve inside both wall plans, and a complete pilot command | Focused DGX/config suite: 84 passed; targeted planning/runner/watchdog suite: 49 passed |
 | 27 | Full CPU validation | passed | Network-free full suite, lint, Hydra config preflight, lock-drift rejection, offline disabled/W&B smoke, exact 27-arm plan composition, and baseline resolved config all pass; no GPU or online W&B work ran | `make ci-cpu`: 503 passed, 1 skipped; about 425 GB free |
+| 28 | Formal pre-measurement `/review` | `FAIL` at `3dd982d` | Completion-based telemetry scheduling was compared with interval-only expected samples; the one-hour token forecast credited the 120-second finalization reserve as training time; pilot W&B evidence did not require successful scalar/summary actions; the declared conservative throughput quantile was recorded but not enforced | Exact review reproduction retained in PR #47; focused DGX/config suite: 84 passed |
+| 29 | Protocol repair 7 | implemented; re-review pending | Record telemetry collection duration and model completion-based cadence; derive the one-hour forecast from the 3,480-second training cap; emit and require successful scalar/runtime/final-summary W&B actions; reject any quantile other than the predeclared slowest repetition | Eight direct regressions passed |
+| 30 | Expanded focused validation | passed | DGX planning/runner/telemetry/watchdog/config and W&B producer/parser behavior pass together; no GPU or online W&B work ran | 142 passed in 53.64 seconds |
+| 31 | Full CPU validation | passed | Network-free full suite, lint, Hydra config preflight, lock-drift rejection, and disabled/offline W&B smoke all pass after the repair; no GPU or online W&B work ran | `make ci-cpu`: 507 passed, 1 skipped in 128.62 seconds; 456.2 GB free before launch |
 
 Independent `/review` will cover `PHILOSOPHY.md`, DGX-001 acceptance, and the
 applicable `CHECK.md` minimum, comparison, data supply, DGX/UMA, training-health,

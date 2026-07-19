@@ -1,3 +1,4 @@
+import json
 import time
 from pathlib import Path
 from threading import Event
@@ -35,6 +36,11 @@ def test_sampler_schedules_from_collection_completion_without_catchup(monkeypatc
     assert sampler.samples >= 3
     gaps = [right - left for left, right in zip(starts, starts[1:])]
     assert min(gaps) >= 0.025
+    rows = [
+        json.loads(line)
+        for line in (tmp_path / "system.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+    assert all(row["collection_duration_seconds"] >= 0.02 for row in rows)
 
 
 def test_hard_disk_violation_arms_main_thread_interrupt(monkeypatch, tmp_path):
