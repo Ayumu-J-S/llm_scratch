@@ -234,7 +234,7 @@ def _isolated_output_path(output_path: str | Path) -> Path:
         raise ExternalComparisonError(
             "external comparison output must not share an inode with a checkpoint or other file"
         )
-    return output
+    raise ExternalComparisonError("external comparison output must not overwrite an existing file")
 
 
 def _reject_forbidden_keys(value: Any) -> None:

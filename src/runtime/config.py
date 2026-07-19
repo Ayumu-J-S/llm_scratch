@@ -154,7 +154,7 @@ _EVALUATION_WANDB = {
     "init_timeout_seconds",
     "finish_timeout_seconds",
 }
-_BENCHMARK = {"checkpoint_path", "output_path", "device", "cache", "wandb"}
+_BENCHMARK = {"checkpoint_path", "output_root", "output_path", "device", "cache", "wandb"}
 _BENCHMARK_CACHE = {
     "dir",
     "max_size_bytes",
@@ -349,8 +349,12 @@ def validate_benchmark_config(config: Mapping[str, Any] | DictConfig) -> dict[st
         raise ConfigPreflightError("standalone benchmark requires profile=benchmark")
     benchmark = _plain(cfg["benchmark"])
     _check_keys(benchmark, _BENCHMARK, "benchmark")
-    _required(benchmark, ("checkpoint_path", "output_path", "device", "cache"), "benchmark")
-    for key in ("checkpoint_path", "output_path", "device"):
+    _required(
+        benchmark,
+        ("checkpoint_path", "output_root", "output_path", "device", "cache"),
+        "benchmark",
+    )
+    for key in ("checkpoint_path", "output_root", "output_path", "device"):
         if not isinstance(benchmark[key], str) or not benchmark[key].strip():
             raise ConfigPreflightError(f"benchmark.{key} must be a non-empty string")
     if benchmark["device"] not in {"cpu", "cuda"}:

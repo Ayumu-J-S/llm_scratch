@@ -101,11 +101,15 @@ block a later clean pretraining run.
 
 ## Evidence and W&B policy
 
-The local result is written atomically. Per-example traces retain only example
-IDs, correctness/prediction metadata, counts, stop reasons, and hashes. GSM8K
-generation evidence includes a versioned SHA-256 over the canonical-JSON token
-ID sequence, while the raw IDs remain excluded. Prompts, reference text, token
-IDs, and generated completions are never written.
+The local result is published atomically beneath the dedicated
+`outputs/benchmark-results` root. Overrides cannot escape that root or redirect
+it into repository input, cache, checkpoint, or artifact namespaces. Existing
+files, symlinks, and hardlinks are never replaced; choose a new result name for
+each run. Per-example traces retain only example IDs, correctness/prediction
+metadata, counts, stop reasons, and hashes. GSM8K generation evidence includes
+a versioned SHA-256 over the canonical-JSON token ID sequence, while the raw IDs
+remain excluded. Prompts, reference text, token IDs, and generated completions
+are never written.
 
 When `benchmark.wandb.enabled=true`, W&B receives summary metrics and one
 two-row table with task, access level, metric, score, correct/total counts, and
@@ -126,5 +130,5 @@ access level, and fixed 128-example totals; callers cannot supply an alternate
 protocol or partition identity. It does not load external weights into the
 repository checkpoint runner. Records can be written only beneath the generated
 `outputs/external-comparisons` tree with a `.json` suffix. Paths outside that
-tree, symlinks, hardlinks, and nested artifact/checkpoint namespaces are rejected
-before the atomic write.
+tree, existing files, symlinks, hardlinks, and nested artifact/checkpoint
+namespaces are rejected before the exclusive atomic publish.

@@ -457,30 +457,41 @@ def verify_run_manifest(
     ):
         raise ManifestMismatchError(f"resolved configuration changed: {config_file}")
     lock_entry = payload.get("lock")
-    if root_dir is not None and isinstance(lock_entry, Mapping):
+    if root_dir is not None:
+        if not isinstance(lock_entry, Mapping):
+            raise ManifestMismatchError("run manifest is missing dependency-lock identity")
         lock_file = Path(root_dir).resolve() / str(lock_entry.get("path", "uv.lock"))
         if not lock_file.is_file() or sha256_file(lock_file) != lock_entry.get("sha256"):
             raise ManifestMismatchError(f"dependency lock changed: {lock_file}")
         recorded_git = payload.get("git") if isinstance(payload.get("git"), Mapping) else None
-        recorded_sha = recorded_git.get("sha") if recorded_git is not None else None
+        if recorded_git is None:
+            raise ManifestMismatchError("run manifest is missing source Git identity")
+        recorded_sha = recorded_git.get("sha")
         current_git = _git(Path(root_dir).resolve())
-        if recorded_sha and current_git["sha"] != recorded_sha:
+        if not isinstance(recorded_sha, str) or current_git["sha"] != recorded_sha:
             raise ManifestMismatchError(
                 f"source Git commit changed: expected {recorded_sha}, got {current_git['sha']}"
             )
-        if recorded_git is not None:
-            recorded_dirty = recorded_git.get("dirty")
-            if isinstance(recorded_dirty, bool) and current_git["dirty"] != recorded_dirty:
-                raise ManifestMismatchError(
-                    "source Git worktree dirty state changed: "
-                    f"expected {recorded_dirty}, got {current_git['dirty']}"
-                )
-            recorded_status = recorded_git.get("status")
-            if isinstance(recorded_status, list) and current_git["status"] != recorded_status:
-                raise ManifestMismatchError(
-                    "source Git worktree status changed: "
-                    f"expected {recorded_status!r}, got {current_git['status']!r}"
-                )
+        recorded_dirty = recorded_git.get("dirty")
+        if not isinstance(recorded_dirty, bool) or current_git["dirty"] != recorded_dirty:
+            raise ManifestMismatchError(
+                "source Git worktree dirty state changed: "
+                f"expected {recorded_dirty}, got {current_git['dirty']}"
+            )
+        recorded_status = recorded_git.get("status")
+        if not isinstance(recorded_status, list) or current_git["status"] != recorded_status:
+            raise ManifestMismatchError(
+                "source Git worktree status changed: "
+                f"expected {recorded_status!r}, got {current_git['status']!r}"
+            )
+        recorded_content = recorded_git.get("worktree_content_sha256")
+        current_content = current_git.get("worktree_content_sha256")
+        if (
+            not isinstance(recorded_content, str)
+            or not isinstance(current_content, str)
+            or current_content != recorded_content
+        ):
+            raise ManifestMismatchError("source Git worktree content changed")
     entries = [payload.get("tokenizer")] + list(payload.get("data", []))
     for entry in entries:
         if not isinstance(entry, Mapping):

@@ -60,6 +60,10 @@
 | 37 | Repair | Complete | Applied the repository text-identity normalization before canonical JSON parsing and revised the cache identity; attached and independently attested prompt/scorer hashes in external records; rejected any non-finite generation logits before argmax or sampling can produce a token or result |
 | 38 | Focused validation | PASS | 27 benchmark/generation tests plus scoped Ruff/format/diff checks pass. The all-selected synthetic invariant now combines BOM, outer whitespace, CRLF, key reordering, and JSON indentation; canonical online acceptance independently detects 128/128 such variants for each task, and tests prove all NaN/positive-infinity/negative-infinity generation paths fail closed |
 | 39 | Full validation | PASS | Official CPU gate: 357 passed, 1 skipped; Ruff, Hydra config preflight, lock drift, offline smoke, `uv lock --check`, changed-path format, and diff checks pass |
+| 40 | Independent re-review | FAIL | Exact-head review of `342037f` reran 357 tests (1 skipped), canonical source checks, Ruff, lock, and diff gates, then found two integrity gaps: an ordinary existing repository JSON input could be selected as benchmark output and destructively replaced; run-manifest verification recorded but did not compare the exact dirty-worktree content digest |
+| 41 | Repair | Complete | Confined repository benchmark results to a dedicated configured root outside input/cache/checkpoint/artifact namespaces; made internal and external atomic publication exclusive and no-overwrite; rejected existing files, path escapes, symlinks, and hardlinks. Run-manifest verification now requires exact equality of the captured worktree-content digest |
+| 42 | Focused validation | PASS | 52 benchmark/reproducibility/config tests plus scoped Ruff/format/diff checks pass. Regressions preserve the canonical registry bytes under a malicious output override, reject configured-root escape and repository-data roots before suite loading, prove existing internal/external results cannot be replaced, and reject same-status/same-path dirty tracked-byte mutation during manifest verification |
+| 43 | Full validation | PASS | Official CPU gate: 360 passed, 1 skipped; Ruff, Hydra config preflight, lock drift, offline smoke, `uv lock --check`, changed-path format, and diff checks pass |
 
 ## Resolved protocol
 
@@ -97,7 +101,7 @@
 
 ## Current conclusion
 
-All ten independent failed reviews remain visible. Their twenty-five findings are
+All eleven independent failed reviews remain visible. Their twenty-seven findings are
 repaired without weakening the fixed protocol or complete contamination gate:
 cheap context incompatibility precedes scanning, both tasks honor checkpoint
 precision, external records are pinned, evaluator/runtime and dirty source
@@ -120,11 +124,13 @@ structure-normalized JSON identity to detect BOM, newline, Unicode,
 key-order, and whitespace variants; canonical acceptance covers every selected
 development record in both tasks. External comparisons separately attest the
 compiled prompt and scorer hashes, and generation rejects non-finite logits
-before any GSM8K token or score is accepted.
+before any GSM8K token or score is accepted. Internal and external results are
+exclusive, no-overwrite publications in dedicated output namespaces, while
+run-manifest verification compares the exact recorded dirty-worktree bytes in
+addition to commit, dirty flag, and status paths.
 An extra
 repository-wide format diagnostic identified four pre-existing, unrelated
 files outside this ticket's diff; the configured Ruff lint gate and all changed
-benchmark paths pass, so those files were not rewritten here. The tenth repair's
-focused and full gates plus canonical online acceptance pass; exact-head independent
-re-review remains. No
+benchmark paths pass, so those files were not rewritten here. The eleventh repair's
+focused and full gates pass; exact-head independent re-review remains. No
 benchmark score from the zero-weight fixture is a model-quality result.
