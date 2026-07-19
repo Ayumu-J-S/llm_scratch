@@ -869,6 +869,38 @@ def test_fixture_checkpoint_scoring_and_result_identity_are_deterministic(
     assert '"completion"' not in serialized
 
 
+def test_runner_derives_exclusive_identity_bound_default_result_path(monkeypatch, tmp_path: Path):
+    registry, fingerprint = _registry(tmp_path)
+    checkpoint, _ = _pretraining_checkpoint(tmp_path)
+    config = _benchmark_config(tmp_path, checkpoint)
+    config.benchmark.output_path = None
+    monkeypatch.setattr("benchmarks.runner.score_suite", lambda *_args: {})
+
+    output_path = run_benchmark(
+        config,
+        registry_path=registry,
+        expected_registry_fingerprint=fingerprint,
+    )
+    result = json.loads(output_path.read_text(encoding="utf-8"))
+
+    assert output_path.parent == Path(str(config.benchmark.output_root))
+    assert output_path.name == f"dev-{result['evaluation_identity_sha256']}.json"
+    assert result["evaluation_identity"]["suite"]["access"] == "dev"
+    assert len(result["evaluation_identity"]["checkpoint"]["physical"]["sha256"]) == 64
+    monkeypatch.setattr(
+        "benchmarks.runner.scan_checkpoint_training_data",
+        lambda *_args, **_kwargs: pytest.fail(
+            "an existing identity-bound output must fail before a repeated training scan"
+        ),
+    )
+    with pytest.raises(ValueError, match="must not overwrite an existing file"):
+        run_benchmark(
+            config,
+            registry_path=registry,
+            expected_registry_fingerprint=fingerprint,
+        )
+
+
 def test_jcommonsenseqa_scores_exact_joint_tokenization(monkeypatch, tmp_path: Path):
     checkpoint, _ = _pretraining_checkpoint(tmp_path)
     sampler = CheckpointSampler.from_checkpoint(checkpoint, device="cpu")
@@ -897,6 +929,39 @@ def test_jcommonsenseqa_scores_exact_joint_tokenization(monkeypatch, tmp_path: P
 
     assert observed_inputs == [joint_ids[:-1]]
     assert token_count == len(joint_ids[continuation_start:])
+
+
+@pytest.mark.parametrize("invalid", [float("nan"), float("inf"), float("-inf")])
+def test_jcommonsenseqa_rejects_nonfinite_raw_logits(monkeypatch, tmp_path: Path, invalid: float):
+    checkpoint, _ = _pretraining_checkpoint(tmp_path)
+    sampler = CheckpointSampler.from_checkpoint(checkpoint, device="cpu")
+    prompt = "質問: 生き物を一つ選んでください。\n答え:\n"
+    continuation = "動物"
+    joint_ids, offsets = sampler.tokenizer.encode_with_offsets(prompt + continuation)
+    continuation_start = next(
+        index for index, (start, _end) in enumerate(offsets) if start >= len(prompt)
+    )
+    continuation_ids = set(joint_ids[continuation_start:])
+    non_target_id = next(
+        token_id
+        for token_id in range(sampler.tokenizer.vocab_size)
+        if token_id not in continuation_ids
+    )
+    original_forward = sampler.model.forward
+
+    def nonfinite_forward(input_ids: torch.Tensor, *args, **kwargs):
+        logits = original_forward(input_ids, *args, **kwargs)
+        logits[0, -1, non_target_id] = invalid
+        return logits
+
+    monkeypatch.setattr(sampler.model, "forward", nonfinite_forward)
+    with pytest.raises(BenchmarkScoringError, match="non-finite logits"):
+        conditional_log_probability(
+            sampler,
+            prompt=prompt,
+            continuation=continuation,
+            precision="fp32",
+        )
 
 
 def test_gsm8k_generation_receives_checkpoint_precision(monkeypatch, tmp_path: Path):

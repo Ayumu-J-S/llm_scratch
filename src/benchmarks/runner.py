@@ -76,11 +76,18 @@ def run_benchmark(
     benchmark_cfg = cfg.benchmark
     checkpoint_path = _root_or_cwd_path(str(benchmark_cfg.checkpoint_path))
     configured_output_root, configured_output_path = _output_paths(benchmark_cfg)
-    sampler, output_path = _load_benchmark_sampler(
-        checkpoint_path,
-        configured_output_root,
-        configured_output_path,
-        cfg=cfg,
+    sampler, checkpoint_cfg = _load_benchmark_sampler(checkpoint_path, cfg=cfg)
+    cache_path = _root_or_cwd_path(str(benchmark_cfg.cache.dir))
+    output_path = (
+        None
+        if configured_output_path is None
+        else _validated_benchmark_output_path(
+            checkpoint_path,
+            configured_output_root,
+            configured_output_path,
+            checkpoint_config=checkpoint_cfg,
+            cache_path=cache_path,
+        )
     )
     cache = _benchmark_cache(benchmark_cfg.cache)
     suite = load_suite(
@@ -91,15 +98,28 @@ def run_benchmark(
         timeout_seconds=float(benchmark_cfg.cache.timeout_seconds),
     )
     context_preflight = validate_suite_context(sampler, suite)
+    evaluator_identity = _evaluator_identity()
     evaluation_identity = _evaluation_identity(
         sampler,
         suite.identity(),
         context_preflight=context_preflight,
-        evaluator_identity=_evaluator_identity(),
+        evaluator_identity=evaluator_identity,
     )
     evaluation_identity_sha256 = hashlib.sha256(
         canonical_json_bytes(evaluation_identity)
     ).hexdigest()
+    if output_path is None:
+        output_path = _validated_benchmark_output_path(
+            checkpoint_path,
+            configured_output_root,
+            _identity_bound_output_path(
+                configured_output_root,
+                access=access,
+                evaluation_identity_sha256=evaluation_identity_sha256,
+            ),
+            checkpoint_config=checkpoint_cfg,
+            cache_path=cache_path,
+        )
     contamination = scan_checkpoint_training_data(
         sampler.resolved_config,
         suite,
@@ -134,23 +154,14 @@ def run_benchmark(
 
 def _load_benchmark_sampler(
     checkpoint_path: Path,
-    configured_output_root: Path,
-    configured_output_path: Path,
     *,
     cfg: DictConfig,
-) -> tuple[CheckpointSampler, Path]:
+) -> tuple[CheckpointSampler, DictConfig]:
     """Build the sampler without retaining optimizer-bearing checkpoint state."""
 
     loaded = load_checkpoint_for_generation(checkpoint_path)
     checkpoint_cfg = OmegaConf.create(loaded.payload["state"]["resolved_config"])
     validate_training_config(checkpoint_cfg)
-    output_path = _validated_benchmark_output_path(
-        checkpoint_path,
-        configured_output_root,
-        configured_output_path,
-        checkpoint_config=checkpoint_cfg,
-        cache_path=_root_or_cwd_path(str(cfg.benchmark.cache.dir)),
-    )
     validate_benchmark_checkpoint_runtime(cfg, checkpoint_cfg)
     device = select_device(str(cfg.benchmark.device))
     sampler = CheckpointSampler.from_loaded_checkpoint(
@@ -158,7 +169,7 @@ def _load_benchmark_sampler(
         loaded,
         device=device,
     )
-    return sampler, output_path
+    return sampler, checkpoint_cfg
 
 
 def _evaluation_identity(
@@ -295,11 +306,25 @@ def _benchmark_cache(cache_cfg: DictConfig) -> BoundedShardCache:
     )
 
 
-def _output_paths(benchmark_cfg: DictConfig) -> tuple[Path, Path]:
+def _output_paths(benchmark_cfg: DictConfig) -> tuple[Path, Path | None]:
     root = Path(str(benchmark_cfg.output_root))
     configured_root = root if root.is_absolute() else ROOT_DIR / root
-    path = Path(str(benchmark_cfg.output_path))
+    configured_path = benchmark_cfg.get("output_path")
+    if configured_path is None:
+        return configured_root, None
+    path = Path(str(configured_path))
     return configured_root, path if path.is_absolute() else configured_root / path
+
+
+def _identity_bound_output_path(
+    output_root: Path,
+    *,
+    access: BenchmarkAccess,
+    evaluation_identity_sha256: str,
+) -> Path:
+    """Derive a collision-resistant result name from the complete score identity."""
+
+    return output_root / f"{access}-{evaluation_identity_sha256}.json"
 
 
 def _root_or_cwd_path(value: str) -> Path:

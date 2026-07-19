@@ -11,7 +11,9 @@ benchmark:
   checkpoint_path: null
   # Benchmark evidence is confined to this ignored, non-input namespace.
   output_root: outputs/benchmark-results
-  output_path: benchmark.json
+  # Null derives <access>-<evaluation_identity_sha256>.json. An explicit path
+  # remains available for controlled evidence capture and is never replaced.
+  output_path: null
   device: cuda
   cache:
     # Generated source/cache entries live under the repository's ignored

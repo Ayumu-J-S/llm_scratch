@@ -351,12 +351,17 @@ def validate_benchmark_config(config: Mapping[str, Any] | DictConfig) -> dict[st
     _check_keys(benchmark, _BENCHMARK, "benchmark")
     _required(
         benchmark,
-        ("checkpoint_path", "output_root", "output_path", "device", "cache"),
+        ("checkpoint_path", "output_root", "device", "cache"),
         "benchmark",
     )
-    for key in ("checkpoint_path", "output_root", "output_path", "device"):
+    if "output_path" not in benchmark:
+        raise ConfigPreflightError("missing required config key(s) at benchmark: output_path")
+    for key in ("checkpoint_path", "output_root", "device"):
         if not isinstance(benchmark[key], str) or not benchmark[key].strip():
             raise ConfigPreflightError(f"benchmark.{key} must be a non-empty string")
+    output_path = benchmark["output_path"]
+    if output_path is not None and (not isinstance(output_path, str) or not output_path.strip()):
+        raise ConfigPreflightError("benchmark.output_path must be null or a non-empty path string")
     if benchmark["device"] not in {"cpu", "cuda"}:
         raise ConfigPreflightError("benchmark.device must be either 'cpu' or 'cuda'")
     cache = benchmark["cache"]
