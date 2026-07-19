@@ -32,7 +32,11 @@
 | 9 | Independent re-review | FAIL | Exact-head review of `9722b49` reran 339 tests (1 skipped), then found the canonical 48-codepoint scan was repeated and prohibitively materialized for every checkpoint, the default benchmark cache polluted Git status, and dirty evaluator identity bound filenames but not changed bytes |
 | 10 | Repair | Complete | Added a verified suite/corpus/normalizer/scanner-implementation-bound reusable scan artifact with a no-rescan milestone invariant, moved generated cache state under ignored output storage, and bound tracked diffs plus non-ignored untracked bytes into Git identity |
 | 11 | Full validation | PASS | Official CPU gate: 340 passed, 1 skipped; Ruff, Hydra config preflight, lock drift, offline smoke, `uv lock --check`, changed-path format, and diff checks pass |
-| 12 | Independent re-review | Pending | Repeat against the exact committed third-repair head and preserve the verdict in the pull request |
+| 12 | Independent re-review | FAIL | Exact-head review of `e1b6be3` reran 340 tests (1 skipped), then found that the external recorder could overwrite a checkpoint path/inode, the first full scan still performed per-codepoint window SHA-256/materialization across the canonical corpus, and cached evidence omitted its full producer dependency identity |
+| 13 | Repair | Complete | Confined external JSON to a dedicated non-checkpoint tree with path/symlink/hardlink rejection; replaced corpus-window SHA-256 with a collision-verified linear rolling matcher; bound cached evidence to scoped evaluator source bytes, lock, installed PyArrow, Python/platform, suite/task content, and manifest content/fingerprints |
+| 14 | Focused validation | PASS | Benchmark suite and Ruff pass; a 1,000,048-codepoint scale invariant requires exactly one rolling update per codepoint, only one exact-candidate allocation/verification, and matcher storage proportional to the two unique fixture patterns. Canonical final matcher construction retains 1,029,282 unique patterns rather than a 36,972,934-node trie |
+| 15 | Full validation | PASS | Official CPU gate: 341 passed, 1 skipped; Ruff, Hydra config preflight, lock drift, offline smoke, `uv lock --check`, changed-path format, and diff checks pass |
+| 16 | Independent re-review | Pending | Repeat against the exact committed fourth-repair head and preserve the verdict in the pull request |
 
 ## Resolved protocol
 
@@ -67,15 +71,17 @@
 
 ## Current conclusion
 
-All three independent failed reviews remain visible. Their eight findings are
+All four independent failed reviews remain visible. Their eleven findings are
 repaired without weakening the fixed protocol or complete contamination gate:
 cheap context incompatibility precedes scanning, both tasks honor checkpoint
 precision, external records are pinned, evaluator/runtime and dirty source
 bytes are identity-bound, fixture outputs are golden, generated cache state is
-ignored, and completed suite/corpus-bound scan evidence is reused across
-milestones rather than recomputing the 48-codepoint corpus index. An extra
+ignored, external JSON cannot enter or alias checkpoint storage, the first
+corpus scan uses a bounded linear rolling matcher, full scoped producer identity
+invalidates stale scan evidence, and completed suite/corpus/producer-bound scan
+evidence is reused across milestones. An extra
 repository-wide format diagnostic identified four pre-existing, unrelated
 files outside this ticket's diff; the configured Ruff lint gate and all changed
-benchmark paths pass, so those files were not rewritten here. The third
+benchmark paths pass, so those files were not rewritten here. The fourth
 repair's full gate passes and its exact-head independent review is pending. No
 benchmark score from the zero-weight fixture is a model-quality result.

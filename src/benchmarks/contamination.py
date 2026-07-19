@@ -6,9 +6,14 @@ import hashlib
 import fcntl
 import json
 import os
+import platform
+import subprocess
+import sys
 import tempfile
 import unicodedata
 from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any
 
@@ -22,9 +27,15 @@ from runtime.reproducibility import sha256_file
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 SHINGLE_CODEPOINTS = 48
-SCAN_REVISION = "BENCH-001-contamination-v2"
+SCAN_REVISION = "BENCH-001-contamination-v3"
 NORMALIZATION_REVISION = "normalize-text-identity-nfc-strip-v1"
-SCAN_INDEX_SCHEMA_VERSION = 1
+SCAN_INDEX_SCHEMA_VERSION = 2
+MATCHER_REVISION = "collision-verified-rolling-hash-codepoint-v1"
+PRODUCER_IDENTITY_REVISION = "contamination-producer-v1"
+PRODUCER_SOURCE_SCOPE_REVISION = "src-python-pyproject-lock-v1"
+_PRODUCER_PACKAGES = ("pyarrow",)
+_ROLLING_BASE = 1_000_000_007
+_ROLLING_MASK = (1 << 64) - 1
 _SCAN_IMPLEMENTATION_FILES = {
     "benchmarks.contamination": Path(__file__).resolve(),
     "benchmarks.suite": ROOT_DIR / "src/benchmarks/suite.py",
@@ -35,6 +46,80 @@ _SCAN_IMPLEMENTATION_FILES = {
     "data.splits": ROOT_DIR / "src/data/splits.py",
     "data.stream_loader.loader": ROOT_DIR / "src/data/stream_loader/loader.py",
 }
+
+
+Reference = dict[str, str]
+
+
+@dataclass(frozen=True)
+class _ProbeIndex:
+    exact: dict[str, list[Reference]]
+    normalized: dict[str, list[Reference]]
+    shingles: _ShingleMatcher
+
+
+class _ShingleMatcher:
+    """Collision-verified rolling matcher over benchmark-owned codepoint shingles."""
+
+    def __init__(self, patterns: Mapping[str, list[Reference]]) -> None:
+        self._patterns: dict[int, dict[str, tuple[Reference, ...]]] = {}
+        for pattern, references in sorted(patterns.items()):
+            if len(pattern) != SHINGLE_CODEPOINTS:
+                raise ContaminationScanError("contamination shingle has the wrong length")
+            self._patterns.setdefault(_rolling_key(pattern), {})[pattern] = tuple(references)
+        self._power = pow(_ROLLING_BASE, SHINGLE_CODEPOINTS - 1, 1 << 64)
+
+    @property
+    def pattern_count(self) -> int:
+        return sum(len(bucket) for bucket in self._patterns.values())
+
+    @property
+    def stored_codepoints(self) -> int:
+        return self.pattern_count * SHINGLE_CODEPOINTS
+
+    def references_in(
+        self,
+        text: str,
+        *,
+        operation_counter: list[int] | None = None,
+        verification_counter: list[int] | None = None,
+    ) -> list[Reference]:
+        """Return matched references once using one constant-work update per codepoint."""
+
+        if len(text) < SHINGLE_CODEPOINTS:
+            if operation_counter is not None:
+                operation_counter.append(len(text))
+            if verification_counter is not None:
+                verification_counter.append(0)
+            return []
+        rolling_hash = _rolling_key(text[:SHINGLE_CODEPOINTS])
+        operations = SHINGLE_CODEPOINTS
+        verifications = 0
+        matched_patterns: set[str] = set()
+        references: list[Reference] = []
+        final_start = len(text) - SHINGLE_CODEPOINTS
+        for start in range(final_start + 1):
+            bucket = self._patterns.get(rolling_hash)
+            if bucket:
+                verifications += 1
+                candidate = text[start : start + SHINGLE_CODEPOINTS]
+                matched = bucket.get(candidate)
+                if matched is not None and candidate not in matched_patterns:
+                    matched_patterns.add(candidate)
+                    references.extend(matched)
+            if start == final_start:
+                break
+            outgoing = ord(text[start]) + 1
+            incoming = ord(text[start + SHINGLE_CODEPOINTS]) + 1
+            rolling_hash = (
+                (rolling_hash - outgoing * self._power) * _ROLLING_BASE + incoming
+            ) & _ROLLING_MASK
+            operations += 1
+        if operation_counter is not None:
+            operation_counter.append(operations)
+        if verification_counter is not None:
+            verification_counter.append(verifications)
+        return references
 
 
 class ContaminationScanError(ValueError):
@@ -206,25 +291,88 @@ def _scan_training_sources(
 
 
 def _scan_index_identity(sources: list[dict[str, Any]], suite: LoadedSuite) -> dict[str, Any]:
-    """Bind reusable scan evidence to corpus, task content, and scanner bytes."""
+    """Bind reusable evidence to corpus, task content, producer, and scanner bytes."""
 
     return {
         "scan_revision": SCAN_REVISION,
         "normalization_revision": NORMALIZATION_REVISION,
         "unicode_database_version": unicodedata.unidata_version,
         "shingle_codepoints": SHINGLE_CODEPOINTS,
+        "matcher_revision": MATCHER_REVISION,
         "implementation_sha256": {
             name: sha256_file(path) for name, path in sorted(_SCAN_IMPLEMENTATION_FILES.items())
         },
+        "producer": _producer_identity(),
         "suite": suite.identity(),
         "training_sources": [
             {
                 "name": str(source["name"]),
                 "manifest_fingerprint": str(source["expected_fingerprint"]),
+                "manifest_sha256": sha256_file(_root_path(str(source["manifest_path"]))),
                 "selection": str(source["selection"]),
             }
             for source in sources
         ],
+    }
+
+
+def _producer_identity() -> dict[str, Any]:
+    """Capture the actual source, lock, and runtime that produce cached evidence."""
+
+    packages: dict[str, str] = {}
+    for package in _PRODUCER_PACKAGES:
+        try:
+            packages[package] = version(package)
+        except PackageNotFoundError as error:
+            raise ContaminationScanError(
+                f"contamination producer dependency is not installed: {package}"
+            ) from error
+    return {
+        "revision": PRODUCER_IDENTITY_REVISION,
+        "source": _producer_source_identity(),
+        "dependency_lock_sha256": sha256_file(ROOT_DIR / "uv.lock"),
+        "runtime": {
+            "python_implementation": platform.python_implementation(),
+            "python_version": platform.python_version(),
+            "python_cache_tag": sys.implementation.cache_tag,
+            "platform": platform.platform(),
+            "architecture": platform.machine(),
+            "packages": packages,
+        },
+    }
+
+
+def _producer_source_identity() -> dict[str, Any]:
+    """Hash relevant evaluator source without traversing generated model/data artifacts."""
+
+    paths = [ROOT_DIR / "pyproject.toml", ROOT_DIR / "uv.lock"]
+    paths.extend(sorted((ROOT_DIR / "src").rglob("*.py")))
+    entries = [
+        {
+            "path": str(path.relative_to(ROOT_DIR)),
+            "sha256": sha256_file(path),
+            "size_bytes": path.stat().st_size,
+        }
+        for path in paths
+    ]
+    try:
+        git_head = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=ROOT_DIR,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
+        raise ContaminationScanError(
+            "cannot identify the contamination producer revision"
+        ) from error
+    return {
+        "scope_revision": PRODUCER_SOURCE_SCOPE_REVISION,
+        "git_head": git_head,
+        "files": entries,
+        "content_sha256": hashlib.sha256(canonical_json_bytes(entries)).hexdigest(),
     }
 
 
@@ -372,12 +520,10 @@ def _training_cache(
     )
 
 
-def _build_probe_index(suite: LoadedSuite) -> dict[str, dict[str, list[dict[str, str]]]]:
-    index: dict[str, dict[str, list[dict[str, str]]]] = {
-        "exact": {},
-        "normalized": {},
-        "shingle_48": {},
-    }
+def _build_probe_index(suite: LoadedSuite) -> _ProbeIndex:
+    exact: dict[str, list[Reference]] = {}
+    normalized_index: dict[str, list[Reference]] = {}
+    shingle_patterns: dict[str, list[Reference]] = {}
     for task in suite.tasks:
         for example in task.examples:
             for field, text in contamination_probes(example):
@@ -386,12 +532,16 @@ def _build_probe_index(suite: LoadedSuite) -> dict[str, dict[str, list[dict[str,
                     "benchmark_example_id": example.example_id,
                     "benchmark_field": field,
                 }
-                _append(index["exact"], _sha256(text), reference)
+                _append(exact, _sha256(text), reference)
                 normalized = normalize_text_identity(text)
-                _append(index["normalized"], _sha256(normalized), reference)
-                for digest in _shingle_digests(normalized):
-                    _append(index["shingle_48"], digest, reference)
-    return index
+                _append(normalized_index, _sha256(normalized), reference)
+                for shingle in _iter_shingles(normalized):
+                    _append_unique(shingle_patterns, shingle, reference)
+    return _ProbeIndex(
+        exact=exact,
+        normalized=normalized_index,
+        shingles=_ShingleMatcher(shingle_patterns),
+    )
 
 
 def _document_matches(
@@ -400,27 +550,26 @@ def _document_matches(
     source_name: str,
     document_id: str,
     upstream_id: Any,
-    probe_index: dict[str, dict[str, list[dict[str, str]]]],
+    probe_index: _ProbeIndex,
 ) -> list[dict[str, Any]]:
     normalized = normalize_text_identity(text)
-    observed = {
-        "exact": {_sha256(text)},
-        "normalized": {_sha256(normalized)},
-        "shingle_48": _shingle_digests(normalized),
-    }
     matches: list[dict[str, Any]] = []
-    for match_type, digests in observed.items():
-        for digest in digests:
-            for reference in probe_index[match_type].get(digest, []):
-                matches.append(
-                    {
-                        "match_type": match_type,
-                        **reference,
-                        "source": source_name,
-                        "training_document_id": document_id,
-                        "training_upstream_id": None if upstream_id is None else str(upstream_id),
-                    }
-                )
+    observed = (
+        ("exact", probe_index.exact.get(_sha256(text), [])),
+        ("normalized", probe_index.normalized.get(_sha256(normalized), [])),
+        ("shingle_48", probe_index.shingles.references_in(normalized)),
+    )
+    for match_type, references in observed:
+        for reference in references:
+            matches.append(
+                {
+                    "match_type": match_type,
+                    **reference,
+                    "source": source_name,
+                    "training_document_id": document_id,
+                    "training_upstream_id": None if upstream_id is None else str(upstream_id),
+                }
+            )
     return matches
 
 
@@ -431,17 +580,23 @@ def _deduplicate_matches(matches: Iterable[dict[str, Any]]) -> list[dict[str, An
     return list(unique.values())
 
 
-def _shingle_digests(text: str) -> set[str]:
+def _iter_shingles(text: str) -> Iterable[str]:
     if len(text) < SHINGLE_CODEPOINTS:
-        return set()
-    return {
-        _sha256(text[index : index + SHINGLE_CODEPOINTS])
-        for index in range(len(text) - SHINGLE_CODEPOINTS + 1)
-    }
+        return
+    for index in range(len(text) - SHINGLE_CODEPOINTS + 1):
+        yield text[index : index + SHINGLE_CODEPOINTS]
 
 
 def _sha256(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8", errors="strict")).hexdigest()
+
+
+def _rolling_key(text: str) -> int:
+    rolling_hash = 0
+    for character in text:
+        value = ord(character) + 1
+        rolling_hash = (rolling_hash * _ROLLING_BASE + value) & _ROLLING_MASK
+    return rolling_hash
 
 
 def _sha256_json(value: Mapping[str, Any]) -> str:
@@ -450,6 +605,12 @@ def _sha256_json(value: Mapping[str, Any]) -> str:
 
 def _append(index: dict[str, list[dict[str, str]]], digest: str, reference: dict[str, str]) -> None:
     index.setdefault(digest, []).append(reference)
+
+
+def _append_unique(index: dict[str, list[Reference]], pattern: str, reference: Reference) -> None:
+    references = index.setdefault(pattern, [])
+    if reference not in references:
+        references.append(reference)
 
 
 def _root_path(value: str) -> Path:

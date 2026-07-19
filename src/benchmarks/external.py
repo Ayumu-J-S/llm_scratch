@@ -7,6 +7,7 @@ the same published protocol plus the disclosures needed to interpret them.
 
 from __future__ import annotations
 
+import stat
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -17,6 +18,10 @@ from benchmarks.suite import canonical_external_dev_identity
 
 class ExternalComparisonError(ValueError):
     """An external result is not aggregate-only or lacks required disclosure."""
+
+
+ROOT_DIR = Path(__file__).resolve().parents[2]
+EXTERNAL_COMPARISON_ROOT = ROOT_DIR / "outputs/external-comparisons"
 
 
 _SUBJECT_FIELDS = {
@@ -110,7 +115,7 @@ def write_external_comparison(
         if abs(float(value) - correct / total) > 1e-12:
             raise ExternalComparisonError(f"external task {name} value differs from correct/total")
     _reject_forbidden_keys(payload)
-    output = Path(output_path).resolve()
+    output = _isolated_output_path(output_path)
     record = {
         "schema_version": 1,
         "kind": "external_baseline_comparison",
@@ -123,6 +128,47 @@ def write_external_comparison(
         **dict(payload),
     }
     _write_json_atomic(output, record)
+    return output
+
+
+def _isolated_output_path(output_path: str | Path) -> Path:
+    """Resolve one JSON path inside the dedicated, non-checkpoint comparison tree."""
+
+    configured_root = EXTERNAL_COMPARISON_ROOT.absolute()
+    resolved_root = configured_root.resolve()
+    if resolved_root != configured_root:
+        raise ExternalComparisonError(
+            "external comparison root must not traverse a symlink or checkpoint namespace"
+        )
+    requested = Path(output_path)
+    candidate = requested if requested.is_absolute() else configured_root / requested
+    output = candidate.resolve()
+    if output == resolved_root or resolved_root not in output.parents:
+        raise ExternalComparisonError(
+            "external comparison output must be inside outputs/external-comparisons"
+        )
+    if output.suffix != ".json":
+        raise ExternalComparisonError("external comparison output must use a .json suffix")
+    protected_names = {"artifact", "artifacts", "checkpoint", "checkpoints"}
+    relative_parts = output.relative_to(resolved_root).parts[:-1]
+    if any(part.casefold() in protected_names for part in relative_parts):
+        raise ExternalComparisonError(
+            "external comparison output must not enter an artifact/checkpoint namespace"
+        )
+    try:
+        existing = candidate.lstat()
+    except FileNotFoundError:
+        return output
+    except OSError as error:
+        raise ExternalComparisonError("external comparison output cannot be inspected") from error
+    if stat.S_ISLNK(existing.st_mode):
+        raise ExternalComparisonError("external comparison output must not be a symlink")
+    if not stat.S_ISREG(existing.st_mode):
+        raise ExternalComparisonError("external comparison output must be a regular file")
+    if existing.st_nlink != 1:
+        raise ExternalComparisonError(
+            "external comparison output must not share an inode with a checkpoint or other file"
+        )
     return output
 
 

@@ -12,7 +12,14 @@ import torch
 from omegaconf import OmegaConf
 
 import benchmark as benchmark_cli
-from benchmarks.contamination import ContaminationScanError, scan_checkpoint_training_data
+import benchmarks.contamination as contamination_scans
+import benchmarks.external as external_records
+from benchmarks.contamination import (
+    SHINGLE_CODEPOINTS,
+    ContaminationScanError,
+    _ShingleMatcher,
+    scan_checkpoint_training_data,
+)
 from benchmarks.external import ExternalComparisonError, write_external_comparison
 from benchmarks.runner import BenchmarkContaminationError, run_benchmark
 from benchmarks.scoring import BenchmarkScoringError, score_suite
@@ -331,16 +338,32 @@ def test_injected_contamination_reports_source_and_document_id(monkeypatch, tmp_
     assert index["index_identity"]["normalization_revision"] == (
         "normalize-text-identity-nfc-strip-v1"
     )
+    assert index["index_identity"]["matcher_revision"] == (
+        "collision-verified-rolling-hash-codepoint-v1"
+    )
+    assert index["index_identity"]["producer"]["dependency_lock_sha256"]
+    assert index["index_identity"]["producer"]["runtime"]["packages"]["pyarrow"]
+    producer_source = index["index_identity"]["producer"]["source"]
+    producer_paths = {entry["path"] for entry in producer_source["files"]}
+    assert producer_source["scope_revision"] == "src-python-pyproject-lock-v1"
+    assert {"pyproject.toml", "uv.lock", "src/benchmarks/contamination.py"} <= producer_paths
+    assert all(
+        path in {"pyproject.toml", "uv.lock"} or (path.startswith("src/") and path.endswith(".py"))
+        for path in producer_paths
+    )
+    assert not any(
+        namespace in path
+        for path in producer_paths
+        for namespace in ("outputs/", "artifacts/", "checkpoints/", "wandb/")
+    )
     assert index["index_identity"]["suite"] == suite.identity()
-    assert index["index_identity"]["training_sources"] == [
-        {
-            "name": "fixture_train",
-            "manifest_fingerprint": (
-                "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19"
-            ),
-            "selection": "train",
-        }
-    ]
+    indexed_source = index["index_identity"]["training_sources"][0]
+    assert indexed_source["name"] == "fixture_train"
+    assert indexed_source["manifest_fingerprint"] == (
+        "47cca88c4a5595e27eb5d60d99918fb77c30b23f7c0ae98024153f25e14ffc19"
+    )
+    assert indexed_source["selection"] == "train"
+    assert len(indexed_source["manifest_sha256"]) == 64
     monkeypatch.setattr(
         "benchmarks.contamination.ManifestTextSource",
         lambda *_args, **_kwargs: pytest.fail(
@@ -361,7 +384,47 @@ def test_injected_contamination_reports_source_and_document_id(monkeypatch, tmp_
             suite,
             fallback_cache=BoundedShardCache(tmp_path / "fallback-3", max_size_bytes=10_000_000),
         )
+    changed_producer = copy.deepcopy(index["index_identity"]["producer"])
+    changed_producer["runtime"]["packages"]["pyarrow"] += "-changed"
+    monkeypatch.setattr(contamination_scans, "_producer_identity", lambda: changed_producer)
+
+    def require_rescan(*_args, **_kwargs):
+        raise ContaminationScanError("changed producer identity requires a corpus rescan")
+
+    monkeypatch.setattr(contamination_scans, "_scan_training_sources", require_rescan)
+    with pytest.raises(ContaminationScanError, match="changed producer identity"):
+        scan_checkpoint_training_data(
+            checkpoint_config,
+            suite,
+            fallback_cache=BoundedShardCache(tmp_path / "fallback-4", max_size_bytes=10_000_000),
+        )
     assert checkpoint.is_file()
+
+
+def test_shingle_matcher_is_linear_and_does_not_materialize_corpus_windows():
+    reference = {
+        "task": "fixture",
+        "benchmark_example_id": "example",
+        "benchmark_field": "question",
+    }
+    first = "a" * (SHINGLE_CODEPOINTS - 1) + "b"
+    second = "b" + "a" * (SHINGLE_CODEPOINTS - 1)
+    matcher = _ShingleMatcher({first: [reference], second: [reference]})
+    corpus = "z" * 500_000 + first + "z" * 500_000
+    operations: list[int] = []
+    verifications: list[int] = []
+
+    matches = matcher.references_in(
+        corpus,
+        operation_counter=operations,
+        verification_counter=verifications,
+    )
+
+    assert matches == [reference]
+    assert operations == [len(corpus)]
+    assert verifications == [1]
+    assert matcher.pattern_count == 2
+    assert matcher.stored_codepoints == len(first) + len(second)
 
 
 def test_runner_retains_blocked_evidence_and_never_scores_contamination(
@@ -526,7 +589,9 @@ def test_gsm8k_generation_receives_checkpoint_precision(monkeypatch, tmp_path: P
     assert observed_precisions == ["fp32"]
 
 
-def test_external_baseline_record_is_aggregate_only_and_isolated(tmp_path: Path):
+def test_external_baseline_record_is_aggregate_only_and_isolated(monkeypatch, tmp_path: Path):
+    comparison_root = tmp_path / "outputs/external-comparisons"
+    monkeypatch.setattr(external_records, "EXTERNAL_COMPARISON_ROOT", comparison_root)
     payload = {
         "subject": {
             "name": "small-open-baseline",
@@ -553,7 +618,7 @@ def test_external_baseline_record_is_aggregate_only_and_isolated(tmp_path: Path)
     }
     output = write_external_comparison(
         payload,
-        output_path=tmp_path / "external.json",
+        output_path="external.json",
     )
     record = json.loads(output.read_text(encoding="utf-8"))
     assert record["kind"] == "external_baseline_comparison"
@@ -572,7 +637,7 @@ def test_external_baseline_record_is_aggregate_only_and_isolated(tmp_path: Path)
     with pytest.raises(ExternalComparisonError, match="aggregate-only"):
         write_external_comparison(
             contaminated,
-            output_path=tmp_path / "rejected.json",
+            output_path="rejected.json",
         )
 
     wrong_partition = copy.deepcopy(payload)
@@ -580,8 +645,21 @@ def test_external_baseline_record_is_aggregate_only_and_isolated(tmp_path: Path)
     with pytest.raises(ExternalComparisonError, match="pinned development partition"):
         write_external_comparison(
             wrong_partition,
-            output_path=tmp_path / "wrong-partition.json",
+            output_path="wrong-partition.json",
         )
+
+    checkpoint_dir = tmp_path / "artifacts/checkpoints"
+    checkpoint_dir.mkdir(parents=True)
+    checkpoint = checkpoint_dir / "final.pt"
+    checkpoint.write_bytes(b"checkpoint")
+    with pytest.raises(ExternalComparisonError, match="outputs/external-comparisons"):
+        write_external_comparison(payload, output_path=checkpoint)
+    comparison_root.mkdir(parents=True, exist_ok=True)
+    hardlink = comparison_root / "checkpoint-hardlink.json"
+    hardlink.hardlink_to(checkpoint)
+    with pytest.raises(ExternalComparisonError, match="share an inode"):
+        write_external_comparison(payload, output_path=hardlink)
+    assert checkpoint.read_bytes() == b"checkpoint"
 
 
 def test_wandb_receives_only_compact_aggregate_rows(monkeypatch, tmp_path: Path):
