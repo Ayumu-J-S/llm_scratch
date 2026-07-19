@@ -424,8 +424,8 @@ work.
   packed-cursor resume defect was recorded in PR [#30](https://github.com/Ayumu-J-S/llm_scratch/pull/30), then repaired,
   independently audited, and merged in PR [#31](https://github.com/Ayumu-J-S/llm_scratch/pull/31)
   as `cf82701635cab23657a05ea80a03ef5a657abe1f`. DATA-003 is **Done**.
-  DATA-001, DATA-002, REP-001, LOOP-001, and CKPT-001 remain `Done`;
-  DATA-004 is `Ready` after GATE-001 merged.
+  DATA-001, DATA-002, REP-001, LOOP-001, and CKPT-001 remain `Done`.
+  DATA-004 later merged in PR #41 and is `Done`; `VAL-001` is now `Ready`.
 
 ### LOOP-001 — Introduce step/token budgets and correct metrics
 
