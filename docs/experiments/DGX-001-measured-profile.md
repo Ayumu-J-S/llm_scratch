@@ -1,11 +1,11 @@
 # DGX-001 — Measured model profile and time/token budget
 
 - Roadmap ticket: `DGX-001`
-- Branch: `codex/dgx-001-main-integration`
-- Draft PR: deferred until the explicit `WB-001` dependency is merged
-- Status: implementation and bounded target validation in progress
-- Baseline input: stacked `WB-001` integration head
-  `05afccd723df6a438458b0b4c448325a9811ed85`
+- Branch: `codex/dgx-001-final-integration`
+- Draft PR: [#47](https://github.com/Ayumu-J-S/llm_scratch/pull/47)
+- Status: pre-measurement protocol repaired; exact-head re-audit pending
+- Baseline input: merged `WB-001` head
+  `8791bb7237663b08c001b732393a76b240362476`
 
 ## Question and predeclared decision
 
@@ -22,9 +22,10 @@ variables are decoder depth and the paired context/micro-batch choice.
 Success requires all repetitions at one clean commit and image to pass the
 resource/numerical/evidence gates. The conservative (slowest-repetition)
 throughput must forecast at least one billion targets in seven days. The
-deterministic rule then selects the deepest candidate within 20% of the fastest,
-the longest context retaining at least 85% of that model's fastest arm, and the
-lower-UMA arm within a 3% throughput tie.
+deterministic rule then selects the deepest candidate within 20% of the fastest
+passing arm and the longest context retaining at least 85% of that depth's
+fastest arm. A non-unique result is rejected rather than broken by an undeclared
+tie rule.
 
 Any OOM, non-finite value, swap growth, monotonic allocator growth, temperature
 above 80 C, sampler gap, missing CUDA timing, missing/failed checkpoint, or
@@ -34,20 +35,27 @@ the same arm identity.
 
 ## Implementation
 
-- `profile=dgx_smoke` is a twelve-update real-data wiring proof.
 - `profile=dgx_candidate` is the repeated timed training path.
 - `profile=pretrain_baseline` is the selected-shape one-hour cap with online
   W&B, watch off, artifact policy `none`, 5M-target validation, 2.5M-target
   rotating recovery, and 100M-target milestones.
-- `scripts/measure_dgx.py` runs the canonical trainer, records the resolved
-  config/environment, samples host/GPU state out of band, and verifies the
-  final checkpoint. Pilot mode also records Japanese and English base-model
-  continuations from that exact checkpoint.
+- `scripts/measure_dgx.py` runs the canonical trainer, records physical
+  config/manifest/checkpoint identities, samples host/GPU state out of band,
+  enforces pilot watchdog limits, and binds the final checkpoint to the
+  trainer's complete schema-v3 measurement chain. Pilot mode also records
+  Japanese and English base-model continuations from that exact checkpoint.
+- `scripts/measure_dgx_decomposition.py` measures three 10+20-update
+  repetitions of the device-resident model path and real streaming loader path
+  for the summary-selected profile.
 - `scripts/run_dgx_measurements.py` checks clean source/image identity, executes
-  the rotated triplicate matrix in the network-isolated pinned container, and
-  preserves exact commands.
+  the rotated triplicate matrix in the network-isolated pinned container as the
+  host UID:GID, preserves commands and logs, hashes the immutable data cache
+  before and after, and refuses auxiliary runs without a passing selection
+  summary for the same commit. The pilot mounts host W&B authentication
+  read-only without copying or serializing it.
 - `scripts/summarize_dgx_measurements.py` gates every raw run and writes the
-  repeat statistics, selection, token/checkpoint plan, and named bottleneck.
+  repeat statistics, selection, pause-aware token/checkpoint/storage plan, and
+  named bottleneck.
 
 No compilation, native extension, custom kernel, architecture change, or
 optimization ticket is introduced. The selected profile's largest phase is
@@ -59,7 +67,8 @@ named as the current bottleneck, but optimization remains deferred until
 Local implementation/config validation:
 
 ```text
-uv run pytest -q tests/test_dgx_planning.py tests/test_config_profiles.py
+uv run pytest -q tests/test_dgx_planning.py tests/test_dgx_runner.py \
+  tests/test_config_profiles.py
 uv run ruff check src/dgx scripts/measure_dgx.py \
   scripts/run_dgx_measurements.py scripts/summarize_dgx_measurements.py \
   tests/test_dgx_planning.py
@@ -74,10 +83,16 @@ make dgx-measurements EXPECTED_COMMIT="$HEAD" \
   OUTPUT_ROOT="/tmp/dgx-001-$HEAD" \
   CACHE_ROOT="/absolute/path/to/hash-verified/stream_loader_cache"
 make dgx-summarize OUTPUT_ROOT="/tmp/dgx-001-$HEAD"
+make dgx-decompose EXPECTED_COMMIT="$HEAD" \
+  OUTPUT_ROOT="/tmp/dgx-001-decomposition-$HEAD" \
+  CACHE_ROOT="/absolute/path/to/hash-verified/stream_loader_cache" \
+  SELECTED="<summary candidate_id>" \
+  MATRIX_SUMMARY="/tmp/dgx-001-$HEAD/dgx-summary.json"
 make dgx-pilot EXPECTED_COMMIT="$HEAD" \
   OUTPUT_ROOT="/tmp/dgx-001-pilot-$HEAD" \
   CACHE_ROOT="/absolute/path/to/hash-verified/stream_loader_cache" \
-  SELECTED="<summary candidate_id>"
+  SELECTED="<summary candidate_id>" \
+  MATRIX_SUMMARY="/tmp/dgx-001-$HEAD/dgx-summary.json"
 ```
 
 The target result section remains open until the exact-head matrix and pilot
@@ -97,6 +112,8 @@ used to claim the measured profile is selected.
 | 7 | Evidence projection repair | implemented | Use VAL-001's exact `full_event_pause_seconds` field so validation overhead is not understated | Smoke measurement validation row and focused test |
 | 8 | Candidate matrix attempt 1 | stopped after complete first sweep | All nine model/context arms completed on exact head `d15f4a3`; final VAL announced schema-v2 segmented measurement/resume evidence, so repetitions 2-3 would not be final acceptance evidence. Repetition 2 had begun and was interrupted without a checkpoint. | `docs/experiments/evidence/DGX-001-matrix-r1-d15f4a3.json` |
 | 9 | Projection repair | implemented | First-sweep P70 allocations showed a stable periodic low/high pattern. The monotonic-growth gate now compares the lower envelope of the first/last five measured steps instead of rejecting peak-to-trough oscillation. | Raw per-step allocator rows and regression test |
+| 10 | Independent pre-measurement review | `FAIL` at `3abb62d` | Historical schema-v1 evidence could not authorize the final matrix; auxiliary authority, physical checkpoint binding, pause-aware throughput, full telemetry/watchdog, decomposition, storage, host ownership, and exact-run constraints needed to be made machine-verifiable before more GPU use | Draft PR review trail and repair handoff |
+| 11 | Protocol repair | implemented; re-audit pending | Replaced the stale evidence parser with direct schema v3; bound plan/source/cache/config/manifest/checkpoint identities; declared the exact 9x3 10+20 matrix; added repeated decomposition and a representative online-W&B pilot; made throughput pause-aware; added telemetry coverage/health, repeatability, storage, and committed-profile gates; retained per-run logs | Focused planning/runner/config tests and exact commands above |
 
 Independent `/review` will cover `PHILOSOPHY.md`, DGX-001 acceptance, and the
 applicable `CHECK.md` minimum, comparison, data supply, DGX/UMA, training-health,

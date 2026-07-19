@@ -1,66 +1,139 @@
-"""Deterministic DGX-001 matrix construction, evidence gates, and selection."""
+"""Deterministic DGX-001 planning, evidence validation, and selection."""
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
+import shutil
 import statistics
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+import hydra
 from omegaconf import DictConfig, OmegaConf
 
 
 SECONDS = {"1_hour": 3600, "24_hours": 86400, "7_days": 604800}
+MEASUREMENT_TOP_LEVEL_KEYS = {
+    "schema_version",
+    "checkpoint_identity",
+    "measurement_evidence_id",
+    "complete",
+    "segments",
+    "checkpoint_boundaries",
+}
+MEASUREMENT_SEGMENT_KEYS = {
+    "segment_index",
+    "start_counters",
+    "end_counters",
+    "resumed_from",
+    "parent_boundary_id",
+    "measurement",
+    "complete",
+    "rows",
+}
+MEASUREMENT_BOUNDARY_KEYS = {
+    "boundary_index",
+    "boundary_id",
+    "evidence_id",
+    "segment_index",
+    "kind",
+    "counters",
+    "status",
+    "checkpoint_path",
+}
+MEASUREMENT_BINDING_KEYS = MEASUREMENT_BOUNDARY_KEYS - {"status", "checkpoint_path"}
+COUNTER_KEYS = {"optimizer_step", "target_tokens", "elapsed_seconds"}
+CHECKPOINT_KINDS = {"recovery", "best", "final", "milestone"}
+PROTOCOL_CONFIG_KEYS = {
+    "schema_version",
+    "image",
+    "matrix",
+    "decomposition",
+    "pilot",
+    "gates",
+    "selection",
+}
 
 
 def _plain(value: Any) -> Any:
     return OmegaConf.to_container(value, resolve=True) if isinstance(value, DictConfig) else value
 
 
+def _canonical_sha256(payload: object) -> str:
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode(
+        "utf-8"
+    )
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _tree_size(path: Path) -> int:
+    return sum(item.stat().st_size for item in path.rglob("*") if item.is_file())
+
+
 def validate_dgx_config(config: Mapping[str, Any] | DictConfig) -> dict[str, Any]:
     cfg = _plain(config)
     if not isinstance(cfg, Mapping):
         raise ValueError("DGX config must resolve to a mapping")
-    required = {"image", "matrix", "pilot", "gates", "selection"}
+    if cfg.get("schema_version") != 3:
+        raise ValueError("DGX-001 accepts only orchestration schema_version 3")
+    required = {"image", "matrix", "decomposition", "pilot", "gates", "selection"}
     missing = sorted(required - set(cfg))
     if missing:
         raise ValueError(f"DGX config is missing: {', '.join(missing)}")
     matrix = cfg["matrix"]
     if not isinstance(matrix, Mapping):
         raise ValueError("matrix must be a mapping")
-    repetitions = matrix.get("repetitions")
-    warmup = matrix.get("warmup_optimizer_steps")
-    measured = matrix.get("measured_optimizer_steps")
-    if any(
-        isinstance(value, bool) or not isinstance(value, int) or value < 1
-        for value in (repetitions, measured)
+    if (
+        matrix.get("repetitions") != 3
+        or matrix.get("warmup_optimizer_steps") != 10
+        or matrix.get("measured_optimizer_steps") != 20
     ):
-        raise ValueError(
-            "matrix repetitions and measured_optimizer_steps must be positive integers"
-        )
-    if isinstance(warmup, bool) or not isinstance(warmup, int) or warmup < 0:
-        raise ValueError("matrix warmup_optimizer_steps must be a non-negative integer")
+        raise ValueError("final DGX matrix is exactly 3 repetitions of 10 warmup + 20 measured")
     models = matrix.get("model_presets")
     contexts = matrix.get("context_presets")
-    if not isinstance(models, list) or not models or not isinstance(contexts, list) or not contexts:
-        raise ValueError("matrix model_presets and context_presets must be non-empty lists")
+    if not isinstance(models, list) or len(models) != 3:
+        raise ValueError("final DGX matrix requires exactly three model presets")
+    if not isinstance(contexts, list) or len(contexts) != 3:
+        raise ValueError("final DGX matrix requires exactly three context presets")
     model_ids = [str(item["id"]) for item in models]
     context_ids = [str(item["id"]) for item in contexts]
-    if len(set(model_ids)) != len(model_ids) or len(set(context_ids)) != len(context_ids):
-        raise ValueError("DGX preset ids must be unique")
+    if len(set(model_ids)) != 3 or len(set(context_ids)) != 3:
+        raise ValueError("DGX preset IDs must be unique")
     effective_tokens = {
         int(item["sequence_length"])
         * int(item["batch_size"])
         * int(item["gradient_accumulation_steps"])
         for item in contexts
     }
-    if len(effective_tokens) != 1:
-        raise ValueError("context presets must keep effective target tokens per update equal")
-    if int(cfg["selection"]["target_tokens_7d"]) < 1:
-        raise ValueError("selection.target_tokens_7d must be positive")
+    if effective_tokens != {32768}:
+        raise ValueError("every final DGX arm must train exactly 32,768 targets per update")
+    decomposition = cfg["decomposition"]
+    if (
+        not isinstance(decomposition, Mapping)
+        or decomposition.get("repetitions") != 3
+        or decomposition.get("warmup_optimizer_steps") != 10
+        or decomposition.get("measured_optimizer_steps") != 20
+    ):
+        raise ValueError("decomposition is exactly 3 repetitions of 10 warmup + 20 measured")
+    if int(cfg["pilot"]["duration_seconds"]) != 1800:
+        raise ValueError("selected-profile pilot must be capped at 1,800 seconds")
+    if int(cfg["selection"]["target_tokens_7d"]) != 1_000_000_000:
+        raise ValueError("DGX selection requires the one-billion-target seven-day floor")
+    spread = float(cfg["selection"]["max_repeat_spread_fraction"])
+    if not 0.0 <= spread <= 0.25:
+        raise ValueError("repeatability spread threshold must be between 0 and 25%")
     return dict(cfg)
 
 
@@ -71,15 +144,14 @@ def build_matrix_plan(config: Mapping[str, Any] | DictConfig) -> list[dict[str, 
     arms: list[dict[str, Any]] = []
     for model in matrix["model_presets"]:
         for context in matrix["context_presets"]:
-            candidate_id = f"{model['id']}-{context['id']}"
-            tokens_per_step = (
+            target_tokens = (
                 int(context["sequence_length"])
                 * int(context["batch_size"])
                 * int(context["gradient_accumulation_steps"])
             )
             arms.append(
                 {
-                    "candidate_id": candidate_id,
+                    "candidate_id": f"{model['id']}-{context['id']}",
                     "model_id": str(model["id"]),
                     "context_id": str(context["id"]),
                     "num_layers": int(model["num_layers"]),
@@ -88,15 +160,14 @@ def build_matrix_plan(config: Mapping[str, Any] | DictConfig) -> list[dict[str, 
                     "sequence_length": int(context["sequence_length"]),
                     "batch_size": int(context["batch_size"]),
                     "gradient_accumulation_steps": int(context["gradient_accumulation_steps"]),
-                    "effective_target_tokens_per_step": tokens_per_step,
+                    "effective_target_tokens_per_step": target_tokens,
                     "max_steps": steps,
-                    "max_target_tokens": tokens_per_step * steps,
+                    "max_target_tokens": target_tokens * steps,
                 }
             )
     plan: list[dict[str, Any]] = []
-    for repetition in range(1, int(matrix["repetitions"]) + 1):
-        # Rotate each repeat so no candidate always inherits the cold or hot slot.
-        offset = ((repetition - 1) * max(1, len(arms) // 3)) % len(arms)
+    for repetition in range(1, 4):
+        offset = ((repetition - 1) * 3) % len(arms)
         for arm in arms[offset:] + arms[:offset]:
             plan.append({**arm, "repetition": repetition})
     return plan
@@ -140,9 +211,364 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
 
 
-def _finite_training(metrics: list[dict[str, Any]]) -> bool:
+def _validated_counters(value: Any, label: str) -> dict[str, int | float]:
+    if not isinstance(value, Mapping) or set(value) != COUNTER_KEYS:
+        raise ValueError(f"{label} counters are invalid")
+    step = value["optimizer_step"]
+    tokens = value["target_tokens"]
+    elapsed = value["elapsed_seconds"]
+    if (
+        isinstance(step, bool)
+        or not isinstance(step, int)
+        or step < 0
+        or isinstance(tokens, bool)
+        or not isinstance(tokens, int)
+        or tokens < 0
+        or isinstance(elapsed, bool)
+        or not isinstance(elapsed, (int, float))
+        or not math.isfinite(float(elapsed))
+        or elapsed < 0
+    ):
+        raise ValueError(f"{label} counters are invalid")
+    return {"optimizer_step": step, "target_tokens": tokens, "elapsed_seconds": float(elapsed)}
+
+
+def _validate_measurement_v3(
+    run_dir: Path, run: Mapping[str, Any], measurement: Mapping[str, Any]
+) -> list[dict[str, Any]]:
+    if set(measurement) != MEASUREMENT_TOP_LEVEL_KEYS or measurement.get("schema_version") != 3:
+        raise ValueError("DGX accepts only the exact trainer measurement schema v3")
+    evidence_id = measurement.get("measurement_evidence_id")
+    if not isinstance(evidence_id, str) or not evidence_id:
+        raise ValueError("measurement evidence chain ID is invalid")
+    if measurement.get("checkpoint_identity") != run.get("checkpoint_identity"):
+        raise ValueError("measurement and final checkpoint identities differ")
+    if measurement.get("complete") is not True:
+        raise ValueError("measurement evidence is not complete")
+    segments = measurement.get("segments")
+    if not isinstance(segments, list) or not segments:
+        raise ValueError("measurement evidence has no segments")
+    if len(segments) != 1:
+        raise ValueError("DGX matrix/pilot evidence requires exactly one complete fresh segment")
+    boundaries = measurement.get("checkpoint_boundaries")
+    if not isinstance(boundaries, list) or not boundaries:
+        raise ValueError("measurement evidence has no checkpoint boundaries")
+    validated_boundaries: list[dict[str, Any]] = []
+    boundary_ids: set[str] = set()
+    for index, boundary in enumerate(boundaries):
+        if not isinstance(boundary, Mapping) or set(boundary) != MEASUREMENT_BOUNDARY_KEYS:
+            raise ValueError("measurement checkpoint boundary has an invalid shape")
+        if boundary["boundary_index"] != index or boundary["evidence_id"] != evidence_id:
+            raise ValueError("measurement checkpoint boundary ordering/identity is invalid")
+        if boundary["boundary_id"] in boundary_ids:
+            raise ValueError("measurement checkpoint boundary IDs are not unique")
+        boundary_ids.add(boundary["boundary_id"])
+        if boundary["kind"] not in CHECKPOINT_KINDS or boundary["status"] != "committed":
+            raise ValueError("complete DGX evidence requires every checkpoint boundary committed")
+        if not isinstance(boundary["checkpoint_path"], str) or not boundary["checkpoint_path"]:
+            raise ValueError("committed measurement checkpoint boundary has no path")
+        _validated_counters(boundary["counters"], f"checkpoint boundary {index}")
+        validated_boundaries.append(dict(boundary))
+    boundaries_by_id = {item["boundary_id"]: item for item in validated_boundaries}
+    rows: list[dict[str, Any]] = []
+    prior_end: dict[str, int | float] | None = None
+    for index, segment in enumerate(segments):
+        if (
+            not isinstance(segment, Mapping)
+            or set(segment) != MEASUREMENT_SEGMENT_KEYS
+            or segment["segment_index"] != index
+        ):
+            raise ValueError("measurement segment shape/order is invalid")
+        start = _validated_counters(segment["start_counters"], f"segment {index} start")
+        end = _validated_counters(segment["end_counters"], f"segment {index} end")
+        if any(end[key] < start[key] for key in COUNTER_KEYS):
+            raise ValueError("measurement segment counters move backwards")
+        parent_id = segment["parent_boundary_id"]
+        resumed = segment["resumed_from"]
+        if index == 0:
+            if (
+                parent_id is not None
+                or resumed is not None
+                or start
+                != {
+                    "optimizer_step": 0,
+                    "target_tokens": 0,
+                    "elapsed_seconds": 0.0,
+                }
+            ):
+                raise ValueError("DGX measurement must begin with one fresh zero-counter segment")
+        else:
+            if not isinstance(parent_id, str) or parent_id not in boundaries_by_id:
+                raise ValueError("resumed measurement segment has no committed parent boundary")
+            parent = boundaries_by_id[parent_id]
+            if (
+                parent["segment_index"] >= index
+                or _validated_counters(parent["counters"], "parent boundary") != start
+            ):
+                raise ValueError("measurement segment parent lineage is invalid")
+            if not isinstance(resumed, Mapping):
+                raise ValueError("resumed measurement segment lacks resume evidence")
+            if prior_end is not None and any(start[key] != prior_end[key] for key in COUNTER_KEYS):
+                raise ValueError("measurement evidence chain counters are discontinuous")
+        segment_rows = segment["rows"]
+        if not isinstance(segment_rows, list):
+            raise ValueError("measurement segment rows are invalid")
+        settings = segment["measurement"]
+        if (
+            not isinstance(settings, Mapping)
+            or set(settings) != {"warmup_optimizer_steps", "cuda_events", "device", "output_path"}
+            or settings["warmup_optimizer_steps"] != run.get("warmup_optimizer_steps")
+            or settings["cuda_events"] is not True
+            or settings["device"] != "cuda"
+            or not isinstance(settings["output_path"], str)
+            or not settings["output_path"]
+        ):
+            raise ValueError("measurement segment settings are invalid")
+        prior_step = int(start["optimizer_step"])
+        prior_tokens = int(start["target_tokens"])
+        for row in segment_rows:
+            if not isinstance(row, Mapping):
+                raise ValueError("measurement contains a non-mapping row")
+            step = row.get("optimizer_step")
+            tokens = row.get("target_tokens")
+            if (
+                isinstance(step, bool)
+                or not isinstance(step, int)
+                or isinstance(tokens, bool)
+                or not isinstance(tokens, int)
+                or step < prior_step
+                or tokens < prior_tokens
+                or step > end["optimizer_step"]
+                or tokens > end["target_tokens"]
+            ):
+                raise ValueError("measurement row counters are invalid")
+            prior_step, prior_tokens = step, tokens
+            rows.append(dict(row))
+        if segment.get("complete") is not (index == len(segments) - 1):
+            raise ValueError("only the final measurement segment may be complete")
+        prior_end = end
+    segment_ranges = {
+        int(segment["segment_index"]): (
+            _validated_counters(segment["start_counters"], "segment boundary start"),
+            _validated_counters(segment["end_counters"], "segment boundary end"),
+        )
+        for segment in segments
+    }
+    for boundary in validated_boundaries:
+        segment_index = boundary["segment_index"]
+        if (
+            isinstance(segment_index, bool)
+            or not isinstance(segment_index, int)
+            or segment_index not in segment_ranges
+        ):
+            raise ValueError("checkpoint boundary references an invalid segment")
+        start, end = segment_ranges[segment_index]
+        counters = _validated_counters(boundary["counters"], "checkpoint boundary")
+        if any(not start[key] <= counters[key] <= end[key] for key in COUNTER_KEYS):
+            raise ValueError("checkpoint boundary counters fall outside its segment")
+    final_binding = run.get("final_checkpoint_boundary")
+    if not isinstance(final_binding, Mapping) or set(final_binding) != MEASUREMENT_BINDING_KEYS:
+        raise ValueError("final checkpoint lacks its measurement boundary binding")
+    matching = [
+        boundary
+        for boundary in validated_boundaries
+        if {key: boundary[key] for key in final_binding} == dict(final_binding)
+    ]
+    if len(matching) != 1 or matching[0]["kind"] != "final":
+        raise ValueError("final checkpoint binding has no unique committed final boundary")
+    physical = run.get("checkpoint_physical_identity")
+    if not isinstance(physical, Mapping):
+        raise ValueError("run lacks final checkpoint physical identity")
+    final_path = run_dir / str(run.get("checkpoint"))
+    if (
+        not final_path.is_file()
+        or final_path.stat().st_size != physical.get("size_bytes")
+        or _sha256_file(final_path) != physical.get("sha256")
+        or matching[0]["checkpoint_path"] != physical.get("path")
+    ):
+        raise ValueError("committed final boundary is not bound to the physical final checkpoint")
+    if _validated_counters(matching[0]["counters"], "final boundary") != {
+        "optimizer_step": int(run["final_optimizer_step"]),
+        "target_tokens": int(run["final_target_tokens"]),
+        "elapsed_seconds": float(run["final_elapsed_seconds"]),
+    }:
+        raise ValueError("final checkpoint boundary counters differ from the completed run")
+    return rows
+
+
+def _validate_manifest_and_config(
+    run_dir: Path,
+    run: Mapping[str, Any],
+    expected: Mapping[str, Any],
+    plan: Mapping[str, Any],
+    *,
+    role: str,
+) -> DictConfig:
+    resolved_path = run_dir / str(run.get("resolved_config"))
+    manifest_path = run_dir / str(run.get("run_manifest"))
+    if _sha256_file(resolved_path) != run.get("resolved_config_sha256") or _sha256_file(
+        manifest_path
+    ) != run.get("run_manifest_sha256"):
+        raise ValueError("resolved config or run-manifest physical identity changed")
+    manifest = _read_json(manifest_path)
+    if manifest.get("git") != {"sha": plan["git_commit"], "dirty": False, "status": []}:
+        raise ValueError("run manifest is not the clean planned Git commit")
+    source_files = {item["path"]: item for item in plan["source_identity"]["files"]}
+    if manifest.get("lock", {}).get("sha256") != source_files["uv.lock"]["sha256"]:
+        raise ValueError("run lock identity differs from the immutable plan")
+    tokenizer_source = source_files["assets/tokenizers/llm-jp-v1/manifest.json"]
+    if manifest.get("tokenizer", {}).get("fingerprint") != tokenizer_source["fingerprint"]:
+        raise ValueError("run tokenizer identity differs from the immutable plan")
+    expected_data = {
+        source_files["data/manifests/fineweb2-ja-jpn-jpan.manifest.json"]["fingerprint"],
+        source_files["data/manifests/fineweb-en-sample-10bt.manifest.json"]["fingerprint"],
+    }
+    if {item.get("fingerprint") for item in manifest.get("data", [])} != expected_data:
+        raise ValueError("run data fingerprints differ from the immutable plan")
+    cfg = OmegaConf.load(resolved_path)
+    observed_shape = {
+        "num_layers": int(cfg.model.num_layers),
+        "embed_size": int(cfg.model.embed_size),
+        "num_heads": int(cfg.model.num_heads),
+        "sequence_length": int(cfg.training.sequence_length),
+        "batch_size": int(cfg.training.batch_size),
+        "gradient_accumulation_steps": int(cfg.training.gradient_accumulation_steps),
+    }
+    if observed_shape != {key: int(expected[key]) for key in observed_shape}:
+        raise ValueError("resolved run shape differs from the immutable matrix entry")
+    if (
+        cfg.runtime.device != "cuda"
+        or cfg.training.precision != "bf16"
+        or cfg.reproducibility.deterministic is not True
+        or cfg.data.streaming.cache.dir != "/cache"
+    ):
+        raise ValueError("resolved run device/precision/determinism/cache differs from plan")
+    if role == "matrix":
+        if (
+            cfg.profile.name != "dgx_candidate"
+            or cfg.training.max_steps != 30
+            or cfg.data.streaming.train.max_target_tokens != 983040
+            or cfg.wandb.mode != "disabled"
+        ):
+            raise ValueError("matrix resolved config differs from its exact 30-step protocol")
+    elif role == "pilot":
+        pilot = plan["config"]["pilot"]
+        if (
+            cfg.profile.name != "pretrain_baseline"
+            or cfg.training.max_steps is not None
+            or cfg.training.max_time != 1800
+            or cfg.data.streaming.validation.max_target_tokens != pilot["validation_target_tokens"]
+            or cfg.training.validation_every_n_tokens != pilot["validation_every_target_tokens"]
+            or cfg.training.checkpoint_every_n_tokens != pilot["recovery_every_target_tokens"]
+            or cfg.training.milestone_every_n_tokens != pilot["milestone_every_target_tokens"]
+            or cfg.training.log_every_n_steps != pilot["log_every_optimizer_steps"]
+            or cfg.wandb.mode != "online"
+            or cfg.wandb.watch.enabled
+            or cfg.wandb.artifact.policy != "none"
+        ):
+            raise ValueError("pilot resolved config differs from selected baseline protocol")
+    elif role in {"model-only", "loader-only"}:
+        if (
+            cfg.profile.name != "pretrain_baseline"
+            or cfg.training.max_steps is not None
+            or cfg.training.max_time is not None
+            or cfg.measurement.enabled
+            or cfg.wandb.mode != "disabled"
+            or cfg.wandb.watch.enabled
+            or cfg.wandb.artifact.policy != "none"
+        ):
+            raise ValueError("decomposition resolved config differs from the selected protocol")
+    return cfg
+
+
+def _telemetry_summary(
+    rows: list[dict[str, Any]], run: Mapping[str, Any], gates: Mapping[str, Any]
+) -> tuple[dict[str, Any], dict[str, bool]]:
+    if len(rows) < 2:
+        raise ValueError("DGX evidence has fewer than two telemetry samples")
+    times = [float(row["monotonic_seconds"]) for row in rows]
+    gaps = [right - left for left, right in zip(times, times[1:])]
+    if any(gap <= 0 for gap in gaps):
+        raise ValueError("telemetry timestamps are not strictly increasing")
+    interval = float(run.get("telemetry_interval_seconds", 1.0))
+    start = float(run["telemetry_started_monotonic_seconds"])
+    end = float(run["telemetry_ended_monotonic_seconds"])
+    expected = max(1.0, (end - start) / interval + 1.0)
+    max_gap = max(gaps)
+    max_gap_allowed = interval * float(gates["max_telemetry_gap_factor"])
+    host = [row["host"] for row in rows]
+    gpu = [row["gpu"] for row in rows]
+
+    def finite_values(key: str) -> list[float]:
+        return [float(row[key]) for row in gpu if row.get(key) is not None]
+
+    clocks = finite_values("sm_clock_mhz")
+    power = finite_values("power_watts")
+    utilization = finite_values("gpu_utilization_percent")
+    temperatures = finite_values("temperature_c")
+    summary = {
+        "samples": len(rows),
+        "expected_samples": expected,
+        "coverage": min(1.0, len(rows) / expected),
+        "first_sample_offset_seconds": times[0] - start,
+        "last_sample_offset_seconds": end - times[-1],
+        "max_gap_seconds": max_gap,
+        "host": {
+            "min_available_memory_bytes": min(row["memory_available_bytes"] for row in host),
+            "max_process_rss_bytes": max(row["process_rss_bytes"] for row in host),
+            "max_process_peak_rss_bytes": max(row["process_peak_rss_bytes"] for row in host),
+            "max_swap_used_bytes": max(row["swap_used_bytes"] for row in host),
+            "swap_in_pages_delta": host[-1]["swap_in_pages"] - host[0]["swap_in_pages"],
+            "swap_out_pages_delta": host[-1]["swap_out_pages"] - host[0]["swap_out_pages"],
+            "page_faults_delta": host[-1]["page_faults"] - host[0]["page_faults"],
+            "process_read_bytes_delta": host[-1]["process_read_bytes"]
+            - host[0]["process_read_bytes"],
+            "process_write_bytes_delta": host[-1]["process_write_bytes"]
+            - host[0]["process_write_bytes"],
+            "disk_read_sectors_delta": host[-1]["disk_read_sectors"] - host[0]["disk_read_sectors"],
+            "disk_written_sectors_delta": host[-1]["disk_written_sectors"]
+            - host[0]["disk_written_sectors"],
+            "disk_io_milliseconds_delta": host[-1]["disk_io_milliseconds"]
+            - host[0]["disk_io_milliseconds"],
+            "network_rx_bytes_delta": host[-1]["network_rx_bytes"] - host[0]["network_rx_bytes"],
+            "network_tx_bytes_delta": host[-1]["network_tx_bytes"] - host[0]["network_tx_bytes"],
+            "max_load_1m": max(row["load_1m"] for row in host),
+            "min_free_disk_bytes": min(row["disk_free_bytes"] for row in host),
+        },
+        "gpu": {
+            "max_temperature_c": max(temperatures) if temperatures else None,
+            "sm_clock_mhz_min": min(clocks) if clocks else None,
+            "sm_clock_mhz_median": statistics.median(clocks) if clocks else None,
+            "power_watts_max": max(power) if power else None,
+            "power_watts_median": statistics.median(power) if power else None,
+            "utilization_percent_median": statistics.median(utilization) if utilization else None,
+            "utilization_percent_p95": _percentile(utilization, 0.95) if utilization else None,
+        },
+    }
+    temporal = (
+        summary["coverage"] >= float(gates["min_sampler_coverage"])
+        and summary["first_sample_offset_seconds"] <= max_gap_allowed
+        and summary["last_sample_offset_seconds"] <= max_gap_allowed
+        and max_gap <= max_gap_allowed
+    )
+    telemetry_gates = {
+        "telemetry_error_free": not run.get("telemetry_errors"),
+        "telemetry_watchdog_clear": not run.get("telemetry_violations"),
+        "telemetry_temporal_coverage": temporal,
+        "available_memory": summary["host"]["min_available_memory_bytes"]
+        >= int(gates["min_available_memory_bytes"]),
+        "free_disk": summary["host"]["min_free_disk_bytes"] >= int(gates["min_free_disk_bytes"]),
+        "swap_in": summary["host"]["swap_in_pages_delta"] <= int(gates["max_swap_in_pages"]),
+        "swap_out": summary["host"]["swap_out_pages_delta"] <= int(gates["max_swap_out_pages"]),
+        "thermal": summary["gpu"]["max_temperature_c"] is not None
+        and summary["gpu"]["max_temperature_c"] <= float(gates["max_temperature_c"]),
+    }
+    return summary, telemetry_gates
+
+
+def _finite_training(metrics: list[dict[str, Any]], expected_steps: int | None = None) -> bool:
     steps = [row for row in metrics if row.get("event") == "step"]
-    if not steps:
+    if not steps or (expected_steps is not None and len(steps) != expected_steps):
         return False
     keys = ("train/loss_step", "optimizer/gradient_norm", "optimizer/lr")
     return all(
@@ -151,73 +577,139 @@ def _finite_training(metrics: list[dict[str, Any]]) -> bool:
     )
 
 
-def summarize_run(run_dir: Path, gates: Mapping[str, Any]) -> dict[str, Any]:
+def summarize_run(
+    run_dir: Path,
+    gates: Mapping[str, Any],
+    *,
+    expected: Mapping[str, Any],
+    plan: Mapping[str, Any],
+    role: str = "matrix",
+) -> dict[str, Any]:
     run = _read_json(run_dir / "run.json")
+    if (
+        run.get("schema_version") != 3
+        or run.get("status") != "succeeded"
+        or run.get("role") != role
+        or run.get("plan_id") != plan["plan_id"]
+        or run.get("git_commit") != plan["git_commit"]
+        or run.get("image_id") != plan["image_id"]
+    ):
+        raise ValueError(f"run identity does not match its immutable plan: {run_dir}")
+    for key in (
+        "candidate_id",
+        "repetition",
+        "num_layers",
+        "embed_size",
+        "num_heads",
+        "sequence_length",
+        "batch_size",
+        "gradient_accumulation_steps",
+        "effective_target_tokens_per_step",
+    ):
+        if run.get(key) != expected.get(key):
+            raise ValueError(f"run {key} differs from immutable plan entry: {run_dir}")
+    _validate_manifest_and_config(run_dir, run, expected, plan, role=role)
     measurement = _read_json(run_dir / "measurement.json")
-    telemetry = _read_jsonl(run_dir / "system.jsonl")
-    metrics = _read_jsonl(run_dir / "checkpoints" / "metrics.jsonl")
-    measured = [
-        row
-        for row in measurement.get("rows", [])
-        if row.get("event") == "optimizer_step" and row.get("warmup") is False
-    ]
-    wall_seconds = sum(float(row["step_wall_seconds"]) for row in measured)
+    rows = _validate_measurement_v3(run_dir, run, measurement)
+    optimizer_rows = [row for row in rows if row.get("event") == "optimizer_step"]
+    declared_measured = int(run["measured_optimizer_steps"])
+    if role == "matrix":
+        expected_steps = list(range(1, 31))
+        if [row.get("optimizer_step") for row in optimizer_rows] != expected_steps:
+            raise ValueError("matrix requires exactly optimizer steps 1..30")
+        if [row.get("warmup") for row in optimizer_rows] != [step <= 10 for step in expected_steps]:
+            raise ValueError("matrix warmup flags differ from exact 10+20 protocol")
+        if any(row.get("target_tokens_step") != 32768 for row in optimizer_rows):
+            raise ValueError("matrix optimizer updates must each train exactly 32,768 targets")
+        if [row.get("target_tokens") for row in optimizer_rows] != [
+            32768 * step for step in expected_steps
+        ]:
+            raise ValueError("matrix cumulative target counters differ from exact protocol")
+        if run.get("final_optimizer_step") != 30 or run.get("final_target_tokens") != 983040:
+            raise ValueError("matrix final counters differ from 30 updates / 983,040 targets")
+    measured = [row for row in optimizer_rows if row.get("warmup") is False]
+    if (role == "matrix" and len(measured) != declared_measured) or (
+        role == "pilot" and len(measured) < declared_measured
+    ):
+        raise ValueError("DGX evidence does not contain the exact declared measured steps")
+    first_measured_step = int(measured[0]["optimizer_step"])
+    last_measured_step = int(measured[-1]["optimizer_step"])
     target_tokens = sum(int(row["target_tokens_step"]) for row in measured)
+    if role == "matrix" and target_tokens != 655360:
+        raise ValueError("matrix measured window must contain exactly 655,360 trained targets")
+    step_wall_seconds = sum(float(row["step_wall_seconds"]) for row in measured)
+    scheduled = {
+        "scheduled_log": sum(
+            float(row["scheduled_log_seconds"])
+            for row in rows
+            if row.get("event") == "scheduled_log"
+            and first_measured_step <= row["optimizer_step"] <= last_measured_step
+        ),
+        "validation": sum(
+            float(row["full_event_pause_seconds"])
+            for row in rows
+            if row.get("event") == "validation"
+            and first_measured_step <= row["optimizer_step"] <= last_measured_step
+        ),
+        "recovery_checkpoint": sum(
+            float(row["checkpoint_seconds"])
+            for row in rows
+            if row.get("event") == "checkpoint"
+            and first_measured_step <= row["optimizer_step"] <= last_measured_step
+        ),
+        "milestone_checkpoint": sum(
+            float(row["checkpoint_seconds"])
+            for row in rows
+            if row.get("event") == "milestone"
+            and first_measured_step <= row["optimizer_step"] <= last_measured_step
+        ),
+    }
+    scheduled_pause_seconds = sum(scheduled.values())
+    decision_wall_seconds = step_wall_seconds + scheduled_pause_seconds
+    if decision_wall_seconds <= 0:
+        raise ValueError("DGX measured wall-time denominator is not positive")
     step_times = [float(row["step_wall_seconds"]) for row in measured]
     data_wait_seconds = sum(float(row["host_seconds"]["data_wait"]) for row in measured)
-    phase_cuda_seconds: defaultdict[str, float] = defaultdict(float)
+    phase_cuda: defaultdict[str, float] = defaultdict(float)
     for row in measured:
         for key, value in row.get("cuda_milliseconds", {}).items():
-            phase_cuda_seconds[key] += float(value) / 1000.0
+            phase_cuda[key] += float(value) / 1000.0
     allocated = [int(row["pytorch_allocated_bytes"]) for row in measured]
     reserved = [int(row["pytorch_reserved_bytes"]) for row in measured]
-    host_rows = [row["host"] for row in telemetry]
-    gpu_rows = [row["gpu"] for row in telemetry]
-    observed_seconds = float(run["telemetry_ended_monotonic_seconds"]) - float(
-        run["telemetry_started_monotonic_seconds"]
-    )
-    interval = float(run.get("telemetry_interval_seconds", 1.0))
-    expected_samples = max(1.0, observed_seconds / interval + 1.0)
-    checkpoint_rows = [row for row in measurement.get("rows", []) if "checkpoint_seconds" in row]
-    checkpoint_size = max(
-        (int(row.get("checkpoint/size_bytes", 0)) for row in checkpoint_rows), default=0
-    )
-    temperatures = [
-        float(row["temperature_c"]) for row in gpu_rows if row.get("temperature_c") is not None
-    ]
-    swap_in_delta = host_rows[-1]["swap_in_pages"] - host_rows[0]["swap_in_pages"]
-    swap_out_delta = host_rows[-1]["swap_out_pages"] - host_rows[0]["swap_out_pages"]
     allocator_window = min(5, max(1, len(allocated) // 2))
-    # Batch/source shapes can make the live allocation oscillate. A sustained
-    # leak raises the lower envelope; comparing peak-to-trough would reject a
-    # stable periodic pattern as if it were monotonic growth.
     allocator_growth = max(
-        0,
-        min(allocated[-allocator_window:]) - min(allocated[:allocator_window]),
+        0, min(allocated[-allocator_window:]) - min(allocated[:allocator_window])
     )
+    telemetry, telemetry_gates = _telemetry_summary(
+        _read_jsonl(run_dir / "system.jsonl"), run, gates
+    )
+    metrics = _read_jsonl(run_dir / "checkpoints" / "metrics.jsonl")
+    checkpoint_rows = [row for row in rows if "checkpoint/size_bytes" in row]
+    final_checkpoint_rows = [row for row in rows if row.get("event") == "final_checkpoint"]
+    validation_pauses = [
+        float(row["full_event_pause_seconds"]) for row in rows if row.get("event") == "validation"
+    ]
+    recovery_pauses = [
+        float(row["checkpoint_seconds"]) for row in rows if row.get("event") == "checkpoint"
+    ]
+    final_pauses = [
+        float(row["checkpoint_seconds"])
+        for row in final_checkpoint_rows
+        if "checkpoint_seconds" in row
+    ]
     run_gates = {
-        "run_succeeded": run.get("status") == "succeeded",
-        "measurement_complete": measurement.get("complete") is True,
-        "cuda_events": measurement.get("device") == "cuda"
-        and measurement.get("cuda_events") is True,
-        "measured_steps": len(measured) >= int(run["measured_optimizer_steps"]),
-        "finite_training": _finite_training(metrics),
-        "telemetry_error_free": not run.get("telemetry_errors"),
-        "sampler_coverage": len(telemetry) / expected_samples
-        >= float(gates["min_sampler_coverage"]),
-        "available_memory": min(row["memory_available_bytes"] for row in host_rows)
-        >= int(gates["min_available_memory_bytes"]),
-        "free_disk": min(row["disk_free_bytes"] for row in host_rows)
-        >= int(gates["min_free_disk_bytes"]),
-        "swap_in": swap_in_delta <= int(gates["max_swap_in_pages"]),
-        "swap_out": swap_out_delta <= int(gates["max_swap_out_pages"]),
-        "thermal": bool(temperatures) and max(temperatures) <= float(gates["max_temperature_c"]),
+        "run_succeeded": True,
+        "measurement_schema_v3_complete": True,
+        "measurement_exact_steps": True,
+        "finite_training": _finite_training(
+            metrics, expected_steps=30 if role == "matrix" else None
+        ),
+        **telemetry_gates,
         "allocator_stable": allocator_growth <= int(gates["max_allocator_growth_bytes"]),
-        "data_wait": data_wait_seconds / wall_seconds <= float(gates["max_data_wait_fraction"]),
-        "checkpoint_verified": bool(run.get("checkpoint_verified")) and checkpoint_size > 0,
+        "data_wait": data_wait_seconds / decision_wall_seconds
+        <= float(gates["max_data_wait_fraction"]),
+        "checkpoint_verified": bool(run.get("checkpoint_verified")) and bool(final_checkpoint_rows),
     }
-    if not measured or not telemetry or wall_seconds <= 0:
-        raise ValueError(f"incomplete measurement evidence in {run_dir}")
     return {
         "candidate_id": run["candidate_id"],
         "repetition": int(run["repetition"]),
@@ -231,54 +723,99 @@ def summarize_run(run_dir: Path, gates: Mapping[str, Any]) -> dict[str, Any]:
         "batch_size": int(run["batch_size"]),
         "gradient_accumulation_steps": int(run["gradient_accumulation_steps"]),
         "effective_target_tokens_per_step": int(run["effective_target_tokens_per_step"]),
+        "executed_optimizer_steps": len(optimizer_rows),
         "measured_optimizer_steps": len(measured),
-        "target_tokens": target_tokens,
-        "tokens_per_second": target_tokens / wall_seconds,
+        "executed_target_tokens": sum(int(row["target_tokens_step"]) for row in optimizer_rows),
+        "measured_target_tokens": target_tokens,
+        "step_wall_seconds": step_wall_seconds,
+        "scheduled_pause_seconds": scheduled_pause_seconds,
+        "scheduled_pause_breakdown_seconds": scheduled,
+        "decision_wall_seconds": decision_wall_seconds,
+        "compute_tokens_per_second": target_tokens / step_wall_seconds,
+        "tokens_per_second": target_tokens / decision_wall_seconds,
         "step_time_seconds": {
             "median": statistics.median(step_times),
             "p95": _percentile(step_times, 0.95),
             "max": max(step_times),
         },
         "data_wait_seconds": data_wait_seconds,
-        "data_wait_fraction": data_wait_seconds / wall_seconds,
-        "cuda_phase_seconds": dict(sorted(phase_cuda_seconds.items())),
+        "data_wait_fraction": data_wait_seconds / decision_wall_seconds,
+        "cuda_phase_seconds": dict(sorted(phase_cuda.items())),
         "pytorch_peak_allocated_bytes": max(allocated),
         "pytorch_peak_reserved_bytes": max(reserved),
         "pytorch_allocator_baseline_growth_bytes": allocator_growth,
-        "host_min_available_memory_bytes": min(row["memory_available_bytes"] for row in host_rows),
-        "host_peak_process_rss_bytes": max(row["process_rss_bytes"] for row in host_rows),
-        "host_min_free_disk_bytes": min(row["disk_free_bytes"] for row in host_rows),
-        "max_temperature_c": max(temperatures),
-        "swap_in_pages": swap_in_delta,
-        "swap_out_pages": swap_out_delta,
-        "checkpoint_size_bytes": checkpoint_size,
-        "checkpoint_seconds": sum(float(row["checkpoint_seconds"]) for row in checkpoint_rows),
-        "validation_seconds": sum(
-            float(row.get("full_event_pause_seconds", 0.0))
-            for row in measurement.get("rows", [])
-            if row.get("event") == "validation"
+        "checkpoint_size_bytes": max(
+            (int(row["checkpoint/size_bytes"]) for row in checkpoint_rows), default=0
         ),
-        "sampler_coverage": min(1.0, len(telemetry) / expected_samples),
+        "validation_pause_seconds": validation_pauses,
+        "recovery_checkpoint_pause_seconds": recovery_pauses,
+        "final_checkpoint_pause_seconds": final_pauses,
+        "telemetry": telemetry,
         "gates": run_gates,
         "passed": all(run_gates.values()),
         "evidence_dir": str(run_dir),
     }
 
 
-def _candidate_summary(runs: list[dict[str, Any]]) -> dict[str, Any]:
+def _project_token_budget(
+    duration_seconds: int,
+    *,
+    compute_tokens_per_second: float,
+    validation_seconds: float,
+    recovery_seconds: float,
+    milestone_seconds: float,
+    final_seconds: float,
+    pilot: Mapping[str, Any],
+) -> int:
+    def elapsed(tokens: int) -> float:
+        return (
+            tokens / compute_tokens_per_second
+            + (tokens // int(pilot["validation_every_target_tokens"])) * validation_seconds
+            + (tokens // int(pilot["recovery_every_target_tokens"])) * recovery_seconds
+            + (tokens // int(pilot["milestone_every_target_tokens"])) * milestone_seconds
+            + final_seconds
+        )
+
+    low = 0
+    high = max(1, math.floor(compute_tokens_per_second * duration_seconds))
+    while low < high:
+        middle = (low + high + 1) // 2
+        if elapsed(middle) <= duration_seconds:
+            low = middle
+        else:
+            high = middle - 1
+    return low
+
+
+def _candidate_summary(runs: list[dict[str, Any]], cfg: Mapping[str, Any]) -> dict[str, Any]:
     first = runs[0]
     throughputs = [float(run["tokens_per_second"]) for run in runs]
-    data_wait = [float(run["data_wait_fraction"]) for run in runs]
-    allocated = [int(run["pytorch_peak_allocated_bytes"]) for run in runs]
-    checkpoint_sizes = [int(run["checkpoint_size_bytes"]) for run in runs]
-    conservative = min(throughputs)
-    cuda_phases: defaultdict[str, float] = defaultdict(float)
-    for run in runs:
-        for key, value in run["cuda_phase_seconds"].items():
-            cuda_phases[key] += float(value)
-    bottleneck = max(cuda_phases, key=cuda_phases.get) if cuda_phases else "unattributed"
-    if statistics.median(data_wait) > 0.05:
-        bottleneck = "data_wait"
+    compute_throughputs = [float(run["compute_tokens_per_second"]) for run in runs]
+    spread = (max(throughputs) - min(throughputs)) / statistics.median(throughputs)
+    validation = max(
+        (pause for run in runs for pause in run["validation_pause_seconds"]), default=0.0
+    )
+    recovery = max(
+        (pause for run in runs for pause in run["recovery_checkpoint_pause_seconds"]),
+        default=0.0,
+    )
+    final = max(
+        (pause for run in runs for pause in run["final_checkpoint_pause_seconds"]), default=0.0
+    )
+    checkpoint = max(recovery, final)
+    conservative_compute = min(compute_throughputs)
+    token_budgets = {
+        label: _project_token_budget(
+            seconds,
+            compute_tokens_per_second=conservative_compute,
+            validation_seconds=validation,
+            recovery_seconds=recovery,
+            milestone_seconds=checkpoint,
+            final_seconds=final,
+            pilot=cfg["pilot"],
+        )
+        for label, seconds in SECONDS.items()
+    }
     return {
         key: first[key]
         for key in (
@@ -295,31 +832,40 @@ def _candidate_summary(runs: list[dict[str, Any]]) -> dict[str, Any]:
     } | {
         "repetitions": len(runs),
         "all_runs_passed": all(run["passed"] for run in runs),
+        "repeatability_passed": spread <= float(cfg["selection"]["max_repeat_spread_fraction"]),
         "throughput": {
             "min": min(throughputs),
             "median": statistics.median(throughputs),
             "max": max(throughputs),
-            "spread_fraction": (max(throughputs) - min(throughputs))
-            / statistics.median(throughputs),
+            "spread_fraction": spread,
         },
-        "conservative_tokens_per_second": conservative,
-        "token_budgets": {
-            label: math.floor(conservative * seconds) for label, seconds in SECONDS.items()
+        "compute_throughput": {
+            "min": min(compute_throughputs),
+            "median": statistics.median(compute_throughputs),
+            "max": max(compute_throughputs),
         },
-        "data_wait_fraction_median": statistics.median(data_wait),
-        "pytorch_peak_allocated_bytes_max": max(allocated),
+        "conservative_tokens_per_second": min(throughputs),
+        "conservative_compute_tokens_per_second": conservative_compute,
+        "token_budgets": token_budgets,
+        "data_wait_fraction_median": statistics.median(
+            float(run["data_wait_fraction"]) for run in runs
+        ),
+        "pytorch_peak_allocated_bytes_max": max(
+            int(run["pytorch_peak_allocated_bytes"]) for run in runs
+        ),
         "host_min_available_memory_bytes": min(
-            int(run["host_min_available_memory_bytes"]) for run in runs
+            int(run["telemetry"]["host"]["min_available_memory_bytes"]) for run in runs
         ),
-        "host_min_free_disk_bytes": min(int(run["host_min_free_disk_bytes"]) for run in runs),
-        "checkpoint_size_bytes_max": max(checkpoint_sizes),
-        "checkpoint_seconds_median": statistics.median(
-            float(run["checkpoint_seconds"]) for run in runs
+        "host_min_free_disk_bytes": min(
+            int(run["telemetry"]["host"]["min_free_disk_bytes"]) for run in runs
         ),
-        "validation_seconds_median": statistics.median(
-            float(run["validation_seconds"]) for run in runs
-        ),
-        "named_bottleneck": bottleneck,
+        "checkpoint_size_bytes_max": max(int(run["checkpoint_size_bytes"]) for run in runs),
+        "projected_overhead_seconds": {
+            "validation_each": validation,
+            "recovery_each": recovery,
+            "milestone_each": checkpoint,
+            "final_once": final,
+        },
         "runs": runs,
     }
 
@@ -331,10 +877,12 @@ def select_candidate(
     eligible = [
         candidate
         for candidate in candidates
-        if candidate["all_runs_passed"] and candidate["token_budgets"]["7_days"] >= target
+        if candidate["all_runs_passed"]
+        and candidate["repeatability_passed"]
+        and candidate["token_budgets"]["7_days"] >= target
     ]
     if not eligible:
-        raise ValueError("no candidate passes every hard gate and the conservative 7-day target")
+        raise ValueError("no candidate passes every gate, repeatability, and seven-day floor")
     fastest = max(candidate["conservative_tokens_per_second"] for candidate in eligible)
     speed_floor = fastest * (1.0 - float(selection["max_slowdown_fraction"]))
     eligible = [
@@ -342,108 +890,365 @@ def select_candidate(
         for candidate in eligible
         if candidate["conservative_tokens_per_second"] >= speed_floor
     ]
-    largest_layers = max(candidate["num_layers"] for candidate in eligible)
-    eligible = [candidate for candidate in eligible if candidate["num_layers"] == largest_layers]
-    model_fastest = max(candidate["conservative_tokens_per_second"] for candidate in eligible)
-    context_floor = model_fastest * float(selection["context_throughput_floor_fraction"])
+    deepest = max(candidate["num_layers"] for candidate in eligible)
+    eligible = [candidate for candidate in eligible if candidate["num_layers"] == deepest]
+    depth_fastest = max(candidate["conservative_tokens_per_second"] for candidate in eligible)
+    context_floor = depth_fastest * float(selection["context_throughput_floor_fraction"])
     eligible = [
         candidate
         for candidate in eligible
         if candidate["conservative_tokens_per_second"] >= context_floor
     ]
-    largest_context = max(candidate["sequence_length"] for candidate in eligible)
-    eligible = [
-        candidate for candidate in eligible if candidate["sequence_length"] == largest_context
-    ]
-    near_fastest = max(candidate["conservative_tokens_per_second"] for candidate in eligible) * (
-        1.0 - float(selection["near_fastest_fraction"])
+    longest = max(candidate["sequence_length"] for candidate in eligible)
+    eligible = [candidate for candidate in eligible if candidate["sequence_length"] == longest]
+    if len(eligible) != 1:
+        raise ValueError("selection rule did not produce one unique candidate")
+    return eligible[0], eligible
+
+
+def _load_plan(evidence_root: Path, cfg: Mapping[str, Any]) -> dict[str, Any]:
+    plan = _read_json(evidence_root / "plan.json")
+    if plan.get("schema_version") != 3 or plan.get("ticket") != "DGX-001":
+        raise ValueError("DGX plan does not use schema version 3")
+    claimed = plan.get("plan_id")
+    unsigned = dict(plan)
+    unsigned.pop("plan_id", None)
+    if claimed != _canonical_sha256(unsigned):
+        raise ValueError("DGX immutable plan hash does not verify")
+    planned_protocol = {key: plan["config"][key] for key in PROTOCOL_CONFIG_KEYS}
+    active_protocol = {key: cfg[key] for key in PROTOCOL_CONFIG_KEYS}
+    if planned_protocol != active_protocol:
+        raise ValueError("DGX summary config differs from the executed protocol")
+    cache = _read_json(evidence_root / "cache-integrity.json")
+    if cache.get("unchanged") is not True or cache.get("before") != plan.get("cache_before"):
+        raise ValueError("DGX cache before/after identity did not remain exact")
+    expected_runs = build_matrix_plan(plan["config"])
+    if plan.get("runs") != expected_runs:
+        raise ValueError("DGX plan run list differs from the exact matrix")
+    return plan
+
+
+def _validate_matrix_authority(plan: Mapping[str, Any]) -> dict[str, Any]:
+    authority = plan.get("matrix_summary_identity")
+    if not isinstance(authority, Mapping):
+        raise ValueError("DGX auxiliary evidence lacks matrix selection authority")
+    path = Path(str(authority.get("path")))
+    if not path.is_file() or _sha256_file(path) != authority.get("sha256"):
+        raise ValueError("matrix selection authority changed after the auxiliary plan")
+    summary = _read_json(path)
+    if (
+        summary.get("schema_version") != 3
+        or summary.get("verdict") != "PASS"
+        or summary.get("git_commit") != authority.get("git_commit")
+        or summary.get("selected", {}).get("candidate_id") != authority.get("selected")
+        or summary.get("selected", {}).get("conservative_tokens_per_second")
+        != authority.get("end_to_end_tokens_per_second")
+    ):
+        raise ValueError("matrix selection authority is not one passing exact summary")
+    return summary
+
+
+def _committed_profile_matches(selected: Mapping[str, Any]) -> bool:
+    root = Path(__file__).resolve().parents[2]
+    with hydra.initialize_config_dir(version_base=None, config_dir=str(root / "config")):
+        cfg = hydra.compose(config_name="train", overrides=["profile=pretrain_baseline"])
+    keys = (
+        "num_layers",
+        "embed_size",
+        "num_heads",
+        "sequence_length",
+        "batch_size",
+        "gradient_accumulation_steps",
     )
-    eligible = [
-        candidate
-        for candidate in eligible
-        if candidate["conservative_tokens_per_second"] >= near_fastest
-    ]
-    selected = min(
-        eligible,
-        key=lambda item: (
-            item["pytorch_peak_allocated_bytes_max"],
-            -item["conservative_tokens_per_second"],
-            item["candidate_id"],
-        ),
-    )
-    return selected, eligible
+    observed = {
+        "num_layers": int(cfg.model.num_layers),
+        "embed_size": int(cfg.model.embed_size),
+        "num_heads": int(cfg.model.num_heads),
+        "sequence_length": int(cfg.training.sequence_length),
+        "batch_size": int(cfg.training.batch_size),
+        "gradient_accumulation_steps": int(cfg.training.gradient_accumulation_steps),
+    }
+    return observed == {key: int(selected[key]) for key in keys}
 
 
 def summarize_evidence(
     evidence_root: Path, config: Mapping[str, Any] | DictConfig
 ) -> dict[str, Any]:
     cfg = validate_dgx_config(config)
-    run_dirs = sorted(path.parent for path in Path(evidence_root).glob("*/run.json"))
-    if not run_dirs:
-        raise ValueError(f"no DGX run evidence found under {evidence_root}")
-    runs = [summarize_run(path, cfg["gates"]) for path in run_dirs]
-    commits = {run["git_commit"] for run in runs}
-    images = {run["image_id"] for run in runs}
-    if len(commits) != 1 or len(images) != 1:
-        raise ValueError("all candidate runs must use one exact commit and image")
+    root = Path(evidence_root)
+    plan = _load_plan(root, cfg)
+    expected_entries = build_matrix_plan(cfg)
+    expected_by_key = {
+        (entry["candidate_id"], entry["repetition"]): entry for entry in expected_entries
+    }
+    run_dirs = sorted(path.parent for path in root.glob("*/run.json"))
+    if len(run_dirs) != 27:
+        raise ValueError("final DGX matrix requires exactly 27 run directories")
+    runs = []
+    observed_keys: set[tuple[str, int]] = set()
+    for run_dir in run_dirs:
+        raw = _read_json(run_dir / "run.json")
+        key = (str(raw.get("candidate_id")), int(raw.get("repetition", 0)))
+        if key in observed_keys or key not in expected_by_key:
+            raise ValueError("DGX matrix contains a duplicate or unplanned candidate/repetition")
+        observed_keys.add(key)
+        runs.append(
+            summarize_run(
+                run_dir,
+                cfg["gates"],
+                expected=expected_by_key[key],
+                plan=plan,
+                role="matrix",
+            )
+        )
+    if observed_keys != set(expected_by_key):
+        raise ValueError("DGX matrix is missing one or more planned runs")
     grouped: defaultdict[str, list[dict[str, Any]]] = defaultdict(list)
     for run in runs:
         grouped[run["candidate_id"]].append(run)
-    expected_repetitions = int(cfg["matrix"]["repetitions"])
-    candidates = []
-    for candidate_id, candidate_runs in sorted(grouped.items()):
-        repetitions = {run["repetition"] for run in candidate_runs}
-        if repetitions != set(range(1, expected_repetitions + 1)):
-            raise ValueError(f"candidate {candidate_id} lacks the declared repetitions")
-        candidates.append(_candidate_summary(candidate_runs))
-    expected_candidates = {entry["candidate_id"] for entry in build_matrix_plan(cfg)}
-    if set(grouped) != expected_candidates:
-        missing = sorted(expected_candidates - set(grouped))
-        extra = sorted(set(grouped) - expected_candidates)
-        raise ValueError(f"candidate matrix mismatch; missing={missing}, extra={extra}")
+    candidates = [
+        _candidate_summary(sorted(items, key=lambda item: item["repetition"]), cfg)
+        for _, items in sorted(grouped.items())
+    ]
     selected, finalists = select_candidate(candidates, cfg["selection"])
+    full_tokens = int(selected["token_budgets"]["7_days"])
     checkpoint_size = int(selected["checkpoint_size_bytes_max"])
-    full_run_seconds = SECONDS["7_days"]
-    checkpoint_cadence = 2_500_000
-    planned_recovery_writes = math.ceil(
-        selected["conservative_tokens_per_second"] * full_run_seconds / checkpoint_cadence
+    milestone_copies = math.ceil(full_tokens / int(cfg["pilot"]["milestone_every_target_tokens"]))
+    checkpoint_copies = 3 + 1 + 1 + 1 + milestone_copies
+    cache_bytes = int(plan["data_cache_max_bytes"])
+    current_evidence_bytes = _tree_size(root)
+    evidence_bytes = current_evidence_bytes + int(
+        cfg["gates"]["post_matrix_evidence_reserve_bytes"]
     )
-    storage_peak = checkpoint_size * 6  # 3 rotating + atomic temp + best + final/milestone.
-    storage_passed = selected["host_min_free_disk_bytes"] >= (
-        storage_peak * float(cfg["gates"]["storage_headroom_ratio"])
+    storage_footprint = cache_bytes + checkpoint_size * checkpoint_copies + evidence_bytes
+    storage_capacity = (
+        shutil.disk_usage(root).free
+        + current_evidence_bytes
+        + int(plan["cache_before"]["size_bytes"])
     )
+    storage_passed = storage_capacity >= storage_footprint * float(
+        cfg["gates"]["storage_headroom_ratio"]
+    )
+    profile_matches = _committed_profile_matches(selected)
+    verdict = "PASS" if storage_passed and profile_matches else "FAIL"
     return {
-        "schema_version": 1,
+        "schema_version": 3,
         "ticket": "DGX-001",
-        "git_commit": next(iter(commits)),
-        "image_id": next(iter(images)),
+        "plan_id": plan["plan_id"],
+        "git_commit": plan["git_commit"],
+        "image_id": plan["image_id"],
         "measurement_conditions": {
-            "repetitions": expected_repetitions,
-            "warmup_optimizer_steps": int(cfg["matrix"]["warmup_optimizer_steps"]),
-            "measured_optimizer_steps": int(cfg["matrix"]["measured_optimizer_steps"]),
+            "arms": 9,
+            "repetitions": 3,
+            "executed_optimizer_steps_per_run": 30,
+            "warmup_optimizer_steps": 10,
+            "measured_optimizer_steps": 20,
+            "executed_target_tokens": 26_542_080,
+            "measured_target_tokens": 17_694_720,
             "precision": "bf16",
             "deterministic": True,
-            "cuda_events": True,
-            "effective_target_tokens_equal_across_contexts": True,
+            "measurement_schema_version": 3,
+            "wandb": "disabled",
+            "cache_unchanged": True,
         },
         "candidates": candidates,
         "selection_rule": dict(cfg["selection"]),
         "selection_finalists": [item["candidate_id"] for item in finalists],
         "selected": selected,
+        "committed_pretrain_baseline_matches_selected": profile_matches,
         "plan": {
             "token_budgets": selected["token_budgets"],
             "one_hour_max_time_seconds": 3600,
-            "validation_every_target_tokens": 5_000_000,
-            "recovery_checkpoint_every_target_tokens": checkpoint_cadence,
-            "milestone_every_target_tokens": 100_000_000,
-            "planned_7d_recovery_writes": planned_recovery_writes,
+            "validation_every_target_tokens": cfg["pilot"]["validation_every_target_tokens"],
+            "recovery_checkpoint_every_target_tokens": cfg["pilot"]["recovery_every_target_tokens"],
+            "milestone_every_target_tokens": cfg["pilot"]["milestone_every_target_tokens"],
             "checkpoint_size_bytes": checkpoint_size,
-            "peak_checkpoint_storage_bytes": storage_peak,
+            "checkpoint_copies": {
+                "rotating_recovery": 3,
+                "atomic_temporary": 1,
+                "best": 1,
+                "final": 1,
+                "milestones": milestone_copies,
+                "total": checkpoint_copies,
+            },
+            "cache_bytes": cache_bytes,
+            "matrix_and_future_evidence_bytes": evidence_bytes,
+            "storage_footprint_bytes": storage_footprint,
+            "storage_capacity_bytes": storage_capacity,
+            "storage_headroom_ratio": cfg["gates"]["storage_headroom_ratio"],
             "storage_headroom_passed": storage_passed,
             "wandb_mode": "online",
             "wandb_watch": False,
             "wandb_artifact_policy": "none",
+            "wandb_scalar_cadence_optimizer_steps": 25,
         },
-        "named_bottleneck": selected["named_bottleneck"],
-        "verdict": "PASS" if storage_passed else "FAIL",
+        "bottleneck_status": "pending selected-profile decomposition",
+        "verdict": verdict,
+    }
+
+
+def summarize_decomposition(
+    evidence_root: Path, config: Mapping[str, Any] | DictConfig
+) -> dict[str, Any]:
+    cfg = validate_dgx_config(config)
+    root = Path(evidence_root)
+    plan = _load_plan(root, cfg)
+    _validate_matrix_authority(plan)
+    authority = plan["matrix_summary_identity"]
+    selected = plan["selected"]
+    raw_paths = sorted(root.glob("*/decomposition.json"))
+    if len(raw_paths) != 6:
+        raise ValueError("decomposition requires exactly 3 model-only and 3 loader-only runs")
+    results: defaultdict[str, list[dict[str, Any]]] = defaultdict(list)
+    expected_keys = {
+        (role, repetition) for role in ("model-only", "loader-only") for repetition in range(1, 4)
+    }
+    observed_keys = set()
+    for path in raw_paths:
+        raw = _read_json(path)
+        key = (raw.get("role"), raw.get("repetition"))
+        if key in observed_keys or key not in expected_keys:
+            raise ValueError("decomposition contains duplicate/unplanned evidence")
+        observed_keys.add(key)
+        if (
+            raw.get("schema_version") != 3
+            or raw.get("status") != "succeeded"
+            or raw.get("plan_id") != plan["plan_id"]
+            or raw.get("candidate_id") != selected["candidate_id"]
+            or raw.get("git_commit") != plan["git_commit"]
+            or raw.get("image_id") != plan["image_id"]
+            or raw.get("warmup_optimizer_steps") != 10
+            or raw.get("measured_optimizer_steps") != 20
+            or raw.get("telemetry_errors")
+            or raw.get("telemetry_violations")
+        ):
+            raise ValueError("decomposition run identity/health differs from plan")
+        for shape_key in (
+            "num_layers",
+            "embed_size",
+            "num_heads",
+            "sequence_length",
+            "batch_size",
+            "gradient_accumulation_steps",
+            "effective_target_tokens_per_step",
+        ):
+            if raw.get(shape_key) != selected.get(shape_key):
+                raise ValueError("decomposition shape differs from selected candidate")
+        _validate_manifest_and_config(path.parent, raw, selected, plan, role=str(raw["role"]))
+        telemetry, telemetry_gates = _telemetry_summary(
+            _read_jsonl(path.parent / "system.jsonl"), raw, cfg["gates"]
+        )
+        if not all(telemetry_gates.values()):
+            raise ValueError("decomposition telemetry fails the DGX health/coverage gates")
+        rows = raw.get("rows")
+        if not isinstance(rows, list) or len(rows) != 30:
+            raise ValueError("decomposition run must contain exactly 30 updates")
+        measured = [row for row in rows if row.get("warmup") is False]
+        if (
+            len(measured) != 20
+            or any(row.get("target_tokens") != 32768 for row in rows)
+            or any(not math.isfinite(float(row["wall_seconds"])) for row in rows)
+        ):
+            raise ValueError("decomposition rows differ from exact target protocol")
+        wall = sum(float(row["wall_seconds"]) for row in measured)
+        result = {
+            "role": raw["role"],
+            "repetition": raw["repetition"],
+            "target_tokens": 655360,
+            "wall_seconds": wall,
+            "tokens_per_second": 655360 / wall,
+            "telemetry": telemetry,
+            "evidence": str(path),
+        }
+        if raw["role"] == "model-only":
+            if any(
+                not math.isfinite(float(row["loss"]))
+                or not math.isfinite(float(row["gradient_norm"]))
+                for row in rows
+            ):
+                raise ValueError("model-only decomposition contains non-finite training")
+        results[raw["role"]].append(result)
+    if observed_keys != expected_keys:
+        raise ValueError("decomposition is incomplete")
+    end_to_end = float(authority["end_to_end_tokens_per_second"])
+    summaries = {}
+    for role, items in sorted(results.items()):
+        rates = [item["tokens_per_second"] for item in items]
+        summaries[role] = {
+            "runs": sorted(items, key=lambda item: item["repetition"]),
+            "throughput": {
+                "min": min(rates),
+                "median": statistics.median(rates),
+                "max": max(rates),
+                "spread_fraction": (max(rates) - min(rates)) / statistics.median(rates),
+            },
+            "supply_ratio_min": min(rates) / end_to_end,
+        }
+    model_ratio = summaries["model-only"]["supply_ratio_min"]
+    loader_ratio = summaries["loader-only"]["supply_ratio_min"]
+    threshold = float(cfg["gates"]["min_loader_supply_ratio"])
+    capacity_passed = model_ratio >= threshold and loader_ratio >= threshold
+    if not capacity_passed:
+        bottleneck = "insufficient decomposition headroom; long run blocked"
+    elif loader_ratio <= model_ratio:
+        bottleneck = "data loader is the nearer measured ceiling"
+    else:
+        bottleneck = "model forward/backward/optimizer is the nearer measured ceiling"
+    return {
+        "schema_version": 3,
+        "ticket": "DGX-001",
+        "plan_id": plan["plan_id"],
+        "git_commit": plan["git_commit"],
+        "image_id": plan["image_id"],
+        "selected_candidate": selected["candidate_id"],
+        "matrix_summary": dict(authority),
+        "end_to_end_tokens_per_second": end_to_end,
+        "minimum_supply_ratio": threshold,
+        "decomposition": summaries,
+        "named_bottleneck": bottleneck,
+        "verdict": "PASS" if capacity_passed else "FAIL",
+    }
+
+
+def summarize_pilot(evidence_root: Path, config: Mapping[str, Any] | DictConfig) -> dict[str, Any]:
+    cfg = validate_dgx_config(config)
+    root = Path(evidence_root)
+    plan = _load_plan(root, cfg)
+    _validate_matrix_authority(plan)
+    selected = plan.get("selected")
+    if not isinstance(selected, Mapping):
+        raise ValueError("pilot has no summary-selected matrix entry")
+    run_dirs = sorted(path.parent for path in root.glob("*/run.json"))
+    if len(run_dirs) != 1:
+        raise ValueError("selected-profile pilot requires exactly one run")
+    expected = {**dict(selected), "repetition": 1}
+    result = summarize_run(run_dirs[0], cfg["gates"], expected=expected, plan=plan, role="pilot")
+    run = _read_json(run_dirs[0] / "run.json")
+    wandb = run.get("wandb_evidence", {})
+    pilot_gates = {
+        "training_gates": result["passed"],
+        "duration_representative": float(run["final_elapsed_seconds"]) >= 1500.0
+        and float(run["final_elapsed_seconds"]) <= 1860.0,
+        "validation_observed": bool(result["validation_pause_seconds"]),
+        "recovery_observed": bool(result["recovery_checkpoint_pause_seconds"]),
+        "sample_observed": (run_dirs[0] / str(run.get("samples"))).is_file(),
+        "wandb_online_visible": wandb.get("init_status") == "succeeded"
+        and wandb.get("mode") == "online"
+        and isinstance(wandb.get("run_id"), str)
+        and isinstance(wandb.get("run_url"), str),
+        "wandb_finished": wandb.get("finish_succeeded") is True,
+        "wandb_watch_off": wandb.get("watch_disabled") is True,
+        "wandb_no_artifacts": wandb.get("artifact_uploads") == 0,
+    }
+    return {
+        "schema_version": 3,
+        "ticket": "DGX-001",
+        "plan_id": plan["plan_id"],
+        "git_commit": plan["git_commit"],
+        "image_id": plan["image_id"],
+        "selected_candidate": selected["candidate_id"],
+        "run": result,
+        "wandb": wandb,
+        "gates": pilot_gates,
+        "verdict": "PASS" if all(pilot_gates.values()) else "FAIL",
     }

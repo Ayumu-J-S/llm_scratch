@@ -1,6 +1,6 @@
 .PHONY: help sync activate train smoke pretrain-streaming config-check \
 	runtime-lock diagnose dgx-build dgx-diagnose dgx-smoke dgx-plan \
-	dgx-measurements dgx-summarize dgx-pilot test-cpu \
+	dgx-measurements dgx-summarize dgx-decompose dgx-pilot test-cpu \
 	ci-sync ci-lint ci-test ci-config ci-lock ci-offline-smoke ci-cpu
 
 DGX_IMAGE := llm-scratch:env-001
@@ -23,6 +23,7 @@ help:
 		'  make dgx-plan         - Print the DGX-001 repeated candidate matrix' \
 		'  make dgx-measurements - Run matrix (plus EXPECTED_COMMIT/OUTPUT_ROOT/CACHE_ROOT)' \
 		'  make dgx-summarize    - Gate/select matrix (OUTPUT_ROOT=...)' \
+		'  make dgx-decompose    - Run selected model/loader decomposition (same vars plus SELECTED)' \
 		'  make dgx-pilot        - Run selected 30-minute pilot (same vars plus SELECTED)' \
 		'  make test-cpu         - Run the explicit CPU development test suite' \
 		'  make ci-cpu           - Run the network-free pull-request quality gate'
@@ -74,10 +75,17 @@ dgx-summarize:
 	PYTHONPATH=src uv run python scripts/summarize_dgx_measurements.py \
 		output_root=$(OUTPUT_ROOT)
 
+dgx-decompose:
+	PYTHONPATH=src uv run python scripts/run_dgx_measurements.py \
+		mode=decompose expected_commit=$(EXPECTED_COMMIT) output_root=$(OUTPUT_ROOT) \
+		cache_root=$(CACHE_ROOT) selected_candidate=$(SELECTED) \
+		matrix_summary_path=$(MATRIX_SUMMARY)
+
 dgx-pilot:
 	PYTHONPATH=src uv run python scripts/run_dgx_measurements.py \
 		mode=pilot expected_commit=$(EXPECTED_COMMIT) output_root=$(OUTPUT_ROOT) \
-		cache_root=$(CACHE_ROOT) selected_candidate=$(SELECTED)
+		cache_root=$(CACHE_ROOT) selected_candidate=$(SELECTED) \
+		matrix_summary_path=$(MATRIX_SUMMARY)
 
 test-cpu:
 	uv run pytest -q

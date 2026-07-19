@@ -1,7 +1,7 @@
 # DGX-001 host orchestration policy. Training itself always composes one of the
 # canonical profile configs; this file only declares the repeated matrix and
 # hard resource gates around those runs.
-schema_version: 1
+schema_version: 3
 image:
   name: llm-scratch:env-001
   expected_id: sha256:23a1bee69fe189e77105cdddeee9aeff6ef0763d58a691625fbfcab64efd1887
@@ -37,9 +37,19 @@ matrix:
       batch_size: 2
       gradient_accumulation_steps: 4
 
+decomposition:
+  repetitions: 3
+  warmup_optimizer_steps: 10
+  measured_optimizer_steps: 20
+
 pilot:
   duration_seconds: 1800
   warmup_optimizer_steps: 10
+  validation_target_tokens: 65536
+  validation_every_target_tokens: 5000000
+  recovery_every_target_tokens: 2500000
+  milestone_every_target_tokens: 100000000
+  log_every_optimizer_steps: 25
 
 gates:
   min_available_memory_bytes: 64000000000
@@ -49,7 +59,11 @@ gates:
   max_swap_out_pages: 0
   max_allocator_growth_bytes: 268435456
   min_sampler_coverage: 0.90
+  max_telemetry_gap_factor: 2.5
   max_data_wait_fraction: 0.10
+  min_loader_supply_ratio: 1.20
+  matrix_output_reserve_bytes: 100000000000
+  post_matrix_evidence_reserve_bytes: 20000000000
   storage_headroom_ratio: 2.0
 
 selection:
@@ -57,13 +71,14 @@ selection:
   conservative_throughput_quantile: min
   max_slowdown_fraction: 0.20
   context_throughput_floor_fraction: 0.85
-  near_fastest_fraction: 0.03
+  max_repeat_spread_fraction: 0.10
 
 output_root: null
 cache_root: null
 expected_commit: null
-mode: plan  # plan | matrix | pilot
+mode: plan  # plan | matrix | decompose | pilot
 selected_candidate: null
+matrix_summary_path: null
 
 hydra:
   run:

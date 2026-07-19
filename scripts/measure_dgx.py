@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import subprocess
@@ -29,12 +30,16 @@ def parser() -> argparse.ArgumentParser:
     command.add_argument("--repetition", required=True, type=int)
     command.add_argument("--git-commit", default=os.environ.get("DGX_GIT_COMMIT"))
     command.add_argument("--image-id", default=os.environ.get("DGX_IMAGE_ID"))
+    command.add_argument("--plan-id", required=True)
+    command.add_argument("--role", choices=("matrix", "pilot"), required=True)
     command.add_argument("--warmup-optimizer-steps", required=True, type=int)
     command.add_argument("--measured-optimizer-steps", required=True, type=int)
     command.add_argument("--telemetry-interval-seconds", type=float, default=1.0)
     command.add_argument("--min-available-memory-bytes", required=True, type=int)
     command.add_argument("--min-free-disk-bytes", required=True, type=int)
     command.add_argument("--max-temperature-c", required=True, type=float)
+    command.add_argument("--max-swap-in-pages", type=int, default=0)
+    command.add_argument("--max-swap-out-pages", type=int, default=0)
     command.add_argument("--pilot", action="store_true")
     command.add_argument("--sample", action="store_true")
     command.add_argument("overrides", nargs=argparse.REMAINDER)
@@ -45,6 +50,39 @@ def _atomic_json(path: Path, payload: object) -> None:
     temporary = path.with_name(f".{path.name}.tmp")
     temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     temporary.replace(path)
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _wandb_evidence(checkpoint_dir: Path) -> dict:
+    path = checkpoint_dir / "wandb_events.jsonl"
+    rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
+    init = [row for row in rows if row.get("action") == "init"]
+    run = init[-1] if init else {}
+    return {
+        "path": str(path),
+        "sha256": _sha256(path),
+        "rows": len(rows),
+        "init_status": init[-1].get("outcome") if init else None,
+        "mode": run.get("mode"),
+        "run_id": run.get("run_id"),
+        "run_url": run.get("run_url"),
+        "watch_disabled": any(
+            row.get("action") == "watch" and row.get("outcome") == "disabled" for row in rows
+        ),
+        "finish_succeeded": any(
+            row.get("action") == "finish" and row.get("outcome") == "succeeded" for row in rows
+        ),
+        "artifact_uploads": sum(
+            row.get("action") == "artifact" and row.get("outcome") == "uploaded" for row in rows
+        ),
+    }
 
 
 def _compose(overrides: Sequence[str]):
@@ -109,9 +147,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     run_path = output_dir / "run.json"
     started = time.time()
     record: dict = {
-        "schema_version": 1,
+        "schema_version": 3,
         "ticket": "DGX-001",
         "status": "failed",
+        "role": args.role,
+        "plan_id": args.plan_id,
         "candidate_id": args.candidate_id,
         "repetition": args.repetition,
         "git_commit": args.git_commit,
@@ -126,19 +166,24 @@ def main(argv: Sequence[str] | None = None) -> int:
         record["preflight"] = _preflight(args, output_dir)
         record["environment"] = _environment()
         cfg = _compose(args.overrides)
-        if cfg.profile.name not in {"dgx_smoke", "dgx_candidate"}:
-            raise RuntimeError("measure_dgx accepts only dgx_smoke or dgx_candidate")
+        expected_profile = "pretrain_baseline" if args.role == "pilot" else "dgx_candidate"
+        if cfg.profile.name != expected_profile:
+            raise RuntimeError(f"{args.role} requires profile={expected_profile}")
         if cfg.runtime.device != "cuda" or cfg.training.precision != "bf16":
             raise RuntimeError("DGX measurements require explicit CUDA BF16")
         if not cfg.reproducibility.deterministic:
             raise RuntimeError("DGX candidate measurements require strict determinism")
         expected_steps = args.warmup_optimizer_steps + args.measured_optimizer_steps
-        if not args.pilot and cfg.training.max_steps != expected_steps:
+        if args.role == "matrix" and cfg.training.max_steps != expected_steps:
             raise RuntimeError(
                 f"training.max_steps must equal warmup + measured steps ({expected_steps})"
             )
-        if args.pilot and (cfg.training.max_steps is not None or cfg.training.max_time is None):
+        if args.role == "pilot" and (
+            not args.pilot or cfg.training.max_steps is not None or cfg.training.max_time is None
+        ):
             raise RuntimeError("pilot measurements require max_steps=null and an explicit max_time")
+        if args.role == "matrix" and args.pilot:
+            raise RuntimeError("matrix measurements cannot set --pilot")
         output_path = Path(cfg.measurement.output_path)
         if not output_path.is_absolute() or output_path != output_dir / "measurement.json":
             raise RuntimeError("measurement.output_path must be the exact absolute evidence path")
@@ -160,10 +205,28 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "gradient_accumulation_steps": int(cfg.training.gradient_accumulation_steps),
                 "effective_target_tokens_per_step": effective_tokens,
                 "resolved_config": "resolved_config.yaml",
+                "resolved_config_sha256": _sha256(output_dir / "resolved_config.yaml"),
+                "run_manifest": "run_manifest.json",
+                "run_manifest_sha256": _sha256(output_dir / "run_manifest.json"),
+                "wandb_policy": {
+                    "mode": str(cfg.wandb.mode),
+                    "watch_enabled": bool(cfg.wandb.watch.enabled),
+                    "artifact_policy": str(cfg.wandb.artifact.policy),
+                    "log_every_n_steps": int(cfg.training.log_every_n_steps),
+                },
             }
         )
         sampler = TelemetrySampler(
-            output_dir / "system.jsonl", interval_seconds=args.telemetry_interval_seconds
+            output_dir / "system.jsonl",
+            interval_seconds=args.telemetry_interval_seconds,
+            hard_limits={
+                "min_available_memory_bytes": args.min_available_memory_bytes,
+                "min_free_disk_bytes": args.min_free_disk_bytes,
+                "max_temperature_c": args.max_temperature_c,
+                "max_swap_in_pages": args.max_swap_in_pages,
+                "max_swap_out_pages": args.max_swap_out_pages,
+            },
+            interrupt_on_violation=args.role == "pilot",
         )
         record["telemetry_started_monotonic_seconds"] = time.monotonic()
         sampler.start()
@@ -174,6 +237,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         loaded = load_checkpoint_for_generation(final_checkpoint)
         record["checkpoint_verified"] = loaded.payload["kind"] == "final"
         record["checkpoint"] = str(final_checkpoint.relative_to(output_dir))
+        record["checkpoint_physical_identity"] = loaded.physical_identity
+        record["checkpoint_identity"] = loaded.payload["identity"]
+        record["final_checkpoint_boundary"] = (
+            loaded.payload["state"].get("measurement_evidence", {}).get("checkpoint_boundary")
+        )
         record["final_optimizer_step"] = trainer.optimizer_step
         record["final_target_tokens"] = trainer.target_tokens
         record["final_elapsed_seconds"] = trainer.elapsed_seconds
@@ -181,8 +249,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.sample:
             _atomic_json(output_dir / "samples.json", _samples(final_checkpoint))
             record["samples"] = "samples.json"
+        record["wandb_evidence"] = _wandb_evidence(output_dir / cfg.artifacts.checkpoints_dir)
         record["status"] = "succeeded"
-    except Exception as error:
+    except BaseException as error:
         record["error"] = f"{type(error).__name__}: {error}"
         record["traceback"] = traceback.format_exc()
     finally:
@@ -195,6 +264,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             record.setdefault("telemetry_ended_monotonic_seconds", time.monotonic())
             record["telemetry_samples"] = sampler.samples
             record["telemetry_errors"] = sampler.errors
+            record["telemetry_violations"] = sampler.violations
         record["ended_unix_seconds"] = time.time()
         record["wall_seconds"] = record["ended_unix_seconds"] - started
         _atomic_json(run_path, record)
