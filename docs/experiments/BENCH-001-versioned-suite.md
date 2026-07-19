@@ -68,6 +68,10 @@
 | 45 | Repair | Complete | Made the default result path `dev\|final-<evaluation_identity_sha256>.json`, binding access, physical checkpoint bytes, compiled suite/protocol, evaluator revision, lock, and runtime while retaining exclusive no-overwrite publication and explicit fresh-root/path control; rejected any non-finite raw choice-scoring logit before log-softmax or target extraction |
 | 46 | Focused validation | PASS | 65 benchmark/generation/config/reproducibility tests plus scoped Ruff pass. Regressions prove the default filename equals the complete result identity, exact reruns fail before repeating the training scan, and non-target NaN/positive-infinity/negative-infinity vocabulary logits cannot produce a JCommonsenseQA score |
 | 47 | Full validation | PASS | Official CPU gate: 364 passed, 1 skipped; Ruff, Hydra config preflight, lock drift, offline smoke, `uv lock --check`, changed-path format, and diff checks pass |
+| 48 | Independent re-review | FAIL | Exact-head review of `4243f92` reran the full 364-test gate (1 skipped), then reproduced a selected short JCommonsenseQA record embedded in a larger training document whose reordered/pretty JSON defeated exact, shingle, and standalone-JSON matching. The review also demonstrated that extreme but finite raw logits can normalize to non-finite log probabilities |
+| 49 | Current-main integration and repair | Complete | Replayed the BENCH-only history onto WB-001 main `8791bb7`; directly adopted its `mode=disabled\|offline\|online` W&B schema and bounded failure-isolated SDK calls. The contamination scanner now extracts disjoint innermost JSON objects from prose/JSON wrappers in linear document work, invalidates stale scan evidence, and choice scoring rejects non-finite normalized probabilities or sums |
+| 50 | Focused validation | PASS | 76 benchmark/generation/config/reproducibility tests plus scoped Ruff, format, and diff checks pass. All 256 selected fixture records are detected after key reordering, pretty printing, CRLF/BOM normalization, and embedding inside both prose and an outer JSON object; W&B compact-table and post-commit failure isolation regressions pass |
+| 51 | Full validation | PASS | Current-main official CPU gate: 480 passed, 1 skipped; repository Ruff, resolved Hydra config preflight, lock-drift detection, disabled/offline process-tree-isolated smoke, `uv lock --check`, changed-path format, and diff checks pass. The resolved benchmark profile contains only the direct WB-001 mode and timeout schema |
 
 ## Resolved protocol
 
@@ -108,7 +112,7 @@
 
 ## Current conclusion
 
-All twelve independent failed reviews remain visible. Their twenty-nine findings are
+All thirteen independent failed reviews remain visible. Their thirty findings are
 repaired without weakening the fixed protocol or complete contamination gate:
 cheap context incompatibility precedes scanning, both tasks honor checkpoint
 precision, external records are pinned, evaluator/runtime and dirty source
@@ -128,17 +132,19 @@ producer paths, and the full optimizer-bearing load is reclaimed before the
 suite and corpus scan. Selected examples now retain and hash the pinned source
 record representation, while text normalization composes with a
 structure-normalized JSON identity to detect BOM, newline, Unicode,
-key-order, and whitespace variants; canonical acceptance covers every selected
-development record in both tasks. External comparisons separately attest the
-compiled prompt and scorer hashes, and generation rejects non-finite logits
-before any GSM8K token or score is accepted; choice scoring rejects non-finite
-raw logits before normalization or extraction. Internal and external results
-are exclusive, no-overwrite publications in dedicated output namespaces, and
-default checkpoint-owned filenames bind the access partition plus complete
-evaluation identity so milestones, final evaluation, and evaluator revisions
-can coexist without replacement, while run-manifest verification compares the
-exact recorded dirty-worktree bytes in
-addition to commit, dirty flag, and status paths.
+key-order, whitespace, and embedded wrapper variants; canonical acceptance
+covers every selected development record in both tasks. External comparisons
+separately attest the compiled prompt and scorer hashes, and generation rejects
+non-finite logits before any GSM8K token or score is accepted; choice scoring
+rejects non-finite raw logits before normalization or extraction and non-finite
+normalized scores after log-softmax. Benchmark W&B calls use the shared
+mode/timeout contract, are wall-clock bounded, and cannot invalidate committed
+local evidence. Internal and external results are exclusive, no-overwrite
+publications in dedicated output namespaces, and default checkpoint-owned
+filenames bind the access partition plus complete evaluation identity so
+milestones, final evaluation, and evaluator revisions can coexist without
+replacement, while run-manifest verification compares the exact recorded
+dirty-worktree bytes in addition to commit, dirty flag, and status paths.
 An extra repository-wide format diagnostic identified four pre-existing, unrelated
 files outside this ticket's diff; the configured Ruff lint gate and all changed
 benchmark paths pass, so those files were not rewritten here. Every repair's

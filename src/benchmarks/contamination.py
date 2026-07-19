@@ -27,11 +27,11 @@ from runtime.reproducibility import sha256_file
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 SHINGLE_CODEPOINTS = 48
-SCAN_REVISION = "BENCH-001-contamination-v5"
-NORMALIZATION_REVISION = "normalize-text-identity-nfc-strip-plus-json-object-v3"
+SCAN_REVISION = "BENCH-001-contamination-v6"
+NORMALIZATION_REVISION = "normalize-text-identity-nfc-strip-plus-json-object-v4"
 SCAN_INDEX_SCHEMA_VERSION = 2
 MATCHER_REVISION = "collision-verified-rolling-hash-codepoint-v1"
-JSON_OBJECT_NORMALIZATION_REVISION = "normalized-canonical-json-object-sha256-v2"
+JSON_OBJECT_NORMALIZATION_REVISION = "normalized-embedded-canonical-json-object-sha256-v3"
 PRODUCER_IDENTITY_REVISION = "contamination-producer-v1"
 PRODUCER_SOURCE_SCOPE_REVISION = "src-python-pyproject-lock-v1"
 _PRODUCER_PACKAGES = ("pyarrow",)
@@ -568,19 +568,17 @@ def _document_matches(
 ) -> list[dict[str, Any]]:
     normalized = normalize_text_identity(text)
     matches: list[dict[str, Any]] = []
-    observed = (
+    observed: list[tuple[str, list[Reference]]] = [
         ("exact", probe_index.exact.get(_sha256(text), [])),
         ("normalized", probe_index.normalized.get(_sha256(normalized), [])),
         ("shingle_48", probe_index.shingles.references_in(normalized)),
-    )
-    structured_json = _canonical_json_object(normalized)
-    if structured_json is not None:
-        observed = (
-            *observed,
+    ]
+    for structured_json in _canonical_json_objects(normalized):
+        observed.append(
             (
                 "structured_json",
                 probe_index.structured_json.get(_sha256(structured_json), []),
-            ),
+            )
         )
     for match_type, references in observed:
         for reference in references:
@@ -609,6 +607,60 @@ def _canonical_json_object(text: str) -> str | None:
         return canonical_json_bytes(value).decode("utf-8", errors="strict")
     except (json.JSONDecodeError, TypeError, ValueError, UnicodeError):
         return None
+
+
+def _canonical_json_objects(text: str) -> Iterable[str]:
+    """Yield canonical innermost JSON objects embedded in an arbitrary document.
+
+    Benchmark source records are flat objects. Scanning only innermost balanced
+    objects therefore detects a complete record both directly and inside JSON
+    or prose wrappers while keeping candidate substrings disjoint: parsing and
+    candidate materialization remain linear in the document size.
+    """
+
+    starts: list[int] = []
+    has_nested_object: list[bool] = []
+    in_string = False
+    escaped = False
+    for index, character in enumerate(text):
+        if not starts:
+            if character == "{":
+                starts.append(index)
+                has_nested_object.append(False)
+                in_string = False
+                escaped = False
+            continue
+        if in_string:
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif character == '"':
+                in_string = False
+            elif character in "\r\n":
+                # A literal newline cannot occur in a JSON string. Recover from
+                # malformed prose so it cannot hide a later valid record.
+                starts.clear()
+                has_nested_object.clear()
+                in_string = False
+                escaped = False
+            continue
+        if character == '"':
+            in_string = True
+        elif character == "{":
+            has_nested_object[-1] = True
+            starts.append(index)
+            has_nested_object.append(False)
+        elif character == "}":
+            start = starts.pop()
+            nested = has_nested_object.pop()
+            if not nested:
+                canonical = _canonical_json_object(text[start : index + 1])
+                if canonical is not None:
+                    yield canonical
+            if not starts:
+                in_string = False
+                escaped = False
 
 
 def _deduplicate_matches(matches: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:

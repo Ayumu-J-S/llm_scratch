@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import tempfile
 from collections.abc import Mapping
@@ -11,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import wandb
+from loguru import logger
 from omegaconf import DictConfig, OmegaConf
 
 from benchmarks.contamination import scan_checkpoint_training_data
@@ -34,6 +36,7 @@ from runtime.device import select_device
 from runtime.environment import collect_environment
 from runtime.reproducibility import collect_git_identity, sha256_file
 from training.checkpoint import load_checkpoint_for_generation
+from training.wandb_tracking import call_bounded, finish_run_bounded
 
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
@@ -235,22 +238,50 @@ def _maybe_log_wandb(
     local_result_identity: Mapping[str, Any],
 ) -> None:
     wandb_cfg = benchmark_cfg.get("wandb", {}) or {}
-    if not wandb_cfg.get("enabled", False):
+    mode = str(wandb_cfg.get("mode", "disabled"))
+    if mode == "disabled":
         return
     identity = result["evaluation_identity"]
-    run = wandb.init(
-        project=wandb_cfg.get("project"),
-        entity=wandb_cfg.get("entity"),
-        name=wandb_cfg.get("name"),
-        mode=wandb_cfg.get("mode", "online"),
-        config={
-            "benchmark_evaluation_identity_sha256": result["evaluation_identity_sha256"],
-            "benchmark_suite": identity["suite"],
-            "checkpoint_identity": identity["checkpoint"],
-            "tokenizer_fingerprint": identity["tokenizer_fingerprint"],
-        },
-    )
+    run = None
     try:
+        init_timeout = float(wandb_cfg.get("init_timeout_seconds", 10.0))
+        finish_timeout = float(wandb_cfg.get("finish_timeout_seconds", 30.0))
+        if mode == "online":
+            login_succeeded = call_bounded(
+                lambda: wandb.login(
+                    force=True,
+                    verify=True,
+                    timeout=max(1, math.ceil(init_timeout)),
+                ),
+                timeout_seconds=init_timeout,
+                operation="W&B benchmark login verification",
+            )
+            if not login_succeeded:
+                raise RuntimeError("verified W&B login did not succeed")
+        run = call_bounded(
+            lambda: wandb.init(
+                project=wandb_cfg.get("project"),
+                entity=wandb_cfg.get("entity"),
+                name=wandb_cfg.get("name"),
+                mode=mode,
+                config={
+                    "benchmark_evaluation_identity_sha256": result["evaluation_identity_sha256"],
+                    "benchmark_suite": identity["suite"],
+                    "checkpoint_identity": identity["checkpoint"],
+                    "tokenizer_fingerprint": identity["tokenizer_fingerprint"],
+                },
+                settings=wandb.Settings(init_timeout=init_timeout),
+            ),
+            timeout_seconds=init_timeout,
+            operation="W&B benchmark initialization",
+            on_late_result=lambda late_run: (
+                finish_run_bounded(late_run, timeout_seconds=finish_timeout)
+                if late_run is not None
+                else None
+            ),
+        )
+        if run is None:
+            raise RuntimeError("wandb.init returned no run")
         rows = []
         summary: dict[str, Any] = {
             "benchmark/evaluation_identity_sha256": result["evaluation_identity_sha256"],
@@ -278,22 +309,49 @@ def _maybe_log_wandb(
             summary[f"benchmark/{task_name}/{metric}"] = value
             summary[f"benchmark/{task_name}/correct"] = int(task_result["correct"])
             summary[f"benchmark/{task_name}/total"] = int(task_result["total"])
-        run.summary.update(summary)
-        table = wandb.Table(
-            columns=[
-                "task",
-                "access",
-                "metric",
-                "value",
-                "correct",
-                "total",
-                "protocol_sha256",
-            ],
-            data=rows,
+        call_bounded(
+            lambda: run.summary.update(summary),
+            timeout_seconds=init_timeout,
+            operation="W&B benchmark summary update",
         )
-        run.log({"benchmark/results": table})
+        table = call_bounded(
+            lambda: wandb.Table(
+                columns=[
+                    "task",
+                    "access",
+                    "metric",
+                    "value",
+                    "correct",
+                    "total",
+                    "protocol_sha256",
+                ],
+                data=rows,
+            ),
+            timeout_seconds=init_timeout,
+            operation="W&B benchmark table construction",
+        )
+        call_bounded(
+            lambda: run.log({"benchmark/results": table}),
+            timeout_seconds=init_timeout,
+            operation="W&B benchmark table log",
+        )
+    except Exception as error:
+        logger.warning(
+            "W&B benchmark logging failed after local result commit: {}",
+            error,
+        )
     finally:
-        run.finish()
+        if run is not None:
+            try:
+                finish_run_bounded(
+                    run,
+                    timeout_seconds=float(wandb_cfg.get("finish_timeout_seconds", 30.0)),
+                )
+            except Exception as error:
+                logger.warning(
+                    "W&B benchmark finish failed after local result commit: {}",
+                    error,
+                )
 
 
 def _benchmark_cache(cache_cfg: DictConfig) -> BoundedShardCache:

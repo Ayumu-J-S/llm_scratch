@@ -180,7 +180,13 @@ def conditional_log_probability(
         continuation_logits = logits[start:end]
         targets = torch.tensor(continuation_ids, dtype=torch.long, device=sampler.device)
         log_probabilities = F.log_softmax(continuation_logits.float(), dim=-1)
+        if not bool(torch.isfinite(log_probabilities).all().item()):
+            raise BenchmarkScoringError(
+                "benchmark choice scoring produced non-finite log probabilities"
+            )
         score = log_probabilities.gather(1, targets.unsqueeze(1)).sum()
+        if not bool(torch.isfinite(score).item()):
+            raise BenchmarkScoringError("benchmark choice scoring produced a non-finite score")
     return float(score.item()), len(continuation_ids)
 
 

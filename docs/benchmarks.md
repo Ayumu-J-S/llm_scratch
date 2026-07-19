@@ -104,17 +104,17 @@ block a later clean pretraining run.
 The local result is published atomically beneath the dedicated
 `outputs/benchmark-results` root. Overrides cannot escape that root or redirect
 it into repository input, cache, checkpoint, or artifact namespaces. Existing
-files, symlinks, and hardlinks are never replaced; choose a new result name for
-each run. Per-example traces retain only example IDs, correctness/prediction
-metadata, counts, stop reasons, and hashes. GSM8K generation evidence includes
-a versioned SHA-256 over the canonical-JSON token ID sequence, while the raw IDs
-remain excluded. Prompts, reference text, token IDs, and generated completions
-are never written.
+files, symlinks, and hardlinks are never replaced; the default result name is
+bound to the complete evaluation identity. Per-example traces retain only
+example IDs, correctness/prediction metadata, counts, stop reasons, and hashes.
+GSM8K generation evidence includes a versioned SHA-256 over the canonical-JSON
+token ID sequence, while the raw IDs remain excluded. Prompts, reference text,
+token IDs, and generated completions are never written.
 
-When `benchmark.wandb.enabled=true`, W&B receives summary metrics and one
-two-row table with task, access level, metric, score, correct/total counts, and
-the protocol hash. Raw datasets, prompts, completions, per-example traces, and
-model artifacts are not uploaded.
+When `benchmark.wandb.mode=online` (or `offline` for local capture), W&B
+receives summary metrics and one two-row table with task, access level, metric,
+score, correct/total counts, and the protocol hash. Raw datasets, prompts,
+completions, per-example traces, and model artifacts are not uploaded.
 
 Optional external baselines use the separate
 `llm-scratch-benchmark-external` aggregate recorder. It requires parameter

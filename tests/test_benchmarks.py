@@ -279,7 +279,7 @@ def _benchmark_config(tmp_path: Path, checkpoint: Path, output: str = "result.js
         f"benchmark.cache.dir={tmp_path / 'benchmark-cache'}",
         "benchmark.cache.max_size_bytes=10000000",
         "benchmark.cache.min_free_bytes=0",
-        "benchmark.wandb.enabled=false",
+        "benchmark.wandb.mode=disabled",
     )
     validate_benchmark_config(config)
     return config
@@ -374,10 +374,10 @@ def test_injected_contamination_reports_source_and_document_id(monkeypatch, tmp_
     index = json.loads(index_files[0].read_text(encoding="utf-8"))
     assert index["index_identity_sha256"] == evidence["scan_index_identity_sha256"]
     assert index["index_identity"]["normalization_revision"] == (
-        "normalize-text-identity-nfc-strip-plus-json-object-v3"
+        "normalize-text-identity-nfc-strip-plus-json-object-v4"
     )
     assert index["index_identity"]["json_object_normalization_revision"] == (
-        "normalized-canonical-json-object-sha256-v2"
+        "normalized-embedded-canonical-json-object-sha256-v3"
     )
     assert index["index_identity"]["matcher_revision"] == (
         "collision-verified-rolling-hash-codepoint-v1"
@@ -508,8 +508,15 @@ def test_all_selected_source_records_match_verbatim_and_reordered_json():
                 ensure_ascii=False,
                 indent=2,
             )
+            embedded = (
+                "\ufefftraining metadata\r\n"
+                + '{"payload":'
+                + reordered.replace("\n", "\r\n")
+                + ',"origin":"training"}'
+                + "\r\ntrailing metadata"
+            )
             structured = _document_matches(
-                f"\ufeff  {reordered.replace(chr(10), chr(13) + chr(10))}  ",
+                embedded,
                 source_name="fixture_train",
                 document_id=f"{task.name}-{example.example_id}-reordered",
                 upstream_id=None,
@@ -964,6 +971,41 @@ def test_jcommonsenseqa_rejects_nonfinite_raw_logits(monkeypatch, tmp_path: Path
         )
 
 
+def test_jcommonsenseqa_rejects_nonfinite_normalized_log_probabilities(monkeypatch, tmp_path: Path):
+    checkpoint, _ = _pretraining_checkpoint(tmp_path)
+    sampler = CheckpointSampler.from_checkpoint(checkpoint, device="cpu")
+    prompt = "質問: 生き物を一つ選んでください。\n答え:\n"
+    continuation = "動物"
+    joint_ids, offsets = sampler.tokenizer.encode_with_offsets(prompt + continuation)
+    continuation_start = next(
+        index for index, (start, _end) in enumerate(offsets) if start >= len(prompt)
+    )
+    target_id = joint_ids[-1]
+    continuation_ids = set(joint_ids[continuation_start:])
+    non_target_id = next(
+        token_id
+        for token_id in range(sampler.tokenizer.vocab_size)
+        if token_id not in continuation_ids
+    )
+    original_forward = sampler.model.forward
+
+    def extreme_finite_forward(input_ids: torch.Tensor, *args, **kwargs):
+        logits = original_forward(input_ids, *args, **kwargs)
+        finite_max = torch.finfo(logits.dtype).max
+        logits[0, -1, target_id] = -finite_max
+        logits[0, -1, non_target_id] = finite_max
+        return logits
+
+    monkeypatch.setattr(sampler.model, "forward", extreme_finite_forward)
+    with pytest.raises(BenchmarkScoringError, match="non-finite log probabilities"):
+        conditional_log_probability(
+            sampler,
+            prompt=prompt,
+            continuation=continuation,
+            precision="fp32",
+        )
+
+
 def test_gsm8k_generation_receives_checkpoint_precision(monkeypatch, tmp_path: Path):
     registry, fingerprint = _registry(tmp_path)
     checkpoint, _ = _pretraining_checkpoint(tmp_path)
@@ -1135,6 +1177,7 @@ def test_wandb_receives_only_compact_aggregate_rows(monkeypatch, tmp_path: Path)
         return run
 
     monkeypatch.setattr(runner.wandb, "init", fake_init)
+    monkeypatch.setattr(runner.wandb, "Settings", lambda **kwargs: kwargs)
     monkeypatch.setattr(
         runner.wandb,
         "Table",
@@ -1183,7 +1226,7 @@ def test_wandb_receives_only_compact_aggregate_rows(monkeypatch, tmp_path: Path)
         },
     }
     config = _benchmark_config(tmp_path, tmp_path / "unused.pt")
-    config.benchmark.wandb.enabled = True
+    config.benchmark.wandb.mode = "offline"
 
     runner._maybe_log_wandb(
         config.benchmark,
@@ -1200,3 +1243,26 @@ def test_wandb_receives_only_compact_aggregate_rows(monkeypatch, tmp_path: Path)
     assert "completion_sha256" not in serialized
     assert len(run.logged[0]["benchmark/results"]["data"]) == 2
     assert run.finished is True
+
+
+def test_wandb_failure_cannot_fail_committed_benchmark_result(monkeypatch, tmp_path: Path):
+    import benchmarks.runner as runner
+
+    def fail_init(**_kwargs):
+        raise RuntimeError("tracking unavailable")
+
+    monkeypatch.setattr(runner.wandb, "init", fail_init)
+    monkeypatch.setattr(runner.wandb, "Settings", lambda **kwargs: kwargs)
+    config = _benchmark_config(tmp_path, tmp_path / "unused.pt")
+    config.benchmark.wandb.mode = "offline"
+
+    runner._maybe_log_wandb(
+        config.benchmark,
+        {
+            "evaluation_identity_sha256": "e" * 64,
+            "evaluation_identity": {"suite": {}, "checkpoint": {}, "tokenizer_fingerprint": "t"},
+            "contamination": {},
+            "tasks": {},
+        },
+        local_result_identity={"path": "/local/result.json", "sha256": "r" * 64},
+    )
