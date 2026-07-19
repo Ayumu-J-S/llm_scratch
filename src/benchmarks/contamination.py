@@ -27,12 +27,12 @@ from runtime.reproducibility import sha256_file
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 SHINGLE_CODEPOINTS = 48
-SCAN_REVISION = "BENCH-001-contamination-v11"
-NORMALIZATION_REVISION = "normalize-text-identity-nfc-strip-plus-json-object-v9"
+SCAN_REVISION = "BENCH-001-contamination-v12"
+NORMALIZATION_REVISION = "normalize-text-identity-nfc-strip-plus-json-object-v10"
 SCAN_INDEX_SCHEMA_VERSION = 2
 MATCHER_REVISION = "collision-verified-rolling-hash-codepoint-v1"
 JSON_OBJECT_NORMALIZATION_REVISION = (
-    "constant-memory-leaf-fail-closed-decoded-json-nfc-object-sha256-v8"
+    "constant-memory-leaf-object-string-fail-closed-json-nfc-sha256-v9"
 )
 PRODUCER_IDENTITY_REVISION = "contamination-producer-v1"
 PRODUCER_SOURCE_SCOPE_REVISION = "src-python-pyproject-lock-v1"
@@ -844,10 +844,7 @@ def _canonical_json_objects(
                 limits=budget.limits,
             )
         object_range_index = 0
-        for start, end, structural_depth in _json_string_literal_ranges(
-            candidate_text,
-            max_depth=budget.limits.depth - decode_depth,
-        ):
+        for start, end, structural_depth in _json_string_literal_ranges(candidate_text):
             while (
                 object_range_index < len(object_ranges)
                 and object_ranges[object_range_index][1] <= start
@@ -950,35 +947,23 @@ def _embedded_json_object_ranges(
 
 def _json_string_literal_ranges(
     text: str,
-    *,
-    max_depth: int,
 ) -> Iterable[tuple[int, int, int]]:
-    """Yield syntactically possible JSON string literals in prose or array wrappers."""
+    """Yield complete string literals with constant state, regardless of wrapper depth."""
 
-    if max_depth < 1:
-        return
     start: int | None = None
-    start_depth = 0
-    container_depth = 0
     escaped = False
     for index, character in enumerate(text):
         if start is None:
             if character == '"':
                 start = index
-                start_depth = container_depth
                 escaped = False
-            elif character in "{[":
-                container_depth += 1
-            elif character in "}]" and container_depth:
-                container_depth -= 1
             continue
         if escaped:
             escaped = False
         elif character == "\\":
             escaped = True
         elif character == '"':
-            if start_depth <= max_depth:
-                yield start, index + 1, start_depth
+            yield start, index + 1, 0
             start = None
         elif character in "\r\n":
             start = None

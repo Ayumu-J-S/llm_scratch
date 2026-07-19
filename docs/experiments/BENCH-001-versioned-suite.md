@@ -92,6 +92,9 @@
 | 69 | Supplemental exact-head re-audit | FAIL | Audit of `4c99976` showed that 32 enclosing object wrappers cleared the bounded extractor stack and ignored the selected innermost record. The full scan then published and cached `scan_complete=true`, `contaminated=false`; 31 wrappers detected the target, and deep array wrappers were unaffected |
 | 70 | Repair | Complete | Replaced the object-start stack and overflow-discard branch with a single-pass constant-memory leaf extractor. It tracks only object depth plus the newest candidate start/depth, yielding safe innermost objects at local depth while never parsing an enclosing deep candidate. Bumped all scan/normalizer/cache identities |
 | 71 | Focused, canonical, and full validation | PASS | Direct and full-scan regressions detect the selected record under 40 object, array, and mixed wrapper layers and prove the cached report is contaminated. The 1,200-level array/object and 4,095-prefix controls still pass; 83 focused tests pass. Pinned canonical 40-level object/mixed acceptance is 128/128 for both tasks. The official CPU gate passes 487 tests with 1 skipped plus Ruff, Hydra, lock-drift, and disabled/offline process-tree smoke |
+| 72 | Supplemental exact-head re-audit | FAIL | Audit of `4d8a254` composed the accepted adversaries and found that a reordered, ASCII-escaped NFD selected record serialized as a JSON string inside 40 array layers was silently skipped. The full scan published and cached `scan_complete=true`, `contaminated=false`; depth 30 detected, depths 31-32 failed closed, and depth 33 or greater returned a false clean result |
+| 73 | Repair | Complete | Made the constant-memory string-literal extractor mirror leaf-object handling: every complete literal is decoded at local depth independent of its physical outer wrapper, while recursive decoded-string depth and the shared byte/node/string budgets remain hard limits. Bumped all scan/normalizer/cache identities |
+| 74 | Focused and full validation | PASS | Separate direct and full-scan regressions detect reversed-key NFD/ASCII records as raw JSON inside 40 object layers and after JSON-string serialization inside 40 array and mixed layers; every cached report remains contaminated. An 8,193-literal document fails closed on the shared string budget; unclosed-string/newline recovery, 1,200-level hostile wrappers, and the 4,095-prefix incomplete-scan control remain intact. The focused gate passes 86 tests and the official CPU/static gate passes 490 tests with 1 skipped; no broad training-corpus scan or GPU work ran |
 
 ## Resolved protocol
 
@@ -122,8 +125,11 @@
   document identity and cannot publish reusable complete evidence. A lexical
   container-depth preflight makes parser-overdepth behavior independent of the
   Python runtime's recursion threshold. A constant-memory leaf-object extractor
-  still recovers safe innermost records from arbitrarily deep object, array, or
-  mixed wrappers without parsing the over-depth envelope.
+  and an analogous complete-string-literal extractor still recover safe
+  innermost records from arbitrarily deep object, array, or mixed wrappers
+  without parsing the over-depth envelope. Physical wrapper depth does not
+  consume logical decoded-string depth, while the shared work budgets still
+  fail the whole document scan closed.
 
 ## Review selection
 
@@ -141,7 +147,7 @@
 
 ## Current conclusion
 
-All seventeen failed review/audit cycles remain visible. Their thirty-five findings are
+All eighteen failed review/audit cycles remain visible. Their thirty-six findings are
 repaired without weakening the fixed protocol or complete contamination gate:
 cheap context incompatibility precedes scanning, both tasks honor checkpoint
 precision, external records are pinned, evaluator/runtime and dirty source
@@ -169,7 +175,8 @@ non-matches rather than scan crashes, while actual traversal-budget exhaustion
 is an explicit incomplete-scan error that cannot become a cached PASS. Lexical
 container-depth validation prevents Python-version-specific parser recursion
 behavior from changing that distinction, while constant-memory leaf extraction
-prevents deep enclosing objects from hiding a safe innermost benchmark record;
+prevents deep enclosing objects or arrays from hiding a safe innermost benchmark
+record or serialized record string;
 canonical acceptance covers every selected development record in both tasks.
 External comparisons separately attest the compiled prompt and scorer hashes,
 and generation rejects non-finite logits before any GSM8K token or score is

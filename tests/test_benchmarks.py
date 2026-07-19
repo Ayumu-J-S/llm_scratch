@@ -379,10 +379,10 @@ def test_injected_contamination_reports_source_and_document_id(monkeypatch, tmp_
     index = json.loads(index_files[0].read_text(encoding="utf-8"))
     assert index["index_identity_sha256"] == evidence["scan_index_identity_sha256"]
     assert index["index_identity"]["normalization_revision"] == (
-        "normalize-text-identity-nfc-strip-plus-json-object-v9"
+        "normalize-text-identity-nfc-strip-plus-json-object-v10"
     )
     assert index["index_identity"]["json_object_normalization_revision"] == (
-        "constant-memory-leaf-fail-closed-decoded-json-nfc-object-sha256-v8"
+        "constant-memory-leaf-object-string-fail-closed-json-nfc-sha256-v9"
     )
     assert index["index_identity"]["matcher_revision"] == (
         "collision-verified-rolling-hash-codepoint-v1"
@@ -604,22 +604,22 @@ def test_decoded_json_traversal_enforces_each_exact_boundary():
         identities(decoded_strings=1)
 
     nested_record = '{"key":"value"}'
-    array_wrapped_string = "[[" + json.dumps(nested_record) + "]]"
+    recursively_encoded = json.dumps(json.dumps(nested_record))
     permissive = _JsonTraversalLimits(
-        total_bytes=1_000,
-        nodes=16,
-        depth=4,
-        decoded_strings=8,
-    )
-    shallow = _JsonTraversalLimits(
         total_bytes=1_000,
         nodes=16,
         depth=3,
         decoded_strings=8,
     )
-    assert list(_canonical_json_objects(array_wrapped_string, limits=permissive)) == [nested_record]
+    shallow = _JsonTraversalLimits(
+        total_bytes=1_000,
+        nodes=16,
+        depth=2,
+        decoded_strings=8,
+    )
+    assert list(_canonical_json_objects(recursively_encoded, limits=permissive)) == [nested_record]
     with pytest.raises(_JsonTraversalLimitExceeded, match="depth"):
-        list(_canonical_json_objects(array_wrapped_string, limits=shallow))
+        list(_canonical_json_objects(recursively_encoded, limits=shallow))
 
 
 def test_decoded_json_rejects_recursive_normalized_key_collisions():
@@ -647,6 +647,9 @@ def test_hostile_json_depth_is_a_non_match_and_later_record_still_scans():
     for hostile in (hostile_array, hostile_object):
         assert list(_canonical_json_objects(hostile + "\n" + serialized))[-1] == serialized
 
+    malformed_string = '"unterminated { [ \\" brace noise\n'
+    assert list(_canonical_json_objects(malformed_string + serialized))[-1] == serialized
+
 
 def _structured_adversarial_record(example: BenchmarkExample) -> str:
     reordered = {
@@ -658,6 +661,17 @@ def _structured_adversarial_record(example: BenchmarkExample) -> str:
 
 def _decoded_string_budget_document(example: BenchmarkExample, *, prefixes: int) -> str:
     return ('{"n":"x"}\n' * prefixes) + _structured_adversarial_record(example)
+
+
+def _deep_serialized_wrapper(target: str, wrapper_name: str, *, depth: int = 40) -> str:
+    if wrapper_name == "object":
+        return '{"wrapper":' * depth + target + "}" * depth
+    serialized = json.dumps(target, ensure_ascii=True)
+    if wrapper_name == "array_serialized":
+        return "[" * depth + serialized + "]" * depth
+    if wrapper_name == "mixed_serialized":
+        return '[{"wrapper":' * depth + serialized + "}]" * depth
+    raise ValueError(f"unknown deep serialized wrapper: {wrapper_name}")
 
 
 def test_selected_record_survives_overdepth_object_array_and_mixed_wrappers(tmp_path: Path):
@@ -676,6 +690,8 @@ def test_selected_record_survives_overdepth_object_array_and_mixed_wrappers(tmp_
         "object": '{"wrapper":' * 40 + target + "}" * 40,
         "array": "[" * 40 + target + "]" * 40,
         "mixed": '{"wrapper":[' * 40 + target + "]}" * 40,
+        "array_serialized": _deep_serialized_wrapper(target, "array_serialized"),
+        "mixed_serialized": _deep_serialized_wrapper(target, "mixed_serialized"),
     }
 
     for wrapper_name, text in wrappers.items():
@@ -694,9 +710,11 @@ def test_selected_record_survives_overdepth_object_array_and_mixed_wrappers(tmp_
         )
 
 
+@pytest.mark.parametrize("wrapper_name", ["object", "array_serialized", "mixed_serialized"])
 def test_full_scan_cannot_cache_clean_evidence_for_overdepth_wrapped_record(
     monkeypatch,
     tmp_path: Path,
+    wrapper_name: str,
 ):
     registry, fingerprint = _registry(tmp_path)
     _, checkpoint_config = _pretraining_checkpoint(tmp_path)
@@ -709,7 +727,7 @@ def test_full_scan_cannot_cache_clean_evidence_for_overdepth_wrapped_record(
     )
     example = next(task for task in suite.tasks if task.name == "jcommonsenseqa").examples[0]
     target = _structured_adversarial_record(example)
-    text = '{"wrapper":' * 40 + target + "}" * 40
+    text = _deep_serialized_wrapper(target, wrapper_name)
     document_id = "e" * 64
 
     monkeypatch.setattr(
@@ -722,7 +740,7 @@ def test_full_scan_cannot_cache_clean_evidence_for_overdepth_wrapped_record(
                     metadata={
                         "document_id": document_id,
                         "content_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
-                        "upstream_id": "deep-wrapper",
+                        "upstream_id": wrapper_name,
                     },
                 )
             ]
@@ -742,6 +760,13 @@ def test_full_scan_cannot_cache_clean_evidence_for_overdepth_wrapped_record(
     cached = json.loads(index_files[0].read_text(encoding="utf-8"))
     assert cached["report"]["contaminated"] is True
     assert cached["report"]["matches"]
+
+
+def test_many_leaf_json_strings_still_exhaust_the_shared_document_budget():
+    text = "[" + ",".join(json.dumps("x") for _ in range(8_193)) + "]"
+
+    with pytest.raises(_JsonTraversalLimitExceeded, match="decoded_strings"):
+        list(_canonical_json_objects(text))
 
 
 def test_default_decoded_string_budget_exhaustion_fails_closed(tmp_path: Path):
